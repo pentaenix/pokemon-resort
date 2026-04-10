@@ -1,6 +1,6 @@
-# Title Screen Demo
+# Pokemon Resort UI Demo
 
-A small SDL2 title-screen project for macOS that is driven by `config/title_screen.json`.
+A small SDL2 UI project for macOS that is driven by `config/title_screen.json`.
 
 ## Expected asset layout
 
@@ -29,6 +29,12 @@ config/
 
 ## Build on macOS
 
+Run all commands from the project root:
+
+```bash
+cd /Users/vanta/Desktop/title_screen_demo/pokemon-resort
+```
+
 Install dependencies:
 
 ```bash
@@ -48,6 +54,47 @@ Run with a custom config path:
 ```bash
 ./build/title_screen_demo /absolute/path/to/title_screen.json
 ```
+
+## PKHeX bridge smoke test
+
+This repo now includes a small .NET helper under [`tools/pkhex_bridge`](/Users/vanta/Desktop/title_screen_demo/tools/pkhex_bridge) that is intended to be the safe integration boundary with `PKHeX.Core`.
+
+On macOS, build it separately with the .NET SDK installed:
+
+```bash
+cd /Users/vanta/Desktop/title_screen_demo/tools/pkhex_bridge
+dotnet restore
+dotnet build
+```
+
+Run it directly:
+
+```bash
+dotnet run --project /Users/vanta/Desktop/title_screen_demo/tools/pkhex_bridge/PKHeXBridge.csproj -- "/absolute/path/to/save.sav"
+```
+
+For export or bundling, publish a self-contained macOS helper:
+
+```bash
+cd /Users/vanta/Desktop/title_screen_demo/pokemon-resort
+cmake --build build --target pkhex_bridge_publish
+```
+
+That emits the bridge to:
+
+```text
+pokemon-resort/build/pkhex_bridge/osx-arm64/
+```
+
+The native app now looks for the bridge in this order:
+
+- `PKHEX_BRIDGE_EXECUTABLE` env override
+- bundled helper next to the app executable
+- bundled helper in `MyApp.app/Contents/Resources/pkhex_bridge/`
+- published helper in `tools/pkhex_bridge/publish/` or `pokemon-resort/build/pkhex_bridge/`
+- development fallback to `dotnet run --project tools/pkhex_bridge/PKHeXBridge.csproj`
+
+When the native app starts, [`App.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/App.cpp) performs a startup-only smoke test against the first `.sav` file it finds in [`/Users/vanta/Desktop/title_screen_demo/saves`](/Users/vanta/Desktop/title_screen_demo/saves), if present, and logs the bridge command plus success/failure details to stderr.
 
 ## Changing how far the main logo moves
 
@@ -102,6 +149,7 @@ src/
     Font.cpp
     Json.cpp
     ConfigLoader.cpp
+    SaveDataStore.cpp
   ui/
     TitleScreen.cpp
 include/

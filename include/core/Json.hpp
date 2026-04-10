@@ -35,5 +35,6 @@ private:
 };
 
 JsonValue parseJsonFile(const std::string& path);
+JsonValue parseJsonText(const std::string& text);
 
 } // namespace pr

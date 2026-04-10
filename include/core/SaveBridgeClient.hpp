@@ -1,0 +1,24 @@
+#pragma once
+
+#include <string>
+
+namespace pr {
+
+struct SaveBridgeProbeResult {
+    bool launched = false;
+    bool success = false;
+    int exit_code = -1;
+    std::string bridge_path;
+    std::string command;
+    std::string save_path;
+    std::string stdout_text;
+    std::string stderr_text;
+    std::string error_message;
+};
+
+SaveBridgeProbeResult probeSaveWithBridge(
+    const std::string& project_root,
+    const char* argv0,
+    const std::string& save_path);
+
+} // namespace pr

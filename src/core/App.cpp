@@ -4,6 +4,7 @@
 #include "core/ConfigLoader.hpp"
 #include "core/InputBindings.hpp"
 #include "core/SaveDataStore.hpp"
+#include "ui/TransferTicketSandboxScreen.hpp"
 #include "ui/TitleScreen.hpp"
 
 #include <SDL.h>
@@ -29,6 +30,11 @@ struct RendererDestroy { void operator()(SDL_Renderer* p) const { if (p) SDL_Des
 
 using WindowPtr = std::unique_ptr<SDL_Window, WindowDestroy>;
 using RendererPtr = std::unique_ptr<SDL_Renderer, RendererDestroy>;
+
+enum class ActiveScreen {
+    Title,
+    TransferTicketSandbox
+};
 
 std::string findProjectRoot() {
     std::vector<fs::path> candidates {
@@ -92,7 +98,6 @@ std::string resolveSaveDirectory(const TitleScreenConfig& config, const std::str
 } // namespace
 
 int runApplication(const char* argv0, const char* config_path_override) {
-    (void)argv0;
     std::string root = findProjectRoot();
     std::string config_path = config_path_override ? config_path_override : (fs::path(root) / "config" / "title_screen.json").string();
     TitleScreenConfig config = loadConfigFromJson(config_path);
@@ -131,6 +136,7 @@ int runApplication(const char* argv0, const char* config_path_override) {
 
     Assets assets = loadAssets(renderer.get(), config, root);
     TitleScreen title_screen(config, std::move(assets));
+    std::unique_ptr<TransferTicketSandboxScreen> transfer_ticket_sandbox;
     if (config.persistence.save_options) {
         std::string load_error;
         std::string loaded_from_path;
@@ -164,6 +170,7 @@ int runApplication(const char* argv0, const char* config_path_override) {
     bool running = true;
     Uint64 last_counter = SDL_GetPerformanceCounter();
     bool menu_music_playing = false;
+    ActiveScreen active_screen = ActiveScreen::Title;
 
     while (running) {
         SDL_Event event;
@@ -176,21 +183,72 @@ int runApplication(const char* argv0, const char* config_path_override) {
             if (event.type == SDL_KEYDOWN && !event.key.repeat) {
                 const SDL_Keycode key = event.key.keysym.sym;
                 if (matchesBinding(key, config.input.navigate_up_keys)) {
-                    title_screen.onNavigate(-1);
+                    if (active_screen == ActiveScreen::Title) {
+                        title_screen.onNavigate(-1);
+                    } else {
+                        if (transfer_ticket_sandbox) {
+                            transfer_ticket_sandbox->onNavigate(-1);
+                        }
+                    }
                     continue;
                 }
                 if (matchesBinding(key, config.input.navigate_down_keys)) {
-                    title_screen.onNavigate(1);
+                    if (active_screen == ActiveScreen::Title) {
+                        title_screen.onNavigate(1);
+                    } else {
+                        if (transfer_ticket_sandbox) {
+                            transfer_ticket_sandbox->onNavigate(1);
+                        }
+                    }
                     continue;
                 }
                 if (matchesBinding(key, config.input.back_keys)) {
-                    title_screen.onBackPressed();
+                    if (active_screen == ActiveScreen::Title) {
+                        title_screen.onBackPressed();
+                    } else {
+                        if (transfer_ticket_sandbox) {
+                            transfer_ticket_sandbox->onBackPressed();
+                        }
+                    }
                     continue;
                 }
-                if (matchesBinding(key, config.input.forward_keys) && title_screen.acceptsAdvanceInput()) {
-                    title_screen.onAdvancePressed();
+                if (matchesBinding(key, config.input.forward_keys)) {
+                    if (active_screen == ActiveScreen::Title) {
+                        if (title_screen.acceptsAdvanceInput()) {
+                            title_screen.onAdvancePressed();
+                        }
+                    } else {
+                        if (transfer_ticket_sandbox) {
+                            transfer_ticket_sandbox->onAdvancePressed();
+                        }
+                    }
                     continue;
                 }
+            }
+
+            if (event.type == SDL_MOUSEMOTION && config.input.accept_mouse) {
+                if (active_screen == ActiveScreen::TransferTicketSandbox) {
+                    int window_w = 0;
+                    int window_h = 0;
+                    SDL_GetWindowSize(window.get(), &window_w, &window_h);
+
+                    int logical_x = 0;
+                    int logical_y = 0;
+                    if (mapWindowToLogical(
+                            event.motion.x,
+                            event.motion.y,
+                            window_w,
+                            window_h,
+                            config.window.virtual_width,
+                            config.window.virtual_height,
+                            logical_x,
+                            logical_y)) {
+                        if (transfer_ticket_sandbox) {
+                            transfer_ticket_sandbox->handlePointerMoved(logical_x, logical_y);
+                        }
+                    }
+                }
+                continue;
             }
 
             if (event.type == SDL_MOUSEBUTTONDOWN && config.input.accept_mouse) {
@@ -209,7 +267,38 @@ int runApplication(const char* argv0, const char* config_path_override) {
                         config.window.virtual_height,
                         logical_x,
                         logical_y)) {
-                    title_screen.handlePointerPressed(logical_x, logical_y);
+                    if (active_screen == ActiveScreen::Title) {
+                        title_screen.handlePointerPressed(logical_x, logical_y);
+                    } else {
+                        if (transfer_ticket_sandbox) {
+                            transfer_ticket_sandbox->handlePointerPressed(logical_x, logical_y);
+                        }
+                    }
+                }
+                continue;
+            }
+
+            if (event.type == SDL_MOUSEBUTTONUP && config.input.accept_mouse) {
+                if (active_screen == ActiveScreen::TransferTicketSandbox) {
+                    int window_w = 0;
+                    int window_h = 0;
+                    SDL_GetWindowSize(window.get(), &window_w, &window_h);
+
+                    int logical_x = 0;
+                    int logical_y = 0;
+                    if (mapWindowToLogical(
+                            event.button.x,
+                            event.button.y,
+                            window_w,
+                            window_h,
+                            config.window.virtual_width,
+                            config.window.virtual_height,
+                            logical_x,
+                            logical_y)) {
+                        if (transfer_ticket_sandbox) {
+                            transfer_ticket_sandbox->handlePointerReleased(logical_x, logical_y);
+                        }
+                    }
                 }
                 continue;
             }
@@ -217,18 +306,42 @@ int runApplication(const char* argv0, const char* config_path_override) {
             if (event.type == SDL_CONTROLLERBUTTONDOWN && config.input.accept_controller) {
                 switch (event.cbutton.button) {
                     case SDL_CONTROLLER_BUTTON_DPAD_UP:
-                        title_screen.onNavigate(-1);
+                        if (active_screen == ActiveScreen::Title) {
+                            title_screen.onNavigate(-1);
+                        } else {
+                            if (transfer_ticket_sandbox) {
+                                transfer_ticket_sandbox->onNavigate(-1);
+                            }
+                        }
                         break;
                     case SDL_CONTROLLER_BUTTON_DPAD_DOWN:
-                        title_screen.onNavigate(1);
+                        if (active_screen == ActiveScreen::Title) {
+                            title_screen.onNavigate(1);
+                        } else {
+                            if (transfer_ticket_sandbox) {
+                                transfer_ticket_sandbox->onNavigate(1);
+                            }
+                        }
                         break;
                     case SDL_CONTROLLER_BUTTON_A:
-                        if (title_screen.acceptsAdvanceInput()) {
-                            title_screen.onAdvancePressed();
+                        if (active_screen == ActiveScreen::Title) {
+                            if (title_screen.acceptsAdvanceInput()) {
+                                title_screen.onAdvancePressed();
+                            }
+                        } else {
+                            if (transfer_ticket_sandbox) {
+                                transfer_ticket_sandbox->onAdvancePressed();
+                            }
                         }
                         break;
                     case SDL_CONTROLLER_BUTTON_B:
-                        title_screen.onBackPressed();
+                        if (active_screen == ActiveScreen::Title) {
+                            title_screen.onBackPressed();
+                        } else {
+                            if (transfer_ticket_sandbox) {
+                                transfer_ticket_sandbox->onBackPressed();
+                            }
+                        }
                         break;
                     default:
                         break;
@@ -240,9 +353,31 @@ int runApplication(const char* argv0, const char* config_path_override) {
         double dt = static_cast<double>(now - last_counter) / static_cast<double>(SDL_GetPerformanceFrequency());
         last_counter = now;
 
-        title_screen.update(dt);
+        if (active_screen == ActiveScreen::Title) {
+            title_screen.update(dt);
+            if (title_screen.consumeOpenTransferSandboxRequest()) {
+                if (!transfer_ticket_sandbox) {
+                    transfer_ticket_sandbox = std::make_unique<TransferTicketSandboxScreen>(
+                        renderer.get(),
+                        config.window,
+                        config.assets.font,
+                        root);
+                }
+                transfer_ticket_sandbox->enter();
+                active_screen = ActiveScreen::TransferTicketSandbox;
+            }
+        } else {
+            transfer_ticket_sandbox->update(dt);
+            if (transfer_ticket_sandbox->consumeReturnToMainMenuRequest()) {
+                title_screen.returnToMainMenuFromTransferSandbox();
+                active_screen = ActiveScreen::Title;
+            }
+        }
 
-        if (title_screen.wantsMenuMusic() && audio.isMusicLoaded()) {
+        const bool wants_menu_music =
+            active_screen == ActiveScreen::Title && title_screen.wantsMenuMusic();
+
+        if (wants_menu_music && audio.isMusicLoaded()) {
             audio.setMusicVolume(title_screen.musicVolume());
             if (!menu_music_playing) {
                 audio.playMusicLoop();
@@ -254,7 +389,10 @@ int runApplication(const char* argv0, const char* config_path_override) {
         }
 
         audio.setSfxVolume(title_screen.sfxVolume());
-        if (title_screen.consumeButtonSfxRequest()) {
+        if ((active_screen == ActiveScreen::Title && title_screen.consumeButtonSfxRequest()) ||
+            (active_screen == ActiveScreen::TransferTicketSandbox &&
+             transfer_ticket_sandbox &&
+             transfer_ticket_sandbox->consumeButtonSfxRequest())) {
             audio.playButtonSfx();
         }
         if (config.persistence.save_options && title_screen.consumeUserSettingsSaveRequest()) {
@@ -272,7 +410,11 @@ int runApplication(const char* argv0, const char* config_path_override) {
             }
         }
 
-        title_screen.render(renderer.get());
+        if (active_screen == ActiveScreen::Title) {
+            title_screen.render(renderer.get());
+        } else {
+            transfer_ticket_sandbox->render(renderer.get());
+        }
         SDL_RenderPresent(renderer.get());
     }
 

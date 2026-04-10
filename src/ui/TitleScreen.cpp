@@ -287,6 +287,12 @@ bool TitleScreen::consumeUserSettingsSaveRequest() {
     return requested;
 }
 
+bool TitleScreen::consumeOpenTransferSandboxRequest() {
+    const bool requested = open_transfer_sandbox_requested_;
+    open_transfer_sandbox_requested_ = false;
+    return requested;
+}
+
 UserSettings TitleScreen::currentUserSettings() const {
     UserSettings settings;
     settings.text_speed_index = wrapIndex(text_speed_index_, 3);
@@ -300,6 +306,11 @@ void TitleScreen::applyUserSettings(const UserSettings& settings) {
     music_volume_ = clampVolume(settings.music_volume);
     sfx_volume_ = clampVolume(settings.sfx_volume);
     option_textures_dirty_ = true;
+}
+
+void TitleScreen::returnToMainMenuFromTransferSandbox() {
+    selected_main_menu_index_ = 1;
+    changeState(TitleState::MainMenuIdle);
 }
 
 void TitleScreen::changeState(TitleState next) {
@@ -421,8 +432,7 @@ void TitleScreen::activateMainMenuSelection() {
             changeState(TitleState::MainMenuToSection);
             break;
         case 1:
-            pending_section_ = SectionKind::Transfer;
-            changeState(TitleState::MainMenuToSection);
+            open_transfer_sandbox_requested_ = true;
             break;
         case 2:
             changeState(TitleState::OptionsIntro);
@@ -466,9 +476,6 @@ void TitleScreen::returnToMainMenu() {
         switch (current_section_) {
             case SectionKind::Resort:
                 selected_main_menu_index_ = 0;
-                break;
-            case SectionKind::Transfer:
-                selected_main_menu_index_ = 1;
                 break;
         }
     }
@@ -1011,8 +1018,6 @@ std::string TitleScreen::currentSectionTitle() const {
     switch (current_section_) {
         case SectionKind::Resort:
             return "RESORT";
-        case SectionKind::Transfer:
-            return "TRANSFER";
     }
     return "SECTION";
 }

@@ -18,8 +18,11 @@ add_executable(title_screen_demo
     src/core/InputBindings.cpp
     src/core/Json.cpp
     src/core/ConfigLoader.cpp
+    src/core/SaveBridgeClient.cpp
+    src/core/SaveLibrary.cpp
     src/core/SaveDataStore.cpp
     src/ui/TitleScreen.cpp
+    src/ui/TransferTicketSandboxScreen.cpp
 )
 
 target_include_directories(title_screen_demo PRIVATE include)
@@ -29,3 +32,14 @@ target_link_libraries(title_screen_demo PRIVATE SDL2::SDL2 SDL2::SDL2main SDL2_i
 if(APPLE)
     target_link_libraries(title_screen_demo PRIVATE "-framework AVFoundation" "-framework Foundation")
 endif()
+
+add_custom_target(pkhex_bridge_publish
+    COMMAND dotnet publish
+        ${CMAKE_SOURCE_DIR}/../tools/pkhex_bridge/PKHeXBridge.csproj
+        -c Release
+        -r osx-arm64
+        --self-contained true
+        -o ${CMAKE_BINARY_DIR}/pkhex_bridge/osx-arm64
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    COMMENT "Publishing self-contained PKHeX bridge for macOS"
+)

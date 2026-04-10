@@ -1,11 +1,36 @@
 #include "core/Json.hpp"
 
 #include <cctype>
+#include <cstdint>
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
 
 namespace pr {
+
+namespace {
+
+void appendCodepointUtf8(std::string& out, unsigned codepoint) {
+    if (codepoint <= 0x7F) {
+        out.push_back(static_cast<char>(codepoint));
+    } else if (codepoint <= 0x7FF) {
+        out.push_back(static_cast<char>(0xC0 | (codepoint >> 6)));
+        out.push_back(static_cast<char>(0x80 | (codepoint & 0x3F)));
+    } else {
+        out.push_back(static_cast<char>(0xE0 | (codepoint >> 12)));
+        out.push_back(static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F)));
+        out.push_back(static_cast<char>(0x80 | (codepoint & 0x3F)));
+    }
+}
+
+int hexValue(char c) {
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'a' && c <= 'f') return 10 + (c - 'a');
+    if (c >= 'A' && c <= 'F') return 10 + (c - 'A');
+    return -1;
+}
+
+} // namespace
 
 bool JsonValue::isObject() const { return std::holds_alternative<Object>(value_); }
 bool JsonValue::isArray() const { return std::holds_alternative<Array>(value_); }
@@ -101,6 +126,17 @@ private:
                     case 'n': out.push_back('\n'); break;
                     case 'r': out.push_back('\r'); break;
                     case 't': out.push_back('\t'); break;
+                    case 'u': {
+                        if (pos_ + 4 > text_.size()) throw std::runtime_error("Bad JSON unicode escape");
+                        unsigned codepoint = 0;
+                        for (int i = 0; i < 4; ++i) {
+                            const int value = hexValue(text_[pos_++]);
+                            if (value < 0) throw std::runtime_error("Bad JSON unicode escape");
+                            codepoint = (codepoint << 4) | static_cast<unsigned>(value);
+                        }
+                        appendCodepointUtf8(out, codepoint);
+                        break;
+                    }
                     default: throw std::runtime_error("Unsupported JSON escape");
                 }
             } else {
@@ -155,6 +191,10 @@ JsonValue parseJsonFile(const std::string& path) {
     std::stringstream buffer;
     buffer << input.rdbuf();
     return Parser(buffer.str()).parse();
+}
+
+JsonValue parseJsonText(const std::string& text) {
+    return Parser(text).parse();
 }
 
 } // namespace pr
