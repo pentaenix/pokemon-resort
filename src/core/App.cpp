@@ -4,16 +4,24 @@
 #include "core/ConfigLoader.hpp"
 #include "core/InputBindings.hpp"
 #include "core/SaveDataStore.hpp"
-#include "ui/TransferTicketSandboxScreen.hpp"
+#include "core/SaveLibrary.hpp"
+#include "ui/LoadingScreen.hpp"
+#include "ui/TransferSaveSelection.hpp"
+#include "ui/TransferSystemScreen.hpp"
+#include "ui/TransferTicketScreen.hpp"
 #include "ui/TitleScreen.hpp"
 
 #include <SDL.h>
 #include <SDL_image.h>
 #include <SDL_ttf.h>
+#include <algorithm>
+#include <chrono>
 #include <filesystem>
+#include <future>
 #include <iostream>
 #include <memory>
 #include <stdexcept>
+#include <string>
 #include <vector>
 
 namespace fs = std::filesystem;
@@ -33,8 +41,20 @@ using RendererPtr = std::unique_ptr<SDL_Renderer, RendererDestroy>;
 
 enum class ActiveScreen {
     Title,
-    TransferTicketSandbox
+    Loading,
+    TransferTicket,
+    TransferSystem
 };
+
+enum class ActiveMusicTrack {
+    None,
+    Menu,
+    Transfer
+};
+
+double clamp01(double value) {
+    return std::max(0.0, std::min(1.0, value));
+}
 
 std::string findProjectRoot() {
     std::vector<fs::path> candidates {
@@ -43,43 +63,12 @@ std::string findProjectRoot() {
         fs::current_path().parent_path().parent_path()
     };
     for (const auto& c : candidates) {
-        if (fs::exists(c / "config" / "title_screen.json")) return c.string();
+        if (fs::exists(c / "config" / "app.json") &&
+            fs::exists(c / "config" / "title_screen.json")) {
+            return c.string();
+        }
     }
-    throw std::runtime_error("Could not locate project root with config/title_screen.json");
-}
-
-bool mapWindowToLogical(
-    int window_x,
-    int window_y,
-    int window_w,
-    int window_h,
-    int logical_w,
-    int logical_h,
-    int& logical_x,
-    int& logical_y) {
-    if (window_w <= 0 || window_h <= 0 || logical_w <= 0 || logical_h <= 0) {
-        return false;
-    }
-
-    const double scale = std::min(
-        static_cast<double>(window_w) / static_cast<double>(logical_w),
-        static_cast<double>(window_h) / static_cast<double>(logical_h));
-
-    const double viewport_w = static_cast<double>(logical_w) * scale;
-    const double viewport_h = static_cast<double>(logical_h) * scale;
-    const double viewport_x = (static_cast<double>(window_w) - viewport_w) * 0.5;
-    const double viewport_y = (static_cast<double>(window_h) - viewport_h) * 0.5;
-
-    if (window_x < viewport_x ||
-        window_y < viewport_y ||
-        window_x >= viewport_x + viewport_w ||
-        window_y >= viewport_y + viewport_h) {
-        return false;
-    }
-
-    logical_x = static_cast<int>((static_cast<double>(window_x) - viewport_x) / scale);
-    logical_y = static_cast<int>((static_cast<double>(window_y) - viewport_y) / scale);
-    return true;
+    throw std::runtime_error("Could not locate project root with config/app.json and config/title_screen.json");
 }
 
 std::string resolveSaveDirectory(const TitleScreenConfig& config, const std::string& root) {
@@ -95,12 +84,111 @@ std::string resolveSaveDirectory(const TitleScreenConfig& config, const std::str
     return (fs::path(root) / "save").string();
 }
 
+std::string gameTitleFromId(const std::string& game_id) {
+    if (game_id == "pokemon_hgss") {
+        return "Pokemon HG/SS";
+    }
+    if (game_id == "pokemon_heartgold") {
+        return "Pokemon HeartGold";
+    }
+    if (game_id == "pokemon_soulsilver") {
+        return "Pokemon SoulSilver";
+    }
+    if (game_id == "pokemon_firered") {
+        return "Pokemon FireRed";
+    }
+    if (game_id == "pokemon_leafgreen") {
+        return "Pokemon LeafGreen";
+    }
+
+    std::string title = game_id;
+    for (char& c : title) {
+        if (c == '_') {
+            c = ' ';
+        }
+    }
+
+    bool capitalize_next = true;
+    for (char& c : title) {
+        if (c == ' ') {
+            capitalize_next = true;
+            continue;
+        }
+        if (capitalize_next && c >= 'a' && c <= 'z') {
+            c = static_cast<char>(c - 'a' + 'A');
+        }
+        capitalize_next = false;
+    }
+    return title;
+}
+
+std::vector<TransferSaveSelection> transferSelectionsFromRecords(const std::vector<SaveFileRecord>& records) {
+    std::vector<TransferSaveSelection> selections;
+    selections.reserve(records.size());
+    for (const SaveFileRecord& record : records) {
+        if (!record.transfer_summary) {
+            continue;
+        }
+
+        const TransferSaveSummary& summary = *record.transfer_summary;
+        TransferSaveSelection selection;
+        selection.source_path = record.path;
+        selection.source_filename = record.filename;
+        selection.game_key = summary.game_id;
+        selection.game_title = gameTitleFromId(summary.game_id);
+        selection.trainer_name = summary.player_name;
+        selection.time = summary.play_time;
+        selection.pokedex = std::to_string(summary.pokedex_count);
+        selection.badges = std::to_string(summary.badges);
+        selection.party_sprites = summary.party;
+        selections.push_back(std::move(selection));
+    }
+    return selections;
+}
+
 } // namespace
+
+int clearTransferSaveCache(const char* config_path_override) {
+    const std::string root = findProjectRoot();
+    const std::string app_config_path = (fs::path(root) / "config" / "app.json").string();
+    const std::string config_path = config_path_override
+        ? config_path_override
+        : (fs::path(root) / "config" / "title_screen.json").string();
+    AppConfig app_config = loadAppConfigFromJson(app_config_path);
+    TitleScreenConfig config = loadConfigFromJson(config_path);
+    config.window = app_config.window;
+    config.input = app_config.input;
+    config.audio = app_config.audio;
+
+    if (SDL_Init(0) != 0) {
+        std::cerr << "Warning: SDL_Init failed while clearing save cache: " << SDL_GetError() << '\n';
+    }
+
+    const fs::path cache_path = fs::path(resolveSaveDirectory(config, root)) / "transfer_save_cache.json";
+    std::error_code error;
+    const bool removed = fs::remove(cache_path, error);
+    SDL_Quit();
+
+    if (error) {
+        std::cerr << "Failed to clear transfer save cache at "
+                  << cache_path << ": " << error.message() << '\n';
+        return 1;
+    }
+
+    std::cout << (removed ? "Cleared" : "No cache found at")
+              << " " << cache_path << '\n';
+    return 0;
+}
 
 int runApplication(const char* argv0, const char* config_path_override) {
     std::string root = findProjectRoot();
+    const std::string app_config_path = (fs::path(root) / "config" / "app.json").string();
     std::string config_path = config_path_override ? config_path_override : (fs::path(root) / "config" / "title_screen.json").string();
+    AppConfig app_config = loadAppConfigFromJson(app_config_path);
     TitleScreenConfig config = loadConfigFromJson(config_path);
+    config.window = app_config.window;
+    config.input = app_config.input;
+    config.audio = app_config.audio;
 
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER) != 0) throw std::runtime_error(std::string("SDL_Init failed: ") + SDL_GetError());
     std::unique_ptr<void, SdlQuit> sdl_guard(nullptr);
@@ -136,7 +224,10 @@ int runApplication(const char* argv0, const char* config_path_override) {
 
     Assets assets = loadAssets(renderer.get(), config, root);
     TitleScreen title_screen(config, std::move(assets));
-    std::unique_ptr<TransferTicketSandboxScreen> transfer_ticket_sandbox;
+    SaveLibrary save_library(root, save_directory.string(), argv0);
+    std::unique_ptr<LoadingScreen> loading_screen;
+    std::unique_ptr<TransferTicketScreen> transfer_ticket;
+    std::unique_ptr<TransferSystemScreen> transfer_system_screen;
     if (config.persistence.save_options) {
         std::string load_error;
         std::string loaded_from_path;
@@ -158,19 +249,28 @@ int runApplication(const char* argv0, const char* config_path_override) {
     }
 
     AudioController audio;
+    ActiveMusicTrack loaded_music_track = ActiveMusicTrack::None;
     const fs::path menu_music_path = fs::path(root) / config.audio.menu_music;
-    if (!audio.loadMusic(menu_music_path.string())) {
+    if (audio.loadMusic(menu_music_path.string())) {
+        loaded_music_track = ActiveMusicTrack::Menu;
+    } else {
         std::cerr << "Warning: could not load menu music at " << menu_music_path << '\n';
     }
     const fs::path button_sfx_path = fs::path(root) / config.audio.button_sfx;
     if (!audio.loadButtonSfx(button_sfx_path.string())) {
         std::cerr << "Warning: could not load button sfx at " << button_sfx_path << '\n';
     }
+    const fs::path rip_sfx_path = fs::path(root) / config.audio.rip_sfx;
+    if (!audio.loadRipSfx(rip_sfx_path.string())) {
+        std::cerr << "Warning: could not load rip sfx at " << rip_sfx_path << '\n';
+    }
 
     bool running = true;
     Uint64 last_counter = SDL_GetPerformanceCounter();
-    bool menu_music_playing = false;
+    bool music_playing = false;
+    double transfer_music_elapsed_seconds = 0.0;
     ActiveScreen active_screen = ActiveScreen::Title;
+    std::future<void> transfer_load_future;
 
     while (running) {
         SDL_Event event;
@@ -185,9 +285,9 @@ int runApplication(const char* argv0, const char* config_path_override) {
                 if (matchesBinding(key, config.input.navigate_up_keys)) {
                     if (active_screen == ActiveScreen::Title) {
                         title_screen.onNavigate(-1);
-                    } else {
-                        if (transfer_ticket_sandbox) {
-                            transfer_ticket_sandbox->onNavigate(-1);
+                    } else if (active_screen == ActiveScreen::TransferTicket) {
+                        if (transfer_ticket) {
+                            transfer_ticket->onNavigate(-1);
                         }
                     }
                     continue;
@@ -195,9 +295,9 @@ int runApplication(const char* argv0, const char* config_path_override) {
                 if (matchesBinding(key, config.input.navigate_down_keys)) {
                     if (active_screen == ActiveScreen::Title) {
                         title_screen.onNavigate(1);
-                    } else {
-                        if (transfer_ticket_sandbox) {
-                            transfer_ticket_sandbox->onNavigate(1);
+                    } else if (active_screen == ActiveScreen::TransferTicket) {
+                        if (transfer_ticket) {
+                            transfer_ticket->onNavigate(1);
                         }
                     }
                     continue;
@@ -205,10 +305,12 @@ int runApplication(const char* argv0, const char* config_path_override) {
                 if (matchesBinding(key, config.input.back_keys)) {
                     if (active_screen == ActiveScreen::Title) {
                         title_screen.onBackPressed();
-                    } else {
-                        if (transfer_ticket_sandbox) {
-                            transfer_ticket_sandbox->onBackPressed();
+                    } else if (active_screen == ActiveScreen::TransferTicket) {
+                        if (transfer_ticket) {
+                            transfer_ticket->onBackPressed();
                         }
+                    } else if (transfer_system_screen) {
+                        transfer_system_screen->onBackPressed();
                     }
                     continue;
                 }
@@ -217,87 +319,44 @@ int runApplication(const char* argv0, const char* config_path_override) {
                         if (title_screen.acceptsAdvanceInput()) {
                             title_screen.onAdvancePressed();
                         }
-                    } else {
-                        if (transfer_ticket_sandbox) {
-                            transfer_ticket_sandbox->onAdvancePressed();
+                    } else if (active_screen == ActiveScreen::TransferTicket) {
+                        if (transfer_ticket) {
+                            transfer_ticket->onAdvancePressed();
                         }
+                    } else if (transfer_system_screen) {
+                        transfer_system_screen->onAdvancePressed();
                     }
                     continue;
                 }
             }
 
+            // SDL_RenderSetLogicalSize scales mouse events into renderer logical coordinates.
             if (event.type == SDL_MOUSEMOTION && config.input.accept_mouse) {
-                if (active_screen == ActiveScreen::TransferTicketSandbox) {
-                    int window_w = 0;
-                    int window_h = 0;
-                    SDL_GetWindowSize(window.get(), &window_w, &window_h);
-
-                    int logical_x = 0;
-                    int logical_y = 0;
-                    if (mapWindowToLogical(
-                            event.motion.x,
-                            event.motion.y,
-                            window_w,
-                            window_h,
-                            config.window.virtual_width,
-                            config.window.virtual_height,
-                            logical_x,
-                            logical_y)) {
-                        if (transfer_ticket_sandbox) {
-                            transfer_ticket_sandbox->handlePointerMoved(logical_x, logical_y);
-                        }
+                if (active_screen == ActiveScreen::TransferTicket) {
+                    if (transfer_ticket) {
+                        transfer_ticket->handlePointerMoved(event.motion.x, event.motion.y);
                     }
                 }
                 continue;
             }
 
             if (event.type == SDL_MOUSEBUTTONDOWN && config.input.accept_mouse) {
-                int window_w = 0;
-                int window_h = 0;
-                SDL_GetWindowSize(window.get(), &window_w, &window_h);
-
-                int logical_x = 0;
-                int logical_y = 0;
-                if (mapWindowToLogical(
-                        event.button.x,
-                        event.button.y,
-                        window_w,
-                        window_h,
-                        config.window.virtual_width,
-                        config.window.virtual_height,
-                        logical_x,
-                        logical_y)) {
-                    if (active_screen == ActiveScreen::Title) {
-                        title_screen.handlePointerPressed(logical_x, logical_y);
-                    } else {
-                        if (transfer_ticket_sandbox) {
-                            transfer_ticket_sandbox->handlePointerPressed(logical_x, logical_y);
-                        }
+                if (active_screen == ActiveScreen::Title) {
+                    title_screen.handlePointerPressed(event.button.x, event.button.y);
+                } else if (active_screen == ActiveScreen::TransferTicket) {
+                    if (transfer_ticket) {
+                        transfer_ticket->handlePointerPressed(event.button.x, event.button.y);
                     }
+                } else if (transfer_system_screen) {
+                    transfer_system_screen->handlePointerPressed(event.button.x, event.button.y);
                 }
                 continue;
             }
 
             if (event.type == SDL_MOUSEBUTTONUP && config.input.accept_mouse) {
-                if (active_screen == ActiveScreen::TransferTicketSandbox) {
-                    int window_w = 0;
-                    int window_h = 0;
-                    SDL_GetWindowSize(window.get(), &window_w, &window_h);
-
-                    int logical_x = 0;
-                    int logical_y = 0;
-                    if (mapWindowToLogical(
-                            event.button.x,
-                            event.button.y,
-                            window_w,
-                            window_h,
-                            config.window.virtual_width,
-                            config.window.virtual_height,
-                            logical_x,
-                            logical_y)) {
-                        if (transfer_ticket_sandbox) {
-                            transfer_ticket_sandbox->handlePointerReleased(logical_x, logical_y);
-                        }
+                if (active_screen == ActiveScreen::TransferTicket) {
+                    if (transfer_ticket) {
+                        transfer_ticket->handlePointerReleased(event.button.x, event.button.y);
                     }
                 }
                 continue;
@@ -308,18 +367,18 @@ int runApplication(const char* argv0, const char* config_path_override) {
                     case SDL_CONTROLLER_BUTTON_DPAD_UP:
                         if (active_screen == ActiveScreen::Title) {
                             title_screen.onNavigate(-1);
-                        } else {
-                            if (transfer_ticket_sandbox) {
-                                transfer_ticket_sandbox->onNavigate(-1);
+                        } else if (active_screen == ActiveScreen::TransferTicket) {
+                            if (transfer_ticket) {
+                                transfer_ticket->onNavigate(-1);
                             }
                         }
                         break;
                     case SDL_CONTROLLER_BUTTON_DPAD_DOWN:
                         if (active_screen == ActiveScreen::Title) {
                             title_screen.onNavigate(1);
-                        } else {
-                            if (transfer_ticket_sandbox) {
-                                transfer_ticket_sandbox->onNavigate(1);
+                        } else if (active_screen == ActiveScreen::TransferTicket) {
+                            if (transfer_ticket) {
+                                transfer_ticket->onNavigate(1);
                             }
                         }
                         break;
@@ -328,19 +387,23 @@ int runApplication(const char* argv0, const char* config_path_override) {
                             if (title_screen.acceptsAdvanceInput()) {
                                 title_screen.onAdvancePressed();
                             }
-                        } else {
-                            if (transfer_ticket_sandbox) {
-                                transfer_ticket_sandbox->onAdvancePressed();
+                        } else if (active_screen == ActiveScreen::TransferTicket) {
+                            if (transfer_ticket) {
+                                transfer_ticket->onAdvancePressed();
                             }
+                        } else if (transfer_system_screen) {
+                            transfer_system_screen->onAdvancePressed();
                         }
                         break;
                     case SDL_CONTROLLER_BUTTON_B:
                         if (active_screen == ActiveScreen::Title) {
                             title_screen.onBackPressed();
-                        } else {
-                            if (transfer_ticket_sandbox) {
-                                transfer_ticket_sandbox->onBackPressed();
+                        } else if (active_screen == ActiveScreen::TransferTicket) {
+                            if (transfer_ticket) {
+                                transfer_ticket->onBackPressed();
                             }
+                        } else if (transfer_system_screen) {
+                            transfer_system_screen->onBackPressed();
                         }
                         break;
                     default:
@@ -355,45 +418,148 @@ int runApplication(const char* argv0, const char* config_path_override) {
 
         if (active_screen == ActiveScreen::Title) {
             title_screen.update(dt);
-            if (title_screen.consumeOpenTransferSandboxRequest()) {
-                if (!transfer_ticket_sandbox) {
-                    transfer_ticket_sandbox = std::make_unique<TransferTicketSandboxScreen>(
+            if (title_screen.consumeOpenTransferRequest()) {
+                if (!loading_screen) {
+                    loading_screen = std::make_unique<LoadingScreen>(
                         renderer.get(),
                         config.window,
                         config.assets.font,
                         root);
                 }
-                transfer_ticket_sandbox->enter();
-                active_screen = ActiveScreen::TransferTicketSandbox;
+                if (!transfer_ticket) {
+                    transfer_ticket = std::make_unique<TransferTicketScreen>(
+                        renderer.get(),
+                        config.window,
+                        config.assets.font,
+                        root);
+                }
+                loading_screen->enter();
+                transfer_load_future = std::async(
+                    std::launch::async,
+                    [&save_library]() {
+                        save_library.refreshForTransferPage();
+                    });
+                active_screen = ActiveScreen::Loading;
             }
-        } else {
-            transfer_ticket_sandbox->update(dt);
-            if (transfer_ticket_sandbox->consumeReturnToMainMenuRequest()) {
-                title_screen.returnToMainMenuFromTransferSandbox();
+        } else if (active_screen == ActiveScreen::Loading && loading_screen) {
+            loading_screen->update(dt);
+            if (transfer_load_future.valid() &&
+                transfer_load_future.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+                try {
+                    transfer_load_future.get();
+                } catch (const std::exception& ex) {
+                    std::cerr << "Warning: transfer save loading failed: " << ex.what() << '\n';
+                }
+                if (transfer_ticket) {
+                    transfer_ticket->setSaveSelections(
+                        renderer.get(),
+                        transferSelectionsFromRecords(save_library.transferPageRecords()));
+                    transfer_ticket->enter();
+                }
+                active_screen = ActiveScreen::TransferTicket;
+            }
+        } else if (active_screen == ActiveScreen::TransferTicket && transfer_ticket) {
+            transfer_ticket->update(dt);
+            TransferSaveSelection selected_transfer_save;
+            if (transfer_ticket->consumeOpenTransferSystemRequest(selected_transfer_save)) {
+                if (!transfer_system_screen) {
+                    transfer_system_screen = std::make_unique<TransferSystemScreen>(
+                        renderer.get(),
+                        config.window,
+                        config.assets.font,
+                        root);
+                }
+                transfer_system_screen->enter(selected_transfer_save, renderer.get());
+                active_screen = ActiveScreen::TransferSystem;
+            }
+            if (transfer_ticket->consumeReturnToMainMenuRequest()) {
+                title_screen.returnToMainMenuFromTransfer();
+                active_screen = ActiveScreen::Title;
+            }
+        } else if (active_screen == ActiveScreen::TransferSystem && transfer_system_screen) {
+            transfer_system_screen->update(dt);
+            if (transfer_system_screen->consumeRestartGameRequest()) {
+                title_screen.restartFromExternalScreen();
                 active_screen = ActiveScreen::Title;
             }
         }
 
-        const bool wants_menu_music =
-            active_screen == ActiveScreen::Title && title_screen.wantsMenuMusic();
+        const bool wants_menu_music = active_screen == ActiveScreen::Title && title_screen.wantsMenuMusic();
+        const bool wants_transfer_music =
+            active_screen == ActiveScreen::TransferTicket &&
+            transfer_ticket &&
+            !transfer_ticket->musicPath().empty();
+        const ActiveMusicTrack desired_music_track =
+            wants_menu_music
+                ? ActiveMusicTrack::Menu
+                : (wants_transfer_music ? ActiveMusicTrack::Transfer : ActiveMusicTrack::None);
 
-        if (wants_menu_music && audio.isMusicLoaded()) {
-            audio.setMusicVolume(title_screen.musicVolume());
-            if (!menu_music_playing) {
-                audio.playMusicLoop();
-                menu_music_playing = true;
+        if (desired_music_track == ActiveMusicTrack::Menu) {
+            if (loaded_music_track != ActiveMusicTrack::Menu) {
+                audio.stopMusic();
+                music_playing = false;
+                if (audio.loadMusic(menu_music_path.string())) {
+                    loaded_music_track = ActiveMusicTrack::Menu;
+                } else {
+                    loaded_music_track = ActiveMusicTrack::None;
+                    std::cerr << "Warning: could not load menu music at " << menu_music_path << '\n';
+                }
             }
-        } else if (menu_music_playing) {
+            transfer_music_elapsed_seconds = 0.0;
+            if (loaded_music_track == ActiveMusicTrack::Menu && audio.isMusicLoaded()) {
+                audio.setMusicVolume(title_screen.musicVolume());
+                if (!music_playing) {
+                    audio.playMusicLoop();
+                    music_playing = true;
+                }
+            }
+        } else if (desired_music_track == ActiveMusicTrack::Transfer && transfer_ticket) {
+            if (loaded_music_track != ActiveMusicTrack::Transfer) {
+                audio.stopMusic();
+                music_playing = false;
+                transfer_music_elapsed_seconds = 0.0;
+                const fs::path transfer_music_path = fs::path(root) / transfer_ticket->musicPath();
+                if (audio.loadMusic(transfer_music_path.string())) {
+                    loaded_music_track = ActiveMusicTrack::Transfer;
+                } else {
+                    loaded_music_track = ActiveMusicTrack::None;
+                    std::cerr << "Warning: could not load transfer music at " << transfer_music_path << '\n';
+                }
+            }
+            if (loaded_music_track == ActiveMusicTrack::Transfer && audio.isMusicLoaded()) {
+                transfer_music_elapsed_seconds += dt;
+                const double silence_seconds = std::max(0.0, transfer_ticket->musicSilenceSeconds());
+                const double fade_in_seconds = std::max(0.0, transfer_ticket->musicFadeInSeconds());
+                double volume_scale = 0.0;
+                if (transfer_music_elapsed_seconds >= silence_seconds) {
+                    volume_scale = fade_in_seconds <= 0.0
+                        ? 1.0
+                        : clamp01((transfer_music_elapsed_seconds - silence_seconds) / fade_in_seconds);
+                }
+                audio.setMusicVolume(static_cast<float>(
+                    static_cast<double>(title_screen.musicVolume()) * volume_scale));
+                if (!music_playing) {
+                    audio.playMusicLoop();
+                    music_playing = true;
+                }
+            }
+        } else if (music_playing) {
             audio.stopMusic();
-            menu_music_playing = false;
+            music_playing = false;
+            transfer_music_elapsed_seconds = 0.0;
         }
 
         audio.setSfxVolume(title_screen.sfxVolume());
-        if ((active_screen == ActiveScreen::Title && title_screen.consumeButtonSfxRequest()) ||
-            (active_screen == ActiveScreen::TransferTicketSandbox &&
-             transfer_ticket_sandbox &&
-             transfer_ticket_sandbox->consumeButtonSfxRequest())) {
+        const bool title_button_sfx_requested = title_screen.consumeButtonSfxRequest();
+        const bool transfer_button_sfx_requested =
+            transfer_ticket && transfer_ticket->consumeButtonSfxRequest();
+        const bool transfer_system_button_sfx_requested =
+            transfer_system_screen && transfer_system_screen->consumeButtonSfxRequest();
+        if (title_button_sfx_requested || transfer_button_sfx_requested || transfer_system_button_sfx_requested) {
             audio.playButtonSfx();
+        }
+        if (transfer_ticket && transfer_ticket->consumeRipSfxRequest()) {
+            audio.playRipSfx();
         }
         if (config.persistence.save_options && title_screen.consumeUserSettingsSaveRequest()) {
             SaveData save_data;
@@ -412,8 +578,12 @@ int runApplication(const char* argv0, const char* config_path_override) {
 
         if (active_screen == ActiveScreen::Title) {
             title_screen.render(renderer.get());
-        } else {
-            transfer_ticket_sandbox->render(renderer.get());
+        } else if (active_screen == ActiveScreen::Loading && loading_screen) {
+            loading_screen->render(renderer.get());
+        } else if (active_screen == ActiveScreen::TransferTicket && transfer_ticket) {
+            transfer_ticket->render(renderer.get());
+        } else if (transfer_system_screen) {
+            transfer_system_screen->render(renderer.get());
         }
         SDL_RenderPresent(renderer.get());
     }

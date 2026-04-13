@@ -13,6 +13,8 @@ The app is a data-driven title-screen prototype with these implemented flows:
 - main menu navigation for `RESORT`, `TRANSFER`, and `OPTIONS`
 - options menu with persisted user settings
 - placeholder section screen flow
+- loading screen while transfer saves are scanned and probed
+- transfer save-ticket selection flow into a temporary `transfer_system` detail screen
 
 At the moment, most gameplay-facing behavior still lives in a single scene controller: [`TitleScreen.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/TitleScreen.cpp).
 
@@ -21,6 +23,7 @@ At the moment, most gameplay-facing behavior still lives in a single scene contr
 ### Entry and boot
 
 - [`main.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/main.cpp) forwards an optional config path into `pr::runApplication`.
+  It also supports `--clear-save-cache` for deleting the transfer probe cache and exiting.
 - [`App.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/App.cpp) is the runtime coordinator. It:
   - finds the project root by locating `config/title_screen.json`
   - loads JSON config into strongly typed structs
@@ -73,6 +76,15 @@ At the moment, most gameplay-facing behavior still lives in a single scene contr
   - button hit testing
   - logo shine generation and animation
 
+- [`TransferTicketScreen.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/TransferTicketScreen.cpp)
+  Owns the transfer save-ticket list, ticket rendering, rip animation, and selected-save handoff. It receives already parsed transfer summaries from `App.cpp`; bridge probing, hashing, and cache reads stay inside `SaveLibrary`.
+
+- [`LoadingScreen.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/LoadingScreen.cpp)
+  Owns the black loading screen shown while transfer save probing runs in the background. It reads [`loading_screen.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/loading_screen.json), picks random ball PNGs from the configured loading asset directory, and swaps balls after each animation lap.
+
+- [`TransferSystemScreen.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/TransferSystemScreen.cpp)
+  Owns the temporary post-selection `transfer_system` screen. It displays basic selected-save data and raises a restart request from its back action.
+
 ## State Machine
 
 The title screen currently moves through these runtime states:
@@ -106,20 +118,19 @@ This means the current architecture is scene-centric rather than screen-per-flow
 4. SDL subsystems are initialized and the renderer logical size is configured.
 5. [`Assets.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/Assets.cpp) loads textures and text assets.
 6. [`SaveDataStore.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/SaveDataStore.cpp) restores persisted options into `TitleScreen`.
-7. [`SaveLibrary.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/SaveLibrary.cpp) scans the root-level workspace `saves/` folder and probes each regular file through the bridge.
-8. The app loop starts.
+7. The app loop starts. When the player opens TRANSFER, `App.cpp` switches to `LoadingScreen`, runs `SaveLibrary::refreshForTransferPage()` on a background task, then passes `transferPageRecords()` summaries into the ticket UI on the main thread.
 
 ### Frame pipeline
 
 1. `App.cpp` polls SDL events.
 2. Keyboard, mouse, and controller events are translated into scene actions.
-3. `TitleScreen::update(dt)` advances timers and state transitions.
+3. The active screen updates. For transfer entry, `LoadingScreen::update(dt)` animates while the save-probe task runs.
 4. `App.cpp` reads scene side effects:
    - whether menu music should be playing
    - current music and SFX volume
    - whether a button SFX should fire
    - whether user settings should be persisted
-5. `TitleScreen::render(renderer)` draws the active state.
+5. The active screen renders.
 6. SDL presents the frame.
 
 ### Persistence pipeline
@@ -131,9 +142,12 @@ This means the current architecture is scene-centric rather than screen-per-flow
 
 ## Configuration Surface
 
-The main authoring file is [`title_screen.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/title_screen.json). It currently controls:
+Shared application settings live in [`app.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/app.json). It currently controls:
 
 - window size, logical size, and title
+
+The main title-screen authoring file is [`title_screen.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/title_screen.json). It currently controls:
+
 - asset paths
 - timing values for intro phases and transitions
 - prompt text, color, and font size

@@ -21,8 +21,10 @@ add_executable(title_screen_demo
     src/core/SaveBridgeClient.cpp
     src/core/SaveLibrary.cpp
     src/core/SaveDataStore.cpp
+    src/ui/LoadingScreen.cpp
     src/ui/TitleScreen.cpp
-    src/ui/TransferTicketSandboxScreen.cpp
+    src/ui/TransferTicketScreen.cpp
+    src/ui/TransferSystemScreen.cpp
 )
 
 target_include_directories(title_screen_demo PRIVATE include)

@@ -98,7 +98,7 @@ When the native app starts, [`App.cpp`](/Users/vanta/Desktop/title_screen_demo/p
 
 ## Changing how far the main logo moves
 
-The main control is in `config/title_screen.json`:
+The title-screen transition control is in `config/title_screen.json`:
 
 ```json
 "transition": {
@@ -128,7 +128,7 @@ So if the logo is 300 px tall, any value less than `-150` places its center high
 
 Editable in JSON:
 
-- window size and title
+- shared window size, logical size, design size, and title in `config/app.json`
 - asset paths
 - all major timings
 - prompt text, color, size, position

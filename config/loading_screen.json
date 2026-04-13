@@ -1,0 +1,19 @@
+{
+  "balls_directory": "assets/loading/balls",
+  "text": "",
+  "font_size": 20,
+  "text_color": "#FFFFFF",
+  "ball_center": {
+    "x": 480,
+    "y": 352
+  },
+  "text_center": {
+    "x": 256,
+    "y": 250
+  },
+  "ball_scale": 2.0,
+  "lap_seconds": 0.95,
+  "partial_spin_degrees": -24,
+  "full_spin_degrees": 360,
+  "partial_spin_fraction": 0.28
+}

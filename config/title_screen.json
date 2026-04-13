@@ -1,13 +1,4 @@
 {
-  "window": {
-    "width": 512,
-    "height": 384,
-    "virtual_width": 512,
-    "virtual_height": 384,
-    "design_width": 1024,
-    "design_height": 768,
-    "title": "Pokemon Resort"
-  },
   "assets": {
     "background_a": "assets/title/background_a.png",
     "background_b": "assets/title/background_b.png",
@@ -28,26 +19,21 @@
   },
   "prompt": {
     "text": "PRESS START",
-    "center_x": 512,
-    "baseline_y": 724,
-    "font_pt_size": 72,
+    "center_x": 256,
+    "baseline_y": 362,
+    "font_pt_size": 36,
     "blink_cycle_seconds": 1.60,
-    "color": {
-      "r": 160,
-      "g": 160,
-      "b": 160,
-      "a": 255
-    }
+    "color": "#A0A0A0"
   },
   "layout": {
-    "splash_logo_center": { "x": 512, "y": 384 },
-    "main_logo_center": { "x": 512, "y": 384 },
+    "splash_logo_center": { "x": 256, "y": 192 },
+    "main_logo_center": { "x": 256, "y": 192 },
     "background_a_top_left": { "x": 0, "y": 0 },
     "background_b_top_left": { "x": 0, "y": 0 }
   },
   "transition": {
-    "main_logo_end_y": -260,
-    "background_a_end_y": -768,
+    "main_logo_end_y": -130,
+    "background_a_end_y": -384,
     "background_a_speed_scale": 0.8,
     "main_logo_speed_scale": 1.0,
     "fade_prompt_out": true
@@ -58,14 +44,14 @@
       "TRANSFER",
       "OPTIONS"
     ],
-    "center_x": 512,
-    "top_y": 40,
-    "vertical_spacing": 40,
-    "font_pt_size": 44,
+    "center_x": 256,
+    "top_y": 20,
+    "vertical_spacing": 20,
+    "font_pt_size": 22,
     "animation": {
       "intro_duration": 0.5,
       "outro_duration": 0.35,
-      "slide_distance": 420,
+      "slide_distance": 210,
       "bounce": 0.1
     },
     "selection": {
@@ -76,27 +62,7 @@
       "button_out_duration": 0.3,
       "fade_duration": 0.25
     },
-    "text_color": {
-      "r": 255,
-      "g": 255,
-      "b": 255,
-      "a": 255
-    }
-  },
-  "input": {
-    "accept_any_key": true,
-    "accept_mouse": true,
-    "accept_controller": true,
-    "navigate_up_keys": ["UP", "W"],
-    "navigate_down_keys": ["DOWN", "S"],
-    "forward_keys": ["M", "RETURN", "SPACE"],
-    "back_keys": ["N", "ESCAPE", "BACKSPACE"]
-  },
-  "audio": {
-    "menu_music": "assets/title/menu_music.mp3",
-    "button_sfx": "assets/title/btn.mp3",
-    "music_volume": 3,
-    "sfx_volume": 8
+    "text_color": "#FFFFFF"
   },
   "persistence": {
     "save_options": true,
@@ -106,7 +72,7 @@
     "backup_file_name": "pokemon_resort.sav.bak"
   },
   "skip": {
-    "splash_fade_in": false,
+    "splash_fade_in": true,
     "splash_hold": true,
     "splash_fade_out": true,
     "main_logo_on_black": true,
@@ -120,7 +86,7 @@
   "shine": {
     "repeat_count": 2,
     "gap_seconds": 5.5,
-    "band_width": 90,
-    "travel_padding": 140
+    "band_width": 45,
+    "travel_padding": 70
   }
 }

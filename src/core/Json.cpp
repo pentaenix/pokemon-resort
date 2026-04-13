@@ -16,8 +16,13 @@ void appendCodepointUtf8(std::string& out, unsigned codepoint) {
     } else if (codepoint <= 0x7FF) {
         out.push_back(static_cast<char>(0xC0 | (codepoint >> 6)));
         out.push_back(static_cast<char>(0x80 | (codepoint & 0x3F)));
-    } else {
+    } else if (codepoint <= 0xFFFF) {
         out.push_back(static_cast<char>(0xE0 | (codepoint >> 12)));
+        out.push_back(static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F)));
+        out.push_back(static_cast<char>(0x80 | (codepoint & 0x3F)));
+    } else {
+        out.push_back(static_cast<char>(0xF0 | (codepoint >> 18)));
+        out.push_back(static_cast<char>(0x80 | ((codepoint >> 12) & 0x3F)));
         out.push_back(static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F)));
         out.push_back(static_cast<char>(0x80 | (codepoint & 0x3F)));
     }
@@ -28,6 +33,17 @@ int hexValue(char c) {
     if (c >= 'a' && c <= 'f') return 10 + (c - 'a');
     if (c >= 'A' && c <= 'F') return 10 + (c - 'A');
     return -1;
+}
+
+unsigned parseUnicodeEscapeDigits(const std::string& text, std::size_t& pos) {
+    if (pos + 4 > text.size()) throw std::runtime_error("Bad JSON unicode escape");
+    unsigned codepoint = 0;
+    for (int i = 0; i < 4; ++i) {
+        const int value = hexValue(text[pos++]);
+        if (value < 0) throw std::runtime_error("Bad JSON unicode escape");
+        codepoint = (codepoint << 4) | static_cast<unsigned>(value);
+    }
+    return codepoint;
 }
 
 } // namespace
@@ -127,12 +143,19 @@ private:
                     case 'r': out.push_back('\r'); break;
                     case 't': out.push_back('\t'); break;
                     case 'u': {
-                        if (pos_ + 4 > text_.size()) throw std::runtime_error("Bad JSON unicode escape");
-                        unsigned codepoint = 0;
-                        for (int i = 0; i < 4; ++i) {
-                            const int value = hexValue(text_[pos_++]);
-                            if (value < 0) throw std::runtime_error("Bad JSON unicode escape");
-                            codepoint = (codepoint << 4) | static_cast<unsigned>(value);
+                        unsigned codepoint = parseUnicodeEscapeDigits(text_, pos_);
+                        if (codepoint >= 0xD800 && codepoint <= 0xDBFF) {
+                            if (pos_ + 2 > text_.size() || text_[pos_] != '\\' || text_[pos_ + 1] != 'u') {
+                                throw std::runtime_error("Bad JSON unicode surrogate pair");
+                            }
+                            pos_ += 2;
+                            const unsigned low = parseUnicodeEscapeDigits(text_, pos_);
+                            if (low < 0xDC00 || low > 0xDFFF) {
+                                throw std::runtime_error("Bad JSON unicode surrogate pair");
+                            }
+                            codepoint = 0x10000 + ((codepoint - 0xD800) << 10) + (low - 0xDC00);
+                        } else if (codepoint >= 0xDC00 && codepoint <= 0xDFFF) {
+                            throw std::runtime_error("Bad JSON unicode surrogate pair");
                         }
                         appendCodepointUtf8(out, codepoint);
                         break;

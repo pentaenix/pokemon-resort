@@ -274,6 +274,12 @@ std::optional<TransferSaveSummary> parseTransferSummaryFromObject(const JsonValu
     return summary;
 }
 
+bool hasUsableTransferSummary(const std::optional<TransferSaveSummary>& summary) {
+    return summary &&
+           !summary->game_id.empty() &&
+           !summary->player_name.empty();
+}
+
 std::map<std::string, CachedSaveRecord> parseCacheRecords(const JsonValue& root) {
     std::map<std::string, CachedSaveRecord> records;
     const JsonValue* entries = child(root, "records");
@@ -461,53 +467,80 @@ void SaveLibrary::probeDiscoveredFiles() {
     }
 
     for (SaveFileRecord& record : records_) {
-        std::string hash_error;
-        record.file_hash = hashFileContents(record.path, &hash_error);
-        if (record.file_hash.empty()) {
-            record.probe_status = SaveProbeStatus::BridgeError;
-            std::cerr << "[SaveLibrary] hash_status=failed filename=" << record.filename
-                      << " error=" << hash_error << '\n';
-            continue;
-        }
-
-        std::cerr << "[SaveLibrary] hash_status=ok filename=" << record.filename
-                  << " hash=" << record.file_hash << '\n';
-
-        const auto cache_it = cache_records.find(record.path);
-        if (cache_it != cache_records.end() &&
-            cache_it->second.file_hash == record.file_hash) {
-            record.used_cache = true;
-            record.probe_status = cache_it->second.probe_status;
-            record.raw_bridge_output = cache_it->second.raw_bridge_output;
-            record.transfer_summary = cache_it->second.transfer_summary;
-            record.bridge_result.bridge_path = "cache";
-            record.bridge_result.command = "cache_hit";
-            std::cerr << "[SaveLibrary] cache_result=hit filename=" << record.filename
-                      << " probe_status=" << probeStatusLabel(record.probe_status) << '\n';
-        } else {
-            std::cerr << "[SaveLibrary] cache_result=miss filename=" << record.filename << '\n';
-            record.bridge_result = probeSaveWithBridge(project_root_, argv0_, record.path);
-            record.raw_bridge_output = trimTrailingWhitespace(record.bridge_result.stdout_text);
-
-            if (!record.bridge_result.launched || !record.bridge_result.error_message.empty()) {
+        try {
+            std::string hash_error;
+            record.file_hash = hashFileContents(record.path, &hash_error);
+            if (record.file_hash.empty()) {
                 record.probe_status = SaveProbeStatus::BridgeError;
-            } else if (record.bridge_result.success) {
-                record.probe_status = SaveProbeStatus::ValidSave;
-            } else {
-                record.probe_status = SaveProbeStatus::InvalidSave;
+                std::cerr << "[SaveLibrary] hash_status=failed filename=" << record.filename
+                          << " error=" << hash_error << '\n';
+                continue;
             }
 
-            if (record.probe_status == SaveProbeStatus::ValidSave) {
-                std::string parse_error;
-                record.transfer_summary = parseTransferSummary(record.raw_bridge_output, &parse_error);
-                if (!record.transfer_summary) {
+            std::cerr << "[SaveLibrary] hash_status=ok filename=" << record.filename
+                      << " hash=" << record.file_hash << '\n';
+
+            const auto cache_it = cache_records.find(record.path);
+            bool should_probe = true;
+            if (cache_it != cache_records.end() &&
+                cache_it->second.file_hash == record.file_hash) {
+                record.used_cache = true;
+                record.probe_status = cache_it->second.probe_status;
+                record.raw_bridge_output = cache_it->second.raw_bridge_output;
+                record.transfer_summary = cache_it->second.transfer_summary;
+                record.bridge_result.bridge_path = "cache";
+                record.bridge_result.command = "cache_hit";
+                std::cerr << "[SaveLibrary] cache_result=hit filename=" << record.filename
+                          << " probe_status=" << probeStatusLabel(record.probe_status) << '\n';
+                should_probe =
+                    record.probe_status == SaveProbeStatus::ValidSave &&
+                    !hasUsableTransferSummary(record.transfer_summary);
+                if (should_probe) {
+                    std::cerr << "[SaveLibrary] cache_result=stale filename=" << record.filename
+                              << " reason=missing_required_transfer_fields\n";
+                    record.used_cache = false;
+                    record.transfer_summary.reset();
+                    record.raw_bridge_output.clear();
+                }
+            }
+
+            if (should_probe) {
+                std::cerr << "[SaveLibrary] cache_result=miss filename=" << record.filename << '\n';
+                record.bridge_result = probeSaveWithBridge(project_root_, argv0_, record.path);
+                record.raw_bridge_output = trimTrailingWhitespace(record.bridge_result.stdout_text);
+
+                if (!record.bridge_result.launched || !record.bridge_result.error_message.empty()) {
                     record.probe_status = SaveProbeStatus::BridgeError;
-                    if (!parse_error.empty()) {
+                } else if (record.bridge_result.success) {
+                    record.probe_status = SaveProbeStatus::ValidSave;
+                } else {
+                    record.probe_status = SaveProbeStatus::InvalidSave;
+                }
+
+                if (record.probe_status == SaveProbeStatus::ValidSave) {
+                    std::string parse_error;
+                    record.transfer_summary = parseTransferSummary(record.raw_bridge_output, &parse_error);
+                    if (!record.transfer_summary) {
+                        record.probe_status = SaveProbeStatus::BridgeError;
+                        if (!parse_error.empty()) {
+                            std::cerr << "[SaveLibrary] summary_parse_error filename=" << record.filename
+                                      << " error=" << parse_error << '\n';
+                        }
+                    } else if (!hasUsableTransferSummary(record.transfer_summary)) {
+                        record.probe_status = SaveProbeStatus::BridgeError;
                         std::cerr << "[SaveLibrary] summary_parse_error filename=" << record.filename
-                                  << " error=" << parse_error << '\n';
+                                  << " error=missing_required_transfer_fields\n";
+                        record.transfer_summary.reset();
                     }
                 }
             }
+        } catch (const std::exception& e) {
+            record.probe_status = SaveProbeStatus::BridgeError;
+            record.transfer_summary.reset();
+            record.raw_bridge_output.clear();
+            record.bridge_result.error_message = e.what();
+            std::cerr << "[SaveLibrary] record_error filename=" << record.filename
+                      << " error=" << e.what() << '\n';
         }
 
         std::cerr << "[SaveLibrary] probe"

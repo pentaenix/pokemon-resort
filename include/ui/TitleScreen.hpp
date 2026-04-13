@@ -51,10 +51,11 @@ public:
     float sfxVolume() const;
     bool consumeButtonSfxRequest();
     bool consumeUserSettingsSaveRequest();
-    bool consumeOpenTransferSandboxRequest();
+    bool consumeOpenTransferRequest();
     UserSettings currentUserSettings() const;
     void applyUserSettings(const UserSettings& settings);
-    void returnToMainMenuFromTransferSandbox();
+    void returnToMainMenuFromTransfer();
+    void restartFromExternalScreen();
 
 private:
     void changeState(TitleState next);
@@ -129,7 +130,8 @@ private:
     int sfx_volume_ = 8;
     bool play_button_sfx_requested_ = false;
     bool user_settings_save_requested_ = false;
-    bool open_transfer_sandbox_requested_ = false;
+    bool open_transfer_requested_ = false;
+    bool pending_transfer_after_fade_ = false;
 
     mutable bool option_textures_dirty_ = true;
     mutable std::vector<TextureHandle> option_textures_;

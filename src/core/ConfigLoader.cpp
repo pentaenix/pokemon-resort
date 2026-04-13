@@ -2,6 +2,7 @@
 #include "core/Json.hpp"
 
 #include <stdexcept>
+#include <string>
 
 namespace pr {
 namespace {
@@ -12,16 +13,67 @@ double asDouble(const JsonValue& value) { return value.asNumber(); }
 std::string asString(const JsonValue& value) { return value.asString(); }
 bool asBool(const JsonValue& value) { return value.asBool(); }
 
-void applyColor(Color& out, const JsonValue& obj) {
-    if (auto v = child(obj, "r")) out.r = asInt(*v);
-    if (auto v = child(obj, "g")) out.g = asInt(*v);
-    if (auto v = child(obj, "b")) out.b = asInt(*v);
-    if (auto v = child(obj, "a")) out.a = asInt(*v);
+void applyStringVector(std::vector<std::string>& out, const JsonValue& value, const char* field_name);
+
+int hexByte(const std::string& value, std::size_t offset) {
+    return std::stoi(value.substr(offset, 2), nullptr, 16);
+}
+
+void applyColor(Color& out, const JsonValue& value) {
+    if (value.isString()) {
+        const std::string hex = value.asString();
+        if ((hex.size() != 7 && hex.size() != 9) || hex[0] != '#') {
+            throw std::runtime_error("Color strings must use #RRGGBB or #RRGGBBAA");
+        }
+        out.r = hexByte(hex, 1);
+        out.g = hexByte(hex, 3);
+        out.b = hexByte(hex, 5);
+        out.a = hex.size() == 9 ? hexByte(hex, 7) : 255;
+        return;
+    }
+
+    if (!value.isObject()) {
+        throw std::runtime_error("Color values must be #RRGGBB strings");
+    }
+
+    if (auto v = child(value, "r")) out.r = asInt(*v);
+    if (auto v = child(value, "g")) out.g = asInt(*v);
+    if (auto v = child(value, "b")) out.b = asInt(*v);
+    if (auto v = child(value, "a")) out.a = asInt(*v);
 }
 
 void applyPoint(Point& out, const JsonValue& obj) {
     if (auto v = child(obj, "x")) out.x = asInt(*v);
     if (auto v = child(obj, "y")) out.y = asInt(*v);
+}
+
+void applyWindowConfig(WindowConfig& out, const JsonValue& obj) {
+    if (auto v = child(obj, "width")) out.width = asInt(*v);
+    if (auto v = child(obj, "height")) out.height = asInt(*v);
+    if (auto v = child(obj, "virtual_width")) out.virtual_width = asInt(*v);
+    if (auto v = child(obj, "virtual_height")) out.virtual_height = asInt(*v);
+    if (auto v = child(obj, "title")) out.title = asString(*v);
+    if (auto v = child(obj, "design_width")) out.design_width = asInt(*v);
+    if (auto v = child(obj, "design_height")) out.design_height = asInt(*v);
+}
+
+void applyInputConfig(InputConfig& out, const JsonValue& obj) {
+    if (auto v = child(obj, "accept_any_key")) out.accept_any_key = asBool(*v);
+    if (auto v = child(obj, "accept_mouse")) out.accept_mouse = asBool(*v);
+    if (auto v = child(obj, "accept_controller")) out.accept_controller = asBool(*v);
+    if (auto v = child(obj, "navigate_up_keys")) applyStringVector(out.navigate_up_keys, *v, "input.navigate_up_keys");
+    if (auto v = child(obj, "navigate_down_keys")) applyStringVector(out.navigate_down_keys, *v, "input.navigate_down_keys");
+    if (auto v = child(obj, "forward_keys")) applyStringVector(out.forward_keys, *v, "input.forward_keys");
+    if (auto v = child(obj, "back_keys")) applyStringVector(out.back_keys, *v, "input.back_keys");
+}
+
+void applyAudioConfig(AudioConfig& out, const JsonValue& obj) {
+    if (auto v = child(obj, "menu_music")) out.menu_music = asString(*v);
+    if (auto v = child(obj, "button_sfx")) out.button_sfx = asString(*v);
+    if (auto v = child(obj, "rip_sfx")) out.rip_sfx = asString(*v);
+    if (auto v = child(obj, "music_volume")) out.music_volume = asInt(*v);
+    if (auto v = child(obj, "ui_volume")) out.sfx_volume = asInt(*v);
+    if (auto v = child(obj, "sfx_volume")) out.sfx_volume = asInt(*v);
 }
 
 template <std::size_t N>
@@ -53,6 +105,25 @@ void applyStringVector(std::vector<std::string>& out, const JsonValue& value, co
 
 } // namespace
 
+AppConfig loadAppConfigFromJson(const std::string& path) {
+    JsonValue root = parseJsonFile(path);
+    if (!root.isObject()) {
+        throw std::runtime_error("App config root must be an object");
+    }
+
+    AppConfig config;
+    if (auto section = child(root, "window")) {
+        applyWindowConfig(config.window, *section);
+    }
+    if (auto section = child(root, "input")) {
+        applyInputConfig(config.input, *section);
+    }
+    if (auto section = child(root, "audio")) {
+        applyAudioConfig(config.audio, *section);
+    }
+    return config;
+}
+
 TitleScreenConfig loadConfigFromJson(const std::string& path) {
     JsonValue root = parseJsonFile(path);
     if (!root.isObject()) {
@@ -62,13 +133,7 @@ TitleScreenConfig loadConfigFromJson(const std::string& path) {
     TitleScreenConfig config;
 
     if (auto section = child(root, "window")) {
-        if (auto v = child(*section, "width")) config.window.width = asInt(*v);
-        if (auto v = child(*section, "height")) config.window.height = asInt(*v);
-        if (auto v = child(*section, "virtual_width")) config.window.virtual_width = asInt(*v);
-        if (auto v = child(*section, "virtual_height")) config.window.virtual_height = asInt(*v);
-        if (auto v = child(*section, "title")) config.window.title = asString(*v);
-        if (auto v = child(*section, "design_width")) config.window.design_width = asInt(*v);
-        if (auto v = child(*section, "design_height")) config.window.design_height = asInt(*v);
+        applyWindowConfig(config.window, *section);
     }
 
     if (auto section = child(root, "assets")) {
@@ -159,21 +224,11 @@ TitleScreenConfig loadConfigFromJson(const std::string& path) {
     }
 
     if (auto section = child(root, "input")) {
-        if (auto v = child(*section, "accept_any_key")) config.input.accept_any_key = asBool(*v);
-        if (auto v = child(*section, "accept_mouse")) config.input.accept_mouse = asBool(*v);
-        if (auto v = child(*section, "accept_controller")) config.input.accept_controller = asBool(*v);
-        if (auto v = child(*section, "navigate_up_keys")) applyStringVector(config.input.navigate_up_keys, *v, "input.navigate_up_keys");
-        if (auto v = child(*section, "navigate_down_keys")) applyStringVector(config.input.navigate_down_keys, *v, "input.navigate_down_keys");
-        if (auto v = child(*section, "forward_keys")) applyStringVector(config.input.forward_keys, *v, "input.forward_keys");
-        if (auto v = child(*section, "back_keys")) applyStringVector(config.input.back_keys, *v, "input.back_keys");
+        applyInputConfig(config.input, *section);
     }
 
     if (auto section = child(root, "audio")) {
-        if (auto v = child(*section, "menu_music")) config.audio.menu_music = asString(*v);
-        if (auto v = child(*section, "button_sfx")) config.audio.button_sfx = asString(*v);
-        if (auto v = child(*section, "music_volume")) config.audio.music_volume = asInt(*v);
-        if (auto v = child(*section, "ui_volume")) config.audio.sfx_volume = asInt(*v);
-        if (auto v = child(*section, "sfx_volume")) config.audio.sfx_volume = asInt(*v);
+        applyAudioConfig(config.audio, *section);
     }
 
     if (auto section = child(root, "persistence")) {

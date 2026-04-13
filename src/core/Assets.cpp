@@ -3,13 +3,108 @@
 
 #include <SDL_image.h>
 #include <SDL_ttf.h>
+#include <algorithm>
 #include <filesystem>
+#include <iomanip>
+#include <iostream>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 
 namespace fs = std::filesystem;
 
 namespace pr {
+
+namespace {
+
+int clampChannel(int value) {
+    return std::max(0, std::min(255, value));
+}
+
+std::string textForLog(const std::string& text) {
+    constexpr std::size_t kMaxLoggedBytes = 96;
+    std::ostringstream out;
+    out << '"';
+    const std::size_t count = std::min(text.size(), kMaxLoggedBytes);
+    for (std::size_t i = 0; i < count; ++i) {
+        const unsigned char c = static_cast<unsigned char>(text[i]);
+        if (c == '\\') {
+            out << "\\\\";
+        } else if (c == '"') {
+            out << "\\\"";
+        } else if (c == '\n') {
+            out << "\\n";
+        } else if (c == '\r') {
+            out << "\\r";
+        } else if (c == '\t') {
+            out << "\\t";
+        } else if (c < 0x20 || c == 0x7f) {
+            out << "\\x" << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(c) << std::dec;
+        } else {
+            out << text[i];
+        }
+    }
+    if (text.size() > kMaxLoggedBytes) {
+        out << "...";
+    }
+    out << "\" (" << text.size() << " bytes)";
+    return out.str();
+}
+
+std::string sanitizeUtf8ForTtf(const std::string& text) {
+    std::string sanitized;
+    sanitized.reserve(text.size());
+
+    for (std::size_t i = 0; i < text.size();) {
+        const unsigned char c = static_cast<unsigned char>(text[i]);
+        if (c == '\0') {
+            sanitized.push_back('?');
+            ++i;
+        } else if (c < 0x20 || c == 0x7f) {
+            sanitized.push_back(' ');
+            ++i;
+        } else if (c < 0x80) {
+            sanitized.push_back(static_cast<char>(c));
+            ++i;
+        } else {
+            std::size_t expected = 0;
+            if ((c & 0xe0) == 0xc0) {
+                expected = 2;
+            } else if ((c & 0xf0) == 0xe0) {
+                expected = 3;
+            } else if ((c & 0xf8) == 0xf0) {
+                expected = 4;
+            }
+
+            if (expected == 0 || i + expected > text.size()) {
+                sanitized.push_back('?');
+                ++i;
+                continue;
+            }
+
+            bool valid = true;
+            for (std::size_t j = 1; j < expected; ++j) {
+                const unsigned char cc = static_cast<unsigned char>(text[i + j]);
+                if ((cc & 0xc0) != 0x80) {
+                    valid = false;
+                    break;
+                }
+            }
+
+            if (valid) {
+                sanitized.append(text, i, expected);
+                i += expected;
+            } else {
+                sanitized.push_back('?');
+                ++i;
+            }
+        }
+    }
+
+    return sanitized;
+}
+
+} // namespace
 
 TextureHandle loadTexture(SDL_Renderer* renderer, const fs::path& path) {
     SDL_Texture* raw = IMG_LoadTexture(renderer, path.string().c_str());
@@ -26,25 +121,53 @@ TextureHandle loadTexture(SDL_Renderer* renderer, const fs::path& path) {
 }
 
 TextureHandle renderTextTexture(SDL_Renderer* renderer, TTF_Font* font, const std::string& text, const Color& color) {
+    TextureHandle out;
+    if (!renderer || !font) {
+        std::cerr << "Warning: renderTextTexture skipped. renderer="
+                  << (renderer ? "ok" : "null")
+                  << ", font=" << (font ? "ok" : "null")
+                  << ", text=" << textForLog(text) << '\n';
+        return out;
+    }
+
+    std::string render_text = sanitizeUtf8ForTtf(text);
+    if (render_text.empty()) {
+        std::cerr << "Warning: renderTextTexture skipped empty text. renderer=ok, font=ok, text="
+                  << textForLog(text) << '\n';
+        return out;
+    }
+    if (render_text != text) {
+        std::cerr << "Warning: renderTextTexture sanitized text from "
+                  << textForLog(text) << " to " << textForLog(render_text) << '\n';
+    }
+
     SDL_Color sdl_color{
-        static_cast<Uint8>(color.r),
-        static_cast<Uint8>(color.g),
-        static_cast<Uint8>(color.b),
-        static_cast<Uint8>(color.a)
+        static_cast<Uint8>(clampChannel(color.r)),
+        static_cast<Uint8>(clampChannel(color.g)),
+        static_cast<Uint8>(clampChannel(color.b)),
+        static_cast<Uint8>(clampChannel(color.a))
     };
 
-    SDL_Surface* surface = TTF_RenderUTF8_Blended(font, text.c_str(), sdl_color);
+    SDL_Surface* surface = TTF_RenderUTF8_Blended(font, render_text.c_str(), sdl_color);
     if (!surface) {
-        throw std::runtime_error(std::string("Failed to render text: ") + TTF_GetError());
+        std::cerr << "Warning: TTF_RenderUTF8_Blended failed. text="
+                  << textForLog(render_text)
+                  << ", TTF_GetError=" << TTF_GetError()
+                  << ", SDL_GetError=" << SDL_GetError() << '\n';
+        return out;
     }
 
     SDL_Texture* raw = SDL_CreateTextureFromSurface(renderer, surface);
     if (!raw) {
+        std::cerr << "Warning: SDL_CreateTextureFromSurface failed for text="
+                  << textForLog(render_text)
+                  << ", surface=" << surface->w << 'x' << surface->h
+                  << ", SDL_GetError=" << SDL_GetError()
+                  << ", TTF_GetError=" << TTF_GetError() << '\n';
         SDL_FreeSurface(surface);
-        throw std::runtime_error(std::string("Failed to create text texture: ") + SDL_GetError());
+        return out;
     }
 
-    TextureHandle out;
     out.texture.reset(raw, SDL_DestroyTexture);
     out.width = surface->w;
     out.height = surface->h;

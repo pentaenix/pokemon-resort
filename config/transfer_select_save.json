@@ -1,47 +1,177 @@
 {
-  "palette": {
-    "game_colors": {
-      "pokemon_red": "#C83A32",
-      "pokemon_blue": "#2E5FA8",
-      "pokemon_yellow": "#D9B200",
-      "pokemon_gold": "#C9A227",
-      "pokemon_silver": "#9FA8B2",
-      "pokemon_crystal": "#6EC6D9",
-      "pokemon_ruby": "#B33A32",
-      "pokemon_sapphire": "#2C5DAA",
-      "pokemon_emerald": "#2E8B57",
-      "pokemon_firered": "#D1492E",
-      "pokemon_leafgreen": "#5C9A3A",
-      "pokemon_diamond": "#7FA7D8",
-      "pokemon_pearl": "#D9C7D8",
-      "pokemon_platinum": "#8E949C",
-      "pokemon_heartgold": "#C79A2B",
-      "pokemon_soulsilver": "#AEB8C4",
-      "pokemon_black": "#2F3136",
-      "pokemon_white": "#D9D9D6",
-      "pokemon_black_2": "#1F2F46",
-      "pokemon_white_2": "#BFC8D6",
-      "pokemon_x": "#3E6FB6",
-      "pokemon_y": "#C44545",
-      "pokemon_omega_ruby": "#A63E32",
-      "pokemon_alpha_sapphire": "#2F5FAE",
-      "pokemon_sun": "#D98A1E",
-      "pokemon_moon": "#5E6FB8",
-      "pokemon_ultra_sun": "#E06A1A",
-      "pokemon_ultra_moon": "#4A56A8",
-      "pokemon_lets_go_pikachu": "#D4B11F",
-      "pokemon_lets_go_eevee": "#B07A52",
-      "pokemon_sword": "#2F6CC4",
-      "pokemon_shield": "#C23F6B",
-      "pokemon_brilliant_diamond": "#7FB0E3",
-      "pokemon_shining_pearl": "#D8C2D8",
-      "pokemon_legends_arceus": "#7A6A4F",
-      "pokemon_scarlet": "#C2453D",
-      "pokemon_violet": "#6B4FB3",
-      "pokemon_the_teal_mask": "#2E8C7A",
-      "pokemon_the_indigo_disk": "#2A6FA8",
-      "pokemon_winds": "#5F88C9",
-      "pokemon_waves": "#2F7F9F"
+  "transfer_screen": {
+    "header": {
+      "title": "TRAVEL DESK",
+      "subtitle": "Choose a save file to begin transfer",
+      "title_center": {
+        "x": 256,
+        "y": 20
+      },
+      "subtitle_center": {
+        "x": 256,
+        "y": 45
+      },
+      "title_font_size": 25,
+      "subtitle_font_size": 12,
+      "title_color": "#FFFFFF",
+      "subtitle_color": "#5E5E5E"
+    },
+    "list": {
+      "start": {
+        "x": 18,
+        "y": 80
+      },
+      "separation_y": 148,
+      "scroll_speed": 10,
+      "viewport": {
+        "x": 0,
+        "y": 75,
+        "w": 512,
+        "h": 295
+      }
+    },
+    "audio": {
+      "music": "assets/transfer_select_save/transfer_lobby.mp3",
+      "silence_seconds": 1.0,
+      "fade_in_seconds": 1.0
     }
+  },
+  "ticket": {
+    "font_sizes": {
+      "title": 27,
+      "trainer": 20,
+      "data_label": 18,
+      "data_value": 16,
+      "boarding_pass": 15
+    },
+    "layout": {
+      "boarding_pass": {
+        "x": -40,
+        "y": 60,
+        "angle_degrees": -90
+      },
+      "game_title": {
+        "x": 100,
+        "y": 9
+      },
+      "trainer_name": {
+        "x": 100,
+        "y": 40
+      },
+      "party": {
+        "start": {
+          "x": 63,
+          "y": 92
+        },
+        "count": 6,
+        "spacing": 51,
+        "scale": 1
+      },
+      "stats": {
+        "origin": {
+          "x": 360,
+          "y": -2
+        },
+        "pokedex_label": {
+          "x": 0,
+          "y": 9
+        },
+        "pokedex_value": {
+          "x": 2,
+          "y": 28
+        },
+        "time_label": {
+          "x": 0,
+          "y": 50
+        },
+        "time_value": {
+          "x": 2,
+          "y": 69
+        },
+        "badges_label": {
+          "x": 0,
+          "y": 91
+        },
+        "badges_value": {
+          "x": 2,
+          "y": 110
+        }
+      }
+    },
+    "selection": {
+      "enabled": true,
+      "border_color": "#F4CD48",
+      "border_alpha": 230,
+      "border_thickness": 3,
+      "border_padding": 2,
+      "border_radius": 10,
+      "beat_speed": 2.0,
+      "beat_magnitude": 1.3
+    },
+    "rip_animation": {
+      "enabled": true,
+      "pre_tug_distance": 3,
+      "pre_tug_duration_seconds": 0.08,
+      "distance": 28,
+      "duration_seconds": 0.28,
+      "rotation_degrees": 5.5,
+      "rotation_pivot": {
+        "x": 360,
+        "y": 12
+      }
+    },
+    "selection_transition": {
+      "fade_to_black_seconds": 0.12,
+      "fade_to_black_max_alpha": 255
+    }
+  },
+  "transfer_system": {
+    "fade_in_seconds": 0
+  },
+  "palette": {
+  "game_colors": {
+    "pokemon_red": "#C73E3A",
+    "pokemon_blue": "#3568C8",
+    "pokemon_yellow": "#E0B91A",
+    "pokemon_gold": "#B8922E",
+    "pokemon_silver": "#98A6B8",
+    "pokemon_crystal": "#5FCBE0",
+    "pokemon_ruby": "#9B2E4F",
+    "pokemon_sapphire": "#2460C9",
+    "pokemon_emerald": "#1E8E5A",
+    "pokemon_firered": "#E95A24",
+    "pokemon_leafgreen": "#70A832",
+    "pokemon_diamond": "#6FA8E8",
+    "pokemon_pearl": "#E5D6E8",
+    "pokemon_platinum": "#7F8791",
+    "pokemon_heartgold": "#D4A437",
+    "pokemon_soulsilver": "#B7C6D6",
+    "pokemon_hgss": "#C7B086",
+    "pokemon_black": "#2D2F36",
+    "pokemon_white": "#ECEBE6",
+    "pokemon_black_2": "#1E355C",
+    "pokemon_white_2": "#D8E4F2",
+    "pokemon_x": "#4C78D0",
+    "pokemon_y": "#D64C6B",
+    "pokemon_omega_ruby": "#7E2A3A",
+    "pokemon_alpha_sapphire": "#2B86E3",
+    "pokemon_sun": "#E39A1F",
+    "pokemon_moon": "#6878C8",
+    "pokemon_ultra_sun": "#FF6A1A",
+    "pokemon_ultra_moon": "#4542A8",
+    "pokemon_lets_go_pikachu": "#F0C419",
+    "pokemon_lets_go_eevee": "#B88357",
+    "pokemon_sword": "#1F7AE0",
+    "pokemon_shield": "#C83F8A",
+    "pokemon_brilliant_diamond": "#9ED2FF",
+    "pokemon_shining_pearl": "#F0D4E8",
+    "pokemon_legends_arceus": "#8A7450",
+    "pokemon_scarlet": "#D94137",
+    "pokemon_violet": "#7A4FD6",
+    "pokemon_the_teal_mask": "#1D9B89",
+    "pokemon_the_indigo_disk": "#2E55B7",
+    "pokemon_winds": "#7BA4E3",
+    "pokemon_waves": "#2A93B5"
   }
+}
 }

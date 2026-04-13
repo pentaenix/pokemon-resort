@@ -19,12 +19,12 @@ struct Point {
 };
 
 struct WindowConfig {
-    int width = 1024;
-    int height = 768;
-    int virtual_width = 1024;
-    int virtual_height = 768;
-    int design_width = 1024;
-    int design_height = 768;
+    int width = 512;
+    int height = 384;
+    int virtual_width = 512;
+    int virtual_height = 384;
+    int design_width = 512;
+    int design_height = 384;
     std::string title = "Pokemon Resort - Title Screen";
 };
 
@@ -50,23 +50,23 @@ struct TimingConfig {
 
 struct PromptConfig {
     std::string text = "PRESS START";
-    int center_x = 512;
-    int baseline_y = 724;
-    int font_pt_size = 32;
+    int center_x = 256;
+    int baseline_y = 362;
+    int font_pt_size = 16;
     Color color{160, 160, 160, 255};
     double blink_cycle_seconds = 1.6;
 };
 
 struct LayoutConfig {
-    Point splash_logo_center{512, 384};
-    Point main_logo_center{512, 384};
+    Point splash_logo_center{256, 192};
+    Point main_logo_center{256, 192};
     Point background_a_top_left{0, 0};
     Point background_b_top_left{0, 0};
 };
 
 struct TransitionConfig {
-    int main_logo_end_y = -256;
-    int background_a_end_y = -768;
+    int main_logo_end_y = -128;
+    int background_a_end_y = -384;
     double background_a_speed_scale = 1.0;
     double main_logo_speed_scale = 1.15;
     bool fade_prompt_out = true;
@@ -95,10 +95,10 @@ struct MenuConfig {
         "TRANSFER",
         "OPTIONS"
     };
-    int center_x = 512;
-    int top_y = 40;
-    int vertical_spacing = 40;
-    int font_pt_size = 42;
+    int center_x = 256;
+    int top_y = 20;
+    int vertical_spacing = 20;
+    int font_pt_size = 21;
     Color text_color{255, 255, 255, 255};
     MenuAnimationConfig animation;
     MenuSelectionConfig selection;
@@ -111,9 +111,9 @@ struct ShineConfig {
     double duration_seconds = 0.65;
     int repeat_count = 1;
     double gap_seconds = 0.35;
-    int band_width = 100;
+    int band_width = 50;
     int max_alpha = 170;
-    int travel_padding = 120;
+    int travel_padding = 60;
     bool use_additive_blend = true;
 };
 
@@ -130,6 +130,7 @@ struct InputConfig {
 struct AudioConfig {
     std::string menu_music = "assets/title/menu_music.mp3";
     std::string button_sfx = "assets/title/btn.mp3";
+    std::string rip_sfx = "assets/transfer_select_save/rip.mp3";
     int music_volume = 7;
     int sfx_volume = 8;
 };
@@ -179,6 +180,12 @@ struct TitleScreenConfig {
     AudioConfig audio;
     PersistenceConfig persistence;
     SkipConfig skip;
+};
+
+struct AppConfig {
+    WindowConfig window;
+    InputConfig input;
+    AudioConfig audio;
 };
 
 } // namespace pr

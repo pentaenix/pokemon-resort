@@ -10,6 +10,9 @@ namespace pr {
 
 namespace {
 
+constexpr int kSectionTitleY = 60;
+constexpr int kSectionBackButtonY = 340;
+
 double clamp01(double v) { return std::max(0.0, std::min(1.0, v)); }
 double lerp(double a, double b, double t) { return a + (b - a) * t; }
 double easeOutCubic(double t) { t = clamp01(t); double inv = 1.0 - t; return 1.0 - inv * inv * inv; }
@@ -97,8 +100,13 @@ void TitleScreen::update(double dt) {
             break;
         case TitleState::MainMenuSectionFade:
             if (state_time_ >= config_.menu.section_transition.fade_duration) {
-                current_section_ = pending_section_;
-                changeState(TitleState::SectionScreen);
+                if (pending_transfer_after_fade_) {
+                    pending_transfer_after_fade_ = false;
+                    open_transfer_requested_ = true;
+                } else {
+                    current_section_ = pending_section_;
+                    changeState(TitleState::SectionScreen);
+                }
             }
             break;
         case TitleState::OptionsIntro:
@@ -287,9 +295,9 @@ bool TitleScreen::consumeUserSettingsSaveRequest() {
     return requested;
 }
 
-bool TitleScreen::consumeOpenTransferSandboxRequest() {
-    const bool requested = open_transfer_sandbox_requested_;
-    open_transfer_sandbox_requested_ = false;
+bool TitleScreen::consumeOpenTransferRequest() {
+    const bool requested = open_transfer_requested_;
+    open_transfer_requested_ = false;
     return requested;
 }
 
@@ -308,9 +316,13 @@ void TitleScreen::applyUserSettings(const UserSettings& settings) {
     option_textures_dirty_ = true;
 }
 
-void TitleScreen::returnToMainMenuFromTransferSandbox() {
+void TitleScreen::returnToMainMenuFromTransfer() {
     selected_main_menu_index_ = 1;
     changeState(TitleState::MainMenuIdle);
+}
+
+void TitleScreen::restartFromExternalScreen() {
+    restartFromSplash();
 }
 
 void TitleScreen::changeState(TitleState next) {
@@ -428,11 +440,13 @@ void TitleScreen::activateMainMenuSelection() {
     requestButtonSfx();
     switch (selected_main_menu_index_) {
         case 0:
+            pending_transfer_after_fade_ = false;
             pending_section_ = SectionKind::Resort;
             changeState(TitleState::MainMenuToSection);
             break;
         case 1:
-            open_transfer_sandbox_requested_ = true;
+            pending_transfer_after_fade_ = true;
+            changeState(TitleState::MainMenuToSection);
             break;
         case 2:
             changeState(TitleState::OptionsIntro);
@@ -618,7 +632,7 @@ void TitleScreen::renderSection(SDL_Renderer* renderer) const {
     SDL_RenderFillRect(renderer, &header);
 
     ensureSectionTextures(renderer);
-    drawTextureCentered(renderer, section_title_texture_, config_.window.design_width / 2, 120, 255);
+    drawTextureCentered(renderer, section_title_texture_, config_.window.design_width / 2, kSectionTitleY, 255);
     drawSectionBackButton(renderer);
 }
 
@@ -909,7 +923,7 @@ void TitleScreen::drawOptionButton(SDL_Renderer* renderer, std::size_t index, do
 
 void TitleScreen::drawSectionBackButton(SDL_Renderer* renderer) const {
     ensureSectionTextures(renderer);
-    drawButtonWithLabel(renderer, section_back_texture_, config_.window.design_width / 2, 680, 255, true);
+    drawButtonWithLabel(renderer, section_back_texture_, config_.window.design_width / 2, kSectionBackButtonY, 255, true);
 }
 
 void TitleScreen::drawSelectionHighlight(SDL_Renderer* renderer, int center_x, int center_y) const {
@@ -1004,7 +1018,7 @@ SDL_Rect TitleScreen::optionButtonRect(std::size_t index) const {
 }
 
 SDL_Rect TitleScreen::sectionBackButtonRect() const {
-    return buttonRect(config_.window.design_width / 2, 680);
+    return buttonRect(config_.window.design_width / 2, kSectionBackButtonY);
 }
 
 bool TitleScreen::pointInRect(int x, int y, const SDL_Rect& rect) const {

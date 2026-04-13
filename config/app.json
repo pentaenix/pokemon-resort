@@ -1,0 +1,27 @@
+{
+  "window": {
+    "width": 512,
+    "height": 384,
+    "virtual_width": 512,
+    "virtual_height": 384,
+    "design_width": 512,
+    "design_height": 384,
+    "title": "Pokemon Resort"
+  },
+  "input": {
+    "accept_any_key": true,
+    "accept_mouse": true,
+    "accept_controller": true,
+    "navigate_up_keys": ["UP", "W"],
+    "navigate_down_keys": ["DOWN", "S"],
+    "forward_keys": ["M", "RETURN", "SPACE"],
+    "back_keys": ["N", "ESCAPE", "BACKSPACE"]
+  },
+  "audio": {
+    "menu_music": "assets/title/menu_music.mp3",
+    "button_sfx": "assets/title/btn.mp3",
+    "rip_sfx": "assets/transfer_select_save/rip.mp3",
+    "music_volume": 3,
+    "sfx_volume": 8
+  }
+}
