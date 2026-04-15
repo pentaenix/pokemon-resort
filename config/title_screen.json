@@ -19,21 +19,21 @@
   },
   "prompt": {
     "text": "PRESS START",
-    "center_x": 256,
-    "baseline_y": 362,
-    "font_pt_size": 36,
+    "center_x": 640,
+    "baseline_y": 754,
+    "font_pt_size": 75,
     "blink_cycle_seconds": 1.60,
     "color": "#A0A0A0"
   },
   "layout": {
-    "splash_logo_center": { "x": 256, "y": 192 },
-    "main_logo_center": { "x": 256, "y": 192 },
+    "splash_logo_center": { "x": 640, "y": 400 },
+    "main_logo_center": { "x": 640, "y": 400 },
     "background_a_top_left": { "x": 0, "y": 0 },
     "background_b_top_left": { "x": 0, "y": 0 }
   },
   "transition": {
-    "main_logo_end_y": -130,
-    "background_a_end_y": -384,
+    "main_logo_end_y": -271,
+    "background_a_end_y": -800,
     "background_a_speed_scale": 0.8,
     "main_logo_speed_scale": 1.0,
     "fade_prompt_out": true
@@ -42,16 +42,17 @@
     "items": [
       "RESORT",
       "TRANSFER",
+      "TRADE",
       "OPTIONS"
     ],
-    "center_x": 256,
-    "top_y": 20,
-    "vertical_spacing": 20,
-    "font_pt_size": 22,
+    "center_x": 640,
+    "top_y": 42,
+    "vertical_spacing": 42,
+    "font_pt_size": 46,
     "animation": {
       "intro_duration": 0.5,
       "outro_duration": 0.35,
-      "slide_distance": 210,
+      "slide_distance": 525,
       "bounce": 0.1
     },
     "selection": {
@@ -86,7 +87,7 @@
   "shine": {
     "repeat_count": 2,
     "gap_seconds": 5.5,
-    "band_width": 45,
-    "travel_padding": 70
+    "band_width": 94,
+    "travel_padding": 146
   }
 }

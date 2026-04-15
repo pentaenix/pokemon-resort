@@ -27,10 +27,10 @@ private:
     struct LoadingConfig {
         std::string balls_directory = "assets/loading/balls";
         std::string text = "";
-        Point text_center{256, 250};
+        Point text_center{640, 521};
         int font_size = 20;
         Color text_color{255, 255, 255, 255};
-        Point ball_center{480, 352};
+        Point ball_center{1248, 768};
         double ball_scale = 1.0;
         double lap_seconds = 0.95;
         double partial_spin_degrees = -24.0;

@@ -2,6 +2,7 @@
 
 #include "core/Assets.hpp"
 #include "core/Types.hpp"
+#include "ui/ScreenInput.hpp"
 #include "ui/TransferSaveSelection.hpp"
 
 #include <SDL.h>
@@ -12,7 +13,7 @@
 
 namespace pr {
 
-class TransferTicketScreen {
+class TransferTicketScreen : public ScreenInput {
 public:
     TransferTicketScreen(
         SDL_Renderer* renderer,
@@ -25,12 +26,13 @@ public:
     void update(double dt);
     void render(SDL_Renderer* renderer) const;
 
-    void onNavigate(int delta);
-    void onAdvancePressed();
-    void onBackPressed();
-    void handlePointerMoved(int logical_x, int logical_y);
-    bool handlePointerPressed(int logical_x, int logical_y);
-    bool handlePointerReleased(int logical_x, int logical_y);
+    bool canNavigate() const override;
+    void onNavigate(int delta) override;
+    void onAdvancePressed() override;
+    void onBackPressed() override;
+    void handlePointerMoved(int logical_x, int logical_y) override;
+    bool handlePointerPressed(int logical_x, int logical_y) override;
+    bool handlePointerReleased(int logical_x, int logical_y) override;
 
     bool consumeButtonSfxRequest();
     bool consumeRipSfxRequest();
@@ -45,6 +47,7 @@ private:
         TextureHandle background;
         TextureHandle banner;
         TextureHandle backdrop;
+        TextureHandle stamp;
         TextureHandle main_left;
         TextureHandle main_right;
         TextureHandle color_left;
@@ -106,12 +109,11 @@ private:
         int party_spacing = 42;
         double party_scale = 2.0;
         Point stats_origin{252, 0};
-        Point pokedex_label{0, 9};
-        Point pokedex_value{2, 28};
-        Point time_label{0, 50};
-        Point time_value{2, 69};
-        Point badges_label{0, 91};
-        Point badges_value{2, 110};
+        int stats_label_x = 0;
+        int stats_value_x = 2;
+        int stats_label_y = 9;
+        int stats_label_value_gap = 19;
+        int stats_row_gap = 41;
         TicketFontSizes font_sizes;
     };
 
@@ -127,19 +129,19 @@ private:
     };
 
     struct TicketListLayout {
-        Point start{20, 98};
-        int separation_y = 54;
-        SDL_Rect viewport{0, 84, 512, 276};
+        Point start{45, 167};
+        int separation_y = 308;
+        SDL_Rect viewport{0, 156, 1280, 615};
         double scroll_speed = 14.0;
     };
 
     struct ScreenHeader {
         std::string title = "TRANSFER";
         std::string subtitle = "Select a save ticket to begin.";
-        Point title_center{256, 31};
-        Point subtitle_center{256, 60};
-        int title_font_size = 34;
-        int subtitle_font_size = 14;
+        Point title_center{640, 42};
+        Point subtitle_center{640, 94};
+        int title_font_size = 52;
+        int subtitle_font_size = 25;
         Color title_color{31, 31, 31, 255};
         Color subtitle_color{94, 94, 94, 255};
     };
@@ -163,6 +165,13 @@ private:
         std::string path = "assets/transfer_select_save/transfer_lobby.mp3";
         double silence_seconds = 1.0;
         double fade_in_seconds = 1.0;
+    };
+
+    struct BackgroundAnimation {
+        bool enabled = false;
+        double scale = 1.0;
+        double speed_x = 0.0;
+        double speed_y = 0.0;
     };
 
     void requestButtonSfx();
@@ -206,6 +215,7 @@ private:
         double angle_degrees,
         int pivot_x,
         int pivot_y) const;
+    void drawBackground(SDL_Renderer* renderer) const;
     void drawSelectionOutline(SDL_Renderer* renderer, int x, int y, int width, int height) const;
     void drawRoundedSelectionRect(SDL_Renderer* renderer, int x, int y, int width, int height, int radius) const;
     void renderTicket(SDL_Renderer* renderer, int index, int x, int y, bool selected) const;
@@ -213,11 +223,6 @@ private:
     bool pointInTicket(int logical_x, int logical_y, int index) const;
     int ticketCount() const;
     double maxScrollOffset() const;
-
-    double scaleX() const;
-    double scaleY() const;
-    int sx(int value) const;
-    int sy(int value) const;
 
     WindowConfig window_config_;
     std::string font_path_;
@@ -231,6 +236,7 @@ private:
     TicketRipAnimation rip_animation_;
     SelectionTransition selection_transition_;
     TransferMusic music_;
+    BackgroundAnimation background_animation_;
     ScreenText screen_text_;
     std::vector<TicketEntry> tickets_;
     std::map<std::string, Color> game_palette_;

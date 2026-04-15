@@ -21,6 +21,7 @@ namespace pr {
 namespace {
 
 constexpr double kPi = 3.14159265358979323846;
+constexpr int kListEffectBleed = 48;
 
 const Color kTitleColor{0x1f, 0x1f, 0x1f, 255};
 const Color kTrainerColor{0x5e, 0x5e, 0x5e, 255};
@@ -135,6 +136,7 @@ TransferTicketScreen::TransferTicketScreen(
     assets_.background = loadTexture(renderer, root / "background.png");
     assets_.banner = loadTexture(renderer, root / "transfer_top_banner.png");
     assets_.backdrop = loadTexture(renderer, root / "backdrop.png");
+    assets_.stamp = loadTexture(renderer, root / "stamp.png");
     assets_.main_left = loadTexture(renderer, root / "main_left.png");
     assets_.main_right = loadTexture(renderer, root / "main_right.png");
     assets_.color_left = loadTexture(renderer, root / "color_left.png");
@@ -256,14 +258,14 @@ void TransferTicketScreen::render(SDL_Renderer* renderer) const {
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer);
-    drawTextureTopLeft(renderer, assets_.background, 0, 0);
+    drawBackground(renderer);
     drawTextureTopLeft(renderer, assets_.backdrop, 0, 0);
 
     SDL_Rect clip{
-        sx(list_layout_.viewport.x),
-        sy(list_layout_.viewport.y),
-        sx(list_layout_.viewport.w),
-        sy(list_layout_.viewport.h)
+        list_layout_.viewport.x - kListEffectBleed,
+        list_layout_.viewport.y - kListEffectBleed,
+        list_layout_.viewport.w + kListEffectBleed * 2,
+        list_layout_.viewport.h + kListEffectBleed * 2
     };
     SDL_RenderSetClipRect(renderer, &clip);
     const int rounded_scroll_offset_y = static_cast<int>(std::round(scroll_offset_y_));
@@ -281,6 +283,7 @@ void TransferTicketScreen::render(SDL_Renderer* renderer) const {
     drawTextureTopLeft(renderer, assets_.banner, 0, 0);
     drawTextureCentered(renderer, screen_text_.title, screen_header_.title_center.x, screen_header_.title_center.y);
     drawTextureCentered(renderer, screen_text_.subtitle, screen_header_.subtitle_center.x, screen_header_.subtitle_center.y);
+    drawTextureTopLeft(renderer, assets_.stamp, 0, 0);
 
     if (fade_to_black_active_ && selection_transition_.fade_to_black_seconds > 0.0) {
         const double t = clamp01(fade_to_black_elapsed_seconds_ / selection_transition_.fade_to_black_seconds);
@@ -294,10 +297,14 @@ void TransferTicketScreen::render(SDL_Renderer* renderer) const {
                 0,
                 0,
                 static_cast<Uint8>(std::max(0, std::min(255, alpha))));
-            SDL_Rect overlay{0, 0, sx(window_config_.design_width), sy(window_config_.design_height)};
+            SDL_Rect overlay{0, 0, window_config_.virtual_width, window_config_.virtual_height};
             SDL_RenderFillRect(renderer, &overlay);
         }
     }
+}
+
+bool TransferTicketScreen::canNavigate() const {
+    return ticketCount() > 0 && activating_ticket_index_ < 0;
 }
 
 void TransferTicketScreen::onNavigate(int delta) {
@@ -315,8 +322,13 @@ void TransferTicketScreen::onNavigate(int delta) {
         selected_ticket_index_ += count;
     }
     if (selected_ticket_index_ != previous) {
+        const bool wrapped_to_end = previous == 0 && selected_ticket_index_ == count - 1;
+        const bool wrapped_to_start = previous == count - 1 && selected_ticket_index_ == 0;
         requestButtonSfx();
         updateScrollOffset();
+        if (wrapped_to_end || wrapped_to_start) {
+            scroll_offset_y_ = target_scroll_offset_y_;
+        }
     }
 }
 
@@ -529,12 +541,14 @@ void TransferTicketScreen::loadTransferConfig() {
             }
             if (const JsonValue* stats = layout->get("stats")) {
                 if (const JsonValue* origin = stats->get("origin")) applyPointFromObject(layout_.stats_origin, *origin);
-                if (const JsonValue* pokedex_label = stats->get("pokedex_label")) applyPointFromObject(layout_.pokedex_label, *pokedex_label);
-                if (const JsonValue* pokedex_value = stats->get("pokedex_value")) applyPointFromObject(layout_.pokedex_value, *pokedex_value);
-                if (const JsonValue* time_label = stats->get("time_label")) applyPointFromObject(layout_.time_label, *time_label);
-                if (const JsonValue* time_value = stats->get("time_value")) applyPointFromObject(layout_.time_value, *time_value);
-                if (const JsonValue* badges_label = stats->get("badges_label")) applyPointFromObject(layout_.badges_label, *badges_label);
-                if (const JsonValue* badges_value = stats->get("badges_value")) applyPointFromObject(layout_.badges_value, *badges_value);
+                layout_.stats_label_x = intFromObjectOrDefault(*stats, "label_x", layout_.stats_label_x);
+                layout_.stats_value_x = intFromObjectOrDefault(*stats, "value_x", layout_.stats_value_x);
+                layout_.stats_label_y = intFromObjectOrDefault(*stats, "label_y", layout_.stats_label_y);
+                layout_.stats_label_value_gap = intFromObjectOrDefault(
+                    *stats,
+                    "label_value_gap",
+                    layout_.stats_label_value_gap);
+                layout_.stats_row_gap = intFromObjectOrDefault(*stats, "row_gap", layout_.stats_row_gap);
             }
         }
 
@@ -630,6 +644,26 @@ void TransferTicketScreen::loadTransferConfig() {
                 0.0,
                 doubleFromObjectOrDefault(*audio, "fade_in_seconds", music_.fade_in_seconds));
         }
+        if (const JsonValue* background_animation = transfer_screen_config->get("background_animation")) {
+            background_animation_.enabled = boolFromObjectOrDefault(
+                *background_animation,
+                "enabled",
+                background_animation_.enabled);
+            background_animation_.scale = std::max(
+                0.01,
+                doubleFromObjectOrDefault(
+                    *background_animation,
+                    "scale",
+                    background_animation_.scale));
+            background_animation_.speed_x = doubleFromObjectOrDefault(
+                *background_animation,
+                "speed_x",
+                background_animation_.speed_x);
+            background_animation_.speed_y = doubleFromObjectOrDefault(
+                *background_animation,
+                "speed_y",
+                background_animation_.speed_y);
+        }
     }
 
     const JsonValue* palette = root.get("palette");
@@ -720,7 +754,7 @@ void TransferTicketScreen::drawTextureTopLeft(SDL_Renderer* renderer, const Text
     SDL_SetTextureAlphaMod(texture.texture.get(), 255);
     SDL_SetTextureColorMod(texture.texture.get(), 255, 255, 255);
 
-    SDL_Rect dst{sx(x), sy(y), sx(texture.width), sy(texture.height)};
+    SDL_Rect dst{x, y, texture.width, texture.height};
     SDL_RenderCopy(renderer, texture.texture.get(), nullptr, &dst);
 }
 
@@ -738,7 +772,7 @@ void TransferTicketScreen::drawTextureTopLeftTinted(
     SDL_SetTextureAlphaMod(texture.texture.get(), tint.a);
     SDL_SetTextureColorMod(texture.texture.get(), tint.r, tint.g, tint.b);
 
-    SDL_Rect dst{sx(x), sy(y), sx(texture.width), sy(texture.height)};
+    SDL_Rect dst{x, y, texture.width, texture.height};
     SDL_RenderCopy(renderer, texture.texture.get(), nullptr, &dst);
 }
 
@@ -751,9 +785,9 @@ void TransferTicketScreen::drawTextureCentered(SDL_Renderer* renderer, const Tex
     SDL_SetTextureAlphaMod(texture.texture.get(), 255);
     SDL_SetTextureColorMod(texture.texture.get(), 255, 255, 255);
 
-    const int w = sx(texture.width);
-    const int h = sy(texture.height);
-    SDL_Rect dst{sx(x) - w / 2, sy(y) - h / 2, w, h};
+    const int w = texture.width;
+    const int h = texture.height;
+    SDL_Rect dst{x - w / 2, y - h / 2, w, h};
     SDL_RenderCopy(renderer, texture.texture.get(), nullptr, &dst);
 }
 
@@ -771,9 +805,9 @@ void TransferTicketScreen::drawTextureCenteredTinted(
     SDL_SetTextureAlphaMod(texture.texture.get(), tint.a);
     SDL_SetTextureColorMod(texture.texture.get(), tint.r, tint.g, tint.b);
 
-    const int w = sx(texture.width);
-    const int h = sy(texture.height);
-    SDL_Rect dst{sx(x) - w / 2, sy(y) - h / 2, w, h};
+    const int w = texture.width;
+    const int h = texture.height;
+    SDL_Rect dst{x - w / 2, y - h / 2, w, h};
     SDL_RenderCopy(renderer, texture.texture.get(), nullptr, &dst);
 }
 
@@ -791,9 +825,9 @@ void TransferTicketScreen::drawTextureCenteredScaled(
     SDL_SetTextureAlphaMod(texture.texture.get(), 255);
     SDL_SetTextureColorMod(texture.texture.get(), 255, 255, 255);
 
-    const int w = std::max(1, static_cast<int>(std::round(sx(texture.width) * scale)));
-    const int h = std::max(1, static_cast<int>(std::round(sy(texture.height) * scale)));
-    SDL_Rect dst{sx(x) - w / 2, sy(y) - h / 2, w, h};
+    const int w = std::max(1, static_cast<int>(std::round(static_cast<double>(texture.width) * scale)));
+    const int h = std::max(1, static_cast<int>(std::round(static_cast<double>(texture.height) * scale)));
+    SDL_Rect dst{x - w / 2, y - h / 2, w, h};
     SDL_RenderCopy(renderer, texture.texture.get(), nullptr, &dst);
 }
 
@@ -811,7 +845,7 @@ void TransferTicketScreen::drawTextureTopLeftRotated(
     SDL_SetTextureAlphaMod(texture.texture.get(), 255);
     SDL_SetTextureColorMod(texture.texture.get(), 255, 255, 255);
 
-    SDL_Rect dst{sx(x), sy(y), sx(texture.width), sy(texture.height)};
+    SDL_Rect dst{x, y, texture.width, texture.height};
     SDL_RenderCopyEx(renderer, texture.texture.get(), nullptr, &dst, angle_degrees, nullptr, SDL_FLIP_NONE);
 }
 
@@ -831,8 +865,8 @@ void TransferTicketScreen::drawTextureTopLeftRotatedAround(
     SDL_SetTextureAlphaMod(texture.texture.get(), 255);
     SDL_SetTextureColorMod(texture.texture.get(), 255, 255, 255);
 
-    SDL_Rect dst{sx(x), sy(y), sx(texture.width), sy(texture.height)};
-    SDL_Point center{sx(pivot_x - x), sy(pivot_y - y)};
+    SDL_Rect dst{x, y, texture.width, texture.height};
+    SDL_Point center{pivot_x - x, pivot_y - y};
     SDL_RenderCopyEx(renderer, texture.texture.get(), nullptr, &dst, angle_degrees, &center, SDL_FLIP_NONE);
 }
 
@@ -853,9 +887,49 @@ void TransferTicketScreen::drawTextureTopLeftTintedRotatedAround(
     SDL_SetTextureAlphaMod(texture.texture.get(), tint.a);
     SDL_SetTextureColorMod(texture.texture.get(), tint.r, tint.g, tint.b);
 
-    SDL_Rect dst{sx(x), sy(y), sx(texture.width), sy(texture.height)};
-    SDL_Point center{sx(pivot_x - x), sy(pivot_y - y)};
+    SDL_Rect dst{x, y, texture.width, texture.height};
+    SDL_Point center{pivot_x - x, pivot_y - y};
     SDL_RenderCopyEx(renderer, texture.texture.get(), nullptr, &dst, angle_degrees, &center, SDL_FLIP_NONE);
+}
+
+void TransferTicketScreen::drawBackground(SDL_Renderer* renderer) const {
+    if (!assets_.background.texture) {
+        return;
+    }
+
+    SDL_SetTextureBlendMode(assets_.background.texture.get(), SDL_BLENDMODE_BLEND);
+    SDL_SetTextureAlphaMod(assets_.background.texture.get(), 255);
+    SDL_SetTextureColorMod(assets_.background.texture.get(), 255, 255, 255);
+
+    const double safe_scale = std::max(0.01, background_animation_.scale);
+    const int width = std::max(1, static_cast<int>(std::round(
+        static_cast<double>(assets_.background.width) * safe_scale)));
+    const int height = std::max(1, static_cast<int>(std::round(
+        static_cast<double>(assets_.background.height) * safe_scale)));
+    if (width <= 0 || height <= 0) {
+        return;
+    }
+
+    if (!background_animation_.enabled ||
+        (background_animation_.speed_x == 0.0 && background_animation_.speed_y == 0.0)) {
+        SDL_Rect dst{0, 0, width, height};
+        SDL_RenderCopy(renderer, assets_.background.texture.get(), nullptr, &dst);
+        return;
+    }
+
+    const int screen_width = window_config_.virtual_width;
+    const int screen_height = window_config_.virtual_height;
+    const int offset_x = static_cast<int>(std::floor(background_animation_.speed_x * elapsed_seconds_)) % width;
+    const int offset_y = static_cast<int>(std::floor(background_animation_.speed_y * elapsed_seconds_)) % height;
+    const int start_x = offset_x > 0 ? offset_x - width : offset_x;
+    const int start_y = offset_y > 0 ? offset_y - height : offset_y;
+
+    for (int y = start_y; y < screen_height; y += height) {
+        for (int x = start_x; x < screen_width; x += width) {
+            SDL_Rect dst{x, y, width, height};
+            SDL_RenderCopy(renderer, assets_.background.texture.get(), nullptr, &dst);
+        }
+    }
 }
 
 void TransferTicketScreen::drawSelectionOutline(
@@ -901,24 +975,24 @@ void TransferTicketScreen::drawRoundedSelectionRect(
     int radius) const {
     const int clamped_radius = std::max(0, std::min(radius, std::min(width, height) / 2));
     if (clamped_radius <= 0) {
-        SDL_Rect rect{sx(x), sy(y), sx(width), sy(height)};
+        SDL_Rect rect{x, y, width, height};
         SDL_RenderDrawRect(renderer, &rect);
         return;
     }
 
-    SDL_RenderDrawLine(renderer, sx(x + clamped_radius), sy(y), sx(x + width - clamped_radius), sy(y));
-    SDL_RenderDrawLine(renderer, sx(x + clamped_radius), sy(y + height), sx(x + width - clamped_radius), sy(y + height));
-    SDL_RenderDrawLine(renderer, sx(x), sy(y + clamped_radius), sx(x), sy(y + height - clamped_radius));
-    SDL_RenderDrawLine(renderer, sx(x + width), sy(y + clamped_radius), sx(x + width), sy(y + height - clamped_radius));
+    SDL_RenderDrawLine(renderer, x + clamped_radius, y, x + width - clamped_radius, y);
+    SDL_RenderDrawLine(renderer, x + clamped_radius, y + height, x + width - clamped_radius, y + height);
+    SDL_RenderDrawLine(renderer, x, y + clamped_radius, x, y + height - clamped_radius);
+    SDL_RenderDrawLine(renderer, x + width, y + clamped_radius, x + width, y + height - clamped_radius);
 
     for (int degrees = 0; degrees <= 90; ++degrees) {
         const double angle = static_cast<double>(degrees) * kPi / 180.0;
         const int dx = static_cast<int>(std::round(std::cos(angle) * clamped_radius));
         const int dy = static_cast<int>(std::round(std::sin(angle) * clamped_radius));
-        SDL_RenderDrawPoint(renderer, sx(x + clamped_radius - dx), sy(y + clamped_radius - dy));
-        SDL_RenderDrawPoint(renderer, sx(x + width - clamped_radius + dx), sy(y + clamped_radius - dy));
-        SDL_RenderDrawPoint(renderer, sx(x + clamped_radius - dx), sy(y + height - clamped_radius + dy));
-        SDL_RenderDrawPoint(renderer, sx(x + width - clamped_radius + dx), sy(y + height - clamped_radius + dy));
+        SDL_RenderDrawPoint(renderer, x + clamped_radius - dx, y + clamped_radius - dy);
+        SDL_RenderDrawPoint(renderer, x + width - clamped_radius + dx, y + clamped_radius - dy);
+        SDL_RenderDrawPoint(renderer, x + clamped_radius - dx, y + height - clamped_radius + dy);
+        SDL_RenderDrawPoint(renderer, x + width - clamped_radius + dx, y + height - clamped_radius + dy);
     }
 }
 
@@ -1002,12 +1076,30 @@ void TransferTicketScreen::renderTicket(SDL_Renderer* renderer, int index, int x
 
     const int stats_x = right_x + layout_.stats_origin.x;
     const int stats_y = ticket_top + layout_.stats_origin.y;
-    drawTextureTopLeftRotatedAround(renderer, ticket.text.pokedex_label, stats_x + layout_.pokedex_label.x, stats_y + layout_.pokedex_label.y, right_rotation, right_pivot.x, right_pivot.y);
-    drawTextureTopLeftRotatedAround(renderer, ticket.text.pokedex_value, stats_x + layout_.pokedex_value.x, stats_y + layout_.pokedex_value.y, right_rotation, right_pivot.x, right_pivot.y);
-    drawTextureTopLeftRotatedAround(renderer, ticket.text.time_label, stats_x + layout_.time_label.x, stats_y + layout_.time_label.y, right_rotation, right_pivot.x, right_pivot.y);
-    drawTextureTopLeftRotatedAround(renderer, ticket.text.time_value, stats_x + layout_.time_value.x, stats_y + layout_.time_value.y, right_rotation, right_pivot.x, right_pivot.y);
-    drawTextureTopLeftRotatedAround(renderer, ticket.text.badges_label, stats_x + layout_.badges_label.x, stats_y + layout_.badges_label.y, right_rotation, right_pivot.x, right_pivot.y);
-    drawTextureTopLeftRotatedAround(renderer, ticket.text.badges_value, stats_x + layout_.badges_value.x, stats_y + layout_.badges_value.y, right_rotation, right_pivot.x, right_pivot.y);
+    const auto draw_stat_row = [&](const TextureHandle& label, const TextureHandle& value, int row_index) {
+        const int label_y = stats_y + layout_.stats_label_y + layout_.stats_row_gap * row_index;
+        const int value_y = label_y + layout_.stats_label_value_gap;
+        drawTextureTopLeftRotatedAround(
+            renderer,
+            label,
+            stats_x + layout_.stats_label_x,
+            label_y,
+            right_rotation,
+            right_pivot.x,
+            right_pivot.y);
+        drawTextureTopLeftRotatedAround(
+            renderer,
+            value,
+            stats_x + layout_.stats_value_x,
+            value_y,
+            right_rotation,
+            right_pivot.x,
+            right_pivot.y);
+    };
+
+    draw_stat_row(ticket.text.pokedex_label, ticket.text.pokedex_value, 0);
+    draw_stat_row(ticket.text.time_label, ticket.text.time_value, 1);
+    draw_stat_row(ticket.text.badges_label, ticket.text.badges_value, 2);
 
     if (selected && !ticket_ripping && !ticket_ripped) {
         drawSelectionOutline(renderer, ticket_left, ticket_top, ticket_width, ticket_height);
@@ -1070,24 +1162,6 @@ double TransferTicketScreen::maxScrollOffset() const {
         static_cast<double>(list_layout_.viewport.y) +
         static_cast<double>(list_layout_.viewport.h) * 0.5;
     return std::max(0.0, last_ticket_center_y - viewport_center_y);
-}
-
-double TransferTicketScreen::scaleX() const {
-    return static_cast<double>(window_config_.virtual_width) /
-           static_cast<double>(window_config_.design_width > 0 ? window_config_.design_width : 512);
-}
-
-double TransferTicketScreen::scaleY() const {
-    return static_cast<double>(window_config_.virtual_height) /
-           static_cast<double>(window_config_.design_height > 0 ? window_config_.design_height : 384);
-}
-
-int TransferTicketScreen::sx(int value) const {
-    return static_cast<int>(std::round(static_cast<double>(value) * scaleX()));
-}
-
-int TransferTicketScreen::sy(int value) const {
-    return static_cast<int>(std::round(static_cast<double>(value) * scaleY()));
 }
 
 } // namespace pr

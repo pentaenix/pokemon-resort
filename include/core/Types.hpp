@@ -19,12 +19,12 @@ struct Point {
 };
 
 struct WindowConfig {
-    int width = 512;
-    int height = 384;
-    int virtual_width = 512;
-    int virtual_height = 384;
-    int design_width = 512;
-    int design_height = 384;
+    int width = 1280;
+    int height = 800;
+    int virtual_width = 1280;
+    int virtual_height = 800;
+    int design_width = 1280;
+    int design_height = 800;
     std::string title = "Pokemon Resort - Title Screen";
 };
 
@@ -50,23 +50,23 @@ struct TimingConfig {
 
 struct PromptConfig {
     std::string text = "PRESS START";
-    int center_x = 256;
-    int baseline_y = 362;
-    int font_pt_size = 16;
+    int center_x = 640;
+    int baseline_y = 754;
+    int font_pt_size = 75;
     Color color{160, 160, 160, 255};
     double blink_cycle_seconds = 1.6;
 };
 
 struct LayoutConfig {
-    Point splash_logo_center{256, 192};
-    Point main_logo_center{256, 192};
+    Point splash_logo_center{640, 400};
+    Point main_logo_center{640, 400};
     Point background_a_top_left{0, 0};
     Point background_b_top_left{0, 0};
 };
 
 struct TransitionConfig {
-    int main_logo_end_y = -128;
-    int background_a_end_y = -384;
+    int main_logo_end_y = -267;
+    int background_a_end_y = -800;
     double background_a_speed_scale = 1.0;
     double main_logo_speed_scale = 1.15;
     bool fade_prompt_out = true;
@@ -75,7 +75,7 @@ struct TransitionConfig {
 struct MenuAnimationConfig {
     double intro_duration = 0.45;
     double outro_duration = 0.35;
-    int slide_distance = 360;
+    int slide_distance = 525;
     double bounce = 1.70158;
 };
 
@@ -90,15 +90,16 @@ struct MenuSectionTransitionConfig {
 };
 
 struct MenuConfig {
-    std::array<std::string, 3> items{
+    std::array<std::string, 4> items{
         "GO TO RESORT",
         "TRANSFER",
+        "TRADE",
         "OPTIONS"
     };
-    int center_x = 256;
-    int top_y = 20;
-    int vertical_spacing = 20;
-    int font_pt_size = 21;
+    int center_x = 640;
+    int top_y = 42;
+    int vertical_spacing = 42;
+    int font_pt_size = 44;
     Color text_color{255, 255, 255, 255};
     MenuAnimationConfig animation;
     MenuSelectionConfig selection;
@@ -111,9 +112,9 @@ struct ShineConfig {
     double duration_seconds = 0.65;
     int repeat_count = 1;
     double gap_seconds = 0.35;
-    int band_width = 50;
+    int band_width = 104;
     int max_alpha = 170;
-    int travel_padding = 60;
+    int travel_padding = 125;
     bool use_additive_blend = true;
 };
 

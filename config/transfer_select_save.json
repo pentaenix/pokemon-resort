@@ -4,120 +4,107 @@
       "title": "TRAVEL DESK",
       "subtitle": "Choose a save file to begin transfer",
       "title_center": {
-        "x": 256,
-        "y": 20
+        "x": 640,
+        "y": 35
       },
       "subtitle_center": {
-        "x": 256,
-        "y": 45
+        "x": 640,
+        "y": 75
       },
-      "title_font_size": 25,
-      "subtitle_font_size": 12,
+      "title_font_size": 48,
+      "subtitle_font_size": 25,
       "title_color": "#FFFFFF",
-      "subtitle_color": "#5E5E5E"
+      "subtitle_color": "#D7EEF6"
     },
     "list": {
       "start": {
-        "x": 18,
-        "y": 80
+        "x": 120,
+        "y": 175
       },
-      "separation_y": 148,
+      "separation_y": 320,
       "scroll_speed": 10,
       "viewport": {
         "x": 0,
-        "y": 75,
-        "w": 512,
-        "h": 295
+        "y": 195,
+        "w": 1200,
+        "h": 505
       }
     },
     "audio": {
       "music": "assets/transfer_select_save/transfer_lobby.mp3",
       "silence_seconds": 1.0,
       "fade_in_seconds": 1.0
+    },
+    "background_animation": {
+      "enabled": true,
+      "scale": 0.5,
+      "speed_x": -12,
+      "speed_y": -12
     }
   },
   "ticket": {
     "font_sizes": {
-      "title": 27,
-      "trainer": 20,
-      "data_label": 18,
-      "data_value": 16,
-      "boarding_pass": 15
+      "title": 40,
+      "trainer": 28,
+      "data_label": 30,
+      "data_value": 28,
+      "boarding_pass": 30
     },
     "layout": {
       "boarding_pass": {
-        "x": -40,
-        "y": 60,
+        "x": -85,
+        "y": 132,
         "angle_degrees": -90
       },
       "game_title": {
-        "x": 100,
-        "y": 9
+        "x": 220,
+        "y": 30
       },
       "trainer_name": {
-        "x": 100,
-        "y": 40
+        "x": 220,
+        "y": 95
       },
       "party": {
         "start": {
-          "x": 63,
-          "y": 92
+          "x": 140,
+          "y": 200
         },
         "count": 6,
-        "spacing": 51,
-        "scale": 1
+        "spacing": 112,
+        "scale": 2.4
       },
       "stats": {
         "origin": {
-          "x": 360,
-          "y": -2
+          "x": 810,
+          "y": 5
         },
-        "pokedex_label": {
-          "x": 0,
-          "y": 9
-        },
-        "pokedex_value": {
-          "x": 2,
-          "y": 28
-        },
-        "time_label": {
-          "x": 0,
-          "y": 50
-        },
-        "time_value": {
-          "x": 2,
-          "y": 69
-        },
-        "badges_label": {
-          "x": 0,
-          "y": 91
-        },
-        "badges_value": {
-          "x": 2,
-          "y": 110
-        }
+        "label_x": 0,
+        "value_x": 2,
+        "label_y": 10,
+        "label_value_gap": 40,
+        "row_gap": 100
       }
     },
     "selection": {
       "enabled": true,
       "border_color": "#F4CD48",
       "border_alpha": 230,
-      "border_thickness": 3,
+      "border_thickness": 7,
       "border_padding": 2,
       "border_radius": 10,
       "beat_speed": 2.0,
-      "beat_magnitude": 1.3
+      "beat_magnitude": 2
     },
     "rip_animation": {
       "enabled": true,
-      "pre_tug_distance": 3,
+      "pre_tug_distance": 7,
       "pre_tug_duration_seconds": 0.08,
-      "distance": 28,
+      "distance": 62,
       "duration_seconds": 0.28,
-      "rotation_degrees": 5.5,
+      "rotation_degrees": 5.0,
       "rotation_pivot": {
-        "x": 360,
-        "y": 12
+        "x": 792,
+        "y": 26
       }
     },
     "selection_transition": {

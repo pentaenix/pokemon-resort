@@ -10,8 +10,12 @@ namespace pr {
 
 namespace {
 
-constexpr int kSectionTitleY = 60;
-constexpr int kSectionBackButtonY = 340;
+constexpr int kSectionTitleY = 125;
+constexpr int kSectionBackButtonY = 708;
+constexpr int kMainMenuResortIndex = 0;
+constexpr int kMainMenuTransferIndex = 1;
+constexpr int kMainMenuTradeIndex = 2;
+constexpr int kMainMenuOptionsIndex = 3;
 
 double clamp01(double v) { return std::max(0.0, std::min(1.0, v)); }
 double lerp(double a, double b, double t) { return a + (b - a) * t; }
@@ -196,6 +200,10 @@ void TitleScreen::onAdvancePressed() {
     }
 }
 
+bool TitleScreen::canNavigate() const {
+    return state_ == TitleState::MainMenuIdle || state_ == TitleState::OptionsIdle;
+}
+
 void TitleScreen::onNavigate(int delta) {
     if (state_ == TitleState::MainMenuIdle) {
         const int next = wrapIndex(selected_main_menu_index_ + delta, static_cast<int>(assets_.menu_labels.size()));
@@ -317,7 +325,7 @@ void TitleScreen::applyUserSettings(const UserSettings& settings) {
 }
 
 void TitleScreen::returnToMainMenuFromTransfer() {
-    selected_main_menu_index_ = 1;
+    selected_main_menu_index_ = kMainMenuTransferIndex;
     changeState(TitleState::MainMenuIdle);
 }
 
@@ -335,7 +343,7 @@ void TitleScreen::changeState(TitleState next) {
     } else if (next == TitleState::SectionScreen) {
         cached_section_title_.clear();
     } else if (next == TitleState::MainMenuIdle && state_ == TitleState::OptionsOutro) {
-        selected_main_menu_index_ = 2;
+        selected_main_menu_index_ = kMainMenuOptionsIndex;
     }
 
     state_ = next;
@@ -439,16 +447,21 @@ TitleState TitleScreen::skipTargetState() const {
 void TitleScreen::activateMainMenuSelection() {
     requestButtonSfx();
     switch (selected_main_menu_index_) {
-        case 0:
+        case kMainMenuResortIndex:
             pending_transfer_after_fade_ = false;
             pending_section_ = SectionKind::Resort;
             changeState(TitleState::MainMenuToSection);
             break;
-        case 1:
+        case kMainMenuTransferIndex:
             pending_transfer_after_fade_ = true;
             changeState(TitleState::MainMenuToSection);
             break;
-        case 2:
+        case kMainMenuTradeIndex:
+            pending_transfer_after_fade_ = false;
+            pending_section_ = SectionKind::Trade;
+            changeState(TitleState::MainMenuToSection);
+            break;
+        case kMainMenuOptionsIndex:
             changeState(TitleState::OptionsIntro);
             break;
         default:
@@ -489,7 +502,10 @@ void TitleScreen::returnToMainMenu() {
     if (state_ == TitleState::SectionScreen) {
         switch (current_section_) {
             case SectionKind::Resort:
-                selected_main_menu_index_ = 0;
+                selected_main_menu_index_ = kMainMenuResortIndex;
+                break;
+            case SectionKind::Trade:
+                selected_main_menu_index_ = kMainMenuTradeIndex;
                 break;
         }
     }
@@ -499,7 +515,7 @@ void TitleScreen::returnToMainMenu() {
 void TitleScreen::restartFromSplash() {
     requestButtonSfx();
     title_scene_elapsed_ = 0.0;
-    selected_main_menu_index_ = 0;
+    selected_main_menu_index_ = kMainMenuResortIndex;
     selected_option_index_ = 0;
     cached_section_title_.clear();
     option_textures_dirty_ = true;
@@ -1032,6 +1048,8 @@ std::string TitleScreen::currentSectionTitle() const {
     switch (current_section_) {
         case SectionKind::Resort:
             return "RESORT";
+        case SectionKind::Trade:
+            return "TRADE";
     }
     return "SECTION";
 }

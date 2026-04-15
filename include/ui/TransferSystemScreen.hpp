@@ -2,6 +2,7 @@
 
 #include "core/Assets.hpp"
 #include "core/Types.hpp"
+#include "ui/ScreenInput.hpp"
 #include "ui/TransferSaveSelection.hpp"
 
 #include <SDL.h>
@@ -10,7 +11,7 @@
 
 namespace pr {
 
-class TransferSystemScreen {
+class TransferSystemScreen : public ScreenInput {
 public:
     TransferSystemScreen(
         SDL_Renderer* renderer,
@@ -22,9 +23,9 @@ public:
     void update(double dt);
     void render(SDL_Renderer* renderer) const;
 
-    void onAdvancePressed();
-    void onBackPressed();
-    bool handlePointerPressed(int logical_x, int logical_y);
+    void onAdvancePressed() override;
+    void onBackPressed() override;
+    bool handlePointerPressed(int logical_x, int logical_y) override;
 
     bool consumeButtonSfxRequest();
     bool consumeRestartGameRequest();

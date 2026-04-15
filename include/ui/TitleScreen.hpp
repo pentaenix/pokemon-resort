@@ -2,6 +2,7 @@
 
 #include "core/Assets.hpp"
 #include "core/Types.hpp"
+#include "ui/ScreenInput.hpp"
 #include <SDL.h>
 #include <cstdint>
 #include <memory>
@@ -30,22 +31,24 @@ enum class TitleState {
 };
 
 enum class SectionKind {
-    Resort
+    Resort,
+    Trade
 };
 
-class TitleScreen {
+class TitleScreen : public ScreenInput {
 public:
     TitleScreen(TitleScreenConfig config, Assets assets);
 
     void update(double dt);
     void render(SDL_Renderer* renderer) const;
 
-    void onAdvancePressed();
-    void onNavigate(int delta);
-    void onBackPressed();
-    bool handlePointerPressed(int logical_x, int logical_y);
+    bool canNavigate() const override;
+    void onAdvancePressed() override;
+    void onNavigate(int delta) override;
+    void onBackPressed() override;
+    bool handlePointerPressed(int logical_x, int logical_y) override;
 
-    bool acceptsAdvanceInput() const;
+    bool acceptsAdvanceInput() const override;
     bool wantsMenuMusic() const;
     float musicVolume() const;
     float sfxVolume() const;

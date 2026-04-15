@@ -1,11 +1,11 @@
 {
   "window": {
-    "width": 512,
-    "height": 384,
-    "virtual_width": 512,
-    "virtual_height": 384,
-    "design_width": 512,
-    "design_height": 384,
+    "width": 640,
+    "height": 400,
+    "virtual_width": 1280,
+    "virtual_height": 800,
+    "design_width": 1280,
+    "design_height": 800,
     "title": "Pokemon Resort"
   },
   "input": {

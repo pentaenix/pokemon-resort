@@ -4,16 +4,16 @@
   "font_size": 20,
   "text_color": "#FFFFFF",
   "ball_center": {
-    "x": 480,
-    "y": 352
+    "x": 1200,
+    "y": 720
   },
   "text_center": {
-    "x": 256,
-    "y": 250
+    "x": 640,
+    "y": 521
   },
-  "ball_scale": 2.0,
+  "ball_scale": 4.0,
   "lap_seconds": 0.95,
-  "partial_spin_degrees": -24,
-  "full_spin_degrees": 360,
+  "partial_spin_degrees": 24,
+  "full_spin_degrees": -360,
   "partial_spin_fraction": 0.28
 }

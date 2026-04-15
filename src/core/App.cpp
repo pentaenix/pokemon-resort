@@ -6,6 +6,7 @@
 #include "core/SaveDataStore.hpp"
 #include "core/SaveLibrary.hpp"
 #include "ui/LoadingScreen.hpp"
+#include "ui/ScreenInput.hpp"
 #include "ui/TransferSaveSelection.hpp"
 #include "ui/TransferSystemScreen.hpp"
 #include "ui/TransferTicketScreen.hpp"
@@ -52,8 +53,27 @@ enum class ActiveMusicTrack {
     Transfer
 };
 
+constexpr double kNavigationRepeatDelaySeconds = 0.42;
+constexpr double kNavigationRepeatIntervalSeconds = 0.18;
+
+struct NavigationHold {
+    int direction = 0;
+    double elapsed_seconds = 0.0;
+    double repeat_elapsed_seconds = 0.0;
+};
+
 double clamp01(double value) {
     return std::max(0.0, std::min(1.0, value));
+}
+
+int navigationDirectionForKey(SDL_Keycode key, const InputConfig& input) {
+    if (matchesBinding(key, input.navigate_up_keys)) {
+        return -1;
+    }
+    if (matchesBinding(key, input.navigate_down_keys)) {
+        return 1;
+    }
+    return 0;
 }
 
 std::string findProjectRoot() {
@@ -271,6 +291,20 @@ int runApplication(const char* argv0, const char* config_path_override) {
     double transfer_music_elapsed_seconds = 0.0;
     ActiveScreen active_screen = ActiveScreen::Title;
     std::future<void> transfer_load_future;
+    NavigationHold navigation_hold;
+    const auto active_input = [&]() -> ScreenInput* {
+        switch (active_screen) {
+            case ActiveScreen::Title:
+                return &title_screen;
+            case ActiveScreen::TransferTicket:
+                return transfer_ticket.get();
+            case ActiveScreen::TransferSystem:
+                return transfer_system_screen.get();
+            case ActiveScreen::Loading:
+                return nullptr;
+        }
+        return nullptr;
+    };
 
     while (running) {
         SDL_Event event;
@@ -282,82 +316,55 @@ int runApplication(const char* argv0, const char* config_path_override) {
 
             if (event.type == SDL_KEYDOWN && !event.key.repeat) {
                 const SDL_Keycode key = event.key.keysym.sym;
-                if (matchesBinding(key, config.input.navigate_up_keys)) {
-                    if (active_screen == ActiveScreen::Title) {
-                        title_screen.onNavigate(-1);
-                    } else if (active_screen == ActiveScreen::TransferTicket) {
-                        if (transfer_ticket) {
-                            transfer_ticket->onNavigate(-1);
-                        }
-                    }
-                    continue;
-                }
-                if (matchesBinding(key, config.input.navigate_down_keys)) {
-                    if (active_screen == ActiveScreen::Title) {
-                        title_screen.onNavigate(1);
-                    } else if (active_screen == ActiveScreen::TransferTicket) {
-                        if (transfer_ticket) {
-                            transfer_ticket->onNavigate(1);
-                        }
+                const int navigation_direction = navigationDirectionForKey(key, config.input);
+                if (navigation_direction != 0) {
+                    if (ScreenInput* input = active_input(); input && input->canNavigate()) {
+                        input->onNavigate(navigation_direction);
+                        navigation_hold.direction = navigation_direction;
+                        navigation_hold.elapsed_seconds = 0.0;
+                        navigation_hold.repeat_elapsed_seconds = 0.0;
                     }
                     continue;
                 }
                 if (matchesBinding(key, config.input.back_keys)) {
-                    if (active_screen == ActiveScreen::Title) {
-                        title_screen.onBackPressed();
-                    } else if (active_screen == ActiveScreen::TransferTicket) {
-                        if (transfer_ticket) {
-                            transfer_ticket->onBackPressed();
-                        }
-                    } else if (transfer_system_screen) {
-                        transfer_system_screen->onBackPressed();
+                    if (ScreenInput* input = active_input()) {
+                        input->onBackPressed();
                     }
                     continue;
                 }
                 if (matchesBinding(key, config.input.forward_keys)) {
-                    if (active_screen == ActiveScreen::Title) {
-                        if (title_screen.acceptsAdvanceInput()) {
-                            title_screen.onAdvancePressed();
-                        }
-                    } else if (active_screen == ActiveScreen::TransferTicket) {
-                        if (transfer_ticket) {
-                            transfer_ticket->onAdvancePressed();
-                        }
-                    } else if (transfer_system_screen) {
-                        transfer_system_screen->onAdvancePressed();
+                    if (ScreenInput* input = active_input(); input && input->acceptsAdvanceInput()) {
+                        input->onAdvancePressed();
                     }
                     continue;
+                }
+            }
+
+            if (event.type == SDL_KEYUP) {
+                const int navigation_direction = navigationDirectionForKey(event.key.keysym.sym, config.input);
+                if (navigation_direction != 0 && navigation_hold.direction == navigation_direction) {
+                    navigation_hold = {};
                 }
             }
 
             // SDL_RenderSetLogicalSize scales mouse events into renderer logical coordinates.
             if (event.type == SDL_MOUSEMOTION && config.input.accept_mouse) {
-                if (active_screen == ActiveScreen::TransferTicket) {
-                    if (transfer_ticket) {
-                        transfer_ticket->handlePointerMoved(event.motion.x, event.motion.y);
-                    }
+                if (ScreenInput* input = active_input()) {
+                    input->handlePointerMoved(event.motion.x, event.motion.y);
                 }
                 continue;
             }
 
             if (event.type == SDL_MOUSEBUTTONDOWN && config.input.accept_mouse) {
-                if (active_screen == ActiveScreen::Title) {
-                    title_screen.handlePointerPressed(event.button.x, event.button.y);
-                } else if (active_screen == ActiveScreen::TransferTicket) {
-                    if (transfer_ticket) {
-                        transfer_ticket->handlePointerPressed(event.button.x, event.button.y);
-                    }
-                } else if (transfer_system_screen) {
-                    transfer_system_screen->handlePointerPressed(event.button.x, event.button.y);
+                if (ScreenInput* input = active_input()) {
+                    input->handlePointerPressed(event.button.x, event.button.y);
                 }
                 continue;
             }
 
             if (event.type == SDL_MOUSEBUTTONUP && config.input.accept_mouse) {
-                if (active_screen == ActiveScreen::TransferTicket) {
-                    if (transfer_ticket) {
-                        transfer_ticket->handlePointerReleased(event.button.x, event.button.y);
-                    }
+                if (ScreenInput* input = active_input()) {
+                    input->handlePointerReleased(event.button.x, event.button.y);
                 }
                 continue;
             }
@@ -365,49 +372,42 @@ int runApplication(const char* argv0, const char* config_path_override) {
             if (event.type == SDL_CONTROLLERBUTTONDOWN && config.input.accept_controller) {
                 switch (event.cbutton.button) {
                     case SDL_CONTROLLER_BUTTON_DPAD_UP:
-                        if (active_screen == ActiveScreen::Title) {
-                            title_screen.onNavigate(-1);
-                        } else if (active_screen == ActiveScreen::TransferTicket) {
-                            if (transfer_ticket) {
-                                transfer_ticket->onNavigate(-1);
-                            }
+                        if (ScreenInput* input = active_input(); input && input->canNavigate()) {
+                            input->onNavigate(-1);
+                            navigation_hold.direction = -1;
+                            navigation_hold.elapsed_seconds = 0.0;
+                            navigation_hold.repeat_elapsed_seconds = 0.0;
                         }
                         break;
                     case SDL_CONTROLLER_BUTTON_DPAD_DOWN:
-                        if (active_screen == ActiveScreen::Title) {
-                            title_screen.onNavigate(1);
-                        } else if (active_screen == ActiveScreen::TransferTicket) {
-                            if (transfer_ticket) {
-                                transfer_ticket->onNavigate(1);
-                            }
+                        if (ScreenInput* input = active_input(); input && input->canNavigate()) {
+                            input->onNavigate(1);
+                            navigation_hold.direction = 1;
+                            navigation_hold.elapsed_seconds = 0.0;
+                            navigation_hold.repeat_elapsed_seconds = 0.0;
                         }
                         break;
                     case SDL_CONTROLLER_BUTTON_A:
-                        if (active_screen == ActiveScreen::Title) {
-                            if (title_screen.acceptsAdvanceInput()) {
-                                title_screen.onAdvancePressed();
-                            }
-                        } else if (active_screen == ActiveScreen::TransferTicket) {
-                            if (transfer_ticket) {
-                                transfer_ticket->onAdvancePressed();
-                            }
-                        } else if (transfer_system_screen) {
-                            transfer_system_screen->onAdvancePressed();
+                        if (ScreenInput* input = active_input(); input && input->acceptsAdvanceInput()) {
+                            input->onAdvancePressed();
                         }
                         break;
                     case SDL_CONTROLLER_BUTTON_B:
-                        if (active_screen == ActiveScreen::Title) {
-                            title_screen.onBackPressed();
-                        } else if (active_screen == ActiveScreen::TransferTicket) {
-                            if (transfer_ticket) {
-                                transfer_ticket->onBackPressed();
-                            }
-                        } else if (transfer_system_screen) {
-                            transfer_system_screen->onBackPressed();
+                        if (ScreenInput* input = active_input()) {
+                            input->onBackPressed();
                         }
                         break;
                     default:
                         break;
+                }
+            }
+
+            if (event.type == SDL_CONTROLLERBUTTONUP && config.input.accept_controller) {
+                if ((event.cbutton.button == SDL_CONTROLLER_BUTTON_DPAD_UP &&
+                     navigation_hold.direction == -1) ||
+                    (event.cbutton.button == SDL_CONTROLLER_BUTTON_DPAD_DOWN &&
+                     navigation_hold.direction == 1)) {
+                    navigation_hold = {};
                 }
             }
         }
@@ -415,6 +415,28 @@ int runApplication(const char* argv0, const char* config_path_override) {
         Uint64 now = SDL_GetPerformanceCounter();
         double dt = static_cast<double>(now - last_counter) / static_cast<double>(SDL_GetPerformanceFrequency());
         last_counter = now;
+
+        if (ScreenInput* input = active_input();
+            input && input->canNavigate() && navigation_hold.direction != 0) {
+            const double previous_elapsed = navigation_hold.elapsed_seconds;
+            navigation_hold.elapsed_seconds += dt;
+
+            if (previous_elapsed < kNavigationRepeatDelaySeconds &&
+                navigation_hold.elapsed_seconds >= kNavigationRepeatDelaySeconds) {
+                input->onNavigate(navigation_hold.direction);
+                navigation_hold.repeat_elapsed_seconds = 0.0;
+            } else if (navigation_hold.elapsed_seconds >= kNavigationRepeatDelaySeconds) {
+                navigation_hold.repeat_elapsed_seconds += dt;
+                while (navigation_hold.repeat_elapsed_seconds >=
+                       kNavigationRepeatIntervalSeconds) {
+                    input->onNavigate(navigation_hold.direction);
+                    navigation_hold.repeat_elapsed_seconds -=
+                        kNavigationRepeatIntervalSeconds;
+                }
+            }
+        } else {
+            navigation_hold = {};
+        }
 
         if (active_screen == ActiveScreen::Title) {
             title_screen.update(dt);

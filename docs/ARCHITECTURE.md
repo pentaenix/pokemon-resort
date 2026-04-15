@@ -10,9 +10,9 @@ The app is a data-driven title-screen prototype with these implemented flows:
 - main logo reveal and white flash
 - title hold with blinking `PRESS START`
 - transition into the main menu
-- main menu navigation for `RESORT`, `TRANSFER`, and `OPTIONS`
+- main menu navigation for `RESORT`, `TRANSFER`, `TRADE`, and `OPTIONS`
 - options menu with persisted user settings
-- placeholder section screen flow
+- placeholder section screen flow for `RESORT` and `TRADE`
 - loading screen while transfer saves are scanned and probed
 - transfer save-ticket selection flow into a temporary `transfer_system` detail screen
 
@@ -25,8 +25,8 @@ At the moment, most gameplay-facing behavior still lives in a single scene contr
 - [`main.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/main.cpp) forwards an optional config path into `pr::runApplication`.
   It also supports `--clear-save-cache` for deleting the transfer probe cache and exiting.
 - [`App.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/App.cpp) is the runtime coordinator. It:
-  - finds the project root by locating `config/title_screen.json`
-  - loads JSON config into strongly typed structs
+  - finds the project root by locating `config/app.json` and `config/title_screen.json`
+  - loads shared app config and title-screen config into strongly typed structs
   - initializes SDL, SDL_image, and SDL_ttf
   - creates the window and renderer
   - loads textures, fonts, and text surfaces
@@ -37,7 +37,7 @@ At the moment, most gameplay-facing behavior still lives in a single scene contr
 ### Core modules
 
 - [`ConfigLoader.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/ConfigLoader.cpp)
-  Deserializes `title_screen.json` into [`TitleScreenConfig`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/core/Types.hpp). This is the main authoring surface for timings, layout, menu labels, input bindings, persistence, and audio defaults.
+  Deserializes `app.json` into shared [`AppConfig`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/core/Types.hpp) and `title_screen.json` into [`TitleScreenConfig`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/core/Types.hpp). `App.cpp` applies the app-level window, input, and audio config over the title config before building the runtime.
 
 - [`Types.hpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/core/Types.hpp)
   Defines the config schema and persisted settings schema. This file is effectively the contract between JSON authoring, runtime behavior, and save serialization.
@@ -46,7 +46,10 @@ At the moment, most gameplay-facing behavior still lives in a single scene contr
   Resolves asset paths relative to the project root, loads textures, renders text into textures, and builds the alpha mask used for the logo shine effect.
 
 - [`InputBindings.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/InputBindings.cpp)
-  Maps human-readable binding names from JSON to SDL keycodes and is used by the app loop for keyboard navigation and activation.
+  Maps human-readable binding names from JSON to SDL keycodes and is used by the app loop for keyboard navigation and activation. `App.cpp` owns the shared hold-to-repeat timing for vertical menu navigation so individual screens only receive discrete `onNavigate(delta)` actions.
+
+- [`ScreenInput.hpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/ui/ScreenInput.hpp)
+  Defines the small reusable input surface for screens. New pages should inherit from `ScreenInput` and override only the actions they support, such as `canNavigate()`, `onNavigate(delta)`, `onAdvancePressed()`, `onBackPressed()`, or pointer handlers. This keeps shared keyboard/controller repeat and pointer dispatch in `App.cpp` instead of duplicating it per screen.
 
 - [`SaveDataStore.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/SaveDataStore.cpp)
   Loads from primary then backup save files, tolerates older flat save shapes, and writes atomically through a temporary file plus backup refresh.
@@ -77,7 +80,7 @@ At the moment, most gameplay-facing behavior still lives in a single scene contr
   - logo shine generation and animation
 
 - [`TransferTicketScreen.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/TransferTicketScreen.cpp)
-  Owns the transfer save-ticket list, ticket rendering, rip animation, and selected-save handoff. It receives already parsed transfer summaries from `App.cpp`; bridge probing, hashing, and cache reads stay inside `SaveLibrary`.
+  Owns the transfer save-ticket list, ticket rendering, rip animation, and selected-save handoff. It renders directly in the shared `1280x800` logical/design coordinate system; there is no internal 512-to-1280 translation layer. It receives already parsed transfer summaries from `App.cpp`; bridge probing, hashing, and cache reads stay inside `SaveLibrary`.
 
 - [`LoadingScreen.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/LoadingScreen.cpp)
   Owns the black loading screen shown while transfer save probing runs in the background. It reads [`loading_screen.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/loading_screen.json), picks random ball PNGs from the configured loading asset directory, and swaps balls after each animation lap.
@@ -113,7 +116,7 @@ This means the current architecture is scene-centric rather than screen-per-flow
 ### Startup pipeline
 
 1. [`main.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/main.cpp) calls `runApplication`.
-2. [`App.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/App.cpp) finds the root and loads [`config/title_screen.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/title_screen.json).
+2. [`App.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/App.cpp) finds the root and loads [`config/app.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/app.json) plus [`config/title_screen.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/title_screen.json).
 3. [`ConfigLoader.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/ConfigLoader.cpp) maps JSON into [`Types.hpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/core/Types.hpp) structs.
 4. SDL subsystems are initialized and the renderer logical size is configured.
 5. [`Assets.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/Assets.cpp) loads textures and text assets.
@@ -123,7 +126,7 @@ This means the current architecture is scene-centric rather than screen-per-flow
 ### Frame pipeline
 
 1. `App.cpp` polls SDL events.
-2. Keyboard, mouse, and controller events are translated into scene actions.
+2. Keyboard, mouse, and controller events are translated into `ScreenInput` actions for the active screen. Vertical menu navigation uses a short app-level hold delay before repeating, instead of relying on OS key-repeat.
 3. The active screen updates. For transfer entry, `LoadingScreen::update(dt)` animates while the save-probe task runs.
 4. `App.cpp` reads scene side effects:
    - whether menu music should be playing
@@ -144,7 +147,14 @@ This means the current architecture is scene-centric rather than screen-per-flow
 
 Shared application settings live in [`app.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/app.json). It currently controls:
 
-- window size, logical size, and title
+- physical dev window size
+- renderer logical size / virtual resolution
+- design coordinate size
+- app window title
+- shared input bindings
+- shared audio asset paths and default volumes
+
+The current target/design resolution is `1280x800`. The development window is intentionally half-size at `640x400`; keep `virtual_width`, `virtual_height`, `design_width`, and `design_height` at `1280x800` unless the target device resolution itself changes. Only change `window.width` and `window.height` when resizing the desktop preview window.
 
 The main title-screen authoring file is [`title_screen.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/title_screen.json). It currently controls:
 
@@ -154,13 +164,15 @@ The main title-screen authoring file is [`title_screen.json`](/Users/vanta/Deskt
 - layout positions
 - transition endpoints and speed scales
 - menu labels, animation, and selection behavior
-- input bindings
-- audio asset paths and default volumes
 - save naming and app identity for `SDL_GetPrefPath`
 - skip flags used to shorten iteration loops
 - logo shine tuning
 
 If a behavior is timing/layout/content related, JSON is the first place to look. If a behavior changes control flow or rendering rules, it is probably still hard-coded in `TitleScreen.cpp`.
+
+Menu labels are data-driven in `title_screen.json`, but menu actions are currently routed by named indices in [`TitleScreen.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/TitleScreen.cpp). Adding a new top-level item requires updating both the `menu.items` array and the corresponding selection routing / placeholder section mapping in `TitleScreen`.
+
+The transfer save-ticket page is authored in [`transfer_select_save.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/transfer_select_save.json). Its screen/list coordinates are native `1280x800` logical pixels. Ticket text offsets are local to the ticket art, so they can stay relative to `main_left.png` / `main_right.png` even when full-screen background or banner assets change.
 
 ## Build and Platform Notes
 
@@ -195,7 +207,7 @@ If a behavior is timing/layout/content related, JSON is the first place to look.
   - main menu controller
   - options menu controller
   - section screen controller
-- Introduce a lightweight screen or scene interface so `App.cpp` can coordinate multiple independent flows instead of one large state machine.
+- Continue moving new pages behind the lightweight `ScreenInput` surface so `App.cpp` can coordinate input generically instead of adding per-page input branches.
 - Move menu action results into explicit intents or events instead of several boolean consume methods.
 
 ### Mid-term
