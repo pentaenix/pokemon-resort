@@ -14,7 +14,7 @@ The app is a data-driven title-screen prototype with these implemented flows:
 - options menu with persisted user settings
 - placeholder section screen flow for `RESORT` and `TRADE`
 - loading screen while transfer saves are scanned and probed
-- transfer save-ticket selection flow into a temporary `transfer_system` detail screen
+- transfer save-ticket selection flow into a post-ticket transfer UI shell
 
 At the moment, most gameplay-facing behavior still lives in a single scene controller: [`TitleScreen.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/TitleScreen.cpp).
 
@@ -86,7 +86,39 @@ At the moment, most gameplay-facing behavior still lives in a single scene contr
   Owns the black loading screen shown while transfer save probing runs in the background. It reads [`loading_screen.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/loading_screen.json), picks random ball PNGs from the configured loading asset directory, and swaps balls after each animation lap.
 
 - [`TransferSystemScreen.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/TransferSystemScreen.cpp)
-  Owns the temporary post-selection `transfer_system` screen. It displays basic selected-save data and raises a restart request from its back action.
+  Owns the post-ticket transfer UI shell. For now it only renders the same configurable moving background used by the transfer ticket page; future transfer UI elements should get their own dedicated config file rather than growing `transfer_select_save.json`.
+
+## Portability Goals
+
+This project should stay easy to move across operating systems over time. The preferred shape is:
+
+- shared gameplay and UI logic in portable C++ where possible
+- OS-specific behavior isolated behind small adapter modules
+- data and authoring in JSON or files rather than hard-coded platform branches
+- build and packaging differences handled in the build system or platform entry points, not scattered through scene code
+
+When adding or changing behavior, assume future support for Linux, Windows, and Android is a real goal unless the change is explicitly platform-only.
+
+### What Should Stay Shared
+
+- scene state and transitions
+- menu flow and interaction rules
+- layout and timing values that can be expressed in config
+- save schema and persistence rules
+- asset lookup policy, as long as the paths can be resolved through a platform-aware helper
+
+### What Should Be Isolated
+
+- audio backends
+- app lifecycle and window creation details
+- filesystem roots and save locations
+- controller, keyboard, and touch input translation
+- external helper processes or native bridges
+- packaging-specific logic, such as bundle/resource lookup
+
+### Working Rule For New Code
+
+If a change can be written as an intent, config value, or scene event, prefer that over a direct OS call inside UI code. If a change genuinely needs platform APIs, keep the boundary thin and document it in this file.
 
 ## State Machine
 
@@ -172,16 +204,18 @@ If a behavior is timing/layout/content related, JSON is the first place to look.
 
 Menu labels are data-driven in `title_screen.json`, but menu actions are currently routed by named indices in [`TitleScreen.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/TitleScreen.cpp). Adding a new top-level item requires updating both the `menu.items` array and the corresponding selection routing / placeholder section mapping in `TitleScreen`.
 
-The transfer save-ticket page is authored in [`transfer_select_save.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/transfer_select_save.json). Its screen/list coordinates are native `1280x800` logical pixels. Ticket text offsets are local to the ticket art, so they can stay relative to `main_left.png` / `main_right.png` even when full-screen background or banner assets change.
+The transfer save-ticket page is authored in [`transfer_select_save.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/transfer_select_save.json). Its screen/list coordinates are native `1280x800` logical pixels. Ticket text offsets are local to the ticket art, so they can stay relative to `main_left.png` / `main_right.png` even when full-screen background or banner assets change. `TransferSystemScreen` currently reuses only the `transfer_screen.background_animation` settings and background asset from this file; the actual transfer UI should use its own JSON.
 
 ## Build and Platform Notes
 
 - Build system: [`CMakeLists.txt`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/CMakeLists.txt)
 - Primary target: `title_screen_demo`
-- Language mode: C++17 plus Objective-C++ for audio
+- Language mode: C++17 plus Objective-C++ for audio today; treat that as an implementation detail, not a requirement for future platforms
 - Current platform assumptions: macOS with `SDL2`, `SDL2_image`, and `SDL2_ttf`; `AVFoundation` and `Foundation` are linked on Apple
 - Save parsing bridge: external .NET helper under [`tools/pkhex_bridge`](/Users/vanta/Desktop/title_screen_demo/tools/pkhex_bridge), intended to reference `PKHeX.Core`
 - Export path: publish the bridge as a self-contained macOS helper and bundle it next to the native executable or inside app resources
+
+For cross-platform work, avoid introducing new macOS-only dependencies in core modules unless there is a clear adapter layer or a fallback path for the other target platforms.
 
 ## Architectural Strengths
 
@@ -209,6 +243,8 @@ The transfer save-ticket page is authored in [`transfer_select_save.json`](/User
   - section screen controller
 - Continue moving new pages behind the lightweight `ScreenInput` surface so `App.cpp` can coordinate input generically instead of adding per-page input branches.
 - Move menu action results into explicit intents or events instead of several boolean consume methods.
+- Add thin platform/service interfaces for audio, save-path resolution, and helper-process spawning so those concerns can be swapped without touching scene code.
+- Prefer config-driven layout and asset selection over hard-coded coordinates or platform checks inside render logic.
 
 ### Mid-term
 
@@ -218,6 +254,7 @@ The transfer save-ticket page is authored in [`transfer_select_save.json`](/User
   - save atomic-write error handling
   - input binding parsing
 - Separate render concerns from state transitions if the UI grows beyond the current title/menu scope.
+- Add platform-specific build notes for Windows, Linux, and Android once those targets become active, including any required runtime assets or packaging steps.
 
 ## LLM Handoff Notes
 
@@ -230,3 +267,13 @@ If another model is asked to work in this repo, the best initial reading order i
 5. [`pokemon-resort/src/ui/TitleScreen.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/TitleScreen.cpp)
 
 That sequence gives the fastest path to understanding current behavior, extension points, and where complexity currently lives.
+
+## Guidance For Future Agents
+
+When making changes here, keep these habits in mind:
+
+- State whether the source of truth is JSON config, runtime code, or persisted save data before editing behavior.
+- Prefer adding a boundary rather than teaching `App.cpp` or `TitleScreen.cpp` about a new operating system.
+- If a feature is likely to vary by platform, start with a shared interface and a single implementation, then add the alternate backend only when needed.
+- Keep docs updated when module boundaries or portability assumptions change, especially if a new dependency makes the project harder to move between operating systems.
+- Be wary of one-off platform checks in scene logic; they tend to age badly and make the app harder to port later.
