@@ -7,7 +7,6 @@
 
 #include <SDL.h>
 #include <string>
-#include <vector>
 
 namespace pr {
 
@@ -31,31 +30,21 @@ public:
     bool consumeRestartGameRequest();
 
 private:
-    void rebuildText(SDL_Renderer* renderer);
     void loadTransferSystemConfig();
     void requestRestart();
-    void drawTextureTopLeft(SDL_Renderer* renderer, const TextureHandle& texture, int x, int y) const;
-    void drawTextureCentered(SDL_Renderer* renderer, const TextureHandle& texture, int x, int y) const;
-    bool pointInRect(int x, int y, const SDL_Rect& rect) const;
-    SDL_Rect backButtonRect() const;
+    void drawBackground(SDL_Renderer* renderer) const;
 
-    double scaleX() const;
-    double scaleY() const;
-    int sx(int value) const;
-    int sy(int value) const;
+    struct BackgroundAnimation {
+        bool enabled = false;
+        double scale = 1.0;
+        double speed_x = 0.0;
+        double speed_y = 0.0;
+    };
 
     WindowConfig window_config_;
-    std::string font_path_;
     std::string project_root_;
-    FontHandle title_font_;
-    FontHandle body_font_;
-    FontHandle button_font_;
-    TransferSaveSelection selection_;
-    TextureHandle title_text_;
-    TextureHandle subtitle_text_;
-    std::vector<TextureHandle> detail_textures_;
-    TextureHandle back_text_;
-    double fade_in_seconds_ = 0.12;
+    TextureHandle background_;
+    BackgroundAnimation background_animation_;
     double elapsed_seconds_ = 0.0;
     bool play_button_sfx_requested_ = false;
     bool restart_game_requested_ = false;
