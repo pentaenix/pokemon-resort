@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Delegate to repo-root pkr so `./pkr` works from pokemon-resort.
+set -euo pipefail
+ROOT_PKR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/pkr"
+exec "$ROOT_PKR" "$@"

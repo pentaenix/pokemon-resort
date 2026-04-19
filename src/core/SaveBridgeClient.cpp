@@ -238,12 +238,14 @@ std::vector<fs::path> findBridgeCandidates(
 
     const fs::path workspace_root = project_root.parent_path();
     const fs::path bridge_root = workspace_root / "tools" / "pkhex_bridge";
+    // Prefer a local `dotnet build` output over `publish/`. Stale publish binaries have been
+    // observed to win first and emit minimal JSON (no boxes), breaking transfer sprites.
+    candidates.push_back(bridge_root / "bin" / "Release" / "net10.0" / "PKHeXBridge");
+    candidates.push_back(bridge_root / "bin" / "Debug" / "net10.0" / "PKHeXBridge");
+    candidates.push_back(bridge_root / "bin" / "Release" / "net10.0" / "PKHeXBridge.dll");
+    candidates.push_back(bridge_root / "bin" / "Debug" / "net10.0" / "PKHeXBridge.dll");
     candidates.push_back(bridge_root / "publish" / "osx-arm64" / "PKHeXBridge");
     candidates.push_back(bridge_root / "publish" / "PKHeXBridge");
-    candidates.push_back(bridge_root / "bin" / "Debug" / "net10.0" / "PKHeXBridge");
-    candidates.push_back(bridge_root / "bin" / "Release" / "net10.0" / "PKHeXBridge");
-    candidates.push_back(bridge_root / "bin" / "Debug" / "net10.0" / "PKHeXBridge.dll");
-    candidates.push_back(bridge_root / "bin" / "Release" / "net10.0" / "PKHeXBridge.dll");
     return candidates;
 }
 

@@ -5,6 +5,7 @@
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
+#include <variant>
 
 namespace pr {
 
@@ -53,6 +54,7 @@ bool JsonValue::isArray() const { return std::holds_alternative<Array>(value_); 
 bool JsonValue::isString() const { return std::holds_alternative<std::string>(value_); }
 bool JsonValue::isNumber() const { return std::holds_alternative<double>(value_); }
 bool JsonValue::isBool() const { return std::holds_alternative<bool>(value_); }
+bool JsonValue::isNull() const { return std::holds_alternative<std::nullptr_t>(value_); }
 const JsonValue::Object& JsonValue::asObject() const { return std::get<Object>(value_); }
 const JsonValue::Array& JsonValue::asArray() const { return std::get<Array>(value_); }
 const std::string& JsonValue::asString() const { return std::get<std::string>(value_); }

@@ -17,6 +17,8 @@ enum class SaveProbeStatus {
 };
 
 struct TransferSaveSummary {
+    /// Present in full bridge JSON (`bridge_probe_schema`). 0 = missing/legacy stub binary.
+    int bridge_probe_schema = 0;
     std::string game_id;
     std::string player_name;
     std::vector<std::string> party;
@@ -25,6 +27,8 @@ struct TransferSaveSummary {
     int badges = 0;
     std::string status;
     std::string error;
+    /// Species sprite slugs for PC box 1 slots (empty string = empty slot). Same order as bridge `boxes[0].slots`.
+    std::vector<std::string> box_1_slots;
 };
 
 struct SaveFileRecord {
@@ -39,6 +43,13 @@ struct SaveFileRecord {
     std::optional<TransferSaveSummary> transfer_summary;
     bool used_cache = false;
 };
+
+/// Full bridge parse for one file (always runs PKHeX; not backed by transfer_save_cache).
+/// Use after the player picks a save when you need `box_1_slots` and other expanded fields.
+std::optional<TransferSaveSummary> probeTransferSummaryFresh(
+    const std::string& project_root,
+    const char* argv0,
+    const std::string& save_path);
 
 class SaveLibrary {
 public:

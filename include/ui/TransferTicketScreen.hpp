@@ -38,6 +38,8 @@ public:
     bool consumeRipSfxRequest();
     bool consumeReturnToMainMenuRequest();
     bool consumeOpenTransferSystemRequest(TransferSaveSelection& out_selection);
+    /// Call when returning from the game transfer screen so the ticket list restores rip state while keeping selection.
+    void prepareReturnFromGameTransferScreen();
     const std::string& musicPath() const;
     double musicSilenceSeconds() const;
     double musicFadeInSeconds() const;

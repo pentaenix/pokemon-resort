@@ -1,0 +1,30 @@
+{
+  "background_animation": {
+    "enabled": true,
+    "scale": 0.5,
+    "speed_x": -12,
+    "speed_y": -12
+  },
+  "fade_in_seconds": 0,
+  "resort_storage_box_path": "../saves/resort_storage_box.json",
+  "box_1_grid": {
+    "start": {
+      "x": 96,
+      "y": 140
+    },
+    "sprite_scale": 2,
+    "column_spacing": 72,
+    "row_spacing": 72,
+    "columns": 6
+  },
+  "resort_storage_grid": {
+    "start": {
+      "x": 752,
+      "y": 140
+    },
+    "sprite_scale": 2,
+    "column_spacing": 72,
+    "row_spacing": 72,
+    "columns": 6
+  }
+}

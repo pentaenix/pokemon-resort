@@ -1,4 +1,5 @@
 #include "core/SaveLibrary.hpp"
+#include "core/SaveBridgeClient.hpp"
 #include "core/Json.hpp"
 
 #include <algorithm>
@@ -17,6 +18,9 @@ namespace fs = std::filesystem;
 namespace pr {
 
 namespace {
+
+/// Must match `bridge_probe_schema` in `tools/pkhex_bridge/BridgeConsole.cs`.
+constexpr int kBridgeProbeSchemaRequired = 2;
 
 struct CachedSaveRecord {
     std::string path;
@@ -142,6 +146,188 @@ std::vector<std::string> parseStringArray(const JsonValue* value) {
     return result;
 }
 
+std::string speciesSlugFromPokemonObject(const JsonValue& pokemon) {
+    if (!pokemon.isObject()) {
+        return {};
+    }
+    std::string s = asStringOrEmpty(child(pokemon, "SpeciesSlug"));
+    if (s.empty()) {
+        s = asStringOrEmpty(child(pokemon, "speciesSlug"));
+    }
+    return s;
+}
+
+std::string speciesSlugFromSlotObject(const JsonValue& slot_obj) {
+    if (!slot_obj.isObject()) {
+        return {};
+    }
+    const JsonValue* pokemon = child(slot_obj, "Pokemon");
+    if (!pokemon) {
+        pokemon = child(slot_obj, "pokemon");
+    }
+    if (!pokemon || pokemon->isNull()) {
+        return {};
+    }
+    return speciesSlugFromPokemonObject(*pokemon);
+}
+
+std::vector<std::string> collectSlotsFromBoxObject(const JsonValue& box_el) {
+    std::vector<std::string> slots;
+    const JsonValue* slots_val = child(box_el, "Slots");
+    if (!slots_val) {
+        slots_val = child(box_el, "slots");
+    }
+    if (!slots_val || !slots_val->isArray()) {
+        return slots;
+    }
+    for (const JsonValue& slot_el : slots_val->asArray()) {
+        slots.push_back(speciesSlugFromSlotObject(slot_el));
+    }
+    return slots;
+}
+
+int boxIndexFromBoxObject(const JsonValue& box_el) {
+    const JsonValue* idx_val = child(box_el, "Index");
+    if (!idx_val) {
+        idx_val = child(box_el, "index");
+    }
+    if (idx_val && idx_val->isNumber()) {
+        return static_cast<int>(idx_val->asNumber());
+    }
+    return -1;
+}
+
+std::vector<std::string> parseBoxOneSlotsFromBoxesArray(const JsonValue& root) {
+    const JsonValue* boxes_val = child(root, "boxes");
+    if (!boxes_val || !boxes_val->isArray()) {
+        return {};
+    }
+
+    const JsonValue::Array& boxes = boxes_val->asArray();
+    for (const JsonValue& box_el : boxes) {
+        if (!box_el.isObject()) {
+            continue;
+        }
+        if (boxIndexFromBoxObject(box_el) != 0) {
+            continue;
+        }
+        std::vector<std::string> slots = collectSlotsFromBoxObject(box_el);
+        if (!slots.empty()) {
+            return slots;
+        }
+    }
+
+    // Some serializers omit Index or use 1-based values; use the first box if it has slots.
+    for (const JsonValue& box_el : boxes) {
+        if (!box_el.isObject()) {
+            continue;
+        }
+        std::vector<std::string> slots = collectSlotsFromBoxObject(box_el);
+        if (!slots.empty()) {
+            return slots;
+        }
+    }
+    return {};
+}
+
+std::vector<std::string> extractBoxOneSlotsFromAllPokemon(const JsonValue& root) {
+    const JsonValue* arr = child(root, "all_pokemon");
+    if (!arr) {
+        arr = child(root, "allPokemon");
+    }
+    if (!arr || !arr->isArray()) {
+        return {};
+    }
+
+    int max_slot = -1;
+    std::vector<std::pair<int, std::string>> found;
+    found.reserve(arr->asArray().size());
+
+    for (const JsonValue& item : arr->asArray()) {
+        if (!item.isObject()) {
+            continue;
+        }
+        const JsonValue* loc = child(item, "Location");
+        if (!loc) {
+            loc = child(item, "location");
+        }
+        if (!loc || !loc->isObject()) {
+            continue;
+        }
+        const JsonValue* box_v = child(*loc, "Box");
+        if (!box_v) {
+            box_v = child(*loc, "box");
+        }
+        if (!box_v || !box_v->isNumber()) {
+            continue;
+        }
+        const int box = static_cast<int>(box_v->asNumber());
+        if (box != 0) {
+            continue;
+        }
+        const JsonValue* slot_v = child(*loc, "Slot");
+        if (!slot_v) {
+            slot_v = child(*loc, "slot");
+        }
+        if (!slot_v || !slot_v->isNumber()) {
+            continue;
+        }
+        const int slot = static_cast<int>(slot_v->asNumber());
+        if (slot < 0) {
+            continue;
+        }
+        std::string slug = asStringOrEmpty(child(item, "SpeciesSlug"));
+        if (slug.empty()) {
+            slug = asStringOrEmpty(child(item, "speciesSlug"));
+        }
+        found.emplace_back(slot, std::move(slug));
+        max_slot = std::max(max_slot, slot);
+    }
+
+    if (found.empty() || max_slot < 0) {
+        return {};
+    }
+    std::sort(found.begin(), found.end(), [](const std::pair<int, std::string>& a,
+                                             const std::pair<int, std::string>& b) {
+        return a.first < b.first;
+    });
+    std::vector<std::string> out(static_cast<std::size_t>(max_slot) + 1);
+    for (const auto& entry : found) {
+        const int slot = entry.first;
+        if (slot >= 0 && static_cast<std::size_t>(slot) < out.size()) {
+            out[static_cast<std::size_t>(slot)] = entry.second;
+        }
+    }
+    return out;
+}
+
+std::vector<std::string> extractBoxOneSlots(const JsonValue& root) {
+    std::vector<std::string> slots = parseBoxOneSlotsFromBoxesArray(root);
+    if (!slots.empty()) {
+        return slots;
+    }
+    slots = parseStringArray(child(root, "box_1"));
+    if (!slots.empty()) {
+        return slots;
+    }
+    return extractBoxOneSlotsFromAllPokemon(root);
+}
+
+std::vector<std::string> parseBoxOneSlotsArrayField(const JsonValue* value) {
+    std::vector<std::string> result;
+    if (!value || !value->isArray()) {
+        return result;
+    }
+    for (const JsonValue& item : value->asArray()) {
+        if (item.isString()) {
+            result.push_back(item.asString());
+        } else {
+            result.push_back({});
+        }
+    }
+    return result;
+}
+
 std::string escapeJson(const std::string& value) {
     std::string out;
     out.reserve(value.size() + 8);
@@ -169,6 +355,7 @@ std::optional<TransferSaveSummary> parseTransferSummary(const std::string& json_
         }
 
         TransferSaveSummary summary;
+        summary.bridge_probe_schema = asIntOrZero(child(root, "bridge_probe_schema"));
         summary.game_id = asStringOrEmpty(child(root, "game_id"));
         summary.player_name = asStringOrEmpty(child(root, "player_name"));
         summary.party = parseStringArray(child(root, "party"));
@@ -177,6 +364,7 @@ std::optional<TransferSaveSummary> parseTransferSummary(const std::string& json_
         summary.badges = asIntOrZero(child(root, "badges"));
         summary.status = asStringOrEmpty(child(root, "status"));
         summary.error = asStringOrEmpty(child(root, "error"));
+        summary.box_1_slots = extractBoxOneSlots(root);
         return summary;
     } catch (const std::exception& e) {
         if (error_message) {
@@ -238,6 +426,7 @@ std::string serializeTransferSummary(const TransferSaveSummary& summary, int ind
 
     std::ostringstream out;
     out << "{\n"
+        << child_padding << "\"bridge_probe_schema\": " << summary.bridge_probe_schema << ",\n"
         << child_padding << "\"game_id\": \"" << escapeJson(summary.game_id) << "\",\n"
         << child_padding << "\"player_name\": \"" << escapeJson(summary.player_name) << "\",\n"
         << child_padding << "\"party\": [";
@@ -252,9 +441,24 @@ std::string serializeTransferSummary(const TransferSaveSummary& summary, int ind
         << child_padding << "\"pokedex_count\": " << summary.pokedex_count << ",\n"
         << child_padding << "\"badges\": " << summary.badges << ",\n"
         << child_padding << "\"status\": \"" << escapeJson(summary.status) << "\",\n"
-        << child_padding << "\"error\": \"" << escapeJson(summary.error) << "\"\n"
+        << child_padding << "\"error\": \"" << escapeJson(summary.error) << "\",\n"
+        << child_padding << "\"box_1_slots\": [";
+    for (std::size_t i = 0; i < summary.box_1_slots.size(); ++i) {
+        if (i > 0) {
+            out << ", ";
+        }
+        out << "\"" << escapeJson(summary.box_1_slots[i]) << "\"";
+    }
+    out << "]\n"
         << padding << "}";
     return out.str();
+}
+
+/// Ticket-menu cache only: omit PC box slots so we never imply disk cache feeds the transfer-system screen.
+std::string serializeTransferSummaryForMenuCache(const TransferSaveSummary& summary, int indent) {
+    TransferSaveSummary copy = summary;
+    copy.box_1_slots.clear();
+    return serializeTransferSummary(copy, indent);
 }
 
 std::optional<TransferSaveSummary> parseTransferSummaryFromObject(const JsonValue& object) {
@@ -263,6 +467,7 @@ std::optional<TransferSaveSummary> parseTransferSummaryFromObject(const JsonValu
     }
 
     TransferSaveSummary summary;
+    summary.bridge_probe_schema = asIntOrZero(child(object, "bridge_probe_schema"));
     summary.game_id = asStringOrEmpty(child(object, "game_id"));
     summary.player_name = asStringOrEmpty(child(object, "player_name"));
     summary.party = parseStringArray(child(object, "party"));
@@ -271,6 +476,7 @@ std::optional<TransferSaveSummary> parseTransferSummaryFromObject(const JsonValu
     summary.badges = asIntOrZero(child(object, "badges"));
     summary.status = asStringOrEmpty(child(object, "status"));
     summary.error = asStringOrEmpty(child(object, "error"));
+    summary.box_1_slots = parseBoxOneSlotsArrayField(child(object, "box_1_slots"));
     return summary;
 }
 
@@ -309,6 +515,11 @@ std::map<std::string, CachedSaveRecord> parseCacheRecords(const JsonValue& root)
     }
 
     return records;
+}
+
+std::optional<TransferSaveSummary> probe_transfer_summary_from_bridge_stdout(const std::string& json_text) {
+    std::string parse_error;
+    return parseTransferSummary(json_text, &parse_error);
 }
 
 } // namespace
@@ -586,7 +797,7 @@ void SaveLibrary::saveCache() const {
 
         std::ostringstream out;
         out << "{\n"
-            << "  \"version\": 1,\n"
+            << "  \"version\": 2,\n"
             << "  \"records\": [\n";
 
         for (std::size_t i = 0; i < records_.size(); ++i) {
@@ -597,10 +808,9 @@ void SaveLibrary::saveCache() const {
                 << "      \"size\": " << record.size << ",\n"
                 << "      \"file_hash\": \"" << escapeJson(record.file_hash) << "\",\n"
                 << "      \"probe_status\": \"" << probeStatusLabel(record.probe_status) << "\",\n"
-                << "      \"raw_bridge_output\": \"" << escapeJson(record.raw_bridge_output) << "\",\n"
                 << "      \"transfer_summary\": ";
             if (record.transfer_summary) {
-                out << serializeTransferSummary(*record.transfer_summary, 6) << '\n';
+                out << serializeTransferSummaryForMenuCache(*record.transfer_summary, 6) << '\n';
             } else {
                 out << "null\n";
             }
@@ -643,6 +853,36 @@ void SaveLibrary::saveCache() const {
         std::cerr << "[SaveLibrary] cache_status=save_failed path=" << cache_path.string()
                   << " error=" << e.what() << '\n';
     }
+}
+
+std::optional<TransferSaveSummary> probeTransferSummaryFresh(
+    const std::string& project_root,
+    const char* argv0,
+    const std::string& save_path) {
+    SaveBridgeProbeResult bridge = probeSaveWithBridge(project_root, argv0, save_path);
+    if (!bridge.launched || !bridge.error_message.empty()) {
+        std::cerr << "[SaveLibrary] fresh_probe bridge_launch_failed path=" << save_path << '\n';
+        return std::nullopt;
+    }
+    if (!bridge.success) {
+        std::cerr << "[SaveLibrary] fresh_probe unsupported_or_invalid path=" << save_path << '\n';
+        return std::nullopt;
+    }
+    std::optional<TransferSaveSummary> summary =
+        probe_transfer_summary_from_bridge_stdout(trimTrailingWhitespace(bridge.stdout_text));
+    if (summary) {
+        if (summary->bridge_probe_schema < kBridgeProbeSchemaRequired) {
+            std::cerr << "[SaveLibrary] fresh_probe reject path=" << save_path
+                      << " reason=outdated_bridge_binary bridge_probe_schema=" << summary->bridge_probe_schema
+                      << " need>=" << kBridgeProbeSchemaRequired
+                      << " (rebuild tools/pkhex_bridge and prefer bin/Release over stale publish/)\n";
+            return std::nullopt;
+        }
+        std::cerr << "[SaveLibrary] fresh_probe ok path=" << save_path
+                  << " transfer_save_cache_not_used box_1_slots=" << summary->box_1_slots.size()
+                  << '\n';
+    }
+    return summary;
 }
 
 } // namespace pr

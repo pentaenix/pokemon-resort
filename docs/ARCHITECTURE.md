@@ -56,9 +56,10 @@ At the moment, most gameplay-facing behavior still lives in a single scene contr
 
 - [`SaveBridgeClient.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/SaveBridgeClient.cpp)
   Launches the external .NET helper under [`tools/pkhex_bridge`](/Users/vanta/Desktop/title_screen_demo/tools/pkhex_bridge), captures stdout and stderr, and keeps the `PKHeX.Core` integration outside the native binary. It now prefers a bundled or published helper executable and falls back to development-time `dotnet run` only when needed.
+  The bridge contract, save reader models, extension rules, and testing guidance are documented in [`PKHEX_BRIDGE.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/PKHEX_BRIDGE.md).
 
 - [`SaveLibrary.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/SaveLibrary.cpp)
-  Scans the top-level workspace [`saves`](/Users/vanta/Desktop/title_screen_demo/saves) folder without recursion, records file metadata, and probes each candidate through the bridge during startup.
+  Scans the top-level workspace [`saves`](/Users/vanta/Desktop/title_screen_demo/saves) folder without recursion, records file metadata, and probes each candidate through the bridge during startup. It currently consumes legacy transfer summary fields from the bridge; new box, bag, trainer, Pokedex, and Pokemon UI work should follow the expanded models in [`PKHEX_BRIDGE.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/PKHEX_BRIDGE.md).
 
 - [`Audio.mm`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/Audio.mm)
   Provides the audio controller used by `App.cpp` for looped menu music and button sound effects.
@@ -86,7 +87,7 @@ At the moment, most gameplay-facing behavior still lives in a single scene contr
   Owns the black loading screen shown while transfer save probing runs in the background. It reads [`loading_screen.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/loading_screen.json), picks random ball PNGs from the configured loading asset directory, and swaps balls after each animation lap.
 
 - [`TransferSystemScreen.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/TransferSystemScreen.cpp)
-  Owns the post-ticket transfer UI shell. For now it only renders the same configurable moving background used by the transfer ticket page; future transfer UI elements should get their own dedicated config file rather than growing `transfer_select_save.json`.
+  Owns the post-ticket game transfer UI shell (box grid, animated background). Layout and tuning live in [`game_transfer.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/game_transfer.json), separate from the ticket selector’s [`transfer_select_save.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/transfer_select_save.json`).
 
 ## Portability Goals
 
@@ -155,6 +156,8 @@ This means the current architecture is scene-centric rather than screen-per-flow
 6. [`SaveDataStore.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/SaveDataStore.cpp) restores persisted options into `TitleScreen`.
 7. The app loop starts. When the player opens TRANSFER, `App.cpp` switches to `LoadingScreen`, runs `SaveLibrary::refreshForTransferPage()` on a background task, then passes `transferPageRecords()` summaries into the ticket UI on the main thread.
 
+The transfer probe path goes through the PKHeX bridge rather than native C++ PKHeX bindings. Read [`PKHEX_BRIDGE.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/PKHEX_BRIDGE.md) before changing save probing, bridge JSON, box data, bag data, trainer data, Pokedex data, or future save write/edit behavior.
+
 ### Frame pipeline
 
 1. `App.cpp` polls SDL events.
@@ -204,7 +207,7 @@ If a behavior is timing/layout/content related, JSON is the first place to look.
 
 Menu labels are data-driven in `title_screen.json`, but menu actions are currently routed by named indices in [`TitleScreen.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/TitleScreen.cpp). Adding a new top-level item requires updating both the `menu.items` array and the corresponding selection routing / placeholder section mapping in `TitleScreen`.
 
-The transfer save-ticket page is authored in [`transfer_select_save.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/transfer_select_save.json). Its screen/list coordinates are native `1280x800` logical pixels. Ticket text offsets are local to the ticket art, so they can stay relative to `main_left.png` / `main_right.png` even when full-screen background or banner assets change. `TransferSystemScreen` currently reuses only the `transfer_screen.background_animation` settings and background asset from this file; the actual transfer UI should use its own JSON.
+The transfer save-ticket page is authored in [`transfer_select_save.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/transfer_select_save.json). Its screen/list coordinates are native `1280x800` logical pixels. Ticket text offsets are local to the ticket art, so they can stay relative to `main_left.png` / `main_right.png` even when full-screen background or banner assets change. The game-specific transfer page after selecting a ticket is configured in [`game_transfer.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/game_transfer.json) (`TransferSystemScreen`).
 
 ## Build and Platform Notes
 
@@ -228,7 +231,7 @@ For cross-platform work, avoid introducing new macOS-only dependencies in core m
 
 - [`TitleScreen.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/TitleScreen.cpp) is the main bottleneck. It owns state machine logic, rendering, hit testing, options logic, and section placeholder behavior.
 - There is only one concrete scene class, so the app loop cannot yet switch among independent screens.
-- There are no automated tests in the repository yet.
+- The native SDL app has no automated tests yet. The PKHeX bridge has automated tests under [`tests`](/Users/vanta/Desktop/title_screen_demo/tests); see [`tests/README.md`](/Users/vanta/Desktop/title_screen_demo/tests/README.md).
 - Audio is coordinated externally by `App.cpp` through scene flags rather than through a more explicit event/effect system.
 - `PKHeX.Core` is not linked into the native app directly; save probing currently depends on an external helper process and local .NET SDK/runtime availability.
 

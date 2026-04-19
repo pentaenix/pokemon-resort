@@ -450,6 +450,33 @@ bool TransferTicketScreen::consumeOpenTransferSystemRequest(TransferSaveSelectio
     return requested;
 }
 
+void TransferTicketScreen::prepareReturnFromGameTransferScreen() {
+    const auto count = static_cast<std::size_t>(ticketCount());
+    activating_ticket_index_ = -1;
+    fade_to_black_active_ = false;
+    fade_to_black_elapsed_seconds_ = 0.0;
+    open_transfer_system_requested_ = false;
+    pointer_pressed_on_ticket_ = false;
+    pointer_dragging_list_ = false;
+    pointer_pressed_ticket_index_ = -1;
+    play_rip_sfx_requested_ = false;
+
+    right_stub_offsets_.assign(count, 0);
+    rip_elapsed_seconds_.assign(count, 0.0);
+    rip_animation_active_.assign(count, false);
+    ripped_.assign(count, false);
+
+    if (selected_ticket_index_ >= static_cast<int>(count)) {
+        selected_ticket_index_ = count > 0 ? static_cast<int>(count) - 1 : -1;
+    }
+    if (selected_ticket_index_ < 0 && count > 0) {
+        selected_ticket_index_ = 0;
+    }
+
+    updateScrollOffset();
+    scroll_offset_y_ = target_scroll_offset_y_;
+}
+
 const std::string& TransferTicketScreen::musicPath() const {
     return music_.path;
 }

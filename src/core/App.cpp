@@ -53,6 +53,12 @@ enum class ActiveMusicTrack {
     Transfer
 };
 
+enum class LoadingPurpose {
+    None,
+    ScanTransferTickets,
+    DeepProbeSelectedSave
+};
+
 constexpr double kNavigationRepeatDelaySeconds = 0.42;
 constexpr double kNavigationRepeatIntervalSeconds = 0.18;
 
@@ -77,15 +83,21 @@ int navigationDirectionForKey(SDL_Keycode key, const InputConfig& input) {
 }
 
 std::string findProjectRoot() {
-    std::vector<fs::path> candidates {
+    // Support running the binary from the repo root (e.g. ./build/title_screen_demo) where cwd is
+    // title_screen_demo/ but config lives in title_screen_demo/pokemon-resort/config/.
+    std::vector<fs::path> candidates{
         fs::current_path(),
+        fs::current_path() / "pokemon-resort",
         fs::current_path().parent_path(),
-        fs::current_path().parent_path().parent_path()
+        fs::current_path().parent_path() / "pokemon-resort",
+        fs::current_path().parent_path().parent_path(),
     };
     for (const auto& c : candidates) {
         if (fs::exists(c / "config" / "app.json") &&
             fs::exists(c / "config" / "title_screen.json")) {
-            return c.string();
+            std::error_code ec;
+            const fs::path canon = fs::weakly_canonical(c, ec);
+            return ec ? c.string() : canon.string();
         }
     }
     throw std::runtime_error("Could not locate project root with config/app.json and config/title_screen.json");
@@ -161,6 +173,7 @@ std::vector<TransferSaveSelection> transferSelectionsFromRecords(const std::vect
         selection.pokedex = std::to_string(summary.pokedex_count);
         selection.badges = std::to_string(summary.badges);
         selection.party_sprites = summary.party;
+        selection.box1_slots = summary.box_1_slots;
         selections.push_back(std::move(selection));
     }
     return selections;
@@ -291,6 +304,9 @@ int runApplication(const char* argv0, const char* config_path_override) {
     double transfer_music_elapsed_seconds = 0.0;
     ActiveScreen active_screen = ActiveScreen::Title;
     std::future<void> transfer_load_future;
+    std::future<std::optional<TransferSaveSummary>> transfer_detail_future;
+    LoadingPurpose loading_purpose = LoadingPurpose::None;
+    TransferSaveSelection pending_transfer_detail_selection;
     NavigationHold navigation_hold;
     const auto active_input = [&]() -> ScreenInput* {
         switch (active_screen) {
@@ -456,6 +472,7 @@ int runApplication(const char* argv0, const char* config_path_override) {
                         root);
                 }
                 loading_screen->enter();
+                loading_purpose = LoadingPurpose::ScanTransferTickets;
                 transfer_load_future = std::async(
                     std::launch::async,
                     [&save_library]() {
@@ -465,34 +482,92 @@ int runApplication(const char* argv0, const char* config_path_override) {
             }
         } else if (active_screen == ActiveScreen::Loading && loading_screen) {
             loading_screen->update(dt);
-            if (transfer_load_future.valid() &&
-                transfer_load_future.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
-                try {
-                    transfer_load_future.get();
-                } catch (const std::exception& ex) {
-                    std::cerr << "Warning: transfer save loading failed: " << ex.what() << '\n';
+            if (loading_purpose == LoadingPurpose::ScanTransferTickets) {
+                if (transfer_load_future.valid() &&
+                    transfer_load_future.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+                    try {
+                        transfer_load_future.get();
+                    } catch (const std::exception& ex) {
+                        std::cerr << "Warning: transfer save loading failed: " << ex.what() << '\n';
+                    }
+                    if (transfer_ticket) {
+                        transfer_ticket->setSaveSelections(
+                            renderer.get(),
+                            transferSelectionsFromRecords(save_library.transferPageRecords()));
+                        transfer_ticket->enter();
+                    }
+                    loading_purpose = LoadingPurpose::None;
+                    active_screen = ActiveScreen::TransferTicket;
                 }
-                if (transfer_ticket) {
-                    transfer_ticket->setSaveSelections(
-                        renderer.get(),
-                        transferSelectionsFromRecords(save_library.transferPageRecords()));
-                    transfer_ticket->enter();
+            } else if (loading_purpose == LoadingPurpose::DeepProbeSelectedSave) {
+                if (transfer_detail_future.valid() &&
+                    transfer_detail_future.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+                    std::optional<TransferSaveSummary> fresh_summary;
+                    try {
+                        fresh_summary = transfer_detail_future.get();
+                    } catch (const std::exception& ex) {
+                        std::cerr << "Warning: transfer detail probe failed: " << ex.what() << '\n';
+                    }
+
+                    TransferSaveSelection merged = pending_transfer_detail_selection;
+                    if (fresh_summary) {
+                        merged.box1_slots = fresh_summary->box_1_slots;
+                        merged.party_sprites = fresh_summary->party;
+                        merged.time = fresh_summary->play_time;
+                        merged.pokedex = std::to_string(fresh_summary->pokedex_count);
+                        merged.badges = std::to_string(fresh_summary->badges);
+                        std::size_t filled_slots = 0;
+                        for (const std::string& slug : merged.box1_slots) {
+                            if (!slug.empty()) {
+                                ++filled_slots;
+                            }
+                        }
+                        std::cerr << "[App] game transfer probe ok file=" << merged.source_filename
+                                  << " box1_slots=" << merged.box1_slots.size() << " non_empty=" << filled_slots
+                                  << '\n';
+                        if (merged.box1_slots.empty()) {
+                            std::cerr << "[App] hint: fresh PKHeX probe returned no PC box 1 slots (transfer_save_cache is "
+                                         "not used here). Check bridge/PKHeX output for this save format.\n";
+                        }
+                    } else {
+                        std::cerr << "Warning: fresh PKHeX probe failed — no box sprites (check .NET bridge / "
+                                     "PKHEX_BRIDGE_EXECUTABLE). Run: pkr clear\n";
+                        merged.box1_slots.clear();
+                    }
+
+                    if (!transfer_system_screen) {
+                        transfer_system_screen = std::make_unique<TransferSystemScreen>(
+                            renderer.get(),
+                            config.window,
+                            config.assets.font,
+                            root);
+                    }
+                    transfer_system_screen->enter(merged, renderer.get());
+                    loading_purpose = LoadingPurpose::None;
+                    active_screen = ActiveScreen::TransferSystem;
                 }
-                active_screen = ActiveScreen::TransferTicket;
             }
         } else if (active_screen == ActiveScreen::TransferTicket && transfer_ticket) {
             transfer_ticket->update(dt);
             TransferSaveSelection selected_transfer_save;
             if (transfer_ticket->consumeOpenTransferSystemRequest(selected_transfer_save)) {
-                if (!transfer_system_screen) {
-                    transfer_system_screen = std::make_unique<TransferSystemScreen>(
+                pending_transfer_detail_selection = std::move(selected_transfer_save);
+                if (!loading_screen) {
+                    loading_screen = std::make_unique<LoadingScreen>(
                         renderer.get(),
                         config.window,
                         config.assets.font,
                         root);
                 }
-                transfer_system_screen->enter(selected_transfer_save, renderer.get());
-                active_screen = ActiveScreen::TransferSystem;
+                loading_screen->enter();
+                const std::string detail_path = pending_transfer_detail_selection.source_path;
+                transfer_detail_future = std::async(
+                    std::launch::async,
+                    [root, argv0, detail_path]() -> std::optional<TransferSaveSummary> {
+                        return probeTransferSummaryFresh(root, argv0, detail_path);
+                    });
+                loading_purpose = LoadingPurpose::DeepProbeSelectedSave;
+                active_screen = ActiveScreen::Loading;
             }
             if (transfer_ticket->consumeReturnToMainMenuRequest()) {
                 title_screen.returnToMainMenuFromTransfer();
@@ -500,9 +575,11 @@ int runApplication(const char* argv0, const char* config_path_override) {
             }
         } else if (active_screen == ActiveScreen::TransferSystem && transfer_system_screen) {
             transfer_system_screen->update(dt);
-            if (transfer_system_screen->consumeRestartGameRequest()) {
-                title_screen.restartFromExternalScreen();
-                active_screen = ActiveScreen::Title;
+            if (transfer_system_screen->consumeReturnToTicketListRequest()) {
+                if (transfer_ticket) {
+                    transfer_ticket->prepareReturnFromGameTransferScreen();
+                }
+                active_screen = ActiveScreen::TransferTicket;
             }
         }
 
