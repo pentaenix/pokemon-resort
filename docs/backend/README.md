@@ -17,6 +17,7 @@ The current backend supports:
 Start here:
 
 - [storage_model.md](storage_model.md) describes canonical Pokemon, boxes, snapshots, history, and mirror tables.
+- [api_reference.md](api_reference.md) lists existing services, methods, repositories, bridge commands, and tools.
 - [import_flow.md](import_flow.md) describes external save import and return import.
 - [export_flow.md](export_flow.md) describes projection, mirrors, and the guarded write-back boundary.
 - [frontend_integration.md](frontend_integration.md) tells UI agents what services and read models to use.

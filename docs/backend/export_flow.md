@@ -15,6 +15,8 @@ Export:
 
 Export does not mutate canonical Pokemon fields. It only records projection/audit state and opens a mirror.
 
+Current implementation always opens a mirror session for export. `ExportContext::managed_mirror` is currently metadata in the projection payload, not a way to disable mirror creation.
+
 ## Gen 1/2 Managed Beacon
 
 Set `ExportContext::use_gen12_beacon = true` for managed Gen 1/2 helper projections. The backend records:

@@ -48,6 +48,8 @@ The transaction order is:
 
 If placement or merge fails, the snapshot, canonical update, mirror close, history, and placement roll back together.
 
+Current snapshot kind note: all native imports, including managed returns, are stored as `SnapshotKind::ImportedRaw`. `SnapshotKind::ReturnRaw` is defined but not emitted by the current import service.
+
 ## Return Imports
 
 Managed return imports are matched before generic identity. The current supported managed path is beacon-based:

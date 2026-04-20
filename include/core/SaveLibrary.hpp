@@ -29,6 +29,13 @@ struct TransferSaveSummary {
     std::string error;
     /// Species sprite slugs for PC box 1 slots (empty string = empty slot). Same order as bridge `boxes[0].slots`.
     std::vector<std::string> box_1_slots;
+    struct PcBox {
+        std::string name;
+        /// 30 slot slugs (empty string = empty). Same order as bridge `boxes[i].slots`.
+        std::vector<std::string> slots;
+    };
+    /// Full PC box list when available (preferred over `box_1_slots`).
+    std::vector<PcBox> pc_boxes;
 };
 
 struct SaveFileRecord {

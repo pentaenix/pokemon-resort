@@ -14,6 +14,8 @@
     "accept_controller": true,
     "navigate_up_keys": ["UP", "W"],
     "navigate_down_keys": ["DOWN", "S"],
+    "navigate_left_keys": ["LEFT", "A"],
+    "navigate_right_keys": ["RIGHT", "D"],
     "forward_keys": ["M", "RETURN", "SPACE"],
     "back_keys": ["N", "ESCAPE", "BACKSPACE"]
   },

@@ -19,6 +19,20 @@ The native test executable is:
 
 It covers storage, import, merge, mirror sessions, export projection, managed return import, rollback, bridge import parsing, and the seed tool.
 
+Bridge tests:
+
+```bash
+DOTNET_CLI_HOME=/Users/vanta/Desktop/title_screen_demo/.dotnet \
+NUGET_PACKAGES=/Users/vanta/Desktop/title_screen_demo/.nuget/packages \
+dotnet test /Users/vanta/Desktop/title_screen_demo/tests/unit/pkhex_bridge/PKHeXBridge.UnitTests/PKHeXBridge.UnitTests.csproj --no-restore
+```
+
+```bash
+DOTNET_CLI_HOME=/Users/vanta/Desktop/title_screen_demo/.dotnet \
+NUGET_PACKAGES=/Users/vanta/Desktop/title_screen_demo/.nuget/packages \
+dotnet test /Users/vanta/Desktop/title_screen_demo/tests/integration/pkhex_bridge/PKHeXBridge.IntegrationTests/PKHeXBridge.IntegrationTests.csproj --no-restore
+```
+
 ## Seed Tool
 
 `resort_backend_tool` is a backend-facing command for integration tests.

@@ -301,6 +301,81 @@ std::vector<std::string> extractBoxOneSlotsFromAllPokemon(const JsonValue& root)
     return out;
 }
 
+std::string boxNameFromBoxObject(const JsonValue& box_el, int fallback_index) {
+    const JsonValue* name_val = child(box_el, "Name");
+    if (!name_val) {
+        name_val = child(box_el, "name");
+    }
+    if (name_val && name_val->isString()) {
+        const std::string n = name_val->asString();
+        if (!n.empty()) {
+            return n;
+        }
+    }
+    if (fallback_index >= 0) {
+        return "BOX " + std::to_string(fallback_index + 1);
+    }
+    return "BOX";
+}
+
+std::vector<TransferSaveSummary::PcBox> extractPcBoxes(const JsonValue& root) {
+    const JsonValue* boxes_val = child(root, "boxes");
+    if (!boxes_val || !boxes_val->isArray()) {
+        return {};
+    }
+    const JsonValue::Array& boxes = boxes_val->asArray();
+    struct IndexedBox {
+        int index = -1;
+        TransferSaveSummary::PcBox box;
+    };
+    std::vector<IndexedBox> parsed;
+    parsed.reserve(boxes.size());
+    int seq_index = 0;
+    for (const JsonValue& box_el : boxes) {
+        if (!box_el.isObject()) {
+            continue;
+        }
+        const int idx = boxIndexFromBoxObject(box_el);
+        std::vector<std::string> slots = collectSlotsFromBoxObject(box_el);
+        if (slots.empty()) {
+            continue;
+        }
+        // Normalize to 30 slots (pad/truncate).
+        if (slots.size() < 30) {
+            slots.resize(30);
+        } else if (slots.size() > 30) {
+            slots.resize(30);
+        }
+        IndexedBox ib;
+        ib.index = idx;
+        ib.box.name = boxNameFromBoxObject(box_el, idx >= 0 ? idx : seq_index);
+        ib.box.slots = std::move(slots);
+        parsed.push_back(std::move(ib));
+        ++seq_index;
+    }
+    if (parsed.empty()) {
+        return {};
+    }
+    // Sort by explicit index when present; otherwise preserve relative order.
+    std::stable_sort(parsed.begin(), parsed.end(), [](const IndexedBox& a, const IndexedBox& b) {
+        const bool ai = a.index >= 0;
+        const bool bi = b.index >= 0;
+        if (ai != bi) {
+            return ai; // indexed boxes first
+        }
+        if (ai && bi) {
+            return a.index < b.index;
+        }
+        return false;
+    });
+    std::vector<TransferSaveSummary::PcBox> out;
+    out.reserve(parsed.size());
+    for (auto& ib : parsed) {
+        out.push_back(std::move(ib.box));
+    }
+    return out;
+}
+
 std::vector<std::string> extractBoxOneSlots(const JsonValue& root) {
     std::vector<std::string> slots = parseBoxOneSlotsFromBoxesArray(root);
     if (!slots.empty()) {
@@ -365,6 +440,7 @@ std::optional<TransferSaveSummary> parseTransferSummary(const std::string& json_
         summary.status = asStringOrEmpty(child(root, "status"));
         summary.error = asStringOrEmpty(child(root, "error"));
         summary.box_1_slots = extractBoxOneSlots(root);
+        summary.pc_boxes = extractPcBoxes(root);
         return summary;
     } catch (const std::exception& e) {
         if (error_message) {

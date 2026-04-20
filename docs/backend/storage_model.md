@@ -11,6 +11,17 @@ Resort profile storage is SQLite-backed. The default runtime path is `profile.re
 - `pokemon_history` stores audit events.
 - `mirror_sessions` stores outbound managed projections and return-tracking anchors.
 
+The schema is created in [`Migrations.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/resort/persistence/Migrations.cpp). Current schema version is `1`.
+
+Important indexes and constraints:
+
+- `pokemon.pkrid` is the canonical primary key.
+- `boxes` primary key is `(profile_id, box_id)`.
+- `box_slots` primary key is `(profile_id, box_id, slot_index)`.
+- `idx_box_slots_profile_pkrid` is unique where `pkrid IS NOT NULL`, so one Pokemon can occupy only one slot per profile.
+- `pokemon_snapshots.pkrid`, `pokemon_history.pkrid`, and `mirror_sessions.pkrid` reference `pokemon`.
+- snapshot/history/mirror foreign keys used by import/export transactions are deferred where snapshot-first or mirror-history ordering requires it.
+
 ## Read Models
 
 Use `PokemonSlotView` for box rendering. It is intentionally lightweight and comes from an indexed join through `BoxViewService`.
@@ -18,6 +29,8 @@ Use `PokemonSlotView` for box rendering. It is intentionally lightweight and com
 Use `ResortPokemon` only when a full detail view needs canonical hot/warm/cold fields.
 
 Use `BoxLocation` from `PokemonResortService::getPokemonLocation(profile_id, pkrid)` when the UI needs to locate a canonical Pokemon inside Resort.
+
+Default Resort profile creation uses `BoxRepository::ensureDefaultBoxes(profile_id, 8, 30)`. External game saves have game-specific box counts and slot counts; do not project those assumptions back onto bridge preview UI.
 
 ## Important Invariants
 

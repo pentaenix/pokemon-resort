@@ -90,7 +90,10 @@ At the moment, most gameplay-facing behavior still lives in a single scene contr
   Owns the black loading screen shown while transfer save probing runs in the background. It reads [`loading_screen.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/loading_screen.json), picks random ball PNGs from the configured loading asset directory, and swaps balls after each animation lap.
 
 - [`TransferSystemScreen.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/TransferSystemScreen.cpp)
-  Owns the post-ticket game transfer UI shell (box grid, animated background). Layout and tuning live in [`game_transfer.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/game_transfer.json), separate from the ticket selector’s [`transfer_select_save.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/transfer_select_save.json`).
+  Owns the post-ticket game transfer UI shell (box grid, animated background). Layout and tuning live in [`game_transfer.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/game_transfer.json), separate from the ticket selector’s [`transfer_select_save.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/transfer_select_save.json).
+
+- [`BoxViewport.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/BoxViewport.cpp)
+  Renders reusable 6x5 transfer-box chrome for the current transfer system shell. It is a UI widget fed by `BoxViewportModel`; it is not canonical Resort storage and should not own persistence or import/export decisions.
 
 ## Portability Goals
 
@@ -183,7 +186,7 @@ The transfer probe path goes through the PKHeX bridge rather than native C++ PKH
 
 ### Resort storage pipeline
 
-The canonical Pokemon storage foundation is separate from the options save file. [`App.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/App.cpp) opens [`PokemonResortService`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/resort/services/PokemonResortService.hpp) under the existing SDL preference directory as `profile.resort.db` and seeds the default profile boxes. The service runs migrations, owns repositories, and exposes methods for profile seeding, parsed-import insertion, Pokemon lookup, placement lookup, and lightweight box views.
+The canonical Pokemon storage foundation is separate from the options save file. [`App.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/App.cpp) opens [`PokemonResortService`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/resort/services/PokemonResortService.hpp) under the existing SDL preference directory as `profile.resort.db` and seeds the default profile boxes. The service runs migrations, owns repositories, and exposes methods for profile seeding, parsed import, export projection, mirror sessions, Pokemon lookup, placement lookup, and lightweight box views.
 
 The current backend vertical slice supports:
 
@@ -196,6 +199,8 @@ The current backend vertical slice supports:
 7. placing that Pokemon into `box_slots` with explicit placement policy (`RejectIfOccupied` by default, `ReplaceOccupied` for controlled replacement flows)
 8. writing history events for creation, merge, and placement
 9. querying `PokemonSlotView` rows through an indexed box-slot join
+10. creating export projection snapshots and active mirror sessions
+11. recognizing managed beacon returns before generic identity matching
 
 The native import boundary is [`ImportedPokemon`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/resort/domain/ImportedPokemon.hpp), which requires exact raw Pokemon bytes and a SHA-256 hash. [`BridgeImportAdapter`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/resort/integration/BridgeImportAdapter.hpp) parses the import-grade JSON emitted by the process-based PKHeX bridge and intentionally rejects transfer-ticket summaries.
 
@@ -246,6 +251,8 @@ The transfer save-ticket page is authored in [`transfer_select_save.json`](/User
 
 - Build system: [`CMakeLists.txt`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/CMakeLists.txt)
 - Primary target: `title_screen_demo`
+- Backend/test utility target: `resort_backend_tool`
+- Native test target: `resort_storage_tests`
 - Language mode: C++17 plus Objective-C++ for audio today; treat that as an implementation detail, not a requirement for future platforms
 - Current platform assumptions: macOS with `SDL2`, `SDL2_image`, and `SDL2_ttf`; `AVFoundation` and `Foundation` are linked on Apple
 - Save parsing bridge: external .NET helper under [`tools/pkhex_bridge`](/Users/vanta/Desktop/title_screen_demo/tools/pkhex_bridge), intended to reference `PKHeX.Core`
@@ -263,8 +270,8 @@ For cross-platform work, avoid introducing new macOS-only dependencies in core m
 ## Current Architectural Constraints
 
 - [`TitleScreen.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/TitleScreen.cpp) is the main bottleneck. It owns state machine logic, rendering, hit testing, options logic, and section placeholder behavior.
-- There is only one concrete scene class, so the app loop cannot yet switch among independent screens.
-- The native SDL app has no automated tests yet. The PKHeX bridge has automated tests under [`tests`](/Users/vanta/Desktop/title_screen_demo/tests); see [`tests/README.md`](/Users/vanta/Desktop/title_screen_demo/tests/README.md).
+- There are separate concrete screen classes for loading, transfer ticket selection, and the transfer system shell, but title/menu/options behavior still funnels through `TitleScreen`.
+- Native automated coverage currently exists for the Resort backend via `resort_storage_tests`. PKHeX bridge unit and integration tests live under [`tests`](/Users/vanta/Desktop/title_screen_demo/tests); see [`tests/README.md`](/Users/vanta/Desktop/title_screen_demo/tests/README.md).
 - Audio is coordinated externally by `App.cpp` through scene flags rather than through a more explicit event/effect system.
 - `PKHeX.Core` is not linked into the native app directly; save probing currently depends on an external helper process and local .NET SDK/runtime availability.
 
@@ -289,6 +296,7 @@ For cross-platform work, avoid introducing new macOS-only dependencies in core m
   - save load fallback behavior
   - save atomic-write error handling
   - input binding parsing
+- Extend native tests when adding Resort backend behavior; the existing executable is `resort_storage_tests`.
 - Separate render concerns from state transitions if the UI grows beyond the current title/menu scope.
 - Add platform-specific build notes for Windows, Linux, and Android once those targets become active, including any required runtime assets or packaging steps.
 

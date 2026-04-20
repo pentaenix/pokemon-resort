@@ -63,6 +63,8 @@ void applyInputConfig(InputConfig& out, const JsonValue& obj) {
     if (auto v = child(obj, "accept_controller")) out.accept_controller = asBool(*v);
     if (auto v = child(obj, "navigate_up_keys")) applyStringVector(out.navigate_up_keys, *v, "input.navigate_up_keys");
     if (auto v = child(obj, "navigate_down_keys")) applyStringVector(out.navigate_down_keys, *v, "input.navigate_down_keys");
+    if (auto v = child(obj, "navigate_left_keys")) applyStringVector(out.navigate_left_keys, *v, "input.navigate_left_keys");
+    if (auto v = child(obj, "navigate_right_keys")) applyStringVector(out.navigate_right_keys, *v, "input.navigate_right_keys");
     if (auto v = child(obj, "forward_keys")) applyStringVector(out.forward_keys, *v, "input.forward_keys");
     if (auto v = child(obj, "back_keys")) applyStringVector(out.back_keys, *v, "input.back_keys");
 }

@@ -4,13 +4,17 @@
 #include "core/Types.hpp"
 #include "core/Font.hpp"
 #include "ui/BoxViewport.hpp"
+#include "ui/FocusManager.hpp"
 #include "ui/ScreenInput.hpp"
 #include "ui/TransferSaveSelection.hpp"
 
 #include <SDL.h>
 #include <array>
 #include <memory>
+#include <optional>
 #include <string>
+#include <unordered_map>
+#include <vector>
 
 namespace pr {
 
@@ -22,16 +26,24 @@ public:
         const std::string& font_path,
         const std::string& project_root);
 
-    void enter(const TransferSaveSelection& selection, SDL_Renderer* renderer);
+    void enter(const TransferSaveSelection& selection, SDL_Renderer* renderer, int initial_game_box_index);
     void update(double dt);
-    void render(SDL_Renderer* renderer) const;
+    void render(SDL_Renderer* renderer);
+
+    int currentGameBoxIndex() const { return game_box_index_; }
+    const std::string& currentGameKey() const { return current_game_key_; }
 
     void onAdvancePressed() override;
     void onBackPressed() override;
     bool handlePointerPressed(int logical_x, int logical_y) override;
+    void handlePointerMoved(int logical_x, int logical_y) override;
+    bool handlePointerReleased(int logical_x, int logical_y) override;
 
     bool consumeButtonSfxRequest();
     bool consumeReturnToTicketListRequest();
+
+    bool canNavigate2d() const override { return true; }
+    void onNavigate2d(int dx, int dy) override;
 
 private:
     void requestReturnToTicketList();
@@ -44,8 +56,15 @@ private:
     void togglePillTarget();
     void cachePillLabelTextures(SDL_Renderer* renderer);
     void syncBoxViewportPositions();
+    /// Changes PC box for the external save panel (`dir` −1 / +1). No-op if UI not ready or no boxes.
+    void advanceGameBox(int dir);
     void drawToolCarousel(SDL_Renderer* renderer) const;
     void drawBottomBanner(SDL_Renderer* renderer) const;
+    void drawGameBoxNameDropdownChrome(SDL_Renderer* renderer) const;
+    void drawGameBoxNameDropdownList(SDL_Renderer* renderer) const;
+    void drawSelectionCursor(SDL_Renderer* renderer) const;
+    /// Which focus node (if any) contains this point — keeps keyboard focus aligned with mouse targets.
+    std::optional<FocusNodeId> focusNodeAtPointer(int logical_x, int logical_y) const;
     bool hitTestToolCarousel(int logical_x, int logical_y) const;
     /// Cycles selection: `dir` −1 = previous tool, +1 = next (infinite wrap).
     void cycleToolCarousel(int dir);
@@ -69,10 +88,13 @@ private:
     std::unique_ptr<BoxViewport> game_save_box_viewport_;
     GameTransferPillToggleStyle pill_style_;
     GameTransferToolCarouselStyle carousel_style_;
+    GameTransferBoxNameDropdownStyle box_name_dropdown_style_;
+    GameTransferSelectionCursorStyle selection_cursor_style_;
     std::array<TextureHandle, 4> tool_icons_{};
     /// 0 = multiple, 1 = basic, 2 = swap, 3 = items.
     int selected_tool_index_ = 1;
     FontHandle pill_font_;
+    FontHandle dropdown_item_font_;
     TextureHandle pill_label_pokemon_black_;
     TextureHandle pill_label_items_black_;
     TextureHandle pill_label_pokemon_white_;
@@ -101,6 +123,49 @@ private:
     double bottom_banner_reveal_ = 0.0;
     double bottom_banner_target_ = 1.0;
     bool exit_in_progress_ = false;
+
+    // --- Game save box data + navigation (right box only) ---
+    std::vector<TransferSaveSelection::PcBox> game_pc_boxes_{};
+    int game_box_index_ = 0;
+    int pending_game_box_index_ = -1;
+    bool game_box_was_sliding_ = false;
+    std::unordered_map<std::string, TextureHandle> sprite_cache_{};
+    std::string current_game_key_{};
+
+    FocusManager focus_;
+    /// After a mouse hit on a focusable control, hide the controller selection ring until keyboard/gamepad input.
+    bool selection_cursor_hidden_after_mouse_ = false;
+
+    bool game_box_dropdown_open_target_ = false;
+    double game_box_dropdown_expand_t_ = 0.0;
+    int dropdown_highlight_index_ = 0;
+    double dropdown_scroll_px_ = 0.0;
+    int dropdown_row_height_px_ = 24;
+    /// Mouse: distinguish click (pick box) vs drag-to-scroll inside the dropdown list.
+    bool dropdown_lmb_down_in_panel_ = false;
+    int dropdown_lmb_last_y_ = 0;
+    double dropdown_lmb_drag_accum_ = 0.0;
+    mutable bool dropdown_labels_dirty_ = false;
+    mutable std::vector<TextureHandle> dropdown_item_textures_{};
+
+    void updateGameBoxDropdown(double dt);
+    void rebuildDropdownItemTextures(SDL_Renderer* renderer);
+    bool hitTestGameBoxNamePlate(int logical_x, int logical_y) const;
+    /// Outer chrome grows from the pill vertical center; `out_list_clip_top_y` / `out_list_inner_h` describe the list area only (below the pill).
+    bool computeGameBoxDropdownOuterRect(
+        SDL_Rect& out_outer,
+        float expand_scale,
+        int& out_list_inner_h,
+        int& out_list_clip_top_y) const;
+    std::optional<int> dropdownRowIndexAtScreen(int logical_x, int logical_y) const;
+    void clampDropdownScroll(int inner_h);
+    void syncDropdownScrollToHighlight(int inner_h);
+    void toggleGameBoxDropdown();
+    void closeGameBoxDropdown();
+    void stepDropdownHighlight(int delta);
+    void applyGameBoxDropdownSelection();
+    BoxViewportModel gameBoxViewportModelAt(int box_index) const;
+    void jumpGameBoxToIndex(int target_index);
 };
 
 } // namespace pr

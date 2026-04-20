@@ -5,6 +5,7 @@
 
 #include <SDL.h>
 #include <array>
+#include <deque>
 #include <optional>
 #include <string>
 
@@ -39,7 +40,27 @@ public:
         int viewport_y);
 
     void setModel(BoxViewportModel model);
+    /// Commits immediately with no slide animation (clears any in-flight slide / queue).
+    void snapContentToModel(BoxViewportModel model);
     const BoxViewportModel& model() const { return model_; }
+
+    /// Per-box navigation arrows (left/right beside the name plate).
+    bool hitTestPrevBoxArrow(int logical_x, int logical_y) const;
+    bool hitTestNextBoxArrow(int logical_x, int logical_y) const;
+    bool getPrevArrowBounds(SDL_Rect& out) const;
+    bool getNextArrowBounds(SDL_Rect& out) const;
+    bool getSlotBounds(int slot_index, SDL_Rect& out) const;
+    bool getNamePlateBounds(SDL_Rect& out) const;
+    bool getFooterBoxSpaceBounds(SDL_Rect& out) const;
+    bool getFooterGameIconBounds(SDL_Rect& out) const;
+    /// Resort-only down chevron below the grid.
+    bool getResortScrollArrowBounds(SDL_Rect& out) const;
+
+    /// Starts a content-only slide (sprites in/out) while keeping the frame + name plate fixed.
+    /// `dir`: -1 = previous (incoming from left), +1 = next (incoming from right).
+    void queueContentSlide(BoxViewportModel incoming, int dir);
+    bool isContentSliding() const { return content_slide_active_; }
+    void update(double dt);
 
     /// Loads `assets/game_icons/pokemon_resort_icon.png` (left / Resort column; color from `palette.game_colors`).
     void reloadResortIcon(SDL_Renderer* renderer);
@@ -51,6 +72,11 @@ public:
     void setViewportOrigin(int viewport_x, int viewport_y);
 
     void render(SDL_Renderer* renderer) const;
+
+    /// Background + grid + footer only (used when another layer draws between backdrop and name plate).
+    void renderBelowNamePlate(SDL_Renderer* renderer) const;
+    /// Name pill, title texture, and prev/next arrows (after optional overlay).
+    void renderNamePlate(SDL_Renderer* renderer) const;
 
 private:
     void refreshTitleTexture(SDL_Renderer* renderer) const;
@@ -67,6 +93,12 @@ private:
     mutable TextureHandle box_space_label_tex_;
     TextureHandle game_icon_tex_;
     BoxViewportModel model_;
+    BoxViewportModel incoming_model_;
+    std::deque<BoxViewportModel> content_slide_queue_{};
+    bool content_slide_active_ = false;
+    int content_slide_dir_ = 0;
+    double content_slide_offset_x_ = 0.0;
+    double content_slide_target_x_ = 0.0;
     mutable TextureHandle cached_title_tex_;
     mutable std::string cached_title_text_;
     mutable bool title_dirty_ = true;

@@ -124,6 +124,8 @@ struct InputConfig {
     bool accept_controller = true;
     std::vector<std::string> navigate_up_keys{"UP", "W"};
     std::vector<std::string> navigate_down_keys{"DOWN", "S"};
+    std::vector<std::string> navigate_left_keys{"LEFT", "A"};
+    std::vector<std::string> navigate_right_keys{"RIGHT", "D"};
     std::vector<std::string> forward_keys{"M", "RETURN", "SPACE"};
     std::vector<std::string> back_keys{"N", "ESCAPE", "BACKSPACE"};
 };
@@ -201,6 +203,12 @@ struct GameTransferBoxViewportStyle {
     Color box_space_color{26, 26, 26, 255};
     /// Vertical nudge for the footer scroll chevron only (negative moves up). Pill L/R arrows unchanged.
     int footer_scroll_arrow_offset_y = -6;
+    /// Exponential approach for per-box content slide (higher = snappier).
+    double content_slide_smoothing = 18.0;
+    /// Desired sprite magnification inside slots (2.0 = classic crisp look); clamped by slot bounds.
+    double sprite_scale = 2.0;
+    /// Vertical offset applied to sprite center within each slot (positive moves down).
+    int sprite_offset_y = 0;
 };
 
 /// Browser-style Pokémon / Items pill (`config/game_transfer.json` → `pill_toggle`). Default aligns with the **right** box column.
@@ -263,6 +271,47 @@ struct GameTransferToolCarouselStyle {
     Color frame_basic{220, 50, 47, 255};
     Color frame_swap{52, 120, 246, 255};
     Color frame_items{245, 200, 66, 255};
+};
+
+/// PC box name dropdown under the external-save name plate (`game_transfer.json` → `box_name_dropdown`).
+struct GameTransferBoxNameDropdownStyle {
+    bool enabled = true;
+    /// Horizontal size matches name pill when set equal to box viewport layout (default 360).
+    int panel_width_pixels = 360;
+    /// Max list height ≈ this × `reference_name_plate_height_pixels`, clamped to screen space below.
+    float max_height_multiplier = 4.f;
+    int reference_name_plate_height_pixels = 70;
+    int item_font_pt = 22;
+    /// Extra vertical space above/below each label within a row.
+    int row_padding_y = 8;
+    int panel_corner_radius = 14;
+    int panel_border_thickness = 1;
+    Color panel_color{251, 251, 251, 255};
+    Color panel_border_color{210, 210, 210, 255};
+    Color item_text_color{26, 26, 26, 255};
+    /// Semi-transparent overlay on the keyboard/hovered row.
+    Color selected_row_tint{130, 130, 130, 95};
+    double open_smoothing = 22.0;
+    double close_smoothing = 28.0;
+    /// Minimum gap between panel bottom and the virtual screen bottom (avoids banner overlap).
+    int bottom_margin_pixels = 48;
+    /// Scales vertical drag delta → scroll offset.
+    double scroll_drag_multiplier = 1.0;
+};
+
+/// Focus/selection cursor for controller navigation (`config/game_transfer.json` → `selection_cursor`).
+struct GameTransferSelectionCursorStyle {
+    bool enabled = true;
+    Color color{244, 205, 72, 255};
+    int alpha = 230;
+    int thickness = 4;
+    int padding = 2;
+    /// Outer highlight is at least this wide/tall (before outline stroke), centered on the focus bounds.
+    int min_width = 45;
+    int min_height = 45;
+    int corner_radius = 12;
+    double beat_speed = 2.2;
+    double beat_magnitude = 2.0;
 };
 
 } // namespace pr

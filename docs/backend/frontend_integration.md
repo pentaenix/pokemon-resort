@@ -35,11 +35,21 @@ UI should provide:
 
 UI must not parse bridge import JSON directly.
 
+Existing method to reuse:
+
+- `BridgeImportService::importSave(save_path, options)`
+- `PokemonResortService::importParsedPokemon(imported, context)` only when the caller already has validated import-grade native data
+
 ## Export UI
 
 The frontend should call `PokemonResortService::exportPokemon` or a higher-level backend wrapper.
 
 Display the returned `mirror_session_id` if debugging, but do not treat it as Pokemon identity. Canonical identity remains `pkrid`.
+
+Existing method to reuse:
+
+- `PokemonResortService::exportPokemon(pkrid, context)`
+- `PokemonResortService::getActiveMirrorForPokemon(pkrid)` for backend/debug state
 
 ## Do Not Depend On
 
@@ -58,5 +68,7 @@ Display the returned `mirror_session_id` if debugging, but do not treat it as Po
 - `ResortPokemon.hot`
 - import result `created`/`merged`/`match_reason`
 - export result `snapshot_id` and `mirror_session_id`
+
+See [api_reference.md](api_reference.md) for the current method list before adding another frontend-facing backend wrapper.
 
 Deferred UI-facing work includes richer conflict prompts, native Gen 1/2 ambiguous matching UX, real write-back completion, and advanced warm/cold detail rendering.

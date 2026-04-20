@@ -55,7 +55,7 @@ Run with a custom config path:
 ./build/title_screen_demo /absolute/path/to/title_screen.json
 ```
 
-## PKHeX bridge smoke test
+## PKHeX bridge
 
 This repo now includes a small .NET helper under [`tools/pkhex_bridge`](/Users/vanta/Desktop/title_screen_demo/tools/pkhex_bridge) that is intended to be the safe integration boundary with `PKHeX.Core`.
 
@@ -91,10 +91,11 @@ The native app now looks for the bridge in this order:
 - `PKHEX_BRIDGE_EXECUTABLE` env override
 - bundled helper next to the app executable
 - bundled helper in `MyApp.app/Contents/Resources/pkhex_bridge/`
-- published helper in `tools/pkhex_bridge/publish/` or `pokemon-resort/build/pkhex_bridge/`
+- debug or release build output in `tools/pkhex_bridge/bin/`
+- published helper in `tools/pkhex_bridge/publish/`
 - development fallback to `dotnet run --project tools/pkhex_bridge/PKHeXBridge.csproj`
 
-When the native app starts, [`App.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/App.cpp) performs a startup-only smoke test against the first `.sav` file it finds in [`/Users/vanta/Desktop/title_screen_demo/saves`](/Users/vanta/Desktop/title_screen_demo/saves), if present, and logs the bridge command plus success/failure details to stderr.
+When the player opens TRANSFER, [`SaveLibrary.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/SaveLibrary.cpp) scans [`/Users/vanta/Desktop/title_screen_demo/saves`](/Users/vanta/Desktop/title_screen_demo/saves), probes saves through the bridge, caches probe summaries, and feeds transfer-ticket preview data to the current UI.
 
 ## Resort backend docs
 
@@ -103,6 +104,7 @@ The backend storage/transfer subsystem is documented under [`docs/backend`](/Use
 Use these docs before adding UI against Resort storage:
 
 - [`storage_model.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/backend/storage_model.md)
+- [`api_reference.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/backend/api_reference.md)
 - [`import_flow.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/backend/import_flow.md)
 - [`export_flow.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/backend/export_flow.md)
 - [`frontend_integration.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/backend/frontend_integration.md)
@@ -160,12 +162,26 @@ src/
   core/
     App.cpp
     Assets.cpp
+    Audio.mm
     Font.cpp
     Json.cpp
     ConfigLoader.cpp
+    SaveBridgeClient.cpp
     SaveDataStore.cpp
+    SaveLibrary.cpp
+  resort/
+    domain/
+    integration/
+    persistence/
+    services/
   ui/
+    LoadingScreen.cpp
     TitleScreen.cpp
+    TransferTicketScreen.cpp
+    TransferSystemScreen.cpp
+    BoxViewport.cpp
+  tools/
+    resort_backend_tool.cpp
 include/
   core/
     App.hpp
@@ -173,9 +189,22 @@ include/
     ConfigLoader.hpp
     Font.hpp
     Json.hpp
+    SaveBridgeClient.hpp
+    SaveDataStore.hpp
+    SaveLibrary.hpp
     Types.hpp
+  resort/
+    domain/
+    integration/
+    persistence/
+    services/
   ui/
+    LoadingScreen.hpp
+    ScreenInput.hpp
     TitleScreen.hpp
+    TransferTicketScreen.hpp
+    TransferSystemScreen.hpp
+    BoxViewport.hpp
 ```
 
 ## Notes

@@ -104,6 +104,51 @@ void drawTextureCentered(SDL_Renderer* renderer, const TextureHandle& tex, int c
     SDL_RenderCopy(renderer, tex.texture.get(), nullptr, &dst);
 }
 
+void drawTextureCenteredScaled(
+    SDL_Renderer* renderer,
+    const TextureHandle& tex,
+    int cx,
+    int cy,
+    int max_w,
+    int max_h,
+    double desired_scale) {
+    if (!tex.texture || max_w <= 0 || max_h <= 0) {
+        return;
+    }
+    desired_scale = std::max(0.01, desired_scale);
+    const double dw0 = static_cast<double>(tex.width) * desired_scale;
+    const double dh0 = static_cast<double>(tex.height) * desired_scale;
+    const double sx = static_cast<double>(max_w) / std::max(1.0, dw0);
+    const double sy = static_cast<double>(max_h) / std::max(1.0, dh0);
+    const double clamp_scale = std::min(1.0, std::min(sx, sy));
+    const int dw = std::max(1, static_cast<int>(std::round(dw0 * clamp_scale)));
+    const int dh = std::max(1, static_cast<int>(std::round(dh0 * clamp_scale)));
+    const SDL_Rect dst{cx - dw / 2, cy - dh / 2, dw, dh};
+    SDL_SetTextureBlendMode(tex.texture.get(), SDL_BLENDMODE_BLEND);
+    SDL_SetTextureAlphaMod(tex.texture.get(), 255);
+    SDL_SetTextureColorMod(tex.texture.get(), 255, 255, 255);
+    SDL_RenderCopy(renderer, tex.texture.get(), nullptr, &dst);
+}
+
+void drawTextureCenteredScaledRaw(
+    SDL_Renderer* renderer,
+    const TextureHandle& tex,
+    int cx,
+    int cy,
+    double desired_scale) {
+    if (!tex.texture) {
+        return;
+    }
+    desired_scale = std::clamp(desired_scale, 0.01, 32.0);
+    const int dw = std::max(1, static_cast<int>(std::lround(static_cast<double>(tex.width) * desired_scale)));
+    const int dh = std::max(1, static_cast<int>(std::lround(static_cast<double>(tex.height) * desired_scale)));
+    const SDL_Rect dst{cx - dw / 2, cy - dh / 2, dw, dh};
+    SDL_SetTextureBlendMode(tex.texture.get(), SDL_BLENDMODE_BLEND);
+    SDL_SetTextureAlphaMod(tex.texture.get(), 255);
+    SDL_SetTextureColorMod(tex.texture.get(), 255, 255, 255);
+    SDL_RenderCopy(renderer, tex.texture.get(), nullptr, &dst);
+}
+
 /// `angle` clockwise degrees; texture points left at 0°. `mod` tints the arrow for contrast on `#E0E0E0` / `#FBFBFB` UI.
 void drawArrowRotated(
     SDL_Renderer* renderer,
@@ -148,6 +193,46 @@ TextureHandle loadTextureOrThrow(SDL_Renderer* renderer, const fs::path& path) {
     return out;
 }
 
+void approachExponential(double& v, double target, double dt, double lambda) {
+    if (lambda <= 1e-9) {
+        v = target;
+        return;
+    }
+    const double alpha = 1.0 - std::exp(-lambda * std::max(0.0, dt));
+    v += (target - v) * alpha;
+    if (std::fabs(target - v) < 0.0005) {
+        v = target;
+    }
+}
+
+SDL_Rect prevArrowBounds(
+    int vx,
+    int vy,
+    int arrow_w,
+    int arrow_h) {
+    const int pill_x = vx + (BoxViewport::kViewportWidth - kNamePillW) / 2;
+    const int pill_y = vy + kNameTopPad;
+    const int pill_cy = pill_y + kNamePillH / 2;
+    const int left_cx = pill_x - kNameToArrowGap - arrow_w / 2;
+    return SDL_Rect{left_cx - arrow_w / 2, pill_cy - arrow_h / 2, arrow_w, arrow_h};
+}
+
+SDL_Rect nextArrowBounds(
+    int vx,
+    int vy,
+    int arrow_w,
+    int arrow_h) {
+    const int pill_x = vx + (BoxViewport::kViewportWidth - kNamePillW) / 2;
+    const int pill_y = vy + kNameTopPad;
+    const int pill_cy = pill_y + kNamePillH / 2;
+    const int right_cx = pill_x + kNamePillW + kNameToArrowGap + arrow_w / 2;
+    return SDL_Rect{right_cx - arrow_w / 2, pill_cy - arrow_h / 2, arrow_w, arrow_h};
+}
+
+bool pointInRect(int x, int y, const SDL_Rect& r) {
+    return x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h;
+}
+
 } // namespace
 
 BoxViewport::BoxViewport(
@@ -186,8 +271,25 @@ void BoxViewport::setModel(BoxViewportModel model) {
     model_ = std::move(model);
 }
 
+void BoxViewport::snapContentToModel(BoxViewportModel model) {
+    content_slide_queue_.clear();
+    content_slide_active_ = false;
+    content_slide_dir_ = 0;
+    content_slide_offset_x_ = 0.0;
+    content_slide_target_x_ = 0.0;
+    incoming_model_ = {};
+    if (model.box_name != model_.box_name) {
+        title_dirty_ = true;
+    }
+    model_ = std::move(model);
+}
+
 void BoxViewport::refreshTitleTexture(SDL_Renderer* renderer) const {
-    const std::string& name = model_.box_name.empty() ? std::string("BOX 1") : model_.box_name;
+    const std::string active_name =
+        (content_slide_active_ && !incoming_model_.box_name.empty())
+            ? incoming_model_.box_name
+            : model_.box_name;
+    const std::string& name = active_name.empty() ? std::string("BOX 1") : active_name;
     if (!title_dirty_ && name == cached_title_text_ && cached_title_tex_.texture) {
         return;
     }
@@ -259,7 +361,178 @@ void BoxViewport::reloadGameIcon(SDL_Renderer* renderer, const std::string& game
     }
 }
 
-void BoxViewport::render(SDL_Renderer* renderer) const {
+bool BoxViewport::hitTestPrevBoxArrow(int logical_x, int logical_y) const {
+    if (!arrow_tex_.texture) {
+        return false;
+    }
+    const SDL_Rect r = prevArrowBounds(viewport_x_, viewport_y_, arrow_tex_.width, arrow_tex_.height);
+    return pointInRect(logical_x, logical_y, r);
+}
+
+bool BoxViewport::hitTestNextBoxArrow(int logical_x, int logical_y) const {
+    if (!arrow_tex_.texture) {
+        return false;
+    }
+    const SDL_Rect r = nextArrowBounds(viewport_x_, viewport_y_, arrow_tex_.width, arrow_tex_.height);
+    return pointInRect(logical_x, logical_y, r);
+}
+
+bool BoxViewport::getPrevArrowBounds(SDL_Rect& out) const {
+    if (!arrow_tex_.texture) {
+        return false;
+    }
+    out = prevArrowBounds(viewport_x_, viewport_y_, arrow_tex_.width, arrow_tex_.height);
+    return true;
+}
+
+bool BoxViewport::getNextArrowBounds(SDL_Rect& out) const {
+    if (!arrow_tex_.texture) {
+        return false;
+    }
+    out = nextArrowBounds(viewport_x_, viewport_y_, arrow_tex_.width, arrow_tex_.height);
+    return true;
+}
+
+bool BoxViewport::getSlotBounds(int slot_index, SDL_Rect& out) const {
+    if (slot_index < 0 || slot_index >= 30) {
+        return false;
+    }
+    const int vx = viewport_x_;
+    const int vy = viewport_y_;
+    const int pill_y = vy + kNameTopPad;
+
+    const int grid_w = kCols * kSlotW + (kCols - 1) * kSlotGapX;
+    const int grid_x = vx + (BoxViewport::kViewportWidth - grid_w) / 2;
+    const int grid_y = pill_y + kNamePillH + kNameToGridGap;
+    const int row = slot_index / kCols;
+    const int col = slot_index % kCols;
+    out = SDL_Rect{
+        grid_x + col * (kSlotW + kSlotGapX),
+        grid_y + row * (kSlotH + kSlotGapY),
+        kSlotW,
+        kSlotH};
+    return true;
+}
+
+bool BoxViewport::getNamePlateBounds(SDL_Rect& out) const {
+    const int vx = viewport_x_;
+    const int vy = viewport_y_;
+    const int pill_x = vx + (BoxViewport::kViewportWidth - kNamePillW) / 2;
+    const int pill_y = vy + kNameTopPad;
+    out = SDL_Rect{pill_x, pill_y, kNamePillW, kNamePillH};
+    return true;
+}
+
+bool BoxViewport::getFooterBoxSpaceBounds(SDL_Rect& out) const {
+    const int vx = viewport_x_;
+    const int vy = viewport_y_;
+    const int pill_y = vy + kNameTopPad;
+    const int grid_h = kRows * kSlotH + (kRows - 1) * kSlotGapY;
+    const int grid_y = pill_y + kNamePillH + kNameToGridGap;
+    const int grid_bottom = grid_y + grid_h;
+    const int footer_row_y = grid_bottom + kFooterBelowSlots;
+    const int btn_y = footer_row_y;
+    const int btn_left_x =
+        (role_ == BoxViewportRole::ResortStorage)
+            ? (vx + BoxViewport::kViewportWidth - kFooterEdgePad - kBoxSpaceBtnW)
+            : (vx + kFooterEdgePad);
+    out = SDL_Rect{btn_left_x, btn_y, kBoxSpaceBtnW, kBoxSpaceBtnH};
+    return true;
+}
+
+bool BoxViewport::getFooterGameIconBounds(SDL_Rect& out) const {
+    const int vx = viewport_x_;
+    const int vy = viewport_y_;
+    const int pill_y = vy + kNameTopPad;
+    const int grid_h = kRows * kSlotH + (kRows - 1) * kSlotGapY;
+    const int grid_y = pill_y + kNamePillH + kNameToGridGap;
+    const int grid_bottom = grid_y + grid_h;
+    const int footer_row_y = grid_bottom + kFooterBelowSlots;
+    const int icon_y = footer_row_y + (kBoxSpaceBtnH - kGameIconSize) / 2;
+    const int icon_left_x =
+        (role_ == BoxViewportRole::ResortStorage)
+            ? (vx + kFooterEdgePad)
+            : (vx + BoxViewport::kViewportWidth - kFooterEdgePad - kGameIconSize);
+    out = SDL_Rect{icon_left_x, icon_y, kGameIconSize, kGameIconSize};
+    return true;
+}
+
+bool BoxViewport::getResortScrollArrowBounds(SDL_Rect& out) const {
+    if (role_ != BoxViewportRole::ResortStorage || !arrow_tex_.texture) {
+        return false;
+    }
+    const int vx = viewport_x_;
+    const int vy = viewport_y_;
+    const int pill_y = vy + kNameTopPad;
+    const int grid_w = kCols * kSlotW + (kCols - 1) * kSlotGapX;
+    const int grid_h = kRows * kSlotH + (kRows - 1) * kSlotGapY;
+    const int grid_x = vx + (BoxViewport::kViewportWidth - grid_w) / 2;
+    const int grid_y = pill_y + kNamePillH + kNameToGridGap;
+    const int grid_bottom = grid_y + grid_h;
+    const int grid_mid_x = grid_x + grid_w / 2;
+    const int scroll_cy =
+        grid_bottom + kScrollBelowSlots + arrow_tex_.height / 2 + style_.footer_scroll_arrow_offset_y;
+    // The rendered arrow is rotated, but bounds use the raw texture rect.
+    out = SDL_Rect{grid_mid_x - arrow_tex_.width / 2, scroll_cy - arrow_tex_.height / 2, arrow_tex_.width, arrow_tex_.height};
+    return true;
+}
+
+void BoxViewport::queueContentSlide(BoxViewportModel incoming, int dir) {
+    if (dir == 0) {
+        return;
+    }
+    const int requested_dir = dir > 0 ? 1 : -1;
+    if (!content_slide_active_) {
+        incoming_model_ = std::move(incoming);
+        // Update name plate during the transition (frame stays fixed).
+        title_dirty_ = true;
+        content_slide_active_ = true;
+        content_slide_dir_ = requested_dir;
+        content_slide_offset_x_ = 0.0;
+        content_slide_target_x_ = -static_cast<double>(content_slide_dir_ * BoxViewport::kViewportWidth);
+        content_slide_queue_.clear();
+        return;
+    }
+    // Allow spam navigation: enqueue additional steps in the same direction.
+    if (requested_dir == content_slide_dir_) {
+        content_slide_queue_.push_back(std::move(incoming));
+        // Give the slide a small immediate push so rapid spam feels responsive.
+        // (Exponential easing can otherwise feel like it "lags" at the start.)
+        if (std::fabs(content_slide_offset_x_) < 32.0) {
+            content_slide_offset_x_ -= static_cast<double>(content_slide_dir_) * 24.0;
+        }
+    }
+}
+
+void BoxViewport::update(double dt) {
+    if (!content_slide_active_) {
+        return;
+    }
+    // Ramp speed when the player is spamming (queued steps).
+    const double base = std::max(1.0, style_.content_slide_smoothing);
+    const double speed_boost = 1.0 + 1.25 * std::min<std::size_t>(10, content_slide_queue_.size());
+    const double lambda = base * speed_boost;
+    approachExponential(content_slide_offset_x_, content_slide_target_x_, dt, lambda);
+    if (std::fabs(content_slide_offset_x_ - content_slide_target_x_) < 0.75) {
+        // Commit.
+        setModel(std::move(incoming_model_));
+        if (!content_slide_queue_.empty()) {
+            incoming_model_ = std::move(content_slide_queue_.front());
+            content_slide_queue_.pop_front();
+            title_dirty_ = true;
+            content_slide_offset_x_ = 0.0;
+            content_slide_target_x_ = -static_cast<double>(content_slide_dir_ * BoxViewport::kViewportWidth);
+        } else {
+            incoming_model_ = {};
+            content_slide_active_ = false;
+            content_slide_dir_ = 0;
+            content_slide_offset_x_ = 0.0;
+            content_slide_target_x_ = 0.0;
+        }
+    }
+}
+
+void BoxViewport::renderBelowNamePlate(SDL_Renderer* renderer) const {
     refreshTitleTexture(renderer);
 
     const int vx = viewport_x_;
@@ -270,42 +543,47 @@ void BoxViewport::render(SDL_Renderer* renderer) const {
 
     const int pill_x = vx + (BoxViewport::kViewportWidth - kNamePillW) / 2;
     const int pill_y = vy + kNameTopPad;
-    fillRoundedRectScanlines(renderer, pill_x, pill_y, kNamePillW, kNamePillH, kPillCornerRadius, kPillBg);
-
-    if (cached_title_tex_.texture) {
-        const int tcx = pill_x + kNamePillW / 2 - cached_title_tex_.width / 2;
-        const int tcy = pill_y + kNamePillH / 2 - cached_title_tex_.height / 2;
-        SDL_Rect td{tcx, tcy, cached_title_tex_.width, cached_title_tex_.height};
-        SDL_RenderCopy(renderer, cached_title_tex_.texture.get(), nullptr, &td);
-    }
-
-    const int pill_cy = pill_y + kNamePillH / 2;
-    if (arrow_tex_.texture) {
-        const int left_cx = pill_x - kNameToArrowGap - arrow_tex_.width / 2;
-        drawArrowRotated(renderer, arrow_tex_, left_cx, pill_cy, 0.0, style_.arrow_mod_color);
-        const int right_cx = pill_x + kNamePillW + kNameToArrowGap + arrow_tex_.width / 2;
-        drawArrowRotated(renderer, arrow_tex_, right_cx, pill_cy, 180.0, style_.arrow_mod_color);
-    }
 
     const int grid_w = kCols * kSlotW + (kCols - 1) * kSlotGapX;
     const int grid_h = kRows * kSlotH + (kRows - 1) * kSlotGapY;
     const int grid_x = vx + (BoxViewport::kViewportWidth - grid_w) / 2;
     const int grid_y = pill_y + kNamePillH + kNameToGridGap;
 
-    for (int row = 0; row < kRows; ++row) {
-        for (int col = 0; col < kCols; ++col) {
-            const int sx = grid_x + col * (kSlotW + kSlotGapX);
-            const int sy = grid_y + row * (kSlotH + kSlotGapY);
-            fillRoundedRectScanlines(renderer, sx, sy, kSlotW, kSlotH, kSlotCornerRadius, kSlotBg);
-            const std::size_t idx = static_cast<std::size_t>(row * kCols + col);
-            if (idx < model_.slot_sprites.size()) {
-                const auto& slot = model_.slot_sprites[idx];
-                if (slot.has_value() && slot->texture) {
-                    drawTextureCentered(renderer, *slot, sx + kSlotW / 2, sy + kSlotH / 2, kSlotW - 4, kSlotH - 4);
+    const SDL_Rect grid_clip{grid_x, grid_y, grid_w, grid_h};
+    SDL_RenderSetClipRect(renderer, &grid_clip);
+
+    auto draw_grid = [&](const BoxViewportModel& m, int dx) {
+        for (int row = 0; row < kRows; ++row) {
+            for (int col = 0; col < kCols; ++col) {
+                const int sx = grid_x + col * (kSlotW + kSlotGapX) + dx;
+                const int sy = grid_y + row * (kSlotH + kSlotGapY);
+                fillRoundedRectScanlines(renderer, sx, sy, kSlotW, kSlotH, kSlotCornerRadius, kSlotBg);
+                const std::size_t idx = static_cast<std::size_t>(row * kCols + col);
+                if (idx < m.slot_sprites.size()) {
+                    const auto& slot = m.slot_sprites[idx];
+                    if (slot.has_value() && slot->texture) {
+                        drawTextureCenteredScaledRaw(
+                            renderer,
+                            *slot,
+                            sx + kSlotW / 2,
+                            sy + kSlotH / 2 + style_.sprite_offset_y,
+                            style_.sprite_scale);
+                    }
                 }
             }
         }
+    };
+
+    const int base_dx = static_cast<int>(std::lround(content_slide_offset_x_));
+    if (!content_slide_active_) {
+        draw_grid(model_, 0);
+    } else {
+        draw_grid(model_, base_dx);
+        const int incoming_dx = content_slide_dir_ * BoxViewport::kViewportWidth;
+        draw_grid(incoming_model_, base_dx + incoming_dx);
     }
+
+    SDL_RenderSetClipRect(renderer, nullptr);
 
     const int grid_bottom = grid_y + grid_h;
     const int footer_row_y = grid_bottom + kFooterBelowSlots;
@@ -351,6 +629,35 @@ void BoxViewport::render(SDL_Renderer* renderer) const {
         // Left-pointing asset; counter-clockwise 90° is downward (SDL angle is clockwise, so use -90°).
         drawArrowRotated(renderer, arrow_tex_, grid_mid_x, scroll_cy, -90.0, style_.arrow_mod_color);
     }
+}
+
+void BoxViewport::renderNamePlate(SDL_Renderer* renderer) const {
+    const int vx = viewport_x_;
+    const int vy = viewport_y_;
+    const int pill_x = vx + (BoxViewport::kViewportWidth - kNamePillW) / 2;
+    const int pill_y = vy + kNameTopPad;
+
+    fillRoundedRectScanlines(renderer, pill_x, pill_y, kNamePillW, kNamePillH, kPillCornerRadius, kPillBg);
+
+    if (cached_title_tex_.texture) {
+        const int tcx = pill_x + kNamePillW / 2 - cached_title_tex_.width / 2;
+        const int tcy = pill_y + kNamePillH / 2 - cached_title_tex_.height / 2;
+        SDL_Rect td{tcx, tcy, cached_title_tex_.width, cached_title_tex_.height};
+        SDL_RenderCopy(renderer, cached_title_tex_.texture.get(), nullptr, &td);
+    }
+
+    const int pill_cy = pill_y + kNamePillH / 2;
+    if (arrow_tex_.texture) {
+        const int left_cx = pill_x - kNameToArrowGap - arrow_tex_.width / 2;
+        drawArrowRotated(renderer, arrow_tex_, left_cx, pill_cy, 0.0, style_.arrow_mod_color);
+        const int right_cx = pill_x + kNamePillW + kNameToArrowGap + arrow_tex_.width / 2;
+        drawArrowRotated(renderer, arrow_tex_, right_cx, pill_cy, 180.0, style_.arrow_mod_color);
+    }
+}
+
+void BoxViewport::render(SDL_Renderer* renderer) const {
+    renderBelowNamePlate(renderer);
+    renderNamePlate(renderer);
 }
 
 } // namespace pr

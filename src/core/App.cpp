@@ -24,6 +24,7 @@
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace fs = std::filesystem;
@@ -64,7 +65,8 @@ constexpr double kNavigationRepeatDelaySeconds = 0.42;
 constexpr double kNavigationRepeatIntervalSeconds = 0.18;
 
 struct NavigationHold {
-    int direction = 0;
+    int dx = 0;
+    int dy = 0;
     double elapsed_seconds = 0.0;
     double repeat_elapsed_seconds = 0.0;
 };
@@ -73,14 +75,13 @@ double clamp01(double value) {
     return std::max(0.0, std::min(1.0, value));
 }
 
-int navigationDirectionForKey(SDL_Keycode key, const InputConfig& input) {
-    if (matchesBinding(key, input.navigate_up_keys)) {
-        return -1;
-    }
-    if (matchesBinding(key, input.navigate_down_keys)) {
-        return 1;
-    }
-    return 0;
+NavigationHold navigationDeltaForKey(SDL_Keycode key, const InputConfig& input) {
+    NavigationHold out;
+    if (matchesBinding(key, input.navigate_up_keys)) out.dy = -1;
+    if (matchesBinding(key, input.navigate_down_keys)) out.dy = 1;
+    if (matchesBinding(key, input.navigate_left_keys)) out.dx = -1;
+    if (matchesBinding(key, input.navigate_right_keys)) out.dx = 1;
+    return out;
 }
 
 std::string findProjectRoot() {
@@ -271,6 +272,7 @@ int runApplication(const char* argv0, const char* config_path_override) {
     std::unique_ptr<LoadingScreen> loading_screen;
     std::unique_ptr<TransferTicketScreen> transfer_ticket;
     std::unique_ptr<TransferSystemScreen> transfer_system_screen;
+    std::unordered_map<std::string, int> last_game_box_index_by_game_key;
     if (config.persistence.save_options) {
         std::string load_error;
         std::string loaded_from_path;
@@ -342,15 +344,25 @@ int runApplication(const char* argv0, const char* config_path_override) {
 
             if (event.type == SDL_KEYDOWN && !event.key.repeat) {
                 const SDL_Keycode key = event.key.keysym.sym;
-                const int navigation_direction = navigationDirectionForKey(key, config.input);
-                if (navigation_direction != 0) {
-                    if (ScreenInput* input = active_input(); input && input->canNavigate()) {
-                        input->onNavigate(navigation_direction);
-                        navigation_hold.direction = navigation_direction;
-                        navigation_hold.elapsed_seconds = 0.0;
-                        navigation_hold.repeat_elapsed_seconds = 0.0;
+                const NavigationHold nav = navigationDeltaForKey(key, config.input);
+                if (nav.dx != 0 || nav.dy != 0) {
+                    if (ScreenInput* input = active_input()) {
+                        if (input->canNavigate2d()) {
+                            input->onNavigate2d(nav.dx, nav.dy);
+                            navigation_hold = nav;
+                            navigation_hold.elapsed_seconds = 0.0;
+                            navigation_hold.repeat_elapsed_seconds = 0.0;
+                            continue;
+                        }
+                        if (nav.dy != 0 && input->canNavigate()) {
+                            input->onNavigate(nav.dy);
+                            navigation_hold = {};
+                            navigation_hold.dy = nav.dy;
+                            navigation_hold.elapsed_seconds = 0.0;
+                            navigation_hold.repeat_elapsed_seconds = 0.0;
+                            continue;
+                        }
                     }
-                    continue;
                 }
                 if (matchesBinding(key, config.input.back_keys)) {
                     if (ScreenInput* input = active_input()) {
@@ -367,8 +379,9 @@ int runApplication(const char* argv0, const char* config_path_override) {
             }
 
             if (event.type == SDL_KEYUP) {
-                const int navigation_direction = navigationDirectionForKey(event.key.keysym.sym, config.input);
-                if (navigation_direction != 0 && navigation_hold.direction == navigation_direction) {
+                const NavigationHold nav = navigationDeltaForKey(event.key.keysym.sym, config.input);
+                if ((nav.dx != 0 && navigation_hold.dx == nav.dx) ||
+                    (nav.dy != 0 && navigation_hold.dy == nav.dy)) {
                     navigation_hold = {};
                 }
             }
@@ -398,17 +411,53 @@ int runApplication(const char* argv0, const char* config_path_override) {
             if (event.type == SDL_CONTROLLERBUTTONDOWN && config.input.accept_controller) {
                 switch (event.cbutton.button) {
                     case SDL_CONTROLLER_BUTTON_DPAD_UP:
-                        if (ScreenInput* input = active_input(); input && input->canNavigate()) {
-                            input->onNavigate(-1);
-                            navigation_hold.direction = -1;
+                        if (ScreenInput* input = active_input()) {
+                            if (input->canNavigate2d()) {
+                                input->onNavigate2d(0, -1);
+                                navigation_hold = {};
+                                navigation_hold.dy = -1;
+                                navigation_hold.elapsed_seconds = 0.0;
+                                navigation_hold.repeat_elapsed_seconds = 0.0;
+                            } else if (input->canNavigate()) {
+                                input->onNavigate(-1);
+                                navigation_hold = {};
+                                navigation_hold.dy = -1;
+                                navigation_hold.elapsed_seconds = 0.0;
+                                navigation_hold.repeat_elapsed_seconds = 0.0;
+                            }
+                        }
+                        break;
+                    case SDL_CONTROLLER_BUTTON_DPAD_DOWN:
+                        if (ScreenInput* input = active_input()) {
+                            if (input->canNavigate2d()) {
+                                input->onNavigate2d(0, 1);
+                                navigation_hold = {};
+                                navigation_hold.dy = 1;
+                                navigation_hold.elapsed_seconds = 0.0;
+                                navigation_hold.repeat_elapsed_seconds = 0.0;
+                            } else if (input->canNavigate()) {
+                                input->onNavigate(1);
+                                navigation_hold = {};
+                                navigation_hold.dy = 1;
+                                navigation_hold.elapsed_seconds = 0.0;
+                                navigation_hold.repeat_elapsed_seconds = 0.0;
+                            }
+                        }
+                        break;
+                    case SDL_CONTROLLER_BUTTON_DPAD_LEFT:
+                        if (ScreenInput* input = active_input(); input && input->canNavigate2d()) {
+                            input->onNavigate2d(-1, 0);
+                            navigation_hold = {};
+                            navigation_hold.dx = -1;
                             navigation_hold.elapsed_seconds = 0.0;
                             navigation_hold.repeat_elapsed_seconds = 0.0;
                         }
                         break;
-                    case SDL_CONTROLLER_BUTTON_DPAD_DOWN:
-                        if (ScreenInput* input = active_input(); input && input->canNavigate()) {
-                            input->onNavigate(1);
-                            navigation_hold.direction = 1;
+                    case SDL_CONTROLLER_BUTTON_DPAD_RIGHT:
+                        if (ScreenInput* input = active_input(); input && input->canNavigate2d()) {
+                            input->onNavigate2d(1, 0);
+                            navigation_hold = {};
+                            navigation_hold.dx = 1;
                             navigation_hold.elapsed_seconds = 0.0;
                             navigation_hold.repeat_elapsed_seconds = 0.0;
                         }
@@ -429,10 +478,10 @@ int runApplication(const char* argv0, const char* config_path_override) {
             }
 
             if (event.type == SDL_CONTROLLERBUTTONUP && config.input.accept_controller) {
-                if ((event.cbutton.button == SDL_CONTROLLER_BUTTON_DPAD_UP &&
-                     navigation_hold.direction == -1) ||
-                    (event.cbutton.button == SDL_CONTROLLER_BUTTON_DPAD_DOWN &&
-                     navigation_hold.direction == 1)) {
+                if ((event.cbutton.button == SDL_CONTROLLER_BUTTON_DPAD_UP && navigation_hold.dy == -1) ||
+                    (event.cbutton.button == SDL_CONTROLLER_BUTTON_DPAD_DOWN && navigation_hold.dy == 1) ||
+                    (event.cbutton.button == SDL_CONTROLLER_BUTTON_DPAD_LEFT && navigation_hold.dx == -1) ||
+                    (event.cbutton.button == SDL_CONTROLLER_BUTTON_DPAD_RIGHT && navigation_hold.dx == 1)) {
                     navigation_hold = {};
                 }
             }
@@ -443,19 +492,28 @@ int runApplication(const char* argv0, const char* config_path_override) {
         last_counter = now;
 
         if (ScreenInput* input = active_input();
-            input && input->canNavigate() && navigation_hold.direction != 0) {
+            input && ((input->canNavigate2d() && (navigation_hold.dx != 0 || navigation_hold.dy != 0)) ||
+                      (input->canNavigate() && navigation_hold.dy != 0))) {
             const double previous_elapsed = navigation_hold.elapsed_seconds;
             navigation_hold.elapsed_seconds += dt;
 
             if (previous_elapsed < kNavigationRepeatDelaySeconds &&
                 navigation_hold.elapsed_seconds >= kNavigationRepeatDelaySeconds) {
-                input->onNavigate(navigation_hold.direction);
+                if (input->canNavigate2d()) {
+                    input->onNavigate2d(navigation_hold.dx, navigation_hold.dy);
+                } else {
+                    input->onNavigate(navigation_hold.dy);
+                }
                 navigation_hold.repeat_elapsed_seconds = 0.0;
             } else if (navigation_hold.elapsed_seconds >= kNavigationRepeatDelaySeconds) {
                 navigation_hold.repeat_elapsed_seconds += dt;
                 while (navigation_hold.repeat_elapsed_seconds >=
                        kNavigationRepeatIntervalSeconds) {
-                    input->onNavigate(navigation_hold.direction);
+                    if (input->canNavigate2d()) {
+                        input->onNavigate2d(navigation_hold.dx, navigation_hold.dy);
+                    } else {
+                        input->onNavigate(navigation_hold.dy);
+                    }
                     navigation_hold.repeat_elapsed_seconds -=
                         kNavigationRepeatIntervalSeconds;
                 }
@@ -522,6 +580,14 @@ int runApplication(const char* argv0, const char* config_path_override) {
                     TransferSaveSelection merged = pending_transfer_detail_selection;
                     if (fresh_summary) {
                         merged.box1_slots = fresh_summary->box_1_slots;
+                        merged.pc_boxes.clear();
+                        merged.pc_boxes.reserve(fresh_summary->pc_boxes.size());
+                        for (const auto& b : fresh_summary->pc_boxes) {
+                            TransferSaveSelection::PcBox out;
+                            out.name = b.name;
+                            out.slots = b.slots;
+                            merged.pc_boxes.push_back(std::move(out));
+                        }
                         merged.party_sprites = fresh_summary->party;
                         merged.time = fresh_summary->play_time;
                         merged.pokedex = std::to_string(fresh_summary->pokedex_count);
@@ -552,7 +618,14 @@ int runApplication(const char* argv0, const char* config_path_override) {
                             config.assets.font,
                             root);
                     }
-                    transfer_system_screen->enter(merged, renderer.get());
+                    int initial_box_index = 0;
+                    if (!merged.game_key.empty()) {
+                        auto it = last_game_box_index_by_game_key.find(merged.game_key);
+                        if (it != last_game_box_index_by_game_key.end()) {
+                            initial_box_index = it->second;
+                        }
+                    }
+                    transfer_system_screen->enter(merged, renderer.get(), initial_box_index);
                     loading_purpose = LoadingPurpose::None;
                     active_screen = ActiveScreen::TransferSystem;
                 }
@@ -581,11 +654,16 @@ int runApplication(const char* argv0, const char* config_path_override) {
             }
             if (transfer_ticket->consumeReturnToMainMenuRequest()) {
                 title_screen.returnToMainMenuFromTransfer();
+                last_game_box_index_by_game_key.clear();
                 active_screen = ActiveScreen::Title;
             }
         } else if (active_screen == ActiveScreen::TransferSystem && transfer_system_screen) {
             transfer_system_screen->update(dt);
             if (transfer_system_screen->consumeReturnToTicketListRequest()) {
+                if (!transfer_system_screen->currentGameKey().empty()) {
+                    last_game_box_index_by_game_key[transfer_system_screen->currentGameKey()] =
+                        transfer_system_screen->currentGameBoxIndex();
+                }
                 if (transfer_ticket) {
                     transfer_ticket->prepareReturnFromGameTransferScreen();
                 }

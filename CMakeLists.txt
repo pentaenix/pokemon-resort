@@ -48,6 +48,7 @@ add_executable(title_screen_demo
     src/ui/TransferTicketScreen.cpp
     src/ui/TransferSystemScreen.cpp
     src/ui/BoxViewport.cpp
+    src/ui/FocusManager.cpp
 )
 
 target_include_directories(title_screen_demo PRIVATE include)
