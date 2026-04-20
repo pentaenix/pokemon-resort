@@ -229,6 +229,8 @@ private:
     WindowConfig window_config_;
     std::string font_path_;
     std::string project_root_;
+    double fade_in_seconds_ = 0.3;
+    double fade_in_elapsed_seconds_ = 0.0;
     TicketAssets assets_;
     TicketFonts fonts_;
     TicketLayout layout_;

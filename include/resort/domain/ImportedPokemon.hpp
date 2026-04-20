@@ -23,6 +23,7 @@ struct IdentityEvidence {
 struct ImportContext {
     std::string profile_id = "default";
     std::optional<BoxLocation> target_location;
+    BoxPlacementPolicy placement_policy = BoxPlacementPolicy::RejectIfOccupied;
     std::string source_label;
 };
 
@@ -30,6 +31,7 @@ struct ImportedPokemon {
     std::uint16_t source_game = 0;
     std::string format_name;
     std::vector<std::uint8_t> raw_bytes;
+    std::string raw_hash_sha256;
     PokemonHot hot;
     std::string warm_json = "{}";
     std::string suspended_json = "{}";
@@ -41,6 +43,9 @@ struct ImportResult {
     std::string pkrid;
     std::string snapshot_id;
     std::string error;
+    bool created = false;
+    bool merged = false;
+    std::string match_reason;
 };
 
 } // namespace pr::resort

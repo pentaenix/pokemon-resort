@@ -34,14 +34,30 @@ This keeps `PKHeX.Core` behind a small CLI boundary and prevents the native app 
 
 ## Launch Contract
 
-The bridge currently accepts one required argument:
+The bridge accepts these operations:
+
+Preview/probe:
 
 ```bash
 dotnet run --project /Users/vanta/Desktop/title_screen_demo/tools/pkhex_bridge/PKHeXBridge.csproj -- "/absolute/path/to/save.sav"
 ```
 
+Import-grade read:
+
+```bash
+dotnet run --project /Users/vanta/Desktop/title_screen_demo/tools/pkhex_bridge/PKHeXBridge.csproj -- import "/absolute/path/to/save.sav"
+```
+
+Guarded projection write-back validation:
+
+```bash
+dotnet run --project /Users/vanta/Desktop/title_screen_demo/tools/pkhex_bridge/PKHeXBridge.csproj -- write-projection "/absolute/path/to/save.sav" "/absolute/path/to/projection.json"
+```
+
 On success, it exits with code `0` and writes one JSON object.
 On failure, it exits non-zero and still writes one JSON object with `success: false`, `error`, and `details`.
+
+`write-projection` currently validates the save and projection schema, then returns `write_back_not_implemented`. This is intentional: real save mutation requires target-format PKM conversion and per-save safe slot write rules.
 
 The native launcher resolves bridge candidates in this order:
 

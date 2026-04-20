@@ -79,6 +79,10 @@ long long SqliteConnection::lastInsertRowId() const {
     return sqlite3_last_insert_rowid(db_);
 }
 
+int SqliteConnection::changes() const {
+    return sqlite3_changes(db_);
+}
+
 SqliteStatement::SqliteStatement(sqlite3* db, sqlite3_stmt* stmt)
     : db_(db), stmt_(stmt) {}
 
@@ -178,6 +182,7 @@ std::string SqliteStatement::columnBlobAsString(int index) const {
 SqliteTransaction::SqliteTransaction(SqliteConnection& connection)
     : connection_(&connection) {
     connection_->exec("BEGIN IMMEDIATE");
+    connection_->exec("PRAGMA defer_foreign_keys = ON");
 }
 
 SqliteTransaction::~SqliteTransaction() {

@@ -24,6 +24,7 @@ public:
     void exec(const std::string& sql) const;
     SqliteStatement prepare(const std::string& sql) const;
     long long lastInsertRowId() const;
+    int changes() const;
 
 private:
     sqlite3* db_ = nullptr;

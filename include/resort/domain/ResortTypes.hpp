@@ -14,6 +14,11 @@ struct BoxLocation {
     int slot_index = 0;
 };
 
+enum class BoxPlacementPolicy : std::uint8_t {
+    RejectIfOccupied,
+    ReplaceOccupied
+};
+
 struct PokemonId {
     std::string pkrid;
     std::string origin_fingerprint;

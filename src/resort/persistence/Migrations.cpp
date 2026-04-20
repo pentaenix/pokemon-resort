@@ -125,7 +125,7 @@ CREATE TABLE IF NOT EXISTS mirror_sessions (
     original_sid16          INTEGER,
     original_game           INTEGER,
     projection_json         BLOB NOT NULL,
-    FOREIGN KEY (pkrid) REFERENCES pokemon(pkrid) ON DELETE CASCADE
+    FOREIGN KEY (pkrid) REFERENCES pokemon(pkrid) ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED
 );
 )sql");
 
@@ -154,9 +154,9 @@ CREATE TABLE IF NOT EXISTS pokemon_history (
     source_snapshot_id      TEXT,
     mirror_session_id       TEXT,
     diff_json               BLOB NOT NULL,
-    FOREIGN KEY (pkrid) REFERENCES pokemon(pkrid) ON DELETE CASCADE,
-    FOREIGN KEY (source_snapshot_id) REFERENCES pokemon_snapshots(snapshot_id) ON DELETE SET NULL,
-    FOREIGN KEY (mirror_session_id) REFERENCES mirror_sessions(mirror_session_id) ON DELETE SET NULL
+    FOREIGN KEY (pkrid) REFERENCES pokemon(pkrid) ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED,
+    FOREIGN KEY (source_snapshot_id) REFERENCES pokemon_snapshots(snapshot_id) ON DELETE SET NULL DEFERRABLE INITIALLY DEFERRED,
+    FOREIGN KEY (mirror_session_id) REFERENCES mirror_sessions(mirror_session_id) ON DELETE SET NULL DEFERRABLE INITIALLY DEFERRED
 );
 )sql");
 
@@ -164,6 +164,7 @@ CREATE TABLE IF NOT EXISTS pokemon_history (
     connection.exec("CREATE INDEX IF NOT EXISTS idx_snapshots_pkrid ON pokemon_snapshots(pkrid)");
     connection.exec("CREATE INDEX IF NOT EXISTS idx_history_pkrid ON pokemon_history(pkrid, timestamp)");
     connection.exec("CREATE INDEX IF NOT EXISTS idx_mirror_active_pkrid ON mirror_sessions(pkrid, status)");
+    connection.exec("CREATE INDEX IF NOT EXISTS idx_mirror_active_beacon ON mirror_sessions(target_game, beacon_tid16, beacon_ot_name, status)");
 }
 
 } // namespace

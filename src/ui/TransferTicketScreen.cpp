@@ -166,6 +166,7 @@ void TransferTicketScreen::enter() {
     open_transfer_system_requested_ = false;
     fade_to_black_active_ = false;
     fade_to_black_elapsed_seconds_ = 0.0;
+    fade_in_elapsed_seconds_ = 0.0;
     pointer_pressed_on_ticket_ = false;
     pointer_pressed_ticket_index_ = -1;
     selected_ticket_index_ = count > 0 ? 0 : -1;
@@ -198,6 +199,7 @@ void TransferTicketScreen::setSaveSelections(
 
 void TransferTicketScreen::update(double dt) {
     elapsed_seconds_ += dt;
+    fade_in_elapsed_seconds_ += dt;
 
     const double scroll_speed = std::max(0.0, list_layout_.scroll_speed);
     if (scroll_speed <= 0.0) {
@@ -284,6 +286,17 @@ void TransferTicketScreen::render(SDL_Renderer* renderer) const {
     drawTextureCentered(renderer, screen_text_.title, screen_header_.title_center.x, screen_header_.title_center.y);
     drawTextureCentered(renderer, screen_text_.subtitle, screen_header_.subtitle_center.x, screen_header_.subtitle_center.y);
     drawTextureTopLeft(renderer, assets_.stamp, 0, 0);
+
+    if (!fade_to_black_active_ && fade_in_seconds_ > 0.0) {
+        const double t = clamp01(fade_in_elapsed_seconds_ / fade_in_seconds_);
+        const int alpha = static_cast<int>(std::round(255.0 * (1.0 - t)));
+        if (alpha > 0) {
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+            SDL_SetRenderDrawColor(renderer, 0, 0, 0, static_cast<Uint8>(std::max(0, std::min(255, alpha))));
+            SDL_Rect overlay{0, 0, window_config_.virtual_width, window_config_.virtual_height};
+            SDL_RenderFillRect(renderer, &overlay);
+        }
+    }
 
     if (fade_to_black_active_ && selection_transition_.fade_to_black_seconds > 0.0) {
         const double t = clamp01(fade_to_black_elapsed_seconds_ / selection_transition_.fade_to_black_seconds);
@@ -455,6 +468,7 @@ void TransferTicketScreen::prepareReturnFromGameTransferScreen() {
     activating_ticket_index_ = -1;
     fade_to_black_active_ = false;
     fade_to_black_elapsed_seconds_ = 0.0;
+    fade_in_elapsed_seconds_ = 0.0;
     open_transfer_system_requested_ = false;
     pointer_pressed_on_ticket_ = false;
     pointer_dragging_list_ = false;
@@ -627,6 +641,18 @@ void TransferTicketScreen::loadTransferConfig() {
     }
 
     if (transfer_screen_config) {
+        if (const JsonValue* fade = transfer_screen_config->get("fade")) {
+            fade_in_seconds_ = std::max(0.0, doubleFromObjectOrDefault(*fade, "in_seconds", fade_in_seconds_));
+            selection_transition_.fade_to_black_seconds = std::max(
+                0.0,
+                doubleFromObjectOrDefault(*fade, "to_black_seconds", selection_transition_.fade_to_black_seconds));
+            selection_transition_.fade_to_black_max_alpha = intFromObjectOrDefault(
+                *fade,
+                "to_black_max_alpha",
+                selection_transition_.fade_to_black_max_alpha);
+        }
+        // Legacy (keep file-compatible): allow `transfer_screen.fade_in_seconds`.
+        fade_in_seconds_ = std::max(0.0, doubleFromObjectOrDefault(*transfer_screen_config, "fade_in_seconds", fade_in_seconds_));
         if (const JsonValue* header = transfer_screen_config->get("header")) {
             screen_header_.title = stringFromObjectOrDefault(*header, "title", screen_header_.title);
             screen_header_.subtitle = stringFromObjectOrDefault(*header, "subtitle", screen_header_.subtitle);

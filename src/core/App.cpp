@@ -5,6 +5,7 @@
 #include "core/InputBindings.hpp"
 #include "core/SaveDataStore.hpp"
 #include "core/SaveLibrary.hpp"
+#include "resort/services/PokemonResortService.hpp"
 #include "ui/LoadingScreen.hpp"
 #include "ui/ScreenInput.hpp"
 #include "ui/TransferSaveSelection.hpp"
@@ -258,6 +259,15 @@ int runApplication(const char* argv0, const char* config_path_override) {
     Assets assets = loadAssets(renderer.get(), config, root);
     TitleScreen title_screen(config, std::move(assets));
     SaveLibrary save_library(root, save_directory.string(), argv0);
+    std::unique_ptr<resort::PokemonResortService> pokemon_resort_service;
+    try {
+        pokemon_resort_service = std::make_unique<resort::PokemonResortService>(
+            resort::defaultResortProfilePath(save_directory));
+        pokemon_resort_service->ensureProfile("default");
+    } catch (const std::exception& ex) {
+        std::cerr << "Warning: could not initialize Pokemon Resort profile storage: "
+                  << ex.what() << '\n';
+    }
     std::unique_ptr<LoadingScreen> loading_screen;
     std::unique_ptr<TransferTicketScreen> transfer_ticket;
     std::unique_ptr<TransferSystemScreen> transfer_system_screen;
@@ -584,8 +594,14 @@ int runApplication(const char* argv0, const char* config_path_override) {
         }
 
         const bool wants_menu_music = active_screen == ActiveScreen::Title && title_screen.wantsMenuMusic();
+        const bool transfer_flow_screen =
+            active_screen == ActiveScreen::TransferTicket ||
+            active_screen == ActiveScreen::TransferSystem ||
+            (active_screen == ActiveScreen::Loading &&
+                (loading_purpose == LoadingPurpose::ScanTransferTickets ||
+                 loading_purpose == LoadingPurpose::DeepProbeSelectedSave));
         const bool wants_transfer_music =
-            active_screen == ActiveScreen::TransferTicket &&
+            transfer_flow_screen &&
             transfer_ticket &&
             !transfer_ticket->musicPath().empty();
         const ActiveMusicTrack desired_music_track =

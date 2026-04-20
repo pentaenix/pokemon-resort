@@ -61,6 +61,9 @@ At the moment, most gameplay-facing behavior still lives in a single scene contr
 - [`SaveLibrary.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/SaveLibrary.cpp)
   Scans the top-level workspace [`saves`](/Users/vanta/Desktop/title_screen_demo/saves) folder without recursion, records file metadata, and probes each candidate through the bridge during startup. It currently consumes legacy transfer summary fields from the bridge; new box, bag, trainer, Pokedex, and Pokemon UI work should follow the expanded models in [`PKHEX_BRIDGE.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/PKHEX_BRIDGE.md).
 
+- [`include/resort`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/resort) and [`src/resort`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/resort)
+  Define the native Pokemon Resort backend subsystem. This subsystem is storage-first and separate from UI controllers: domain models live under `domain`, SQLite connection/migrations/repositories under `persistence`, and orchestration/query/import/export boundaries under `services`. It introduces canonical Pokemon rows, independent box placement, raw snapshot storage, history events, mirror sessions, conservative matching/merge, and export projection. UI screens should consume service read models such as `PokemonSlotView` rather than owning SQL, canonical state, or import/export rules. Backend consumer docs live under [`docs/backend`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/backend/README.md).
+
 - [`Audio.mm`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/Audio.mm)
   Provides the audio controller used by `App.cpp` for looped menu music and button sound effects.
 
@@ -177,6 +180,36 @@ The transfer probe path goes through the PKHeX bridge rather than native C++ PKH
 2. `TitleScreen` raises a save request flag.
 3. `App.cpp` converts current scene settings into `SaveData`.
 4. [`SaveDataStore.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/SaveDataStore.cpp) writes the primary save and refreshes the backup.
+
+### Resort storage pipeline
+
+The canonical Pokemon storage foundation is separate from the options save file. [`App.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/App.cpp) opens [`PokemonResortService`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/resort/services/PokemonResortService.hpp) under the existing SDL preference directory as `profile.resort.db` and seeds the default profile boxes. The service runs migrations, owns repositories, and exposes methods for profile seeding, parsed-import insertion, Pokemon lookup, placement lookup, and lightweight box views.
+
+The current backend vertical slice supports:
+
+1. creating default boxes and empty box slots for a profile
+2. matching import-grade Pokemon by stable identifiers when available (`HOME` tracker, then PID/encryption constant/TID/SID/OT, then PID/TID/SID/OT)
+3. creating a new canonical `ResortPokemon` hot/warm/cold record when no stable match exists
+4. merging into an existing canonical record when a stable match is found
+5. storing an imported raw snapshot with a caller-provided SHA-256 hash before canonical create/update work inside a deferred-FK transaction
+6. preserving warm/cold JSON during merge, including union-style array merging for modeled collections such as ribbons/marks
+7. placing that Pokemon into `box_slots` with explicit placement policy (`RejectIfOccupied` by default, `ReplaceOccupied` for controlled replacement flows)
+8. writing history events for creation, merge, and placement
+9. querying `PokemonSlotView` rows through an indexed box-slot join
+
+The native import boundary is [`ImportedPokemon`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/resort/domain/ImportedPokemon.hpp), which requires exact raw Pokemon bytes and a SHA-256 hash. [`BridgeImportAdapter`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/resort/integration/BridgeImportAdapter.hpp) parses the import-grade JSON emitted by the process-based PKHeX bridge and intentionally rejects transfer-ticket summaries.
+
+[`PokemonMatcher`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/resort/services/PokemonMatcher.hpp) owns canonical identity lookup policy. [`PokemonMergeService`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/resort/services/PokemonMergeService.hpp) owns canonical merge policy. Repositories own SQL only; UI screens and `App.cpp` do not own Resort import, matching, merge, or storage decisions.
+
+[`MirrorSessionService`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/resort/services/MirrorSessionService.hpp) owns managed mirror lifecycle. [`PokemonExportService`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/resort/services/PokemonExportService.hpp) owns export projection snapshots and mirror opening. The current bridge write-back command validates projection inputs but intentionally refuses unsafe save mutation until real PKM conversion and slot-write rules are implemented per format.
+
+Still deferred:
+
+1. native Gen 1/2 best-effort matching beyond managed beacon safety
+2. real bridge PKM conversion and save slot write-back
+3. replacing the current transfer UI mock storage
+
+See [`docs/backend/frontend_integration.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/backend/frontend_integration.md) before building UI against this subsystem.
 
 ## Configuration Surface
 
