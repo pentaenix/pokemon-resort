@@ -1,5 +1,10 @@
 {
   "transfer_screen": {
+    "fade": {
+      "in_seconds": 0.2,
+      "to_black_seconds": 0.12,
+      "to_black_max_alpha": 255
+    },
     "header": {
       "title": "TRAVEL DESK",
       "subtitle": "Choose a save file to begin transfer",
@@ -106,14 +111,7 @@
         "x": 792,
         "y": 26
       }
-    },
-    "selection_transition": {
-      "fade_to_black_seconds": 0.12,
-      "fade_to_black_max_alpha": 255
     }
-  },
-  "transfer_system": {
-    "fade_in_seconds": 0
   },
   "palette": {
   "game_colors": {
@@ -158,7 +156,8 @@
     "pokemon_the_teal_mask": "#1D9B89",
     "pokemon_the_indigo_disk": "#2E55B7",
     "pokemon_winds": "#7BA4E3",
-    "pokemon_waves": "#2A93B5"
+    "pokemon_waves": "#2A93B5",
+    "pokemon_resort": "#7BA4E3"
   }
 }
 }

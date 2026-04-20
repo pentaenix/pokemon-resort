@@ -21,4 +21,15 @@ SaveBridgeProbeResult probeSaveWithBridge(
     const char* argv0,
     const std::string& save_path);
 
+SaveBridgeProbeResult importSaveWithBridge(
+    const std::string& project_root,
+    const char* argv0,
+    const std::string& save_path);
+
+SaveBridgeProbeResult writeProjectionWithBridge(
+    const std::string& project_root,
+    const char* argv0,
+    const std::string& save_path,
+    const std::string& projection_json_path);
+
 } // namespace pr

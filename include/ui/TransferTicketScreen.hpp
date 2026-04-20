@@ -38,6 +38,8 @@ public:
     bool consumeRipSfxRequest();
     bool consumeReturnToMainMenuRequest();
     bool consumeOpenTransferSystemRequest(TransferSaveSelection& out_selection);
+    /// Call when returning from the game transfer screen so the ticket list restores rip state while keeping selection.
+    void prepareReturnFromGameTransferScreen();
     const std::string& musicPath() const;
     double musicSilenceSeconds() const;
     double musicFadeInSeconds() const;
@@ -227,6 +229,8 @@ private:
     WindowConfig window_config_;
     std::string font_path_;
     std::string project_root_;
+    double fade_in_seconds_ = 0.3;
+    double fade_in_elapsed_seconds_ = 0.0;
     TicketAssets assets_;
     TicketFonts fonts_;
     TicketLayout layout_;

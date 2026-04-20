@@ -15,6 +15,8 @@ struct TransferSaveSelection {
     std::string pokedex;
     std::string badges;
     std::vector<std::string> party_sprites;
+    /// Box 1 slot species slugs; size matches save box slot count; empty string = vacant slot.
+    std::vector<std::string> box1_slots;
 };
 
 } // namespace pr

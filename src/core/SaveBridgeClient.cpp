@@ -238,12 +238,14 @@ std::vector<fs::path> findBridgeCandidates(
 
     const fs::path workspace_root = project_root.parent_path();
     const fs::path bridge_root = workspace_root / "tools" / "pkhex_bridge";
-    candidates.push_back(bridge_root / "publish" / "osx-arm64" / "PKHeXBridge");
-    candidates.push_back(bridge_root / "publish" / "PKHeXBridge");
+    // Prefer a local `dotnet build` output over `publish/`. Stale publish binaries have been
+    // observed to win first and emit minimal JSON (no boxes), breaking transfer sprites.
     candidates.push_back(bridge_root / "bin" / "Debug" / "net10.0" / "PKHeXBridge");
     candidates.push_back(bridge_root / "bin" / "Release" / "net10.0" / "PKHeXBridge");
     candidates.push_back(bridge_root / "bin" / "Debug" / "net10.0" / "PKHeXBridge.dll");
     candidates.push_back(bridge_root / "bin" / "Release" / "net10.0" / "PKHeXBridge.dll");
+    candidates.push_back(bridge_root / "publish" / "osx-arm64" / "PKHeXBridge");
+    candidates.push_back(bridge_root / "publish" / "PKHeXBridge");
     return candidates;
 }
 
@@ -272,10 +274,11 @@ std::optional<BridgeLaunchSpec> resolveBridgeLaunchSpec(
 
 } // namespace
 
-SaveBridgeProbeResult probeSaveWithBridge(
+SaveBridgeProbeResult runBridgeForSave(
     const std::string& project_root,
     const char* argv0,
-    const std::string& save_path) {
+    const std::string& save_path,
+    const std::vector<std::string>& operation_args) {
     SaveBridgeProbeResult result;
     result.save_path = save_path;
 
@@ -294,6 +297,7 @@ SaveBridgeProbeResult probeSaveWithBridge(
     result.bridge_path = spec->bridge_path.string();
 
     std::vector<std::string> args = spec->args;
+    args.insert(args.end(), operation_args.begin(), operation_args.end());
     args.push_back(save_path);
     result.command = joinCommand(args);
 
@@ -305,6 +309,59 @@ SaveBridgeProbeResult probeSaveWithBridge(
     result.error_message = std::move(process.error_message);
     result.success = result.launched && result.exit_code == 0;
     return result;
+}
+
+SaveBridgeProbeResult runBridgeWithArgs(
+    const std::string& project_root,
+    const char* argv0,
+    const std::vector<std::string>& bridge_args) {
+    SaveBridgeProbeResult result;
+    if (!bridge_args.empty()) {
+        result.save_path = bridge_args.size() > 1 ? bridge_args[1] : std::string();
+    }
+
+    const std::optional<fs::path> executable_path = resolveExecutablePath(argv0);
+    const std::optional<BridgeLaunchSpec> spec = resolveBridgeLaunchSpec(project_root, executable_path);
+    if (!spec) {
+        result.error_message = "Bridge executable or project could not be resolved";
+        return result;
+    }
+
+    result.bridge_path = spec->bridge_path.string();
+    std::vector<std::string> args = spec->args;
+    args.insert(args.end(), bridge_args.begin(), bridge_args.end());
+    result.command = joinCommand(args);
+
+    ProcessCaptureResult process = runProcessCapture(args);
+    result.launched = process.launched;
+    result.exit_code = process.exit_code;
+    result.stdout_text = std::move(process.stdout_text);
+    result.stderr_text = std::move(process.stderr_text);
+    result.error_message = std::move(process.error_message);
+    result.success = result.launched && result.exit_code == 0;
+    return result;
+}
+
+SaveBridgeProbeResult probeSaveWithBridge(
+    const std::string& project_root,
+    const char* argv0,
+    const std::string& save_path) {
+    return runBridgeForSave(project_root, argv0, save_path, {});
+}
+
+SaveBridgeProbeResult importSaveWithBridge(
+    const std::string& project_root,
+    const char* argv0,
+    const std::string& save_path) {
+    return runBridgeForSave(project_root, argv0, save_path, {"import"});
+}
+
+SaveBridgeProbeResult writeProjectionWithBridge(
+    const std::string& project_root,
+    const char* argv0,
+    const std::string& save_path,
+    const std::string& projection_json_path) {
+    return runBridgeWithArgs(project_root, argv0, {"write-projection", save_path, projection_json_path});
 }
 
 } // namespace pr

@@ -21,6 +21,7 @@ public:
     bool isString() const;
     bool isNumber() const;
     bool isBool() const;
+    bool isNull() const;
 
     const Object& asObject() const;
     const Array& asArray() const;

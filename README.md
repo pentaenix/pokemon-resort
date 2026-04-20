@@ -96,6 +96,20 @@ The native app now looks for the bridge in this order:
 
 When the native app starts, [`App.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/App.cpp) performs a startup-only smoke test against the first `.sav` file it finds in [`/Users/vanta/Desktop/title_screen_demo/saves`](/Users/vanta/Desktop/title_screen_demo/saves), if present, and logs the bridge command plus success/failure details to stderr.
 
+## Resort backend docs
+
+The backend storage/transfer subsystem is documented under [`docs/backend`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/backend/README.md).
+
+Use these docs before adding UI against Resort storage:
+
+- [`storage_model.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/backend/storage_model.md)
+- [`import_flow.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/backend/import_flow.md)
+- [`export_flow.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/backend/export_flow.md)
+- [`frontend_integration.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/backend/frontend_integration.md)
+- [`testing_and_seed_data.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/backend/testing_and_seed_data.md)
+
+For backend integration tests, build `resort_backend_tool` with CMake. It can seed canonical Pokemon and create export projections without going through UI screens.
+
 ## Changing how far the main logo moves
 
 The title-screen transition control is in `config/title_screen.json`:

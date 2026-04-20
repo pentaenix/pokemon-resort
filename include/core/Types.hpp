@@ -189,4 +189,80 @@ struct AppConfig {
     AudioConfig audio;
 };
 
+/// Authoring for `BoxViewport` (`config/game_transfer.json` key `box_viewport`).
+struct GameTransferBoxViewportStyle {
+    /// Path relative to project root; PNG points left (26×48); right/down use rotation.
+    std::string arrow_texture = "assets/game_transfer/arrow.png";
+    /// Applied via `SDL_SetTextureColorMod` so the asset reads at `#FBFBFB` on the gray chrome.
+    Color arrow_mod_color{251, 251, 251, 255};
+    int box_name_font_pt = 36;
+    Color box_name_color{26, 26, 26, 255};
+    int box_space_font_pt = 22;
+    Color box_space_color{26, 26, 26, 255};
+    /// Vertical nudge for the footer scroll chevron only (negative moves up). Pill L/R arrows unchanged.
+    int footer_scroll_arrow_offset_y = -6;
+};
+
+/// Browser-style Pokémon / Items pill (`config/game_transfer.json` → `pill_toggle`). Default aligns with the **right** box column.
+struct GameTransferPillToggleStyle {
+    int track_width = 530;
+    int track_height = 77;
+    int pill_width = 270;
+    int pill_height = 64;
+    /// Inset from the track edges for the sliding pill (match vertical padding: e.g. (track_height - pill_height) / 2).
+    int pill_inset = 6;
+    /// Pixels between the track bottom and the box tops (both columns share y = 100).
+    int gap_above_boxes = 10;
+    Color track_color{224, 224, 224, 255};
+    Color pill_color{251, 251, 251, 255};
+    int font_pt = 28;
+    /// Exponential approach rate for the pill slider (higher = snappier; ~14–28 feels good).
+    double toggle_smoothing = 22.0;
+    /// Exponential approach for box panel slide (slightly lower = heavier than the pill).
+    double box_smoothing = 13.0;
+};
+
+/// Infinite tool carousel above the left transfer column (`config/game_transfer.json` → `tool_carousel`).
+struct GameTransferToolCarouselStyle {
+    int viewport_width = 240;
+    int viewport_height = 76;
+    /// Gap from the left edge of the virtual screen to the carousel viewport.
+    int offset_from_left_wall = 50;
+    /// Y when the Pokémon panels are fully revealed (slides with `panels_reveal`).
+    int rest_y = 12;
+    /// Y when the carousel is fully hidden (slides up with Items mode / off-screen start).
+    int hidden_y = -96;
+    int viewport_corner_radius = 12;
+    /// Extra inset for icon clipping inside the rounded panel (px); 0 = derived from corner radius.
+    int viewport_clip_inset = 0;
+    Color viewport_color{224, 224, 224, 255};
+    int icon_size = 62;
+    /// Outer size of the hollow rounded selector (`selector_size` JSON alias).
+    int selection_frame_size = 66;
+    /// Selector border thickness in pixels (`selector_thickness` JSON alias).
+    int selection_stroke = 5;
+    /// Rounded corners for the selector ring; 0 uses `viewport_corner_radius` (clamped).
+    int selector_corner_radius = 0;
+    /// Horizontal travel (px) for one carousel step; 0 derives from adjacent slot centers.
+    int slide_span_pixels = 0;
+    /// Horizontal spacing between belt icons (px); 0 derives from `slot_center_*`.
+    /// If set, it also becomes the default for `slide_span_pixels` when that is 0.
+    int belt_spacing_pixels = 0;
+    /// Exponential approach for horizontal tool slide (higher = snappier; ~16–26).
+    double slide_smoothing = 20.0;
+    /// Horizontal centers of the three slots within the viewport (left / selected / right).
+    int slot_center_left = 52;
+    int slot_center_middle = 120;
+    int slot_center_right = 188;
+    /// Order: multiple, basic, swap, items — default selection index 1 (`basic`).
+    std::string texture_multiple = "assets/game_transfer/icon_multiple.png";
+    std::string texture_basic = "assets/game_transfer/icon_basic.png";
+    std::string texture_swap = "assets/game_transfer/icon_swap.png";
+    std::string texture_items = "assets/game_transfer/icon_items.png";
+    Color frame_multiple{34, 177, 76, 255};
+    Color frame_basic{220, 50, 47, 255};
+    Color frame_swap{52, 120, 246, 255};
+    Color frame_items{245, 200, 66, 255};
+};
+
 } // namespace pr

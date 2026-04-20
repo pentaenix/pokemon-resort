@@ -1,0 +1,61 @@
+{
+  "background_animation": {
+    "enabled": true,
+    "scale": 0.5,
+    "speed_x": -12,
+    "speed_y": -12
+  },
+  "fade": {
+    "in_seconds": 0.2,
+    "out_seconds": 0.2
+  },
+  "box_viewport": {
+    "arrow_texture": "assets/game_transfer/arrow.png",
+    "arrow_mod_color": "#FBFBFB",
+    "box_name_font_pt": 42,
+    "box_name_color": "#1A1A1A",
+    "box_space_font_pt": 26,
+    "box_space_color": "#1A1A1A",
+    "footer_scroll_arrow_offset_y": -8
+  },
+  "pill_toggle": {
+    "track_width": 530,
+    "track_height": 77,
+    "pill_width": 270,
+    "pill_height": 64,
+    "pill_inset": 6,
+    "gap_above_boxes": 10,
+    "track_color": "#E0E0E0",
+    "pill_color": "#FBFBFB",
+    "font_pt": 28,
+    "toggle_smoothing": 24.0,
+    "box_smoothing": 12.5
+  },
+  "tool_carousel": {
+    "viewport_width": 240,
+    "viewport_height": 76,
+    "offset_from_left_wall": 50,
+    "rest_y": 12,
+    "hidden_y": -96,
+    "viewport_corner_radius": 12,
+    "viewport_color": "#E0E0E0",
+    "icon_size": 62,
+    "selector_size": 70,
+    "selector_thickness": 7,
+    "selector_corner_radius": 12,
+    "slide_smoothing": 21.0,
+    "slide_span_pixels": 0,
+    "belt_spacing_pixels": 75,
+    "slot_center_left": 52,
+    "slot_center_middle": 120,
+    "slot_center_right": 188,
+    "texture_multiple": "assets/game_transfer/icon_multiple.png",
+    "texture_basic": "assets/game_transfer/icon_basic.png",
+    "texture_swap": "assets/game_transfer/icon_swap.png",
+    "texture_items": "assets/game_transfer/icon_items.png",
+    "frame_multiple": "#22B14C",
+    "frame_basic": "#DC3232",
+    "frame_swap": "#3478F6",
+    "frame_items": "#F5C842"
+  }
+}
