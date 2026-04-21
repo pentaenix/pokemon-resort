@@ -233,6 +233,46 @@ bool pointInRect(int x, int y, const SDL_Rect& r) {
     return x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h;
 }
 
+/// Extra margin around the slot grid for SDL clip so scaled / offset sprites are not cut off.
+/// Negative `sprite_offset_y` moves art upward (needs more top padding); scale > 1 enlarges the drawn quad.
+int spriteGridClipPadding(const GameTransferBoxViewportStyle& s) {
+    const int from_offset = std::max(0, -s.sprite_offset_y);
+    const double scale_excess = std::max(0.0, s.sprite_scale - 1.0);
+    const int from_scale = static_cast<int>(std::ceil(scale_excess * 36.0));
+    return std::clamp(8 + from_offset + from_scale, 8, 120);
+}
+
+SDL_Rect computeSpriteGridClipRect(
+    int vx,
+    int vy,
+    int grid_x,
+    int grid_y,
+    int grid_w,
+    int grid_h,
+    int pad,
+    bool content_slide_active) {
+    if (content_slide_active) {
+        // Sliding columns use horizontal offsets up to ±viewport width; clip to full panel width for this band.
+        SDL_Rect r;
+        r.x = vx;
+        r.w = BoxViewport::kViewportWidth;
+        r.y = std::max(vy, grid_y - pad);
+        const int bottom = std::min(vy + BoxViewport::kViewportHeight, grid_y + grid_h + pad);
+        r.h = std::max(0, bottom - r.y);
+        return r;
+    }
+    int clip_x = grid_x - pad;
+    int clip_y = grid_y - pad;
+    int clip_w = grid_w + 2 * pad;
+    int clip_h = grid_h + 2 * pad;
+    clip_x = std::max(vx, clip_x);
+    clip_w = std::min(vx + BoxViewport::kViewportWidth, clip_x + clip_w) - clip_x;
+    clip_y = std::max(vy, clip_y);
+    const int clip_bottom = std::min(vy + BoxViewport::kViewportHeight, clip_y + clip_h);
+    clip_h = std::max(0, clip_bottom - clip_y);
+    return SDL_Rect{clip_x, clip_y, clip_w, clip_h};
+}
+
 } // namespace
 
 BoxViewport::BoxViewport(
@@ -549,15 +589,27 @@ void BoxViewport::renderBelowNamePlate(SDL_Renderer* renderer) const {
     const int grid_x = vx + (BoxViewport::kViewportWidth - grid_w) / 2;
     const int grid_y = pill_y + kNamePillH + kNameToGridGap;
 
-    const SDL_Rect grid_clip{grid_x, grid_y, grid_w, grid_h};
+    const int clip_pad = spriteGridClipPadding(style_);
+    const SDL_Rect grid_clip =
+        computeSpriteGridClipRect(vx, vy, grid_x, grid_y, grid_w, grid_h, clip_pad, content_slide_active_);
     SDL_RenderSetClipRect(renderer, &grid_clip);
 
-    auto draw_grid = [&](const BoxViewportModel& m, int dx) {
+    // Two passes so overflow sprites paint above every slot’s chrome (neighbors’ rounded rects included).
+    auto draw_slot_backgrounds_only = [&](int dx) {
         for (int row = 0; row < kRows; ++row) {
             for (int col = 0; col < kCols; ++col) {
                 const int sx = grid_x + col * (kSlotW + kSlotGapX) + dx;
                 const int sy = grid_y + row * (kSlotH + kSlotGapY);
                 fillRoundedRectScanlines(renderer, sx, sy, kSlotW, kSlotH, kSlotCornerRadius, kSlotBg);
+            }
+        }
+    };
+
+    auto draw_slot_sprites_only = [&](const BoxViewportModel& m, int dx) {
+        for (int row = 0; row < kRows; ++row) {
+            for (int col = 0; col < kCols; ++col) {
+                const int sx = grid_x + col * (kSlotW + kSlotGapX) + dx;
+                const int sy = grid_y + row * (kSlotH + kSlotGapY);
                 const std::size_t idx = static_cast<std::size_t>(row * kCols + col);
                 if (idx < m.slot_sprites.size()) {
                     const auto& slot = m.slot_sprites[idx];
@@ -576,11 +628,14 @@ void BoxViewport::renderBelowNamePlate(SDL_Renderer* renderer) const {
 
     const int base_dx = static_cast<int>(std::lround(content_slide_offset_x_));
     if (!content_slide_active_) {
-        draw_grid(model_, 0);
+        draw_slot_backgrounds_only(0);
+        draw_slot_sprites_only(model_, 0);
     } else {
-        draw_grid(model_, base_dx);
         const int incoming_dx = content_slide_dir_ * BoxViewport::kViewportWidth;
-        draw_grid(incoming_model_, base_dx + incoming_dx);
+        draw_slot_backgrounds_only(base_dx);
+        draw_slot_backgrounds_only(base_dx + incoming_dx);
+        draw_slot_sprites_only(model_, base_dx);
+        draw_slot_sprites_only(incoming_model_, base_dx + incoming_dx);
     }
 
     SDL_RenderSetClipRect(renderer, nullptr);

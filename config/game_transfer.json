@@ -90,6 +90,29 @@
     "min_height": 45,
     "corner_radius": 12,
     "beat_speed": 2.2,
-    "beat_magnitude": 2.0
+    "beat_magnitude": 2.0,
+    "speech_bubble": {
+      "enabled": true,
+      "font_pt": 27,
+      "text_color": "#1A1A1A",
+      "fill_color": "#FBFBFB",
+      "border_thickness": 6,
+      "corner_radius": 35,
+      "padding_x": 20,
+      "padding_y": 12,
+      "min_width": 132,
+      "max_width": 520,
+      "min_height": 56,
+      "empty_min_width": 56,
+      "empty_min_height": 44,
+      "triangle_base_width": 56,
+      "triangle_height": 16,
+      "gap_above_target": 0,
+      "screen_margin": 14,
+      "resort_game_title": "Pokemon Resort",
+      "pokemon_label_format": "{name} (Lv. {level})",
+      "default_pokemon_level": 100,
+      "empty_slot_label": ""
+    }
   }
 }

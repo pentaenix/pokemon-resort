@@ -30,4 +30,28 @@ FontHandle loadFont(const std::string& configured_path, int pt_size, const std::
     throw std::runtime_error("Could not load a font. Add a font at the configured path or adjust config.assets.font.");
 }
 
+FontHandle loadFontPreferringUnicode(const std::string& configured_path, int pt_size, const std::string& project_root) {
+    std::vector<fs::path> candidates;
+#ifdef __APPLE__
+    candidates.push_back("/System/Library/Fonts/Supplemental/Arial Unicode.ttf");
+    candidates.push_back("/Library/Fonts/Arial Unicode.ttf");
+#endif
+#ifdef __linux__
+    candidates.push_back("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf");
+    candidates.push_back("/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf");
+#endif
+#ifdef _WIN32
+    candidates.push_back("C:/Windows/Fonts/arialuni.ttf");
+#endif
+    for (const auto& path : candidates) {
+        if (!fs::exists(path)) {
+            continue;
+        }
+        if (TTF_Font* raw = TTF_OpenFont(path.string().c_str(), pt_size)) {
+            return FontHandle(raw, TTF_CloseFont);
+        }
+    }
+    return loadFont(configured_path, pt_size, project_root);
+}
+
 } // namespace pr

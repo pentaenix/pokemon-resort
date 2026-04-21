@@ -309,6 +309,10 @@ int runApplication(const char* argv0, const char* config_path_override) {
     if (!audio.loadRipSfx(rip_sfx_path.string())) {
         std::cerr << "Warning: could not load rip sfx at " << rip_sfx_path << '\n';
     }
+    const fs::path ui_move_sfx_path = fs::path(root) / config.audio.ui_move_sfx;
+    if (!audio.loadUiMoveSfx(ui_move_sfx_path.string())) {
+        std::cerr << "Warning: could not load ui move sfx at " << ui_move_sfx_path << '\n';
+    }
 
     bool running = true;
     Uint64 last_counter = SDL_GetPerformanceCounter();
@@ -593,8 +597,8 @@ int runApplication(const char* argv0, const char* config_path_override) {
                         merged.pokedex = std::to_string(fresh_summary->pokedex_count);
                         merged.badges = std::to_string(fresh_summary->badges);
                         std::size_t filled_slots = 0;
-                        for (const std::string& slug : merged.box1_slots) {
-                            if (!slug.empty()) {
+                        for (const auto& slot : merged.box1_slots) {
+                            if (!slot.slug.empty()) {
                                 ++filled_slots;
                             }
                         }
@@ -750,6 +754,9 @@ int runApplication(const char* argv0, const char* config_path_override) {
             transfer_system_screen && transfer_system_screen->consumeButtonSfxRequest();
         if (title_button_sfx_requested || transfer_button_sfx_requested || transfer_system_button_sfx_requested) {
             audio.playButtonSfx();
+        }
+        if (transfer_system_screen && transfer_system_screen->consumeUiMoveSfxRequest()) {
+            audio.playUiMoveSfx();
         }
         if (transfer_ticket && transfer_ticket->consumeRipSfxRequest()) {
             audio.playRipSfx();

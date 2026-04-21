@@ -227,7 +227,7 @@ Shared application settings live in [`app.json`](/Users/vanta/Desktop/title_scre
 - shared input bindings
 - shared audio asset paths and default volumes
 
-The current target/design resolution is `1280x800`. The development window is intentionally half-size at `640x400`; keep `virtual_width`, `virtual_height`, `design_width`, and `design_height` at `1280x800` unless the target device resolution itself changes. Only change `window.width` and `window.height` when resizing the desktop preview window.
+The current target/design resolution is `1280x800`. The default desktop preview window now opens at `640x400` for a compact desktop footprint, while `virtual_width`, `virtual_height`, `design_width`, and `design_height` remain `1280x800`; only change `window.width` and `window.height` when resizing the desktop preview window.
 
 The main title-screen authoring file is [`title_screen.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/title_screen.json). It currently controls:
 

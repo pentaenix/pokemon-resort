@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/PcSlotSpecies.hpp"
 #include "core/SaveBridgeClient.hpp"
 
 #include <filesystem>
@@ -27,12 +28,12 @@ struct TransferSaveSummary {
     int badges = 0;
     std::string status;
     std::string error;
-    /// Species sprite slugs for PC box 1 slots (empty string = empty slot). Same order as bridge `boxes[0].slots`.
-    std::vector<std::string> box_1_slots;
+    /// PC box 1 slots (empty slug = empty). Same order as bridge `boxes[0].slots` / `box_1`.
+    std::vector<PcSlotSpecies> box_1_slots;
     struct PcBox {
         std::string name;
-        /// 30 slot slugs (empty string = empty). Same order as bridge `boxes[i].slots`.
-        std::vector<std::string> slots;
+        /// 30 slots (empty slug = empty). Same order as bridge `boxes[i].slots`.
+        std::vector<PcSlotSpecies> slots;
     };
     /// Full PC box list when available (preferred over `box_1_slots`).
     std::vector<PcBox> pc_boxes;

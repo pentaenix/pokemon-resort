@@ -6,10 +6,12 @@
 #include <SDL_image.h>
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <filesystem>
 #include <iostream>
 #include <memory>
+#include <unordered_map>
 #include <unordered_set>
 #include <stdexcept>
 
@@ -33,6 +35,202 @@ std::string spriteFilenameForSlug(const std::string& slug) {
         return slug;
     }
     return slug + ".png";
+}
+
+std::string asciiLowerCopy(std::string s) {
+    for (char& ch : s) {
+        ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+    }
+    return s;
+}
+
+std::string replaceCharsCopy(std::string s, const std::string& from_any, char to) {
+    for (char& ch : s) {
+        if (from_any.find(ch) != std::string::npos) {
+            ch = to;
+        }
+    }
+    return s;
+}
+
+std::string removeCharsCopy(std::string s, const std::string& remove_any) {
+    std::string out;
+    out.reserve(s.size());
+    for (char ch : s) {
+        if (remove_any.find(ch) == std::string::npos) {
+            out.push_back(ch);
+        }
+    }
+    return out;
+}
+
+std::string gameSlotSpriteKey(const std::string& slug, int gender, int species_id) {
+    const std::string low = asciiLowerCopy(slug);
+    if (low == "nidoran") {
+        return slug + "|sp=" + std::to_string(species_id) + "|g=" + std::to_string(gender);
+    }
+    return slug;
+}
+
+/// Generates alternate sprite keys for slugs that may include spaces/punctuation/gender.
+/// We try these in order until an existing PNG is found.
+std::vector<std::string> spriteSlugCandidates(const std::string& raw_slug, int gender, int species_id) {
+    auto replace_all = [](std::string s, const std::string& from, const std::string& to) {
+        std::size_t pos = 0;
+        while ((pos = s.find(from, pos)) != std::string::npos) {
+            s.replace(pos, from.size(), to);
+            pos += to.size();
+        }
+        return s;
+    };
+    auto trim_ascii = [](std::string s) {
+        auto is_space = [](unsigned char c) { return std::isspace(c) != 0; };
+        std::size_t b = 0;
+        while (b < s.size() && is_space(static_cast<unsigned char>(s[b]))) {
+            ++b;
+        }
+        std::size_t e = s.size();
+        while (e > b && is_space(static_cast<unsigned char>(s[e - 1]))) {
+            --e;
+        }
+        return s.substr(b, e - b);
+    };
+    auto ascii_slug_sanitize = [](std::string s) {
+        // Keep only [a-z0-9_-] so any stray unicode bytes don't break filename matching.
+        std::string out;
+        out.reserve(s.size());
+        for (unsigned char c : s) {
+            const char ch = static_cast<char>(c);
+            if ((ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') || ch == '_' || ch == '-') {
+                out.push_back(ch);
+            }
+        }
+        // Collapse duplicate underscores/hyphens.
+        std::string collapsed;
+        collapsed.reserve(out.size());
+        char last = '\0';
+        for (char ch : out) {
+            if ((ch == '_' || ch == '-') && ch == last) {
+                continue;
+            }
+            collapsed.push_back(ch);
+            last = ch;
+        }
+        return collapsed;
+    };
+
+    std::string base = trim_ascii(raw_slug);
+    // Strip extension early for normalization.
+    if (base.size() > 4 && base.substr(base.size() - 4) == ".png") {
+        base.resize(base.size() - 4);
+    }
+    // Normalize common unicode symbols.
+    // Some sources include variation selectors (e.g. "♂️" = U+2642 U+FE0F).
+    base = replace_all(std::move(base), u8"\uFE0F", "");
+    base = replace_all(std::move(base), u8"\uFE0E", "");
+    base = replace_all(std::move(base), u8"♂️", "_m");
+    base = replace_all(std::move(base), u8"♀️", "_f");
+    base = replace_all(std::move(base), u8"♂", "_m");
+    base = replace_all(std::move(base), u8"♀", "_f");
+    // Collapse whitespace to underscores, keep dashes as underscores too (our sprite set uses `_` heavily).
+    base = asciiLowerCopy(base);
+    base = replaceCharsCopy(base, " -", '_');
+    // Remove common punctuation found in names.
+    base = removeCharsCopy(base, ".'’");
+    base = ascii_slug_sanitize(std::move(base));
+
+    std::vector<std::string> out;
+    out.reserve(10);
+    auto push_unique = [&](const std::string& s) {
+        if (s.empty()) return;
+        if (std::find(out.begin(), out.end(), s) == out.end()) {
+            out.push_back(s);
+        }
+    };
+
+    push_unique(base);
+    push_unique(replaceCharsCopy(base, "-", '_'));
+    push_unique(replaceCharsCopy(base, "_", '-'));
+    push_unique(removeCharsCopy(base, "_"));
+
+    // Known special-cases (common “space/punct/gender” problems).
+    static const std::unordered_map<std::string, std::vector<std::string>> kSpecial{
+        {"farfetch", {"farfetchd", "farfetch"}},
+        {"farfetchd", {"farfetchd", "farfetch"}},
+        {"mr_mime", {"mr_mime", "mrmime", "mr-mime"}},
+        {"mrmime", {"mr_mime", "mrmime"}},
+        {"mime_jr", {"mime_jr", "mimejr", "mime-jr"}},
+        {"mimejr", {"mime_jr", "mimejr"}},
+        {"ho_oh", {"ho_oh", "ho-oh", "hooh"}},
+        {"hooh", {"ho_oh", "hooh"}},
+        {"porygon_z", {"porygon_z", "porygon-z", "porygonz"}},
+        {"porygonz", {"porygon_z", "porygonz"}},
+        {"nidoran_m", {"nidoran_m", "nidoran-m", "nidoranmale", "nidoran_male"}},
+        {"nidoran_f", {"nidoran_f", "nidoran-f", "nidoranfemale", "nidoran_female"}},
+        {"nidoran_male", {"nidoran_m", "nidoran_male"}},
+        {"nidoran_female", {"nidoran_f", "nidoran_female"}},
+    };
+    if (auto it = kSpecial.find(base); it != kSpecial.end()) {
+        for (const auto& s : it->second) {
+            push_unique(s);
+        }
+    }
+
+    if (base == "nidoran") {
+        auto push_nidoran_ordered = [&](bool male_first) {
+            if (male_first) {
+                push_unique("nidoran-m");
+                push_unique("nidoran_m");
+                push_unique("nidoran-f");
+                push_unique("nidoran_f");
+            } else {
+                push_unique("nidoran-f");
+                push_unique("nidoran_f");
+                push_unique("nidoran-m");
+                push_unique("nidoran_m");
+            }
+        };
+        if (species_id == 32) {
+            push_nidoran_ordered(true);
+        } else if (species_id == 29) {
+            push_nidoran_ordered(false);
+        } else if (gender == 0) {
+            push_nidoran_ordered(true);
+        } else if (gender == 1) {
+            push_nidoran_ordered(false);
+        } else {
+            push_nidoran_ordered(true);
+        }
+    }
+
+    // Extremely defensive: if the raw slug mentions nidoran + gender, ensure we try the known filenames.
+    const std::string raw_l = asciiLowerCopy(raw_slug);
+    if (raw_l.find("nidoran") != std::string::npos) {
+        if (raw_l.find("male") != std::string::npos || raw_l.find("_m") != std::string::npos || raw_l.find("-m") != std::string::npos ||
+            raw_slug.find(u8"♂") != std::string::npos || raw_slug.find(u8"♂️") != std::string::npos ||
+            raw_slug.find(u8"\u2642") != std::string::npos) {
+            push_unique("nidoran-m");
+            push_unique("nidoran_m");
+        }
+        if (raw_l.find("female") != std::string::npos || raw_l.find("_f") != std::string::npos || raw_l.find("-f") != std::string::npos ||
+            raw_slug.find(u8"♀") != std::string::npos || raw_slug.find(u8"♀️") != std::string::npos ||
+            raw_slug.find(u8"\u2640") != std::string::npos) {
+            push_unique("nidoran-f");
+            push_unique("nidoran_f");
+        }
+    }
+
+    // If the raw slug had spaces (e.g. "Mr Mime"), try the space-removed and underscore forms too.
+    const std::string raw_lower = asciiLowerCopy(raw_slug);
+    push_unique(removeCharsCopy(replaceCharsCopy(raw_lower, " -", '_'), ".'’"));
+    push_unique(removeCharsCopy(replaceCharsCopy(raw_lower, " -", '-'), ".'’"));
+    push_unique(removeCharsCopy(raw_lower, " .'’-_"));
+
+    return out;
+}
+
+std::vector<std::string> spriteSlugCandidates(const std::string& raw_slug) {
+    return spriteSlugCandidates(raw_slug, -1, -1);
 }
 
 TextureHandle loadTexture(SDL_Renderer* renderer, const fs::path& path) {
@@ -167,6 +365,192 @@ void fillRoundedRingScanlines(
     fillRoundedRectScanlines(renderer, x, y, w, h, outer_radius, border);
     const int inner_r = std::max(0, outer_radius - stroke);
     fillRoundedRectScanlines(renderer, x + stroke, y + stroke, w - 2 * stroke, h - 2 * stroke, inner_r, inner_fill);
+}
+
+void fillTriangleScanlines(SDL_Renderer* renderer, int x0, int y0, int x1, int y1, int x2, int y2, const Color& c) {
+    struct P {
+        int x;
+        int y;
+    };
+    P p[3] = {{x0, y0}, {x1, y1}, {x2, y2}};
+    std::sort(p, p + 3, [](const P& a, const P& b) { return a.y < b.y; });
+
+    if (p[0].y == p[2].y) {
+        return;
+    }
+
+    setDrawColor(renderer, c);
+    auto edge_x = [](int x_a, int y_a, int x_b, int y_b, int y) -> double {
+        if (y_b == y_a) {
+            return static_cast<double>(x_a);
+        }
+        return static_cast<double>(x_a) +
+            static_cast<double>(x_b - x_a) * static_cast<double>(y - y_a) / static_cast<double>(y_b - y_a);
+    };
+
+    auto fill_span = [&](int y, double xa, double xb) {
+        int x_lo = static_cast<int>(std::floor(std::min(xa, xb)));
+        int x_hi = static_cast<int>(std::ceil(std::max(xa, xb)));
+        if (x_hi <= x_lo) {
+            x_hi = x_lo + 1;
+        }
+        SDL_Rect row{x_lo, y, x_hi - x_lo, 1};
+        SDL_RenderFillRect(renderer, &row);
+    };
+
+    if (p[0].y == p[1].y) {
+        for (int y = p[0].y; y <= p[2].y; ++y) {
+            const double xl = edge_x(p[0].x, p[0].y, p[2].x, p[2].y, y);
+            const double xr = edge_x(p[1].x, p[1].y, p[2].x, p[2].y, y);
+            fill_span(y, xl, xr);
+        }
+        return;
+    }
+    if (p[1].y == p[2].y) {
+        for (int y = p[0].y; y <= p[1].y; ++y) {
+            const double xl = edge_x(p[0].x, p[0].y, p[1].x, p[1].y, y);
+            const double xr = edge_x(p[0].x, p[0].y, p[2].x, p[2].y, y);
+            fill_span(y, xl, xr);
+        }
+        return;
+    }
+
+    for (int y = p[0].y; y < p[1].y; ++y) {
+        const double xl = edge_x(p[0].x, p[0].y, p[1].x, p[1].y, y);
+        const double xr = edge_x(p[0].x, p[0].y, p[2].x, p[2].y, y);
+        fill_span(y, xl, xr);
+    }
+    for (int y = p[1].y; y <= p[2].y; ++y) {
+        const double xl = edge_x(p[1].x, p[1].y, p[2].x, p[2].y, y);
+        const double xr = edge_x(p[0].x, p[0].y, p[2].x, p[2].y, y);
+        fill_span(y, xl, xr);
+    }
+}
+
+/// Filled stroke along segment (x0,y0)–(x1,y1); used for triangle legs without drawing the base edge.
+void fillThickSegmentScanlines(SDL_Renderer* renderer, int x0, int y0, int x1, int y1, int thickness, const Color& c) {
+    if (thickness <= 0) {
+        return;
+    }
+    const double dx = static_cast<double>(x1 - x0);
+    const double dy = static_cast<double>(y1 - y0);
+    const double len = std::sqrt(dx * dx + dy * dy);
+    if (len < 1e-4) {
+        return;
+    }
+    const double hx = -dy / len * (static_cast<double>(thickness) * 0.5);
+    const double hy = dx / len * (static_cast<double>(thickness) * 0.5);
+    const int ax0 = x0 + static_cast<int>(std::lround(hx));
+    const int ay0 = y0 + static_cast<int>(std::lround(hy));
+    const int ax1 = x0 - static_cast<int>(std::lround(hx));
+    const int ay1 = y0 - static_cast<int>(std::lround(hy));
+    const int bx0 = x1 + static_cast<int>(std::lround(hx));
+    const int by0 = y1 + static_cast<int>(std::lround(hy));
+    const int bx1 = x1 - static_cast<int>(std::lround(hx));
+    const int by1 = y1 - static_cast<int>(std::lround(hy));
+    fillTriangleScanlines(renderer, ax0, ay0, ax1, ay1, bx1, by1, c);
+    fillTriangleScanlines(renderer, ax0, ay0, bx1, by1, bx0, by0, c);
+}
+
+bool focusIdUsesSpeechBubble(FocusNodeId id) {
+    if (id >= 1000 && id <= 1029) {
+        return true;
+    }
+    if (id >= 2000 && id <= 2029) {
+        return true;
+    }
+    return id == 1111 || id == 2111;
+}
+
+std::string prettySpeciesNameFromSlug(const std::string& slug, int gender = -1, int species_id = -1) {
+    if (slug.empty()) {
+        return "";
+    }
+    std::string base = slug;
+    if (base.size() > 4 && base.substr(base.size() - 4) == ".png") {
+        base.resize(base.size() - 4);
+    }
+    // Strip variation selectors for consistent matching.
+    auto replace_all = [](std::string s, const std::string& from, const std::string& to) {
+        std::size_t pos = 0;
+        while ((pos = s.find(from, pos)) != std::string::npos) {
+            s.replace(pos, from.size(), to);
+            pos += to.size();
+        }
+        return s;
+    };
+    base = replace_all(std::move(base), u8"\uFE0F", "");
+    base = replace_all(std::move(base), u8"\uFE0E", "");
+    // Render gendered Nidoran nicely.
+    {
+        const std::string low = asciiLowerCopy(base);
+        const bool is_nidoran = low.find("nidoran") != std::string::npos;
+        if (is_nidoran) {
+            if (species_id == 32) {
+                return "Nidoran\u2642";
+            }
+            if (species_id == 29) {
+                return "Nidoran\u2640";
+            }
+            if (gender == 0) {
+                return "Nidoran\u2642";
+            }
+            if (gender == 1) {
+                return "Nidoran\u2640";
+            }
+            if (base.find(u8"♂") != std::string::npos || base.find(u8"\u2642") != std::string::npos) {
+                return "Nidoran\u2642";
+            }
+            if (base.find(u8"♀") != std::string::npos || base.find(u8"\u2640") != std::string::npos) {
+                return "Nidoran\u2640";
+            }
+            if (low.find("_m") != std::string::npos || low.find("-m") != std::string::npos || low.find("male") != std::string::npos) {
+                return "Nidoran\u2642";
+            }
+            if (low.find("_f") != std::string::npos || low.find("-f") != std::string::npos || low.find("female") != std::string::npos) {
+                return "Nidoran\u2640";
+            }
+        }
+    }
+    for (char& ch : base) {
+        if (ch == '-' || ch == '_') {
+            ch = ' ';
+        }
+    }
+    bool cap_next = true;
+    for (char& ch : base) {
+        const unsigned char u = static_cast<unsigned char>(ch);
+        if (std::isspace(u)) {
+            cap_next = true;
+        } else if (cap_next) {
+            ch = static_cast<char>(std::toupper(u));
+            cap_next = false;
+        } else {
+            ch = static_cast<char>(std::tolower(u));
+        }
+    }
+    return base;
+}
+
+std::string replaceAllCopy(std::string s, const std::string& from, const std::string& to) {
+    std::size_t pos = 0;
+    while ((pos = s.find(from, pos)) != std::string::npos) {
+        s.replace(pos, from.size(), to);
+        pos += to.size();
+    }
+    return s;
+}
+
+std::string formatPokemonSpeechLine(
+    const GameTransferSpeechBubbleCursorStyle& st,
+    const std::string& slug,
+    int gender = -1,
+    int species_id = -1) {
+    const std::string name = prettySpeciesNameFromSlug(slug, gender, species_id);
+    std::string line = st.pokemon_label_format;
+    line = replaceAllCopy(std::move(line), "{name}", name);
+    line = replaceAllCopy(std::move(line), "{level}", std::to_string(st.default_pokemon_level));
+    return line;
 }
 
 /// Critically damped–style smoothing: approaches `target` faster when far, eases in at the end (inertial feel).
@@ -739,6 +1123,66 @@ LoadedGameTransfer loadGameTransfer(const std::string& project_root) {
             out.selection_cursor.corner_radius = intFromObjectOrDefault(o, "corner_radius", out.selection_cursor.corner_radius);
             out.selection_cursor.beat_speed = doubleFromObjectOrDefault(o, "beat_speed", out.selection_cursor.beat_speed);
             out.selection_cursor.beat_magnitude = doubleFromObjectOrDefault(o, "beat_magnitude", out.selection_cursor.beat_magnitude);
+
+            if (const JsonValue* sb = o.get("speech_bubble")) {
+                if (sb->isObject()) {
+                    const JsonValue& b = *sb;
+                    out.selection_cursor.speech_bubble.enabled =
+                        boolFromObjectOrDefault(b, "enabled", out.selection_cursor.speech_bubble.enabled);
+                    out.selection_cursor.speech_bubble.font_pt =
+                        intFromObjectOrDefault(b, "font_pt", out.selection_cursor.speech_bubble.font_pt);
+                    if (const JsonValue* c = b.get("text_color")) {
+                        if (c->isString()) {
+                            out.selection_cursor.speech_bubble.text_color =
+                                parseHexColorString(c->asString(), out.selection_cursor.speech_bubble.text_color);
+                        }
+                    }
+                    if (const JsonValue* c = b.get("fill_color")) {
+                        if (c->isString()) {
+                            out.selection_cursor.speech_bubble.fill_color =
+                                parseHexColorString(c->asString(), out.selection_cursor.speech_bubble.fill_color);
+                        }
+                    }
+                    out.selection_cursor.speech_bubble.border_thickness =
+                        intFromObjectOrDefault(b, "border_thickness", out.selection_cursor.speech_bubble.border_thickness);
+                    out.selection_cursor.speech_bubble.corner_radius =
+                        intFromObjectOrDefault(b, "corner_radius", out.selection_cursor.speech_bubble.corner_radius);
+                    out.selection_cursor.speech_bubble.padding_x =
+                        intFromObjectOrDefault(b, "padding_x", out.selection_cursor.speech_bubble.padding_x);
+                    out.selection_cursor.speech_bubble.padding_y =
+                        intFromObjectOrDefault(b, "padding_y", out.selection_cursor.speech_bubble.padding_y);
+                    out.selection_cursor.speech_bubble.min_width =
+                        intFromObjectOrDefault(b, "min_width", out.selection_cursor.speech_bubble.min_width);
+                    out.selection_cursor.speech_bubble.max_width =
+                        intFromObjectOrDefault(b, "max_width", out.selection_cursor.speech_bubble.max_width);
+                    out.selection_cursor.speech_bubble.min_height =
+                        intFromObjectOrDefault(b, "min_height", out.selection_cursor.speech_bubble.min_height);
+                    out.selection_cursor.speech_bubble.empty_min_width =
+                        intFromObjectOrDefault(b, "empty_min_width", out.selection_cursor.speech_bubble.empty_min_width);
+                    out.selection_cursor.speech_bubble.empty_min_height =
+                        intFromObjectOrDefault(b, "empty_min_height", out.selection_cursor.speech_bubble.empty_min_height);
+                    out.selection_cursor.speech_bubble.triangle_base_width =
+                        intFromObjectOrDefault(b, "triangle_base_width", out.selection_cursor.speech_bubble.triangle_base_width);
+                    out.selection_cursor.speech_bubble.triangle_height =
+                        intFromObjectOrDefault(b, "triangle_height", out.selection_cursor.speech_bubble.triangle_height);
+                    out.selection_cursor.speech_bubble.gap_above_target =
+                        intFromObjectOrDefault(b, "gap_above_target", out.selection_cursor.speech_bubble.gap_above_target);
+                    out.selection_cursor.speech_bubble.screen_margin =
+                        intFromObjectOrDefault(b, "screen_margin", out.selection_cursor.speech_bubble.screen_margin);
+                    out.selection_cursor.speech_bubble.resort_game_title =
+                        stringFromObjectOrDefault(b, "resort_game_title", out.selection_cursor.speech_bubble.resort_game_title);
+                    out.selection_cursor.speech_bubble.pokemon_label_format = stringFromObjectOrDefault(
+                        b,
+                        "pokemon_label_format",
+                        out.selection_cursor.speech_bubble.pokemon_label_format);
+                    out.selection_cursor.speech_bubble.default_pokemon_level = intFromObjectOrDefault(
+                        b,
+                        "default_pokemon_level",
+                        out.selection_cursor.speech_bubble.default_pokemon_level);
+                    out.selection_cursor.speech_bubble.empty_slot_label =
+                        stringFromObjectOrDefault(b, "empty_slot_label", out.selection_cursor.speech_bubble.empty_slot_label);
+                }
+            }
         }
     }
 
@@ -772,6 +1216,10 @@ TransferSystemScreen::TransferSystemScreen(
     pill_font_ = loadFont(font_path_, std::max(8, pill_style_.font_pt), project_root_);
     dropdown_item_font_ =
         loadFont(font_path_, std::max(8, box_name_dropdown_style_.item_font_pt), project_root_);
+    speech_bubble_font_ = loadFontPreferringUnicode(
+        font_path_,
+        std::max(8, selection_cursor_style_.speech_bubble.font_pt),
+        project_root_);
     cachePillLabelTextures(renderer);
 
     const std::array<std::string, 4> tool_paths{
@@ -815,6 +1263,7 @@ void TransferSystemScreen::cachePillLabelTextures(SDL_Renderer* renderer) {
 void TransferSystemScreen::enter(const TransferSaveSelection& selection, SDL_Renderer* renderer, int initial_game_box_index) {
     return_to_ticket_list_requested_ = false;
     play_button_sfx_requested_ = false;
+    play_ui_move_sfx_requested_ = false;
     elapsed_seconds_ = 0.0;
     slider_t_ = 0.0;
     slider_target_ = 0.0;
@@ -830,6 +1279,7 @@ void TransferSystemScreen::enter(const TransferSaveSelection& selection, SDL_Ren
     exit_in_progress_ = false;
     exit_fade_seconds_ = 0.0;
     selection_cursor_hidden_after_mouse_ = false;
+    speech_hover_active_ = false;
     game_box_dropdown_open_target_ = false;
     game_box_dropdown_expand_t_ = 0.0;
     dropdown_scroll_px_ = 0.0;
@@ -838,6 +1288,9 @@ void TransferSystemScreen::enter(const TransferSaveSelection& selection, SDL_Ren
     dropdown_labels_dirty_ = false;
     dropdown_item_textures_.clear();
     current_game_key_ = selection.game_key;
+    selection_game_title_ = selection.game_title;
+    speech_bubble_label_cache_.clear();
+    speech_bubble_label_tex_ = {};
     game_box_index_ = 0;
     pending_game_box_index_ = -1;
     game_box_was_sliding_ = false;
@@ -876,34 +1329,56 @@ void TransferSystemScreen::enter(const TransferSaveSelection& selection, SDL_Ren
         }
     }
 
-    auto sprite_for = [&](const std::string& slug) -> std::optional<TextureHandle> {
+    auto sprite_for = [&](const std::string& slug, int gender, int species_id) -> std::optional<TextureHandle> {
         if (slug.empty()) {
             return std::nullopt;
         }
-        auto it = sprite_cache_.find(slug);
+        const std::string key = gameSlotSpriteKey(slug, gender, species_id);
+        auto it = sprite_cache_.find(key);
         if (it != sprite_cache_.end()) {
             return it->second.texture ? std::optional<TextureHandle>(it->second) : std::nullopt;
         }
         const fs::path sprite_root = resolvePath(project_root_, "assets/sprites");
-        const fs::path path = sprite_root / spriteFilenameForSlug(slug);
-        TextureHandle tex = loadTextureOptional(renderer, path);
-        setTextureNearestNeighbor(tex);
-        sprite_cache_.emplace(slug, tex);
-        return tex.texture ? std::optional<TextureHandle>(tex) : std::nullopt;
+        // Cache `missing.png` once, and use it as a fallback when the requested sprite isn't present.
+        constexpr const char* kMissingKey = "__missing__";
+        auto missing_it = sprite_cache_.find(kMissingKey);
+        if (missing_it == sprite_cache_.end()) {
+            const fs::path missing_path = sprite_root / "missing.png";
+            TextureHandle missing_tex = loadTextureOptional(renderer, missing_path);
+            setTextureNearestNeighbor(missing_tex);
+            sprite_cache_.emplace(kMissingKey, missing_tex);
+            missing_it = sprite_cache_.find(kMissingKey);
+        }
+
+        // Try alternate normalized spellings first (spaces, punctuation, gender).
+        for (const std::string& cand : spriteSlugCandidates(slug, gender, species_id)) {
+            const fs::path path = sprite_root / spriteFilenameForSlug(cand);
+            TextureHandle tex = loadTextureOptional(renderer, path);
+            setTextureNearestNeighbor(tex);
+            if (tex.texture) {
+                sprite_cache_.emplace(key, tex);
+                return std::optional<TextureHandle>(tex);
+            }
+        }
+        if (missing_it != sprite_cache_.end() && missing_it->second.texture) {
+            // Store the fallback under this slug too so later model builds (which only consult the cache)
+            // still render a placeholder.
+            sprite_cache_.emplace(key, missing_it->second);
+            return std::optional<TextureHandle>(missing_it->second);
+        }
+        // Cache an empty handle to avoid repeated IO attempts for this slug.
+        sprite_cache_.emplace(key, TextureHandle{});
+        return std::nullopt;
     };
 
     // Preload all sprites referenced by the save boxes so navigation is smooth (no IO in input handlers).
     {
-        std::unordered_set<std::string> unique;
         for (const auto& b : game_pc_boxes_) {
-            for (const auto& slug : b.slots) {
-                if (!slug.empty()) {
-                    unique.insert(slug);
+            for (const auto& slot : b.slots) {
+                if (!slot.slug.empty()) {
+                    (void)sprite_for(slot.slug, slot.gender, slot.species_id);
                 }
             }
-        }
-        for (const auto& slug : unique) {
-            (void)sprite_for(slug);
         }
     }
 
@@ -913,7 +1388,8 @@ void TransferSystemScreen::enter(const TransferSaveSelection& selection, SDL_Ren
             const auto& b = game_pc_boxes_[static_cast<std::size_t>(box_index)];
             m.box_name = b.name;
             for (std::size_t i = 0; i < m.slot_sprites.size() && i < b.slots.size(); ++i) {
-                m.slot_sprites[i] = sprite_for(b.slots[i]);
+                const auto& slot = b.slots[i];
+                m.slot_sprites[i] = sprite_for(slot.slug, slot.gender, slot.species_id);
             }
         }
         return m;
@@ -1147,8 +1623,133 @@ void drawRoundedOutlineScanlines(SDL_Renderer* renderer, int x, int y, int w, in
 
 } // namespace
 
+std::string TransferSystemScreen::speechBubbleLineForFocus(FocusNodeId focus_id) const {
+    const GameTransferSpeechBubbleCursorStyle& sb = selection_cursor_style_.speech_bubble;
+    if (focus_id == 1111) {
+        return sb.resort_game_title;
+    }
+    if (focus_id == 2111) {
+        if (!selection_game_title_.empty()) {
+            return selection_game_title_;
+        }
+        return prettySpeciesNameFromSlug(current_game_key_);
+    }
+    int slot = -1;
+    if (focus_id >= 1000 && focus_id <= 1029) {
+        slot = focus_id - 1000;
+    } else if (focus_id >= 2000 && focus_id <= 2029) {
+        slot = focus_id - 2000;
+    } else {
+        return "";
+    }
+    if (slot < 0 || slot >= 30) {
+        return "";
+    }
+    if (focus_id >= 2000) {
+        if (game_box_index_ < 0 || game_box_index_ >= static_cast<int>(game_pc_boxes_.size())) {
+            return sb.empty_slot_label;
+        }
+        const auto& slots = game_pc_boxes_[static_cast<std::size_t>(game_box_index_)].slots;
+        if (slot >= static_cast<int>(slots.size())) {
+            return sb.empty_slot_label;
+        }
+        const auto& pc = slots[static_cast<std::size_t>(slot)];
+        if (pc.slug.empty()) {
+            return sb.empty_slot_label;
+        }
+        return formatPokemonSpeechLine(sb, pc.slug, pc.gender, pc.species_id);
+    }
+    // Resort column: no species payload in this flow yet.
+    return sb.empty_slot_label;
+}
+
+void TransferSystemScreen::drawSpeechBubbleCursor(SDL_Renderer* renderer, const SDL_Rect& target, FocusNodeId focus_id) const {
+    const GameTransferSpeechBubbleCursorStyle& sb = selection_cursor_style_.speech_bubble;
+    if (!sb.enabled) {
+        return;
+    }
+
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+
+    Color border = carouselFrameColorForIndex(selected_tool_index_);
+    border.a = 255;
+
+    const std::string line = speechBubbleLineForFocus(focus_id);
+    const std::string cache_key =
+        std::to_string(focus_id) + "|" + line + "|" + std::to_string(sb.font_pt) + "|" + std::to_string(game_box_index_);
+    if (cache_key != speech_bubble_label_cache_ || !speech_bubble_label_tex_.texture) {
+        speech_bubble_label_cache_ = cache_key;
+        speech_bubble_label_tex_ = {};
+        if (!line.empty() && speech_bubble_font_.get()) {
+            speech_bubble_label_tex_ = renderTextTexture(renderer, speech_bubble_font_.get(), line, sb.text_color);
+        }
+    }
+
+    int tw = speech_bubble_label_tex_.width;
+    int th = speech_bubble_label_tex_.height;
+    if (line.empty()) {
+        tw = 0;
+        th = 0;
+    }
+
+    const int stroke = std::max(1, sb.border_thickness);
+    const int gap = std::max(0, sb.gap_above_target);
+    const int margin = std::max(0, sb.screen_margin);
+    const int sw = window_config_.virtual_width;
+
+    const int tip_x = target.x + target.w / 2;
+    const int tip_y = target.y - gap;
+
+    const int min_w_use = line.empty() ? sb.empty_min_width : sb.min_width;
+    const int min_h_use = line.empty() ? sb.empty_min_height : sb.min_height;
+
+    int tri_h = std::max(6, sb.triangle_height);
+    int pill_h = std::max(min_h_use, th + sb.padding_y * 2);
+    int pill_w = std::max(min_w_use, tw + sb.padding_x * 2);
+    pill_w = std::min(pill_w, sb.max_width);
+
+    int pill_bottom_y = tip_y - tri_h;
+    int pill_top = pill_bottom_y - pill_h;
+    if (pill_top < margin) {
+        pill_top = margin;
+        pill_bottom_y = pill_top + pill_h;
+        tri_h = std::max(6, tip_y - pill_bottom_y);
+    }
+
+    int pill_left = tip_x - pill_w / 2;
+    pill_left = std::clamp(pill_left, margin, std::max(margin, sw - margin - pill_w));
+
+    const int rad = std::clamp(sb.corner_radius, 1, std::max(1, pill_h / 2));
+
+    const int flat_l = pill_left + rad;
+    const int flat_r = pill_left + pill_w - rad;
+    int half_base = std::max(4, sb.triangle_base_width / 2);
+    const int max_half = std::max(0, (flat_r - flat_l) / 2);
+    half_base = std::min(half_base, max_half);
+    const int base_cx = std::clamp(tip_x, flat_l + half_base, flat_r - half_base);
+    const int bx0 = base_cx - half_base;
+    const int bx1 = base_cx + half_base;
+
+    fillRoundedRingScanlines(renderer, pill_left, pill_top, pill_w, pill_h, rad, stroke, border, sb.fill_color);
+
+    /// Pull the triangle base up into the pill so white covers the bottom border band — reads as one outline with the capsule.
+    const int tri_base_y = pill_bottom_y - stroke;
+
+    fillTriangleScanlines(renderer, bx0, tri_base_y, bx1, tri_base_y, tip_x, tip_y, sb.fill_color);
+    /// Border only on the two outer legs (no stroke along the base — meets the pill cleanly).
+    fillThickSegmentScanlines(renderer, bx0, tri_base_y, tip_x, tip_y, stroke, border);
+    fillThickSegmentScanlines(renderer, bx1, tri_base_y, tip_x, tip_y, stroke, border);
+
+    if (speech_bubble_label_tex_.texture && tw > 0 && th > 0) {
+        const int tcx = pill_left + (pill_w - tw) / 2;
+        const int tcy = pill_top + (pill_h - th) / 2;
+        SDL_Rect dst{tcx, tcy, tw, th};
+        SDL_RenderCopy(renderer, speech_bubble_label_tex_.texture.get(), nullptr, &dst);
+    }
+}
+
 void TransferSystemScreen::drawSelectionCursor(SDL_Renderer* renderer) const {
-    if (!selection_cursor_style_.enabled || selection_cursor_hidden_after_mouse_) {
+    if (!selection_cursor_style_.enabled) {
         return;
     }
     if (game_box_dropdown_open_target_ && game_box_dropdown_expand_t_ > 0.04) {
@@ -1157,6 +1758,32 @@ void TransferSystemScreen::drawSelectionCursor(SDL_Renderer* renderer) const {
     const std::optional<SDL_Rect> rb = focus_.currentBounds();
     if (!rb) return;
     const SDL_Rect r = *rb;
+    const FocusNodeId focus_id = focus_.current();
+    if (selection_cursor_style_.speech_bubble.enabled && focusIdUsesSpeechBubble(focus_id)) {
+        const bool is_icon = (focus_id == 1111 || focus_id == 2111);
+        const bool is_slot =
+            (focus_id >= 1000 && focus_id <= 1029) ||
+            (focus_id >= 2000 && focus_id <= 2029);
+        bool slot_has_species = false;
+        if (is_slot) {
+            const int idx = (focus_id >= 2000) ? (focus_id - 2000) : (focus_id - 1000);
+            slot_has_species = (focus_id >= 2000) ? gameSaveSlotHasSpecies(idx) : resortSlotHasSpecies(idx);
+        }
+
+        const bool wants_bubble = speech_hover_active_ && (is_icon || slot_has_species);
+        if (wants_bubble) {
+            drawSpeechBubbleCursor(renderer, r, focus_id);
+        }
+        /// Mouse mode: speech bubble only (no legacy rectangle).
+        if (selection_cursor_hidden_after_mouse_) {
+            return;
+        }
+        /// Keyboard mode: keep the legacy outline too (occupied slots/icons show both; empty slots outline only).
+    }
+
+    if (selection_cursor_hidden_after_mouse_) {
+        return;
+    }
 
     const double pulse = (std::sin(elapsed_seconds_ * selection_cursor_style_.beat_speed * 3.14159265358979323846 * 2.0) + 1.0) * 0.5;
     const int pad = selection_cursor_style_.padding + static_cast<int>(std::lround(selection_cursor_style_.beat_magnitude * pulse));
@@ -1195,7 +1822,11 @@ void TransferSystemScreen::onNavigate2d(int dx, int dy) {
         (void)dx;
         return;
     }
+    const FocusNodeId focus_before = focus_.current();
     focus_.navigate(dx, dy, window_config_.virtual_width, window_config_.virtual_height);
+    if (focus_.current() != focus_before) {
+        play_ui_move_sfx_requested_ = true;
+    }
 }
 
 void TransferSystemScreen::updateAnimations(double dt) {
@@ -1272,13 +1903,20 @@ BoxViewportModel TransferSystemScreen::gameBoxViewportModelAt(int box_index) con
     }
     incoming.box_name = game_pc_boxes_[static_cast<std::size_t>(box_index)].name;
     const auto& slots = game_pc_boxes_[static_cast<std::size_t>(box_index)].slots;
+    constexpr const char* kMissingKey = "__missing__";
+    const auto missing_it = sprite_cache_.find(kMissingKey);
     for (std::size_t i = 0; i < incoming.slot_sprites.size() && i < slots.size(); ++i) {
-        const std::string& slug = slots[i];
-        auto it = sprite_cache_.find(slug);
+        const auto& pc = slots[i];
+        const std::string key = gameSlotSpriteKey(pc.slug, pc.gender, pc.species_id);
+        auto it = sprite_cache_.find(key);
         if (it != sprite_cache_.end() && it->second.texture) {
             incoming.slot_sprites[i] = it->second;
         } else {
-            incoming.slot_sprites[i] = std::nullopt;
+            if (missing_it != sprite_cache_.end() && missing_it->second.texture && !pc.slug.empty()) {
+                incoming.slot_sprites[i] = missing_it->second;
+            } else {
+                incoming.slot_sprites[i] = std::nullopt;
+            }
         }
     }
     return incoming;
@@ -1675,6 +2313,67 @@ std::optional<FocusNodeId> TransferSystemScreen::focusNodeAtPointer(int logical_
     return std::nullopt;
 }
 
+bool TransferSystemScreen::gameSaveSlotHasSpecies(int slot_index) const {
+    if (!game_save_box_viewport_ || slot_index < 0 || slot_index >= 30) {
+        return false;
+    }
+    if (game_box_index_ < 0 || game_box_index_ >= static_cast<int>(game_pc_boxes_.size())) {
+        return false;
+    }
+    const auto& slots = game_pc_boxes_[static_cast<std::size_t>(game_box_index_)].slots;
+    if (slot_index >= static_cast<int>(slots.size())) {
+        return false;
+    }
+    return !slots[static_cast<std::size_t>(slot_index)].slug.empty();
+}
+
+bool TransferSystemScreen::resortSlotHasSpecies(int slot_index) const {
+    if (!resort_box_viewport_ || slot_index < 0 || slot_index >= 30) {
+        return false;
+    }
+    const BoxViewportModel& m = resort_box_viewport_->model();
+    if (slot_index >= static_cast<int>(m.slot_sprites.size())) {
+        return false;
+    }
+    return m.slot_sprites[static_cast<std::size_t>(slot_index)].has_value();
+}
+
+std::optional<std::pair<FocusNodeId, SDL_Rect>> TransferSystemScreen::speechBubbleTargetAtPointer(
+    int logical_x,
+    int logical_y) const {
+    auto in = [](int px, int py, const SDL_Rect& r) {
+        return px >= r.x && px < r.x + r.w && py >= r.y && py < r.y + r.h;
+    };
+    SDL_Rect r{};
+    if (game_save_box_viewport_) {
+        for (int i = 0; i < 30; ++i) {
+            if (game_save_box_viewport_->getSlotBounds(i, r) && in(logical_x, logical_y, r)) {
+                if (!gameSaveSlotHasSpecies(i)) {
+                    return std::nullopt;
+                }
+                return std::make_pair(2000 + i, r);
+            }
+        }
+        if (game_save_box_viewport_->getFooterGameIconBounds(r) && in(logical_x, logical_y, r)) {
+            return std::make_pair(2111, r);
+        }
+    }
+    if (resort_box_viewport_) {
+        for (int i = 0; i < 30; ++i) {
+            if (resort_box_viewport_->getSlotBounds(i, r) && in(logical_x, logical_y, r)) {
+                if (!resortSlotHasSpecies(i)) {
+                    return std::nullopt;
+                }
+                return std::make_pair(1000 + i, r);
+            }
+        }
+        if (resort_box_viewport_->getFooterGameIconBounds(r) && in(logical_x, logical_y, r)) {
+            return std::make_pair(1111, r);
+        }
+    }
+    return std::nullopt;
+}
+
 void TransferSystemScreen::drawToolCarousel(SDL_Renderer* renderer) const {
     const int vx = carousel_style_.offset_from_left_wall;
     const int vy = carouselScreenY();
@@ -2007,6 +2706,7 @@ void TransferSystemScreen::onBackPressed() {
 bool TransferSystemScreen::handlePointerPressed(int logical_x, int logical_y) {
     if (const std::optional<FocusNodeId> picked = focusNodeAtPointer(logical_x, logical_y)) {
         focus_.setCurrent(*picked);
+        // Pointer input puts us in "mouse mode" (no legacy yellow rectangle).
         selection_cursor_hidden_after_mouse_ = true;
     }
 
@@ -2102,6 +2802,18 @@ void TransferSystemScreen::handlePointerMoved(int logical_x, int logical_y) {
             }
         }
     }
+
+    if (!(box_name_dropdown_style_.enabled && game_box_dropdown_open_target_ && game_box_dropdown_expand_t_ > 0.05) &&
+        panels_reveal_ > 0.85 && ui_enter_ > 0.85) {
+        if (const auto hit = speechBubbleTargetAtPointer(logical_x, logical_y)) {
+            focus_.setCurrent(hit->first);
+            // Mouse hover should not show the legacy yellow rectangle; keep "mouse mode" on.
+            selection_cursor_hidden_after_mouse_ = true;
+            speech_hover_active_ = true;
+        } else {
+            speech_hover_active_ = false;
+        }
+    }
 }
 
 bool TransferSystemScreen::handlePointerReleased(int logical_x, int logical_y) {
@@ -2141,6 +2853,12 @@ bool TransferSystemScreen::handlePointerReleased(int logical_x, int logical_y) {
 bool TransferSystemScreen::consumeButtonSfxRequest() {
     const bool requested = play_button_sfx_requested_;
     play_button_sfx_requested_ = false;
+    return requested;
+}
+
+bool TransferSystemScreen::consumeUiMoveSfxRequest() {
+    const bool requested = play_ui_move_sfx_requested_;
+    play_ui_move_sfx_requested_ = false;
     return requested;
 }
 

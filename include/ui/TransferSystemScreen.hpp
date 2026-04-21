@@ -13,6 +13,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <utility>
 #include <unordered_map>
 #include <vector>
 
@@ -40,6 +41,8 @@ public:
     bool handlePointerReleased(int logical_x, int logical_y) override;
 
     bool consumeButtonSfxRequest();
+    /// Lighter tick when 2D focus changes (Transfer system only; uses `app.json` → `ui_move_sfx`).
+    bool consumeUiMoveSfxRequest();
     bool consumeReturnToTicketListRequest();
 
     bool canNavigate2d() const override { return true; }
@@ -63,8 +66,14 @@ private:
     void drawGameBoxNameDropdownChrome(SDL_Renderer* renderer) const;
     void drawGameBoxNameDropdownList(SDL_Renderer* renderer) const;
     void drawSelectionCursor(SDL_Renderer* renderer) const;
+    void drawSpeechBubbleCursor(SDL_Renderer* renderer, const SDL_Rect& target, FocusNodeId focus_id) const;
+    std::string speechBubbleLineForFocus(FocusNodeId focus_id) const;
     /// Which focus node (if any) contains this point — keeps keyboard focus aligned with mouse targets.
     std::optional<FocusNodeId> focusNodeAtPointer(int logical_x, int logical_y) const;
+    /// Slots + footer game icons only (for hover callouts).
+    std::optional<std::pair<FocusNodeId, SDL_Rect>> speechBubbleTargetAtPointer(int logical_x, int logical_y) const;
+    bool gameSaveSlotHasSpecies(int slot_index) const;
+    bool resortSlotHasSpecies(int slot_index) const;
     bool hitTestToolCarousel(int logical_x, int logical_y) const;
     /// Cycles selection: `dir` −1 = previous tool, +1 = next (infinite wrap).
     void cycleToolCarousel(int dir);
@@ -95,6 +104,7 @@ private:
     int selected_tool_index_ = 1;
     FontHandle pill_font_;
     FontHandle dropdown_item_font_;
+    FontHandle speech_bubble_font_;
     TextureHandle pill_label_pokemon_black_;
     TextureHandle pill_label_items_black_;
     TextureHandle pill_label_pokemon_white_;
@@ -105,6 +115,7 @@ private:
     double fade_out_seconds_ = 0.12;
     double exit_fade_seconds_ = 0.0;
     bool play_button_sfx_requested_ = false;
+    bool play_ui_move_sfx_requested_ = false;
     bool return_to_ticket_list_requested_ = false;
 
     /// 0 = Pokémon (left), 1 = Items (right).
@@ -131,10 +142,16 @@ private:
     bool game_box_was_sliding_ = false;
     std::unordered_map<std::string, TextureHandle> sprite_cache_{};
     std::string current_game_key_{};
+    /// Display name for the external save footer icon callout (`selection.game_title`).
+    std::string selection_game_title_;
+    mutable TextureHandle speech_bubble_label_tex_{};
+    mutable std::string speech_bubble_label_cache_{};
 
     FocusManager focus_;
     /// After a mouse hit on a focusable control, hide the controller selection ring until keyboard/gamepad input.
     bool selection_cursor_hidden_after_mouse_ = false;
+    /// Mouse is over a Pokémon slot or game icon (speech bubble stays visible even if `selection_cursor_hidden_after_mouse_`).
+    bool speech_hover_active_ = false;
 
     bool game_box_dropdown_open_target_ = false;
     double game_box_dropdown_expand_t_ = 0.0;

@@ -131,9 +131,11 @@ struct InputConfig {
 };
 
 struct AudioConfig {
-    std::string menu_music = "assets/title/menu_music.mp3";
-    std::string button_sfx = "assets/title/btn.mp3";
-    std::string rip_sfx = "assets/transfer_select_save/rip.mp3";
+    /// Paths are relative to the project root (joined at runtime).
+    std::string menu_music = "assets/music/ui_menu_music.mp3";
+    std::string button_sfx = "assets/sfx/btn.mp3";
+    std::string rip_sfx = "assets/sfx/rip.mp3";
+    std::string ui_move_sfx = "assets/sfx/ui_move.mp3";
     int music_volume = 7;
     int sfx_volume = 8;
 };
@@ -299,6 +301,38 @@ struct GameTransferBoxNameDropdownStyle {
     double scroll_drag_multiplier = 1.0;
 };
 
+/// Callout bubble for Pokémon slots and game icons (`game_transfer.json` → `selection_cursor.speech_bubble`).
+struct GameTransferSpeechBubbleCursorStyle {
+    bool enabled = true;
+    int font_pt = 22;
+    Color text_color{26, 26, 26, 255};
+    Color fill_color{251, 251, 251, 255};
+    int border_thickness = 5;
+    /// Capsule corner radius (clamped to half pill height).
+    int corner_radius = 35;
+    int padding_x = 16;
+    int padding_y = 10;
+    int min_width = 100;
+    int max_width = 520;
+    int min_height = 50;
+    /// Used when there is no label (empty slot with empty `empty_slot_label`).
+    int empty_min_width = 52;
+    int empty_min_height = 44;
+    /// Full width of the triangle base where it meets the pill bottom (before clamping to the flat segment).
+    int triangle_base_width = 56;
+    int triangle_height = 16;
+    /// Gap between callout tip and the top of the focused target rect.
+    int gap_above_target = 4;
+    int screen_margin = 14;
+    /// Shown when the footer resort icon is focused (left column).
+    std::string resort_game_title = "Pokemon Resort";
+    /// `{name}` and `{level}` substituted from species slug / default level when real data is absent.
+    std::string pokemon_label_format = "{name} (Lv. {level})";
+    int default_pokemon_level = 100;
+    /// Label for empty PC slots (both columns).
+    std::string empty_slot_label = "";
+};
+
 /// Focus/selection cursor for controller navigation (`config/game_transfer.json` → `selection_cursor`).
 struct GameTransferSelectionCursorStyle {
     bool enabled = true;
@@ -312,6 +346,7 @@ struct GameTransferSelectionCursorStyle {
     int corner_radius = 12;
     double beat_speed = 2.2;
     double beat_magnitude = 2.0;
+    GameTransferSpeechBubbleCursorStyle speech_bubble{};
 };
 
 } // namespace pr
