@@ -176,6 +176,13 @@ std::vector<TransferSaveSelection> transferSelectionsFromRecords(const std::vect
         selection.badges = std::to_string(summary.badges);
         selection.party_sprites = summary.party;
         selection.box1_slots = summary.box_1_slots;
+        selection.pc_boxes.reserve(summary.pc_boxes.size());
+        for (const auto& box : summary.pc_boxes) {
+            TransferSaveSelection::PcBox out_box;
+            out_box.name = box.name;
+            out_box.slots = box.slots;
+            selection.pc_boxes.push_back(std::move(out_box));
+        }
         selections.push_back(std::move(selection));
     }
     return selections;
@@ -598,7 +605,7 @@ int runApplication(const char* argv0, const char* config_path_override) {
                         merged.badges = std::to_string(fresh_summary->badges);
                         std::size_t filled_slots = 0;
                         for (const auto& slot : merged.box1_slots) {
-                            if (!slot.slug.empty()) {
+                            if (slot.occupied()) {
                                 ++filled_slots;
                             }
                         }

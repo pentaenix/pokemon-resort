@@ -541,15 +541,34 @@ std::string replaceAllCopy(std::string s, const std::string& from, const std::st
     return s;
 }
 
+std::string canonicalPokemonNameKey(std::string value) {
+    std::string out;
+    out.reserve(value.size());
+    for (unsigned char ch : value) {
+        if (std::isalnum(ch)) {
+            out.push_back(static_cast<char>(std::tolower(ch)));
+        }
+    }
+    return out;
+}
+
 std::string formatPokemonSpeechLine(
     const GameTransferSpeechBubbleCursorStyle& st,
-    const std::string& slug,
-    int gender = -1,
-    int species_id = -1) {
-    const std::string name = prettySpeciesNameFromSlug(slug, gender, species_id);
+    const PcSlotSpecies& slot) {
+    const std::string species = !slot.species_name.empty()
+        ? slot.species_name
+        : prettySpeciesNameFromSlug(slot.slug, slot.gender, slot.species_id);
+    const std::string nickname = slot.nickname;
+    const bool nickname_is_distinct =
+        !nickname.empty() &&
+        canonicalPokemonNameKey(nickname) != canonicalPokemonNameKey(species);
+    const std::string name = nickname_is_distinct ? nickname : species;
     std::string line = st.pokemon_label_format;
     line = replaceAllCopy(std::move(line), "{name}", name);
-    line = replaceAllCopy(std::move(line), "{level}", std::to_string(st.default_pokemon_level));
+    line = replaceAllCopy(std::move(line), "{nickname}", nickname_is_distinct ? nickname : "");
+    line = replaceAllCopy(std::move(line), "{species}", species);
+    const int level = slot.level > 0 ? slot.level : st.default_pokemon_level;
+    line = replaceAllCopy(std::move(line), "{level}", std::to_string(level));
     return line;
 }
 
@@ -1375,7 +1394,7 @@ void TransferSystemScreen::enter(const TransferSaveSelection& selection, SDL_Ren
     {
         for (const auto& b : game_pc_boxes_) {
             for (const auto& slot : b.slots) {
-                if (!slot.slug.empty()) {
+                if (slot.occupied()) {
                     (void)sprite_for(slot.slug, slot.gender, slot.species_id);
                 }
             }
@@ -1654,10 +1673,10 @@ std::string TransferSystemScreen::speechBubbleLineForFocus(FocusNodeId focus_id)
             return sb.empty_slot_label;
         }
         const auto& pc = slots[static_cast<std::size_t>(slot)];
-        if (pc.slug.empty()) {
+        if (!pc.occupied()) {
             return sb.empty_slot_label;
         }
-        return formatPokemonSpeechLine(sb, pc.slug, pc.gender, pc.species_id);
+        return formatPokemonSpeechLine(sb, pc);
     }
     // Resort column: no species payload in this flow yet.
     return sb.empty_slot_label;
@@ -1912,7 +1931,7 @@ BoxViewportModel TransferSystemScreen::gameBoxViewportModelAt(int box_index) con
         if (it != sprite_cache_.end() && it->second.texture) {
             incoming.slot_sprites[i] = it->second;
         } else {
-            if (missing_it != sprite_cache_.end() && missing_it->second.texture && !pc.slug.empty()) {
+            if (missing_it != sprite_cache_.end() && missing_it->second.texture && pc.occupied()) {
                 incoming.slot_sprites[i] = missing_it->second;
             } else {
                 incoming.slot_sprites[i] = std::nullopt;
@@ -2324,7 +2343,7 @@ bool TransferSystemScreen::gameSaveSlotHasSpecies(int slot_index) const {
     if (slot_index >= static_cast<int>(slots.size())) {
         return false;
     }
-    return !slots[static_cast<std::size_t>(slot_index)].slug.empty();
+    return slots[static_cast<std::size_t>(slot_index)].occupied();
 }
 
 bool TransferSystemScreen::resortSlotHasSpecies(int slot_index) const {

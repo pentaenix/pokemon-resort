@@ -93,7 +93,7 @@
     "beat_magnitude": 2.0,
     "speech_bubble": {
       "enabled": true,
-      "font_pt": 27,
+      "font_pt": 30,
       "text_color": "#1A1A1A",
       "fill_color": "#FBFBFB",
       "border_thickness": 6,

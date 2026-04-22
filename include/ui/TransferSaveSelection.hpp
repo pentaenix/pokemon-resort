@@ -10,7 +10,8 @@ namespace pr {
 struct TransferSaveSelection {
     struct PcBox {
         std::string name;
-        /// 30 slots (empty slug = empty).
+        /// Parsed slot summaries for this external save box. Rendering and future details should read this data,
+        /// not raw bridge JSON.
         std::vector<PcSlotSpecies> slots;
     };
     std::string source_path;
@@ -22,7 +23,7 @@ struct TransferSaveSelection {
     std::string pokedex;
     std::string badges;
     std::vector<std::string> party_sprites;
-    /// Box 1 slots; size matches save box slot count; empty slug = vacant slot.
+    /// Box 1 slots parsed from the bridge probe.
     std::vector<PcSlotSpecies> box1_slots;
     /// Full PC box list (preferred over `box1_slots`).
     std::vector<PcBox> pc_boxes;

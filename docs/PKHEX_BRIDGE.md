@@ -34,7 +34,7 @@ This keeps `PKHeX.Core` behind a small CLI boundary and prevents the native app 
 - [`pokemon-resort/src/core/SaveBridgeClient.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/SaveBridgeClient.cpp)
   resolves and launches the helper process for probe, import, and write-projection validation.
 - [`pokemon-resort/src/core/SaveLibrary.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/SaveLibrary.cpp)
-  scans, probes, caches, and currently parses transfer-ticket summary fields.
+  scans, probes, caches, parses the light ticket summary, and parses the deeper per-slot transfer box model used by `TransferSystemScreen`.
 - [`pokemon-resort/src/resort/integration/BridgeImportAdapter.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/resort/integration/BridgeImportAdapter.cpp)
   parses import-grade bridge output into native `ImportedPokemon`.
 - [`pokemon-resort/src/resort/services/BridgeImportService.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/resort/services/BridgeImportService.cpp)
@@ -258,7 +258,7 @@ When completing write/edit support:
 
 Native C++ consumes the bridge in three places:
 
-- [`SaveLibrary.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/SaveLibrary.cpp) consumes legacy transfer summary fields for the existing ticket UI.
+- [`SaveLibrary.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/SaveLibrary.cpp) consumes the ticket summary fields and the current transfer-slot read model used by the transfer box UI.
 - [`BridgeImportAdapter.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/resort/integration/BridgeImportAdapter.cpp) parses `bridge_import_schema: 1` import-grade Pokemon output.
 - [`SaveBridgeClient.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/SaveBridgeClient.cpp) exposes `writeProjectionWithBridge` for guarded write-back validation.
 
@@ -273,6 +273,20 @@ The current transfer ticket UI summary path parses:
 - `status`
 - `error`
 
+The current transfer box-detail path parses one native per-slot struct from `boxes[].slots[].pokemon` and `all_pokemon` fallback, including:
+
+- slot occupancy and slot metadata
+- `area`, `box`, `slot`, and `global_index`
+- `format`
+- species ID, species name, sprite slug, nickname, form, gender, level
+- shiny and egg flags
+- held item ID and held item name
+- nature and ability ID
+- up to four moves with move ID, name, current PP, and PP Ups
+- checksum validity
+
+When bridge fields are missing for older or legacy probe payloads, native code keeps explicit defaults rather than re-querying JSON during rendering.
+
 Canonical Resort import parses:
 
 - `source_game`
@@ -283,8 +297,8 @@ Canonical Resort import parses:
 - `warm_json`
 - `suspended_json`
 
-The existing ticket UI does not yet consume `trainer`, `pokedex`, `all_pokemon`, `boxes`, or `bag`.
-Those expanded fields are emitted by the bridge and covered by integration tests.
+The ticket list still does not consume `trainer`, `pokedex`, or `bag`.
+The transfer box UI now consumes parsed slot data derived from `boxes` and `all_pokemon`, and canonical Resort import continues to consume the separate import-grade payload.
 
 ## Testing
 

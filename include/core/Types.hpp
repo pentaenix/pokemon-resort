@@ -326,7 +326,7 @@ struct GameTransferSpeechBubbleCursorStyle {
     int screen_margin = 14;
     /// Shown when the footer resort icon is focused (left column).
     std::string resort_game_title = "Pokemon Resort";
-    /// `{name}` and `{level}` substituted from species slug / default level when real data is absent.
+    /// `{name}` prefers nickname when present, then species; `{nickname}`, `{species}`, and `{level}` are also supported.
     std::string pokemon_label_format = "{name} (Lv. {level})";
     int default_pokemon_level = 100;
     /// Label for empty PC slots (both columns).
