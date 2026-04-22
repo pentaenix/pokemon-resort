@@ -59,7 +59,7 @@ At the moment, most gameplay-facing behavior still lives in a single scene contr
   The bridge contract, save reader models, extension rules, and testing guidance are documented in [`PKHEX_BRIDGE.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/PKHEX_BRIDGE.md).
 
 - [`SaveLibrary.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/SaveLibrary.cpp)
-  Scans the top-level workspace [`saves`](/Users/vanta/Desktop/title_screen_demo/saves) folder without recursion, records file metadata, and probes each candidate through the bridge during startup. It currently consumes legacy transfer summary fields from the bridge; new box, bag, trainer, Pokedex, and Pokemon UI work should follow the expanded models in [`PKHEX_BRIDGE.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/PKHEX_BRIDGE.md).
+  Scans the top-level workspace [`saves`](/Users/vanta/Desktop/title_screen_demo/saves) folder without recursion, records file metadata, and probes each candidate through the bridge during startup. The ticket-list path still consumes a light transfer summary, but the deeper transfer probe now parses a richer per-slot native model from bridge `boxes` / `all_pokemon` data so `TransferSystemScreen` can render and inspect box slots without per-frame JSON work. New box, bag, trainer, Pokedex, and Pokemon UI work should extend those parsed native models rather than re-reading raw bridge JSON.
 
 - [`include/resort`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/resort) and [`src/resort`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/resort)
   Define the native Pokemon Resort backend subsystem. This subsystem is storage-first and separate from UI controllers: domain models live under `domain`, SQLite connection/migrations/repositories under `persistence`, and orchestration/query/import/export boundaries under `services`. It introduces canonical Pokemon rows, independent box placement, raw snapshot storage, history events, mirror sessions, conservative matching/merge, and export projection. UI screens should consume service read models such as `PokemonSlotView` rather than owning SQL, canonical state, or import/export rules. Backend consumer docs live under [`docs/backend`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/backend/README.md).
@@ -90,7 +90,7 @@ At the moment, most gameplay-facing behavior still lives in a single scene contr
   Owns the black loading screen shown while transfer save probing runs in the background. It reads [`loading_screen.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/loading_screen.json), picks random ball PNGs from the configured loading asset directory, and swaps balls after each animation lap.
 
 - [`TransferSystemScreen.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/TransferSystemScreen.cpp)
-  Owns the post-ticket game transfer UI shell (box grid, animated background). Layout and tuning live in [`game_transfer.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/game_transfer.json), separate from the ticket selector’s [`transfer_select_save.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/transfer_select_save.json).
+  Owns the post-ticket game transfer UI shell (box grid, animated background). Layout and tuning live in [`game_transfer.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/game_transfer.json), separate from the ticket selector’s [`transfer_select_save.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/transfer_select_save.json). External-save box rendering reads the already parsed `PcSlotSpecies` payload carried on `TransferSaveSelection`; it should not parse bridge JSON itself.
 
 - [`BoxViewport.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/BoxViewport.cpp)
   Renders reusable 6x5 transfer-box chrome for the current transfer system shell. It is a UI widget fed by `BoxViewportModel`; it is not canonical Resort storage and should not own persistence or import/export decisions.
@@ -227,7 +227,7 @@ Shared application settings live in [`app.json`](/Users/vanta/Desktop/title_scre
 - shared input bindings
 - shared audio asset paths and default volumes
 
-The current target/design resolution is `1280x800`. The development window is intentionally half-size at `640x400`; keep `virtual_width`, `virtual_height`, `design_width`, and `design_height` at `1280x800` unless the target device resolution itself changes. Only change `window.width` and `window.height` when resizing the desktop preview window.
+The current target/design resolution is `1280x800`. The default desktop preview window now opens at `640x400` for a compact desktop footprint, while `virtual_width`, `virtual_height`, `design_width`, and `design_height` remain `1280x800`; only change `window.width` and `window.height` when resizing the desktop preview window.
 
 The main title-screen authoring file is [`title_screen.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/title_screen.json). It currently controls:
 

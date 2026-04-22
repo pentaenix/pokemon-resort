@@ -25,6 +25,11 @@ public:
             [rip_player_ release];
             rip_player_ = nil;
         }
+        if (ui_move_player_ != nil) {
+            [ui_move_player_ stop];
+            [ui_move_player_ release];
+            ui_move_player_ = nil;
+        }
     }
 
     bool loadMusic(const std::string& path) {
@@ -96,6 +101,30 @@ public:
         return true;
     }
 
+    bool loadUiMoveSfx(const std::string& path) {
+        if (ui_move_player_ != nil) {
+            [ui_move_player_ stop];
+            [ui_move_player_ release];
+            ui_move_player_ = nil;
+        }
+
+        NSString* ns_path = [NSString stringWithUTF8String:path.c_str()];
+        if (ns_path == nil) {
+            return false;
+        }
+
+        NSURL* url = [NSURL fileURLWithPath:ns_path];
+        NSError* error = nil;
+        AVAudioPlayer* player = [[AVAudioPlayer alloc] initWithContentsOfURL:url error:&error];
+        if (player == nil) {
+            return false;
+        }
+
+        [player prepareToPlay];
+        ui_move_player_ = player;
+        return true;
+    }
+
     void playMusicLoop() {
         if (player_ != nil && !player_.playing) {
             [player_ play];
@@ -113,6 +142,13 @@ public:
         if (rip_player_ != nil) {
             rip_player_.currentTime = 0.0;
             [rip_player_ play];
+        }
+    }
+
+    void playUiMoveSfx() {
+        if (ui_move_player_ != nil) {
+            ui_move_player_.currentTime = 0.0;
+            [ui_move_player_ play];
         }
     }
 
@@ -139,6 +175,10 @@ public:
             const float clamped = volume_01 < 0.0f ? 0.0f : (volume_01 > 1.0f ? 1.0f : volume_01);
             rip_player_.volume = clamped;
         }
+        if (ui_move_player_ != nil) {
+            const float clamped = volume_01 < 0.0f ? 0.0f : (volume_01 > 1.0f ? 1.0f : volume_01);
+            ui_move_player_.volume = clamped;
+        }
     }
 
     bool isMusicLoaded() const {
@@ -153,6 +193,7 @@ private:
     AVAudioPlayer* player_ = nil;
     AVAudioPlayer* button_player_ = nil;
     AVAudioPlayer* rip_player_ = nil;
+    AVAudioPlayer* ui_move_player_ = nil;
 };
 
 AudioController::AudioController()
@@ -190,6 +231,10 @@ bool AudioController::loadRipSfx(const std::string& path) {
     return impl_ != nullptr && impl_->loadRipSfx(path);
 }
 
+bool AudioController::loadUiMoveSfx(const std::string& path) {
+    return impl_ != nullptr && impl_->loadUiMoveSfx(path);
+}
+
 void AudioController::playMusicLoop() {
     if (impl_ != nullptr) {
         impl_->playMusicLoop();
@@ -205,6 +250,12 @@ void AudioController::playButtonSfx() {
 void AudioController::playRipSfx() {
     if (impl_ != nullptr) {
         impl_->playRipSfx();
+    }
+}
+
+void AudioController::playUiMoveSfx() {
+    if (impl_ != nullptr) {
+        impl_->playUiMoveSfx();
     }
 }
 
@@ -267,9 +318,11 @@ AudioController& AudioController::operator=(AudioController&& other) noexcept {
 bool AudioController::loadMusic(const std::string&) { return false; }
 bool AudioController::loadButtonSfx(const std::string&) { return false; }
 bool AudioController::loadRipSfx(const std::string&) { return false; }
+bool AudioController::loadUiMoveSfx(const std::string&) { return false; }
 void AudioController::playMusicLoop() {}
 void AudioController::playButtonSfx() {}
 void AudioController::playRipSfx() {}
+void AudioController::playUiMoveSfx() {}
 void AudioController::stopMusic() {}
 void AudioController::setMusicVolume(float) {}
 void AudioController::setSfxVolume(float) {}

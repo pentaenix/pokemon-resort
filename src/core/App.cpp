@@ -176,6 +176,13 @@ std::vector<TransferSaveSelection> transferSelectionsFromRecords(const std::vect
         selection.badges = std::to_string(summary.badges);
         selection.party_sprites = summary.party;
         selection.box1_slots = summary.box_1_slots;
+        selection.pc_boxes.reserve(summary.pc_boxes.size());
+        for (const auto& box : summary.pc_boxes) {
+            TransferSaveSelection::PcBox out_box;
+            out_box.name = box.name;
+            out_box.slots = box.slots;
+            selection.pc_boxes.push_back(std::move(out_box));
+        }
         selections.push_back(std::move(selection));
     }
     return selections;
@@ -308,6 +315,10 @@ int runApplication(const char* argv0, const char* config_path_override) {
     const fs::path rip_sfx_path = fs::path(root) / config.audio.rip_sfx;
     if (!audio.loadRipSfx(rip_sfx_path.string())) {
         std::cerr << "Warning: could not load rip sfx at " << rip_sfx_path << '\n';
+    }
+    const fs::path ui_move_sfx_path = fs::path(root) / config.audio.ui_move_sfx;
+    if (!audio.loadUiMoveSfx(ui_move_sfx_path.string())) {
+        std::cerr << "Warning: could not load ui move sfx at " << ui_move_sfx_path << '\n';
     }
 
     bool running = true;
@@ -593,8 +604,8 @@ int runApplication(const char* argv0, const char* config_path_override) {
                         merged.pokedex = std::to_string(fresh_summary->pokedex_count);
                         merged.badges = std::to_string(fresh_summary->badges);
                         std::size_t filled_slots = 0;
-                        for (const std::string& slug : merged.box1_slots) {
-                            if (!slug.empty()) {
+                        for (const auto& slot : merged.box1_slots) {
+                            if (slot.occupied()) {
                                 ++filled_slots;
                             }
                         }
@@ -750,6 +761,9 @@ int runApplication(const char* argv0, const char* config_path_override) {
             transfer_system_screen && transfer_system_screen->consumeButtonSfxRequest();
         if (title_button_sfx_requested || transfer_button_sfx_requested || transfer_system_button_sfx_requested) {
             audio.playButtonSfx();
+        }
+        if (transfer_system_screen && transfer_system_screen->consumeUiMoveSfxRequest()) {
+            audio.playUiMoveSfx();
         }
         if (transfer_ticket && transfer_ticket->consumeRipSfxRequest()) {
             audio.playRipSfx();

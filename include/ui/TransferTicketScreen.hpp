@@ -164,7 +164,7 @@ private:
     };
 
     struct TransferMusic {
-        std::string path = "assets/transfer_select_save/transfer_lobby.mp3";
+        std::string path = "assets/music/transfer_lobby.mp3";
         double silence_seconds = 1.0;
         double fade_in_seconds = 1.0;
     };

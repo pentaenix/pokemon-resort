@@ -17,9 +17,11 @@ public:
     bool loadMusic(const std::string& path);
     bool loadButtonSfx(const std::string& path);
     bool loadRipSfx(const std::string& path);
+    bool loadUiMoveSfx(const std::string& path);
     void playMusicLoop();
     void playButtonSfx();
     void playRipSfx();
+    void playUiMoveSfx();
     void stopMusic();
     void setMusicVolume(float volume_01);
     void setSfxVolume(float volume_01);

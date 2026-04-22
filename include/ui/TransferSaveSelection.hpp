@@ -1,5 +1,7 @@
 #pragma once
 
+#include "core/PcSlotSpecies.hpp"
+
 #include <string>
 #include <vector>
 
@@ -8,8 +10,9 @@ namespace pr {
 struct TransferSaveSelection {
     struct PcBox {
         std::string name;
-        /// 30 slot slugs (empty string = empty).
-        std::vector<std::string> slots;
+        /// Parsed slot summaries for this external save box. Rendering and future details should read this data,
+        /// not raw bridge JSON.
+        std::vector<PcSlotSpecies> slots;
     };
     std::string source_path;
     std::string source_filename;
@@ -20,8 +23,8 @@ struct TransferSaveSelection {
     std::string pokedex;
     std::string badges;
     std::vector<std::string> party_sprites;
-    /// Box 1 slot species slugs; size matches save box slot count; empty string = vacant slot.
-    std::vector<std::string> box1_slots;
+    /// Box 1 slots parsed from the bridge probe.
+    std::vector<PcSlotSpecies> box1_slots;
     /// Full PC box list (preferred over `box1_slots`).
     std::vector<PcBox> pc_boxes;
 };

@@ -128,8 +128,16 @@ std::string asStringOrEmpty(const JsonValue* value) {
     return value && value->isString() ? value->asString() : "";
 }
 
+int asIntOrDefault(const JsonValue* value, int fallback) {
+    return value && value->isNumber() ? static_cast<int>(value->asNumber()) : fallback;
+}
+
 int asIntOrZero(const JsonValue* value) {
     return value && value->isNumber() ? static_cast<int>(value->asNumber()) : 0;
+}
+
+bool asBoolOrDefault(const JsonValue* value, bool fallback) {
+    return value && value->isBool() ? value->asBool() : fallback;
 }
 
 std::vector<std::string> parseStringArray(const JsonValue* value) {
@@ -157,33 +165,32 @@ std::string speciesSlugFromPokemonObject(const JsonValue& pokemon) {
     return s;
 }
 
-std::string speciesSlugFromSlotObject(const JsonValue& slot_obj) {
-    if (!slot_obj.isObject()) {
-        return {};
+int genderFromPokemonObject(const JsonValue& pokemon) {
+    if (!pokemon.isObject()) {
+        return -1;
     }
-    const JsonValue* pokemon = child(slot_obj, "Pokemon");
-    if (!pokemon) {
-        pokemon = child(slot_obj, "pokemon");
+    const JsonValue* g = child(pokemon, "Gender");
+    if (!g) {
+        g = child(pokemon, "gender");
     }
-    if (!pokemon || pokemon->isNull()) {
-        return {};
+    if (g && g->isNumber()) {
+        return static_cast<int>(g->asNumber());
     }
-    return speciesSlugFromPokemonObject(*pokemon);
+    return -1;
 }
 
-std::vector<std::string> collectSlotsFromBoxObject(const JsonValue& box_el) {
-    std::vector<std::string> slots;
-    const JsonValue* slots_val = child(box_el, "Slots");
-    if (!slots_val) {
-        slots_val = child(box_el, "slots");
+int speciesIdFromPokemonObject(const JsonValue& pokemon) {
+    if (!pokemon.isObject()) {
+        return -1;
     }
-    if (!slots_val || !slots_val->isArray()) {
-        return slots;
+    const JsonValue* sid = child(pokemon, "SpeciesId");
+    if (!sid) {
+        sid = child(pokemon, "speciesId");
     }
-    for (const JsonValue& slot_el : slots_val->asArray()) {
-        slots.push_back(speciesSlugFromSlotObject(slot_el));
+    if (sid && sid->isNumber()) {
+        return static_cast<int>(sid->asNumber());
     }
-    return slots;
+    return -1;
 }
 
 int boxIndexFromBoxObject(const JsonValue& box_el) {
@@ -197,7 +204,119 @@ int boxIndexFromBoxObject(const JsonValue& box_el) {
     return -1;
 }
 
-std::vector<std::string> parseBoxOneSlotsFromBoxesArray(const JsonValue& root) {
+const JsonValue* childAny(const JsonValue& parent, std::initializer_list<const char*> keys) {
+    for (const char* key : keys) {
+        if (const JsonValue* value = child(parent, key)) {
+            return value;
+        }
+    }
+    return nullptr;
+}
+
+void fillMoveSummaryFromObject(PcSlotMoveSummary& out, const JsonValue& move_obj) {
+    if (!move_obj.isObject()) {
+        return;
+    }
+    out.slot_index = asIntOrDefault(childAny(move_obj, {"Slot", "slot", "slot_index"}), out.slot_index);
+    out.move_id = asIntOrDefault(childAny(move_obj, {"MoveId", "moveId", "move_id"}), out.move_id);
+    out.move_name = asStringOrEmpty(childAny(move_obj, {"Name", "name", "move_name"}));
+    out.current_pp = asIntOrDefault(childAny(move_obj, {"CurrentPp", "currentPp", "current_pp"}), out.current_pp);
+    out.pp_ups = asIntOrDefault(childAny(move_obj, {"PpUps", "ppUps", "pp_ups"}), out.pp_ups);
+}
+
+void fillSlotFromPokemonObject(PcSlotSpecies& out, const JsonValue& pokemon) {
+    if (!pokemon.isObject()) {
+        return;
+    }
+
+    out.present = true;
+    out.format = asStringOrEmpty(childAny(pokemon, {"Format", "format"}));
+    out.slug = speciesSlugFromPokemonObject(pokemon);
+    out.species_name = asStringOrEmpty(childAny(pokemon, {"SpeciesName", "speciesName", "species_name"}));
+    out.species_id = speciesIdFromPokemonObject(pokemon);
+    out.nickname = asStringOrEmpty(childAny(pokemon, {"Nickname", "nickname"}));
+    out.form = asIntOrDefault(childAny(pokemon, {"Form", "form"}), out.form);
+    out.gender = genderFromPokemonObject(pokemon);
+    out.level = asIntOrDefault(childAny(pokemon, {"Level", "level"}), out.level);
+    out.is_egg = asBoolOrDefault(childAny(pokemon, {"IsEgg", "isEgg", "is_egg"}), out.is_egg);
+    out.is_shiny = asBoolOrDefault(childAny(pokemon, {"IsShiny", "isShiny", "is_shiny"}), out.is_shiny);
+    out.ot_name = asStringOrEmpty(childAny(pokemon, {"OtName", "otName", "ot_name"}));
+    out.tid16 = asIntOrDefault(childAny(pokemon, {"Tid16", "tid16"}), out.tid16);
+    out.sid16 = asIntOrDefault(childAny(pokemon, {"Sid16", "sid16"}), out.sid16);
+    out.held_item_id = asIntOrDefault(childAny(pokemon, {"HeldItemId", "heldItemId", "held_item_id"}), out.held_item_id);
+    out.held_item_name = asStringOrEmpty(childAny(pokemon, {"HeldItemName", "heldItemName", "held_item_name"}));
+    out.nature = asStringOrEmpty(childAny(pokemon, {"Nature", "nature"}));
+    out.ability_id = asIntOrDefault(childAny(pokemon, {"AbilityId", "abilityId", "ability_id"}), out.ability_id);
+    out.checksum_valid =
+        asBoolOrDefault(childAny(pokemon, {"ChecksumValid", "checksumValid", "checksum_valid"}), out.checksum_valid);
+
+    if (const JsonValue* location = childAny(pokemon, {"Location", "location"}); location && location->isObject()) {
+        out.area = asStringOrEmpty(childAny(*location, {"Area", "area"}));
+        out.box_index = asIntOrDefault(childAny(*location, {"Box", "box"}), out.box_index);
+        out.slot_index = asIntOrDefault(childAny(*location, {"Slot", "slot"}), out.slot_index);
+        out.global_index = asIntOrDefault(childAny(*location, {"GlobalIndex", "globalIndex", "global_index"}),
+                                          out.global_index);
+    }
+
+    out.moves = {};
+    out.move_count = 0;
+    if (const JsonValue* moves = childAny(pokemon, {"Moves", "moves"}); moves && moves->isArray()) {
+        const auto& move_array = moves->asArray();
+        const std::size_t limit = std::min<std::size_t>(out.moves.size(), move_array.size());
+        for (std::size_t i = 0; i < limit; ++i) {
+            fillMoveSummaryFromObject(out.moves[i], move_array[i]);
+            ++out.move_count;
+        }
+    }
+}
+
+PcSlotSpecies speciesSlotFromSlotObject(const JsonValue& slot_obj, int fallback_box_index) {
+    PcSlotSpecies out;
+    if (!slot_obj.isObject()) {
+        return out;
+    }
+
+    out.slot_index = asIntOrDefault(childAny(slot_obj, {"Slot", "slot"}), out.slot_index);
+    out.global_index = asIntOrDefault(childAny(slot_obj, {"GlobalIndex", "globalIndex", "global_index"}), out.global_index);
+    out.locked = asBoolOrDefault(childAny(slot_obj, {"Locked", "locked"}), out.locked);
+    out.overwrite_protected = asBoolOrDefault(
+        childAny(slot_obj, {"OverwriteProtected", "overwriteProtected", "overwrite_protected"}),
+        out.overwrite_protected);
+    out.box_index = fallback_box_index;
+    out.area = fallback_box_index >= 0 ? "box" : "";
+
+    const JsonValue* pokemon = childAny(slot_obj, {"Pokemon", "pokemon"});
+    if (!pokemon || pokemon->isNull() || !pokemon->isObject()) {
+        return out;
+    }
+
+    fillSlotFromPokemonObject(out, *pokemon);
+    if (out.box_index < 0) {
+        out.box_index = fallback_box_index;
+    }
+    if (out.area.empty() && out.box_index >= 0) {
+        out.area = "box";
+    }
+    return out;
+}
+
+std::vector<PcSlotSpecies> collectSlotsFromBoxObject(const JsonValue& box_el) {
+    std::vector<PcSlotSpecies> slots;
+    const JsonValue* slots_val = child(box_el, "Slots");
+    if (!slots_val) {
+        slots_val = child(box_el, "slots");
+    }
+    if (!slots_val || !slots_val->isArray()) {
+        return slots;
+    }
+    const int fallback_box_index = boxIndexFromBoxObject(box_el);
+    for (const JsonValue& slot_el : slots_val->asArray()) {
+        slots.push_back(speciesSlotFromSlotObject(slot_el, fallback_box_index));
+    }
+    return slots;
+}
+
+std::vector<PcSlotSpecies> parseBoxOneSlotsFromBoxesArray(const JsonValue& root) {
     const JsonValue* boxes_val = child(root, "boxes");
     if (!boxes_val || !boxes_val->isArray()) {
         return {};
@@ -211,7 +330,7 @@ std::vector<std::string> parseBoxOneSlotsFromBoxesArray(const JsonValue& root) {
         if (boxIndexFromBoxObject(box_el) != 0) {
             continue;
         }
-        std::vector<std::string> slots = collectSlotsFromBoxObject(box_el);
+        std::vector<PcSlotSpecies> slots = collectSlotsFromBoxObject(box_el);
         if (!slots.empty()) {
             return slots;
         }
@@ -222,7 +341,7 @@ std::vector<std::string> parseBoxOneSlotsFromBoxesArray(const JsonValue& root) {
         if (!box_el.isObject()) {
             continue;
         }
-        std::vector<std::string> slots = collectSlotsFromBoxObject(box_el);
+        std::vector<PcSlotSpecies> slots = collectSlotsFromBoxObject(box_el);
         if (!slots.empty()) {
             return slots;
         }
@@ -230,7 +349,7 @@ std::vector<std::string> parseBoxOneSlotsFromBoxesArray(const JsonValue& root) {
     return {};
 }
 
-std::vector<std::string> extractBoxOneSlotsFromAllPokemon(const JsonValue& root) {
+std::vector<PcSlotSpecies> extractBoxOneSlotsFromAllPokemon(const JsonValue& root) {
     const JsonValue* arr = child(root, "all_pokemon");
     if (!arr) {
         arr = child(root, "allPokemon");
@@ -240,7 +359,7 @@ std::vector<std::string> extractBoxOneSlotsFromAllPokemon(const JsonValue& root)
     }
 
     int max_slot = -1;
-    std::vector<std::pair<int, std::string>> found;
+    std::vector<std::pair<int, PcSlotSpecies>> found;
     found.reserve(arr->asArray().size());
 
     for (const JsonValue& item : arr->asArray()) {
@@ -276,22 +395,23 @@ std::vector<std::string> extractBoxOneSlotsFromAllPokemon(const JsonValue& root)
         if (slot < 0) {
             continue;
         }
-        std::string slug = asStringOrEmpty(child(item, "SpeciesSlug"));
-        if (slug.empty()) {
-            slug = asStringOrEmpty(child(item, "speciesSlug"));
-        }
-        found.emplace_back(slot, std::move(slug));
+        PcSlotSpecies ps;
+        fillSlotFromPokemonObject(ps, item);
+        ps.area = "box";
+        ps.box_index = box;
+        ps.slot_index = slot;
+        found.emplace_back(slot, std::move(ps));
         max_slot = std::max(max_slot, slot);
     }
 
     if (found.empty() || max_slot < 0) {
         return {};
     }
-    std::sort(found.begin(), found.end(), [](const std::pair<int, std::string>& a,
-                                             const std::pair<int, std::string>& b) {
+    std::sort(found.begin(), found.end(), [](const std::pair<int, PcSlotSpecies>& a,
+                                             const std::pair<int, PcSlotSpecies>& b) {
         return a.first < b.first;
     });
-    std::vector<std::string> out(static_cast<std::size_t>(max_slot) + 1);
+    std::vector<PcSlotSpecies> out(static_cast<std::size_t>(max_slot) + 1);
     for (const auto& entry : found) {
         const int slot = entry.first;
         if (slot >= 0 && static_cast<std::size_t>(slot) < out.size()) {
@@ -336,7 +456,7 @@ std::vector<TransferSaveSummary::PcBox> extractPcBoxes(const JsonValue& root) {
             continue;
         }
         const int idx = boxIndexFromBoxObject(box_el);
-        std::vector<std::string> slots = collectSlotsFromBoxObject(box_el);
+        std::vector<PcSlotSpecies> slots = collectSlotsFromBoxObject(box_el);
         if (slots.empty()) {
             continue;
         }
@@ -376,31 +496,85 @@ std::vector<TransferSaveSummary::PcBox> extractPcBoxes(const JsonValue& root) {
     return out;
 }
 
-std::vector<std::string> extractBoxOneSlots(const JsonValue& root) {
-    std::vector<std::string> slots = parseBoxOneSlotsFromBoxesArray(root);
-    if (!slots.empty()) {
-        return slots;
-    }
-    slots = parseStringArray(child(root, "box_1"));
-    if (!slots.empty()) {
-        return slots;
-    }
-    return extractBoxOneSlotsFromAllPokemon(root);
-}
-
-std::vector<std::string> parseBoxOneSlotsArrayField(const JsonValue* value) {
-    std::vector<std::string> result;
+std::vector<PcSlotSpecies> parseBoxOneSlotsArrayField(const JsonValue* value) {
+    std::vector<PcSlotSpecies> result;
     if (!value || !value->isArray()) {
         return result;
     }
     for (const JsonValue& item : value->asArray()) {
         if (item.isString()) {
-            result.push_back(item.asString());
-        } else {
-            result.push_back({});
+            PcSlotSpecies slot;
+            slot.present = !item.asString().empty();
+            slot.slug = item.asString();
+            result.push_back(std::move(slot));
+            continue;
         }
+        if (item.isObject()) {
+            PcSlotSpecies s;
+            const JsonValue* present_value = child(item, "present");
+            s.area = asStringOrEmpty(child(item, "area"));
+            s.box_index = asIntOrDefault(child(item, "box_index"), s.box_index);
+            s.slot_index = asIntOrDefault(child(item, "slot_index"), s.slot_index);
+            s.global_index = asIntOrDefault(child(item, "global_index"), s.global_index);
+            s.locked = asBoolOrDefault(child(item, "locked"), s.locked);
+            s.overwrite_protected = asBoolOrDefault(child(item, "overwrite_protected"), s.overwrite_protected);
+            s.format = asStringOrEmpty(child(item, "format"));
+            s.slug = asStringOrEmpty(child(item, "slug"));
+            if (s.slug.empty()) {
+                s.slug = asStringOrEmpty(child(item, "species_slug"));
+            }
+            if (s.slug.empty()) {
+                s.slug = asStringOrEmpty(child(item, "speciesSlug"));
+            }
+            s.species_name = asStringOrEmpty(child(item, "species_name"));
+            s.species_id = asIntOrDefault(childAny(item, {"species_id", "speciesId"}), s.species_id);
+            s.nickname = asStringOrEmpty(child(item, "nickname"));
+            s.form = asIntOrDefault(child(item, "form"), s.form);
+            s.gender = asIntOrDefault(childAny(item, {"gender", "Gender"}), s.gender);
+            s.level = asIntOrDefault(child(item, "level"), s.level);
+            s.is_egg = asBoolOrDefault(child(item, "is_egg"), s.is_egg);
+            s.is_shiny = asBoolOrDefault(child(item, "is_shiny"), s.is_shiny);
+            s.ot_name = asStringOrEmpty(child(item, "ot_name"));
+            s.tid16 = asIntOrDefault(child(item, "tid16"), s.tid16);
+            s.sid16 = asIntOrDefault(child(item, "sid16"), s.sid16);
+            s.held_item_id = asIntOrDefault(child(item, "held_item_id"), s.held_item_id);
+            s.held_item_name = asStringOrEmpty(child(item, "held_item_name"));
+            s.nature = asStringOrEmpty(child(item, "nature"));
+            s.ability_id = asIntOrDefault(child(item, "ability_id"), s.ability_id);
+            s.checksum_valid = asBoolOrDefault(child(item, "checksum_valid"), s.checksum_valid);
+            s.present = asBoolOrDefault(
+                present_value,
+                !s.slug.empty() || s.species_id >= 0 || !s.nickname.empty() || !s.species_name.empty());
+            s.move_count = 0;
+            if (const JsonValue* moves = child(item, "moves"); moves && moves->isArray()) {
+                const auto& move_array = moves->asArray();
+                const std::size_t limit = std::min<std::size_t>(s.moves.size(), move_array.size());
+                for (std::size_t move_index = 0; move_index < limit; ++move_index) {
+                    fillMoveSummaryFromObject(s.moves[move_index], move_array[move_index]);
+                    ++s.move_count;
+                }
+            }
+            result.push_back(std::move(s));
+            continue;
+        }
+        result.push_back({});
     }
     return result;
+}
+
+std::vector<PcSlotSpecies> extractBoxOneSlots(const JsonValue& root) {
+    std::vector<PcSlotSpecies> slots = parseBoxOneSlotsFromBoxesArray(root);
+    if (!slots.empty()) {
+        return slots;
+    }
+    const JsonValue* box1 = child(root, "box_1");
+    if (box1 && box1->isArray()) {
+        std::vector<PcSlotSpecies> from_box1 = parseBoxOneSlotsArrayField(box1);
+        if (!from_box1.empty()) {
+            return from_box1;
+        }
+    }
+    return extractBoxOneSlotsFromAllPokemon(root);
 }
 
 std::string escapeJson(const std::string& value) {
@@ -518,14 +692,55 @@ std::string serializeTransferSummary(const TransferSaveSummary& summary, int ind
         << child_padding << "\"badges\": " << summary.badges << ",\n"
         << child_padding << "\"status\": \"" << escapeJson(summary.status) << "\",\n"
         << child_padding << "\"error\": \"" << escapeJson(summary.error) << "\",\n"
-        << child_padding << "\"box_1_slots\": [";
+        << child_padding << "\"box_1_slots\": [\n";
     for (std::size_t i = 0; i < summary.box_1_slots.size(); ++i) {
         if (i > 0) {
-            out << ", ";
+            out << ",\n";
         }
-        out << "\"" << escapeJson(summary.box_1_slots[i]) << "\"";
+        const PcSlotSpecies& s = summary.box_1_slots[i];
+        out << child_padding << "  {\n"
+            << child_padding << "    \"present\": " << (s.present ? "true" : "false") << ",\n"
+            << child_padding << "    \"area\": \"" << escapeJson(s.area) << "\",\n"
+            << child_padding << "    \"box_index\": " << s.box_index << ",\n"
+            << child_padding << "    \"slot_index\": " << s.slot_index << ",\n"
+            << child_padding << "    \"global_index\": " << s.global_index << ",\n"
+            << child_padding << "    \"locked\": " << (s.locked ? "true" : "false") << ",\n"
+            << child_padding << "    \"overwrite_protected\": " << (s.overwrite_protected ? "true" : "false") << ",\n"
+            << child_padding << "    \"format\": \"" << escapeJson(s.format) << "\",\n"
+            << child_padding << "    \"slug\": \"" << escapeJson(s.slug) << "\",\n"
+            << child_padding << "    \"species_name\": \"" << escapeJson(s.species_name) << "\",\n"
+            << child_padding << "    \"species_id\": " << s.species_id << ",\n"
+            << child_padding << "    \"nickname\": \"" << escapeJson(s.nickname) << "\",\n"
+            << child_padding << "    \"form\": " << s.form << ",\n"
+            << child_padding << "    \"gender\": " << s.gender << ",\n"
+            << child_padding << "    \"level\": " << s.level << ",\n"
+            << child_padding << "    \"is_egg\": " << (s.is_egg ? "true" : "false") << ",\n"
+            << child_padding << "    \"is_shiny\": " << (s.is_shiny ? "true" : "false") << ",\n"
+            << child_padding << "    \"ot_name\": \"" << escapeJson(s.ot_name) << "\",\n"
+            << child_padding << "    \"tid16\": " << s.tid16 << ",\n"
+            << child_padding << "    \"sid16\": " << s.sid16 << ",\n"
+            << child_padding << "    \"held_item_id\": " << s.held_item_id << ",\n"
+            << child_padding << "    \"held_item_name\": \"" << escapeJson(s.held_item_name) << "\",\n"
+            << child_padding << "    \"nature\": \"" << escapeJson(s.nature) << "\",\n"
+            << child_padding << "    \"ability_id\": " << s.ability_id << ",\n"
+            << child_padding << "    \"checksum_valid\": " << (s.checksum_valid ? "true" : "false") << ",\n"
+            << child_padding << "    \"moves\": [";
+        for (int move_index = 0; move_index < s.move_count; ++move_index) {
+            if (move_index > 0) {
+                out << ", ";
+            }
+            const PcSlotMoveSummary& move = s.moves[static_cast<std::size_t>(move_index)];
+            out << "{ \"slot_index\": " << move.slot_index
+                << ", \"move_id\": " << move.move_id
+                << ", \"move_name\": \"" << escapeJson(move.move_name) << "\""
+                << ", \"current_pp\": " << move.current_pp
+                << ", \"pp_ups\": " << move.pp_ups << " }";
+        }
+        out << "]\n"
+            << child_padding << "  }";
     }
-    out << "]\n"
+    out << "\n"
+        << child_padding << "]\n"
         << padding << "}";
     return out.str();
 }
