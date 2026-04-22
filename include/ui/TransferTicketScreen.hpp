@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/Assets.hpp"
+#include "core/PokeSpriteAssets.hpp"
 #include "core/Types.hpp"
 #include "ui/ScreenInput.hpp"
 #include "ui/TransferSaveSelection.hpp"
@@ -19,7 +20,8 @@ public:
         SDL_Renderer* renderer,
         const WindowConfig& window_config,
         const std::string& font_path,
-        const std::string& project_root);
+        const std::string& project_root,
+        std::shared_ptr<PokeSpriteAssets> sprite_assets);
 
     void enter();
     void setSaveSelections(SDL_Renderer* renderer, const std::vector<TransferSaveSelection>& selections);
@@ -229,6 +231,7 @@ private:
     WindowConfig window_config_;
     std::string font_path_;
     std::string project_root_;
+    std::shared_ptr<PokeSpriteAssets> sprite_assets_;
     double fade_in_seconds_ = 0.3;
     double fade_in_elapsed_seconds_ = 0.0;
     TicketAssets assets_;

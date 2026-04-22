@@ -3,6 +3,7 @@
 #include "core/Assets.hpp"
 #include "core/Types.hpp"
 #include "core/Font.hpp"
+#include "core/PokeSpriteAssets.hpp"
 #include "ui/BoxViewport.hpp"
 #include "ui/FocusManager.hpp"
 #include "ui/ScreenInput.hpp"
@@ -25,7 +26,8 @@ public:
         SDL_Renderer* renderer,
         const WindowConfig& window_config,
         const std::string& font_path,
-        const std::string& project_root);
+        const std::string& project_root,
+        std::shared_ptr<PokeSpriteAssets> sprite_assets);
 
     void enter(const TransferSaveSelection& selection, SDL_Renderer* renderer, int initial_game_box_index);
     void update(double dt);
@@ -89,8 +91,10 @@ private:
     };
 
     WindowConfig window_config_;
+    SDL_Renderer* renderer_ = nullptr;
     std::string project_root_;
     std::string font_path_;
+    std::shared_ptr<PokeSpriteAssets> sprite_assets_;
     TextureHandle background_;
     BackgroundAnimation background_animation_;
     std::unique_ptr<BoxViewport> resort_box_viewport_;
@@ -140,7 +144,6 @@ private:
     int game_box_index_ = 0;
     int pending_game_box_index_ = -1;
     bool game_box_was_sliding_ = false;
-    std::unordered_map<std::string, TextureHandle> sprite_cache_{};
     std::string current_game_key_{};
     /// Display name for the external save footer icon callout (`selection.game_title`).
     std::string selection_game_title_;

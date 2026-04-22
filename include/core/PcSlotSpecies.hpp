@@ -31,6 +31,7 @@ struct PcSlotSpecies {
     int species_id = -1;
     std::string nickname;
     int form = -1;
+    std::string form_key;
     int gender = -1;
     int level = -1;
     bool is_egg = false;

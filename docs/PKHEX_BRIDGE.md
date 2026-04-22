@@ -267,6 +267,7 @@ The current transfer ticket UI summary path parses:
 - `game_id`
 - `player_name`
 - `party`
+- `all_pokemon` party entries into parsed `party_slots`
 - `play_time`
 - `pokedex_count`
 - `badges`
@@ -278,12 +279,14 @@ The current transfer box-detail path parses one native per-slot struct from `box
 - slot occupancy and slot metadata
 - `area`, `box`, `slot`, and `global_index`
 - `format`
-- species ID, species name, sprite slug, nickname, form, gender, level
+- species ID, species name, sprite slug, nickname, form, `form_key`, gender, level
 - shiny and egg flags
 - held item ID and held item name
 - nature and ability ID
 - up to four moves with move ID, name, current PP, and PP Ups
 - checksum validity
+
+Pokemon sprite selection now uses the parsed native slot models plus the pokesprite metadata under `assets/pokesprite`. UI code does not re-query bridge JSON during rendering.
 
 When bridge fields are missing for older or legacy probe payloads, native code keeps explicit defaults rather than re-querying JSON during rendering.
 
@@ -298,7 +301,7 @@ Canonical Resort import parses:
 - `suspended_json`
 
 The ticket list still does not consume `trainer`, `pokedex`, or `bag`.
-The transfer box UI now consumes parsed slot data derived from `boxes` and `all_pokemon`, and canonical Resort import continues to consume the separate import-grade payload.
+The transfer UI now consumes parsed native party/box slot data derived from `boxes` and `all_pokemon`, and canonical Resort import continues to consume the separate import-grade payload.
 
 ## Testing
 
