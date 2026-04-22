@@ -1214,10 +1214,13 @@ TransferSystemScreen::TransferSystemScreen(
     SDL_Renderer* renderer,
     const WindowConfig& window_config,
     const std::string& font_path,
-    const std::string& project_root)
+    const std::string& project_root,
+    std::shared_ptr<PokeSpriteAssets> sprite_assets)
     : window_config_(window_config),
+      renderer_(renderer),
       project_root_(project_root),
       font_path_(font_path),
+      sprite_assets_(std::move(sprite_assets)),
       background_(loadTexture(
           renderer,
           resolvePath(project_root_, "assets/transfer_select_save/background.png"))) {
@@ -1313,7 +1316,6 @@ void TransferSystemScreen::enter(const TransferSaveSelection& selection, SDL_Ren
     game_box_index_ = 0;
     pending_game_box_index_ = -1;
     game_box_was_sliding_ = false;
-    sprite_cache_.clear();
     // Focus graph is rebuilt at end of enter() once bounds are valid.
 
     if (resort_box_viewport_) {
@@ -1348,46 +1350,12 @@ void TransferSystemScreen::enter(const TransferSaveSelection& selection, SDL_Ren
         }
     }
 
-    auto sprite_for = [&](const std::string& slug, int gender, int species_id) -> std::optional<TextureHandle> {
-        if (slug.empty()) {
+    auto sprite_for = [&](const PcSlotSpecies& slot) -> std::optional<TextureHandle> {
+        if (!slot.occupied() || !sprite_assets_) {
             return std::nullopt;
         }
-        const std::string key = gameSlotSpriteKey(slug, gender, species_id);
-        auto it = sprite_cache_.find(key);
-        if (it != sprite_cache_.end()) {
-            return it->second.texture ? std::optional<TextureHandle>(it->second) : std::nullopt;
-        }
-        const fs::path sprite_root = resolvePath(project_root_, "assets/sprites");
-        // Cache `missing.png` once, and use it as a fallback when the requested sprite isn't present.
-        constexpr const char* kMissingKey = "__missing__";
-        auto missing_it = sprite_cache_.find(kMissingKey);
-        if (missing_it == sprite_cache_.end()) {
-            const fs::path missing_path = sprite_root / "missing.png";
-            TextureHandle missing_tex = loadTextureOptional(renderer, missing_path);
-            setTextureNearestNeighbor(missing_tex);
-            sprite_cache_.emplace(kMissingKey, missing_tex);
-            missing_it = sprite_cache_.find(kMissingKey);
-        }
-
-        // Try alternate normalized spellings first (spaces, punctuation, gender).
-        for (const std::string& cand : spriteSlugCandidates(slug, gender, species_id)) {
-            const fs::path path = sprite_root / spriteFilenameForSlug(cand);
-            TextureHandle tex = loadTextureOptional(renderer, path);
-            setTextureNearestNeighbor(tex);
-            if (tex.texture) {
-                sprite_cache_.emplace(key, tex);
-                return std::optional<TextureHandle>(tex);
-            }
-        }
-        if (missing_it != sprite_cache_.end() && missing_it->second.texture) {
-            // Store the fallback under this slug too so later model builds (which only consult the cache)
-            // still render a placeholder.
-            sprite_cache_.emplace(key, missing_it->second);
-            return std::optional<TextureHandle>(missing_it->second);
-        }
-        // Cache an empty handle to avoid repeated IO attempts for this slug.
-        sprite_cache_.emplace(key, TextureHandle{});
-        return std::nullopt;
+        TextureHandle texture = sprite_assets_->loadPokemonTexture(renderer, slot);
+        return texture.texture ? std::optional<TextureHandle>(std::move(texture)) : std::nullopt;
     };
 
     // Preload all sprites referenced by the save boxes so navigation is smooth (no IO in input handlers).
@@ -1395,7 +1363,7 @@ void TransferSystemScreen::enter(const TransferSaveSelection& selection, SDL_Ren
         for (const auto& b : game_pc_boxes_) {
             for (const auto& slot : b.slots) {
                 if (slot.occupied()) {
-                    (void)sprite_for(slot.slug, slot.gender, slot.species_id);
+                    (void)sprite_for(slot);
                 }
             }
         }
@@ -1408,7 +1376,7 @@ void TransferSystemScreen::enter(const TransferSaveSelection& selection, SDL_Ren
             m.box_name = b.name;
             for (std::size_t i = 0; i < m.slot_sprites.size() && i < b.slots.size(); ++i) {
                 const auto& slot = b.slots[i];
-                m.slot_sprites[i] = sprite_for(slot.slug, slot.gender, slot.species_id);
+                m.slot_sprites[i] = sprite_for(slot);
             }
         }
         return m;
@@ -1922,21 +1890,14 @@ BoxViewportModel TransferSystemScreen::gameBoxViewportModelAt(int box_index) con
     }
     incoming.box_name = game_pc_boxes_[static_cast<std::size_t>(box_index)].name;
     const auto& slots = game_pc_boxes_[static_cast<std::size_t>(box_index)].slots;
-    constexpr const char* kMissingKey = "__missing__";
-    const auto missing_it = sprite_cache_.find(kMissingKey);
     for (std::size_t i = 0; i < incoming.slot_sprites.size() && i < slots.size(); ++i) {
         const auto& pc = slots[i];
-        const std::string key = gameSlotSpriteKey(pc.slug, pc.gender, pc.species_id);
-        auto it = sprite_cache_.find(key);
-        if (it != sprite_cache_.end() && it->second.texture) {
-            incoming.slot_sprites[i] = it->second;
-        } else {
-            if (missing_it != sprite_cache_.end() && missing_it->second.texture && pc.occupied()) {
-                incoming.slot_sprites[i] = missing_it->second;
-            } else {
-                incoming.slot_sprites[i] = std::nullopt;
-            }
+        if (!pc.occupied() || !sprite_assets_ || !renderer_) {
+            incoming.slot_sprites[i] = std::nullopt;
+            continue;
         }
+        TextureHandle texture = sprite_assets_->loadPokemonTexture(renderer_, pc);
+        incoming.slot_sprites[i] = texture.texture ? std::optional<TextureHandle>(std::move(texture)) : std::nullopt;
     }
     return incoming;
 }

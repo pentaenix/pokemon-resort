@@ -23,6 +23,8 @@ struct TransferSaveSummary {
     std::string game_id;
     std::string player_name;
     std::vector<std::string> party;
+    /// Parsed party Pokemon derived from bridge `all_pokemon` when available, with `party` string fallback for legacy JSON.
+    std::vector<PcSlotSpecies> party_slots;
     std::string play_time;
     int pokedex_count = 0;
     int badges = 0;

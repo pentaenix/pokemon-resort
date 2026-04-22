@@ -3,6 +3,7 @@
 #include "core/Audio.hpp"
 #include "core/ConfigLoader.hpp"
 #include "core/InputBindings.hpp"
+#include "core/PokeSpriteAssets.hpp"
 #include "core/SaveDataStore.hpp"
 #include "core/SaveLibrary.hpp"
 #include "resort/services/PokemonResortService.hpp"
@@ -174,7 +175,7 @@ std::vector<TransferSaveSelection> transferSelectionsFromRecords(const std::vect
         selection.time = summary.play_time;
         selection.pokedex = std::to_string(summary.pokedex_count);
         selection.badges = std::to_string(summary.badges);
-        selection.party_sprites = summary.party;
+        selection.party_slots = summary.party_slots;
         selection.box1_slots = summary.box_1_slots;
         selection.pc_boxes.reserve(summary.pc_boxes.size());
         for (const auto& box : summary.pc_boxes) {
@@ -267,6 +268,7 @@ int runApplication(const char* argv0, const char* config_path_override) {
     Assets assets = loadAssets(renderer.get(), config, root);
     TitleScreen title_screen(config, std::move(assets));
     SaveLibrary save_library(root, save_directory.string(), argv0);
+    std::shared_ptr<PokeSpriteAssets> poke_sprite_assets = PokeSpriteAssets::create(root);
     std::unique_ptr<resort::PokemonResortService> pokemon_resort_service;
     try {
         pokemon_resort_service = std::make_unique<resort::PokemonResortService>(
@@ -548,7 +550,8 @@ int runApplication(const char* argv0, const char* config_path_override) {
                         renderer.get(),
                         config.window,
                         config.assets.font,
-                        root);
+                        root,
+                        poke_sprite_assets);
                 }
                 loading_screen->enter();
                 loading_purpose = LoadingPurpose::ScanTransferTickets;
@@ -597,9 +600,9 @@ int runApplication(const char* argv0, const char* config_path_override) {
                             TransferSaveSelection::PcBox out;
                             out.name = b.name;
                             out.slots = b.slots;
-                            merged.pc_boxes.push_back(std::move(out));
-                        }
-                        merged.party_sprites = fresh_summary->party;
+                        merged.pc_boxes.push_back(std::move(out));
+                    }
+                        merged.party_slots = fresh_summary->party_slots;
                         merged.time = fresh_summary->play_time;
                         merged.pokedex = std::to_string(fresh_summary->pokedex_count);
                         merged.badges = std::to_string(fresh_summary->badges);
@@ -627,7 +630,8 @@ int runApplication(const char* argv0, const char* config_path_override) {
                             renderer.get(),
                             config.window,
                             config.assets.font,
-                            root);
+                            root,
+                            poke_sprite_assets);
                     }
                     int initial_box_index = 0;
                     if (!merged.game_key.empty()) {

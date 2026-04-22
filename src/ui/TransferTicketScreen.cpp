@@ -106,14 +106,6 @@ void applyPointFromObject(Point& out, const JsonValue& obj) {
     out.y = intFromObjectOrDefault(obj, "y", out.y);
 }
 
-std::string spriteFilenameForPartyName(const std::string& party_name) {
-    fs::path sprite_path(party_name);
-    if (sprite_path.has_extension()) {
-        return party_name;
-    }
-    return party_name + ".png";
-}
-
 bool isLightTicketColor(const Color& color) {
     const double luminance =
         0.2126 * static_cast<double>(color.r) +
@@ -128,10 +120,12 @@ TransferTicketScreen::TransferTicketScreen(
     SDL_Renderer* renderer,
     const WindowConfig& window_config,
     const std::string& font_path,
-    const std::string& project_root)
+    const std::string& project_root,
+    std::shared_ptr<PokeSpriteAssets> sprite_assets)
     : window_config_(window_config),
       font_path_(font_path),
-      project_root_(project_root) {
+      project_root_(project_root),
+      sprite_assets_(std::move(sprite_assets)) {
     const fs::path root = resolvePath(project_root_, "assets/transfer_select_save");
     assets_.background = loadTexture(renderer, root / "background.png");
     assets_.banner = loadTexture(renderer, root / "transfer_top_banner.png");
@@ -755,7 +749,6 @@ void TransferTicketScreen::buildTextTextures(
     const std::vector<TransferSaveSelection>& selections) {
     std::vector<TicketEntry> built_tickets;
     built_tickets.reserve(selections.size());
-    const fs::path sprite_root = resolvePath(project_root_, "assets/sprites");
     for (const TransferSaveSelection& selection : selections) {
         try {
             TicketEntry ticket;
@@ -772,15 +765,15 @@ void TransferTicketScreen::buildTextTextures(
             const Color boarding_pass_color = isLightTicketColor(ticket.game_color) ? kBoardingPassDarkColor : kBoardingPassColor;
             ticket.text.boarding_pass = renderTextTexture(renderer, fonts_.boarding_pass.get(), "Boarding Pass", boarding_pass_color);
 
-            ticket.party_sprites.reserve(selection.party_sprites.size());
-            for (const std::string& filename : selection.party_sprites) {
-                const fs::path path = sprite_root / spriteFilenameForPartyName(filename);
-                if (fs::exists(path)) {
-                    try {
-                        ticket.party_sprites.push_back(loadTexture(renderer, path));
-                    } catch (const std::exception& ex) {
-                        std::cerr << "Warning: skipping transfer party sprite "
-                                  << path << ": " << ex.what() << '\n';
+            ticket.party_sprites.reserve(selection.party_slots.size());
+            if (sprite_assets_) {
+                for (const PcSlotSpecies& party_slot : selection.party_slots) {
+                    if (!party_slot.occupied()) {
+                        continue;
+                    }
+                    TextureHandle texture = sprite_assets_->loadPokemonTexture(renderer, party_slot);
+                    if (texture.texture) {
+                        ticket.party_sprites.push_back(std::move(texture));
                     }
                 }
             }

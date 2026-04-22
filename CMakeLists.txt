@@ -38,6 +38,7 @@ add_executable(title_screen_demo
     src/core/Font.cpp
     src/core/InputBindings.cpp
     src/core/Json.cpp
+    src/core/PokeSpriteAssets.cpp
     src/core/ConfigLoader.cpp
     src/core/SaveBridgeClient.cpp
     src/core/SaveLibrary.cpp

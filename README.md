@@ -110,6 +110,14 @@ Use these docs before adding UI against Resort storage:
 - [`frontend_integration.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/backend/frontend_integration.md)
 - [`testing_and_seed_data.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/backend/testing_and_seed_data.md)
 
+## Sprite asset docs
+
+Pokemon and item icon asset resolution is documented in:
+
+- [`docs/assets/pokesprite_subsystem.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/assets/pokesprite_subsystem.md)
+
+Use that document before changing transfer-ticket party sprites, transfer box sprites, or future item icon rendering.
+
 For backend integration tests, build `resort_backend_tool` with CMake. It can seed canonical Pokemon and create export projections without going through UI screens.
 
 ## Changing how far the main logo moves
@@ -165,6 +173,7 @@ src/
     Audio.mm
     Font.cpp
     Json.cpp
+    PokeSpriteAssets.cpp
     ConfigLoader.cpp
     SaveBridgeClient.cpp
     SaveDataStore.cpp
@@ -189,6 +198,7 @@ include/
     ConfigLoader.hpp
     Font.hpp
     Json.hpp
+    PokeSpriteAssets.hpp
     SaveBridgeClient.hpp
     SaveDataStore.hpp
     SaveLibrary.hpp

@@ -22,7 +22,8 @@ struct TransferSaveSelection {
     std::string time;
     std::string pokedex;
     std::string badges;
-    std::vector<std::string> party_sprites;
+    /// Parsed party Pokemon summaries for the transfer ticket art strip.
+    std::vector<PcSlotSpecies> party_slots;
     /// Box 1 slots parsed from the bridge probe.
     std::vector<PcSlotSpecies> box1_slots;
     /// Full PC box list (preferred over `box1_slots`).
