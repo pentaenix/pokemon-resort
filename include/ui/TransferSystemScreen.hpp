@@ -150,6 +150,24 @@ private:
     mutable TextureHandle speech_bubble_label_tex_{};
     mutable std::string speech_bubble_label_cache_{};
 
+    // --- Box Space (game save panel only, for now) ---
+    bool game_box_space_mode_ = false;
+    int game_box_space_row_offset_ = 0; // rows of 6 boxes; 0 shows boxes [0..29]
+    TextureHandle box_space_full_tex_{};
+    TextureHandle box_space_empty_tex_{};
+    TextureHandle box_space_noempty_tex_{};
+
+    void setGameBoxSpaceMode(bool enabled);
+    void stepGameBoxSpaceRowDown();
+    void stepGameBoxSpaceRowUp();
+    int gameBoxSpaceMaxRowOffset() const;
+    BoxViewportModel gameBoxSpaceViewportModelAt(int row_offset) const;
+
+    bool box_space_drag_active_ = false;
+    int box_space_drag_last_y_ = 0;
+    double box_space_drag_accum_ = 0.0;
+    int box_space_pressed_cell_ = -1;
+
     FocusManager focus_;
     /// After a mouse hit on a focusable control, hide the controller selection ring until keyboard/gamepad input.
     bool selection_cursor_hidden_after_mouse_ = false;

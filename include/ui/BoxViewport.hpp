@@ -55,6 +55,9 @@ public:
     bool getFooterGameIconBounds(SDL_Rect& out) const;
     /// Resort-only down chevron below the grid.
     bool getResortScrollArrowBounds(SDL_Rect& out) const;
+    /// Box-space view (external save only): down chevron below the grid.
+    bool hitTestBoxSpaceScrollArrow(int logical_x, int logical_y) const;
+    bool getBoxSpaceScrollArrowBounds(SDL_Rect& out) const;
 
     /// Starts a content-only slide (sprites in/out) while keeping the frame + name plate fixed.
     /// `dir`: -1 = previous (incoming from left), +1 = next (incoming from right).
@@ -70,6 +73,14 @@ public:
 
     /// Animated horizontal slide uses this each frame (defaults from constructor).
     void setViewportOrigin(int viewport_x, int viewport_y);
+
+    enum class HeaderMode {
+        Normal,   // name pill + left/right arrows
+        BoxSpace, // name pill only (no L/R arrows)
+    };
+    void setHeaderMode(HeaderMode mode, bool show_down_arrow);
+    HeaderMode headerMode() const { return header_mode_; }
+    void setBoxSpaceActive(bool active);
 
     void render(SDL_Renderer* renderer) const;
 
@@ -91,6 +102,7 @@ private:
     FontHandle label_font_;
     TextureHandle arrow_tex_;
     mutable TextureHandle box_space_label_tex_;
+    mutable TextureHandle box_space_label_tex_white_;
     TextureHandle game_icon_tex_;
     BoxViewportModel model_;
     BoxViewportModel incoming_model_;
@@ -102,6 +114,10 @@ private:
     mutable TextureHandle cached_title_tex_;
     mutable std::string cached_title_text_;
     mutable bool title_dirty_ = true;
+
+    HeaderMode header_mode_ = HeaderMode::Normal;
+    bool box_space_scroll_arrow_visible_ = false;
+    bool box_space_active_ = false;
 };
 
 } // namespace pr
