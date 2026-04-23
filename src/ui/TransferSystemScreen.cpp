@@ -711,9 +711,14 @@ void attachTransferFocusEdges(std::vector<FocusNode>& nodes) {
         connect(kRScroll, kFocusNeighborLeft, kRIcon);
         connect(kRScroll, kFocusNeighborRight, kRBoxSpace);
         connect(kRBoxSpace, kFocusNeighborLeft, kRScroll);
-        /// Footer row wraps horizontally (icon ↔ scroll ↔ box space).
-        connect(kRIcon, kFocusNeighborLeft, kRBoxSpace);
-        connect(kRBoxSpace, kFocusNeighborRight, kRIcon);
+        // Footer row wraps across the whole window (resort ↔ game), not within the same panel.
+        if (hasGameGrid) {
+            connect(kRIcon, kFocusNeighborLeft, kGIcon);
+            connect(kRBoxSpace, kFocusNeighborRight, kGBoxSpace);
+        } else {
+            connect(kRIcon, kFocusNeighborLeft, kRBoxSpace);
+            connect(kRBoxSpace, kFocusNeighborRight, kRIcon);
+        }
 
         connect(kRIcon, kFocusNeighborUp, resortSlot(24));
         connect(kRScroll, kFocusNeighborUp, resortSlot(26));
@@ -782,11 +787,18 @@ void attachTransferFocusEdges(std::vector<FocusNode>& nodes) {
         connect(kGName, kFocusNeighborDown, gameSlot(2));
         connect(kGNext, kFocusNeighborDown, gameSlot(kCols - 1));
 
-        connect(kGBoxSpace, kFocusNeighborRight, kGIcon);
-        connect(kGIcon, kFocusNeighborLeft, kGBoxSpace);
-        /// Game footer: wrap between box-space (left) and game icon (right).
-        connect(kGBoxSpace, kFocusNeighborLeft, kGIcon);
-        connect(kGIcon, kFocusNeighborRight, kGBoxSpace);
+        // Footer row wraps across the whole window (game ↔ resort), not within the same panel.
+        if (hasResortGrid) {
+            connect(kGBoxSpace, kFocusNeighborRight, kRBoxSpace);
+            connect(kGIcon, kFocusNeighborLeft, kRIcon);
+            connect(kGBoxSpace, kFocusNeighborLeft, kRBoxSpace);
+            connect(kGIcon, kFocusNeighborRight, kRIcon);
+        } else {
+            connect(kGBoxSpace, kFocusNeighborRight, kGIcon);
+            connect(kGIcon, kFocusNeighborLeft, kGBoxSpace);
+            connect(kGBoxSpace, kFocusNeighborLeft, kGIcon);
+            connect(kGIcon, kFocusNeighborRight, kGBoxSpace);
+        }
 
         connect(kGBoxSpace, kFocusNeighborUp, gameSlot(24));
         connect(kGIcon, kFocusNeighborUp, gameSlot(29));
@@ -932,6 +944,17 @@ LoadedGameTransfer loadGameTransfer(const std::string& project_root) {
                 doubleFromObjectOrDefault(o, "sprite_scale", out.box_viewport.sprite_scale);
             out.box_viewport.sprite_offset_y =
                 intFromObjectOrDefault(o, "sprite_offset_y", out.box_viewport.sprite_offset_y);
+
+            if (const JsonValue* bs = o.get("box_space_sprites")) {
+                if (bs->isObject()) {
+                    out.box_viewport.box_space_sprite_scale =
+                        doubleFromObjectOrDefault(*bs, "sprite_scale", out.box_viewport.box_space_sprite_scale);
+                    out.box_viewport.box_space_sprite_offset_x =
+                        intFromObjectOrDefault(*bs, "sprite_offset_x", out.box_viewport.box_space_sprite_offset_x);
+                    out.box_viewport.box_space_sprite_offset_y =
+                        intFromObjectOrDefault(*bs, "sprite_offset_y", out.box_viewport.box_space_sprite_offset_y);
+                }
+            }
         }
     }
 
@@ -1253,6 +1276,13 @@ TransferSystemScreen::TransferSystemScreen(
         tool_icons_[i] = loadTextureOptional(renderer, resolvePath(project_root_, tool_paths[i]));
     }
 
+    box_space_full_tex_ = loadTextureOptional(renderer, resolvePath(project_root_, "assets/pokesprite/boxes/full.png"));
+    box_space_empty_tex_ = loadTextureOptional(renderer, resolvePath(project_root_, "assets/pokesprite/boxes/empty.png"));
+    box_space_noempty_tex_ = loadTextureOptional(renderer, resolvePath(project_root_, "assets/pokesprite/boxes/noempty.png"));
+    setTextureNearestNeighbor(box_space_full_tex_);
+    setTextureNearestNeighbor(box_space_empty_tex_);
+    setTextureNearestNeighbor(box_space_noempty_tex_);
+
     constexpr int kBoxMarginX = 40;
     const int game_box_x = std::max(0, window_config_.virtual_width - kBoxMarginX - BoxViewport::kViewportWidth);
     resort_box_viewport_ = std::make_unique<BoxViewport>(
@@ -1316,6 +1346,12 @@ void TransferSystemScreen::enter(const TransferSaveSelection& selection, SDL_Ren
     game_box_index_ = 0;
     pending_game_box_index_ = -1;
     game_box_was_sliding_ = false;
+    game_box_space_mode_ = false;
+    game_box_space_row_offset_ = 0;
+    box_space_drag_active_ = false;
+    box_space_drag_last_y_ = 0;
+    box_space_drag_accum_ = 0.0;
+    box_space_pressed_cell_ = -1;
     // Focus graph is rebuilt at end of enter() once bounds are valid.
 
     if (resort_box_viewport_) {
@@ -1325,6 +1361,8 @@ void TransferSystemScreen::enter(const TransferSaveSelection& selection, SDL_Ren
     if (game_save_box_viewport_) {
         game_save_box_viewport_->setModel(BoxViewportModel{});
         game_save_box_viewport_->reloadGameIcon(renderer, selection.game_key);
+        game_save_box_viewport_->setHeaderMode(BoxViewport::HeaderMode::Normal, false);
+        game_save_box_viewport_->setBoxSpaceActive(false);
     }
 
     // Capture the PC box list (right box only). Prefer full `pc_boxes`; fall back to legacy box1.
@@ -1478,12 +1516,24 @@ void TransferSystemScreen::enter(const TransferSaveSelection& selection, SDL_Ren
                           },
                           [this]() { advanceGameBox(1); },
                           nullptr});
+            add(FocusNode{2112, [this]() -> std::optional<SDL_Rect> {
+                              if (!game_save_box_viewport_) return std::nullopt;
+                              SDL_Rect r;
+                              return game_save_box_viewport_->getBoxSpaceScrollArrowBounds(r) ? std::optional<SDL_Rect>(r) : std::nullopt;
+                          },
+                          [this]() { stepGameBoxSpaceRowDown(); },
+                          nullptr});
             add(FocusNode{2110, [this]() -> std::optional<SDL_Rect> {
                               if (!game_save_box_viewport_) return std::nullopt;
                               SDL_Rect r;
                               return game_save_box_viewport_->getFooterBoxSpaceBounds(r) ? std::optional<SDL_Rect>(r) : std::nullopt;
                           },
-                          []() {}, nullptr});
+                          [this]() {
+                              setGameBoxSpaceMode(!game_box_space_mode_);
+                              play_button_sfx_requested_ = true;
+                              closeGameBoxDropdown();
+                          },
+                          nullptr});
             add(FocusNode{2111, [this]() -> std::optional<SDL_Rect> {
                               if (!game_save_box_viewport_) return std::nullopt;
                               SDL_Rect r;
@@ -1633,6 +1683,14 @@ std::string TransferSystemScreen::speechBubbleLineForFocus(FocusNodeId focus_id)
         return "";
     }
     if (focus_id >= 2000) {
+        if (game_box_space_mode_) {
+            const int box_index = game_box_space_row_offset_ * 6 + slot;
+            if (box_index < 0 || box_index >= static_cast<int>(game_pc_boxes_.size())) {
+                return "";
+            }
+            const std::string& name = game_pc_boxes_[static_cast<std::size_t>(box_index)].name;
+            return name.empty() ? std::string("BOX") : name;
+        }
         if (game_box_index_ < 0 || game_box_index_ >= static_cast<int>(game_pc_boxes_.size())) {
             return sb.empty_slot_label;
         }
@@ -1662,6 +1720,9 @@ void TransferSystemScreen::drawSpeechBubbleCursor(SDL_Renderer* renderer, const 
     border.a = 255;
 
     const std::string line = speechBubbleLineForFocus(focus_id);
+    if (line.empty()) {
+        return;
+    }
     const std::string cache_key =
         std::to_string(focus_id) + "|" + line + "|" + std::to_string(sb.font_pt) + "|" + std::to_string(game_box_index_);
     if (cache_key != speech_bubble_label_cache_ || !speech_bubble_label_tex_.texture) {
@@ -1674,10 +1735,6 @@ void TransferSystemScreen::drawSpeechBubbleCursor(SDL_Renderer* renderer, const 
 
     int tw = speech_bubble_label_tex_.width;
     int th = speech_bubble_label_tex_.height;
-    if (line.empty()) {
-        tw = 0;
-        th = 0;
-    }
 
     const int stroke = std::max(1, sb.border_thickness);
     const int gap = std::max(0, sb.gap_above_target);
@@ -1746,23 +1803,29 @@ void TransferSystemScreen::drawSelectionCursor(SDL_Renderer* renderer) const {
     if (!rb) return;
     const SDL_Rect r = *rb;
     const FocusNodeId focus_id = focus_.current();
+    bool wants_bubble = false;
     if (selection_cursor_style_.speech_bubble.enabled && focusIdUsesSpeechBubble(focus_id)) {
         const bool is_icon = (focus_id == 1111 || focus_id == 2111);
         const bool is_slot =
             (focus_id >= 1000 && focus_id <= 1029) ||
             (focus_id >= 2000 && focus_id <= 2029);
-        bool slot_has_species = false;
+        bool slot_has_payload = false;
         if (is_slot) {
             const int idx = (focus_id >= 2000) ? (focus_id - 2000) : (focus_id - 1000);
-            slot_has_species = (focus_id >= 2000) ? gameSaveSlotHasSpecies(idx) : resortSlotHasSpecies(idx);
+            if (focus_id >= 2000 && game_box_space_mode_) {
+                const int box_index = game_box_space_row_offset_ * 6 + idx;
+                slot_has_payload = (box_index >= 0 && box_index < static_cast<int>(game_pc_boxes_.size()));
+            } else {
+                slot_has_payload = (focus_id >= 2000) ? gameSaveSlotHasSpecies(idx) : resortSlotHasSpecies(idx);
+            }
         }
 
-        const bool wants_bubble = speech_hover_active_ && (is_icon || slot_has_species);
-        if (wants_bubble) {
-            drawSpeechBubbleCursor(renderer, r, focus_id);
-        }
+        wants_bubble = speech_hover_active_ && (is_icon || slot_has_payload);
         /// Mouse mode: speech bubble only (no legacy rectangle).
         if (selection_cursor_hidden_after_mouse_) {
+            if (wants_bubble) {
+                drawSpeechBubbleCursor(renderer, r, focus_id);
+            }
             return;
         }
         /// Keyboard mode: keep the legacy outline too (occupied slots/icons show both; empty slots outline only).
@@ -1795,6 +1858,11 @@ void TransferSystemScreen::drawSelectionCursor(SDL_Renderer* renderer) const {
     Color c = selection_cursor_style_.color;
     c.a = std::clamp(selection_cursor_style_.alpha, 0, 255);
     drawRoundedOutlineScanlines(renderer, draw_x, draw_y, inner_w, inner_h, corner, c, selection_cursor_style_.thickness);
+
+    // Always draw bubble last so it sits above the legacy outline.
+    if (wants_bubble) {
+        drawSpeechBubbleCursor(renderer, r, focus_id);
+    }
 }
 
 void TransferSystemScreen::onNavigate2d(int dx, int dy) {
@@ -1809,6 +1877,35 @@ void TransferSystemScreen::onNavigate2d(int dx, int dy) {
         (void)dx;
         return;
     }
+
+    // Box Space mode: allow vertical navigation to scroll through all rows before leaving the grid.
+    if (game_box_space_mode_ && dy != 0) {
+        const FocusNodeId cur = focus_.current();
+        if (cur >= 2000 && cur <= 2029) {
+            const int slot = cur - 2000;
+            const int max_row = gameBoxSpaceMaxRowOffset();
+            if (dy > 0) {
+                // At bottom row of the 6×5 grid.
+                if (slot >= 24) {
+                    if (game_box_space_row_offset_ < max_row) {
+                        stepGameBoxSpaceRowDown();
+                        return;
+                    }
+                    // At end: only now wrap to the footer Box Space button.
+                    focus_.setCurrent(2110);
+                    play_ui_move_sfx_requested_ = true;
+                    return;
+                }
+            } else if (dy < 0) {
+                // At top row of the grid.
+                if (slot < 6 && game_box_space_row_offset_ > 0) {
+                    stepGameBoxSpaceRowUp();
+                    return;
+                }
+            }
+        }
+    }
+
     const FocusNodeId focus_before = focus_.current();
     focus_.navigate(dx, dy, window_config_.virtual_width, window_config_.virtual_height);
     if (focus_.current() != focus_before) {
@@ -1902,8 +1999,119 @@ BoxViewportModel TransferSystemScreen::gameBoxViewportModelAt(int box_index) con
     return incoming;
 }
 
+int TransferSystemScreen::gameBoxSpaceMaxRowOffset() const {
+    const int box_count = static_cast<int>(game_pc_boxes_.size());
+    if (box_count <= 30) {
+        return 0;
+    }
+    const int extra = box_count - 30;
+    return (extra + 5) / 6;
+}
+
+BoxViewportModel TransferSystemScreen::gameBoxSpaceViewportModelAt(int row_offset) const {
+    BoxViewportModel m;
+    m.box_name = "BOX SPACE";
+
+    const int base_box_index = std::max(0, row_offset) * 6;
+    for (int i = 0; i < 30; ++i) {
+        const int box_index = base_box_index + i;
+        if (box_index < 0 || box_index >= static_cast<int>(game_pc_boxes_.size())) {
+            m.slot_sprites[static_cast<std::size_t>(i)] = std::nullopt;
+            continue;
+        }
+
+        const auto& box = game_pc_boxes_[static_cast<std::size_t>(box_index)];
+        int occupied = 0;
+        int total = 0;
+        for (const auto& slot : box.slots) {
+            ++total;
+            if (slot.occupied()) {
+                ++occupied;
+            }
+        }
+
+        if (total <= 0) {
+            m.slot_sprites[static_cast<std::size_t>(i)] = std::nullopt;
+            continue;
+        }
+
+        if (occupied == 0) {
+            m.slot_sprites[static_cast<std::size_t>(i)] =
+                box_space_empty_tex_.texture ? std::optional<TextureHandle>(box_space_empty_tex_) : std::nullopt;
+        } else if (occupied >= total) {
+            m.slot_sprites[static_cast<std::size_t>(i)] =
+                box_space_full_tex_.texture ? std::optional<TextureHandle>(box_space_full_tex_) : std::nullopt;
+        } else {
+            m.slot_sprites[static_cast<std::size_t>(i)] =
+                box_space_noempty_tex_.texture ? std::optional<TextureHandle>(box_space_noempty_tex_) : std::nullopt;
+        }
+    }
+    return m;
+}
+
+void TransferSystemScreen::setGameBoxSpaceMode(bool enabled) {
+    if (!game_save_box_viewport_) {
+        game_box_space_mode_ = false;
+        return;
+    }
+
+    game_box_space_mode_ = enabled;
+    game_box_space_row_offset_ = std::clamp(game_box_space_row_offset_, 0, gameBoxSpaceMaxRowOffset());
+
+    if (enabled) {
+        const bool show_down =
+            game_pc_boxes_.size() > 30 && game_box_space_row_offset_ < gameBoxSpaceMaxRowOffset();
+        game_save_box_viewport_->setHeaderMode(BoxViewport::HeaderMode::BoxSpace, show_down);
+        game_save_box_viewport_->setBoxSpaceActive(true);
+        game_save_box_viewport_->snapContentToModel(gameBoxSpaceViewportModelAt(game_box_space_row_offset_));
+    } else {
+        game_save_box_viewport_->setHeaderMode(BoxViewport::HeaderMode::Normal, false);
+        game_save_box_viewport_->setBoxSpaceActive(false);
+        game_save_box_viewport_->snapContentToModel(gameBoxViewportModelAt(game_box_index_));
+    }
+
+    box_space_drag_active_ = false;
+    box_space_drag_last_y_ = 0;
+    box_space_drag_accum_ = 0.0;
+    box_space_pressed_cell_ = -1;
+}
+
+void TransferSystemScreen::stepGameBoxSpaceRowDown() {
+    if (!game_box_space_mode_ || !game_save_box_viewport_) {
+        return;
+    }
+    const int max_row = gameBoxSpaceMaxRowOffset();
+    if (game_box_space_row_offset_ >= max_row) {
+        return;
+    }
+    game_box_space_row_offset_ += 1;
+    const bool show_down =
+        game_pc_boxes_.size() > 30 && game_box_space_row_offset_ < max_row;
+    game_save_box_viewport_->setHeaderMode(BoxViewport::HeaderMode::BoxSpace, show_down);
+    game_save_box_viewport_->snapContentToModel(gameBoxSpaceViewportModelAt(game_box_space_row_offset_));
+    play_button_sfx_requested_ = true;
+}
+
+void TransferSystemScreen::stepGameBoxSpaceRowUp() {
+    if (!game_box_space_mode_ || !game_save_box_viewport_) {
+        return;
+    }
+    if (game_box_space_row_offset_ <= 0) {
+        return;
+    }
+    game_box_space_row_offset_ -= 1;
+    const bool show_down =
+        game_pc_boxes_.size() > 30 && game_box_space_row_offset_ < gameBoxSpaceMaxRowOffset();
+    game_save_box_viewport_->setHeaderMode(BoxViewport::HeaderMode::BoxSpace, show_down);
+    game_save_box_viewport_->snapContentToModel(gameBoxSpaceViewportModelAt(game_box_space_row_offset_));
+    play_button_sfx_requested_ = true;
+}
+
 void TransferSystemScreen::advanceGameBox(int dir) {
     if (!game_save_box_viewport_ || game_pc_boxes_.empty() || dir == 0) {
+        return;
+    }
+    if (game_box_space_mode_) {
         return;
     }
     if (panels_reveal_ <= 0.85 || ui_enter_ <= 0.85) {
@@ -1920,6 +2128,9 @@ void TransferSystemScreen::advanceGameBox(int dir) {
 
 void TransferSystemScreen::jumpGameBoxToIndex(int target_index) {
     if (!game_save_box_viewport_ || game_pc_boxes_.empty()) {
+        return;
+    }
+    if (game_box_space_mode_) {
         return;
     }
     if (panels_reveal_ <= 0.85 || ui_enter_ <= 0.85) {
@@ -2096,6 +2307,9 @@ void TransferSystemScreen::toggleGameBoxDropdown() {
     if (!box_name_dropdown_style_.enabled || game_pc_boxes_.size() < 2) {
         return;
     }
+    if (game_box_space_mode_) {
+        return;
+    }
     if (game_box_dropdown_open_target_) {
         closeGameBoxDropdown();
         return;
@@ -2248,6 +2462,9 @@ std::optional<FocusNodeId> TransferSystemScreen::focusNodeAtPointer(int logical_
         if (game_save_box_viewport_->getNextArrowBounds(r) && in(logical_x, logical_y, r)) {
             return 2103;
         }
+        if (game_save_box_viewport_->getBoxSpaceScrollArrowBounds(r) && in(logical_x, logical_y, r)) {
+            return 2112;
+        }
         if (game_save_box_viewport_->getNamePlateBounds(r) && in(logical_x, logical_y, r)) {
             return 2102;
         }
@@ -2328,7 +2545,12 @@ std::optional<std::pair<FocusNodeId, SDL_Rect>> TransferSystemScreen::speechBubb
     if (game_save_box_viewport_) {
         for (int i = 0; i < 30; ++i) {
             if (game_save_box_viewport_->getSlotBounds(i, r) && in(logical_x, logical_y, r)) {
-                if (!gameSaveSlotHasSpecies(i)) {
+                if (game_box_space_mode_) {
+                    const int box_index = game_box_space_row_offset_ * 6 + i;
+                    if (box_index < 0 || box_index >= static_cast<int>(game_pc_boxes_.size())) {
+                        return std::nullopt;
+                    }
+                } else if (!gameSaveSlotHasSpecies(i)) {
                     return std::nullopt;
                 }
                 return std::make_pair(2000 + i, r);
@@ -2690,6 +2912,66 @@ bool TransferSystemScreen::handlePointerPressed(int logical_x, int logical_y) {
         selection_cursor_hidden_after_mouse_ = true;
     }
 
+    // Box Space controls (game panel).
+    if (game_save_box_viewport_ && panels_reveal_ > 0.85 && ui_enter_ > 0.85) {
+        SDL_Rect r{};
+        if (game_save_box_viewport_->getFooterBoxSpaceBounds(r) &&
+            logical_x >= r.x && logical_x < r.x + r.w && logical_y >= r.y && logical_y < r.y + r.h) {
+            setGameBoxSpaceMode(!game_box_space_mode_);
+            play_button_sfx_requested_ = true;
+            closeGameBoxDropdown();
+            return true;
+        }
+        if (game_save_box_viewport_->hitTestBoxSpaceScrollArrow(logical_x, logical_y)) {
+            stepGameBoxSpaceRowDown();
+            closeGameBoxDropdown();
+            return true;
+        }
+        if (game_box_space_mode_) {
+            // Drag-to-scroll inside the grid.
+            const SDL_Rect grid_clip = [&]() {
+                SDL_Rect s0{};
+                SDL_Rect s29{};
+                if (!game_save_box_viewport_->getSlotBounds(0, s0) || !game_save_box_viewport_->getSlotBounds(29, s29)) {
+                    return SDL_Rect{0, 0, 0, 0};
+                }
+                const int left = s0.x;
+                const int top = s0.y;
+                const int right = s29.x + s29.w;
+                const int bottom = s29.y + s29.h;
+                return SDL_Rect{left, top, std::max(0, right - left), std::max(0, bottom - top)};
+            }();
+            if (grid_clip.w > 0 && grid_clip.h > 0 &&
+                logical_x >= grid_clip.x && logical_x < grid_clip.x + grid_clip.w &&
+                logical_y >= grid_clip.y && logical_y < grid_clip.y + grid_clip.h) {
+                box_space_drag_active_ = true;
+                box_space_drag_last_y_ = logical_y;
+                box_space_drag_accum_ = 0.0;
+                // Record which cell we pressed; if there is no drag, release will treat as a click.
+                if (const std::optional<FocusNodeId> picked = focusNodeAtPointer(logical_x, logical_y)) {
+                    if (*picked >= 2000 && *picked <= 2029) {
+                        box_space_pressed_cell_ = *picked - 2000;
+                    }
+                }
+                return true;
+            }
+
+            // Clicking a box icon opens that PC box.
+            if (const std::optional<FocusNodeId> picked = focusNodeAtPointer(logical_x, logical_y)) {
+                if (*picked >= 2000 && *picked <= 2029) {
+                    const int cell = *picked - 2000;
+                    const int box_index = game_box_space_row_offset_ * 6 + cell;
+                    if (box_index >= 0 && box_index < static_cast<int>(game_pc_boxes_.size())) {
+                        game_box_index_ = box_index;
+                        setGameBoxSpaceMode(false);
+                        play_button_sfx_requested_ = true;
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+
     if (box_name_dropdown_style_.enabled && game_pc_boxes_.size() >= 2) {
         if (game_box_dropdown_open_target_ && game_box_dropdown_expand_t_ > 0.05) {
             SDL_Rect outer{};
@@ -2713,7 +2995,8 @@ bool TransferSystemScreen::handlePointerPressed(int logical_x, int logical_y) {
                 }
                 closeGameBoxDropdown();
             }
-        } else if (panels_reveal_ > 0.85 && ui_enter_ > 0.85 && hitTestGameBoxNamePlate(logical_x, logical_y)) {
+        } else if (!game_box_space_mode_ && panels_reveal_ > 0.85 && ui_enter_ > 0.85 &&
+                   hitTestGameBoxNamePlate(logical_x, logical_y)) {
             toggleGameBoxDropdown();
             return true;
         }
@@ -2756,6 +3039,36 @@ bool TransferSystemScreen::handlePointerPressed(int logical_x, int logical_y) {
 }
 
 void TransferSystemScreen::handlePointerMoved(int logical_x, int logical_y) {
+    if (game_box_space_mode_ && box_space_drag_active_ && game_save_box_viewport_) {
+        const int dy = logical_y - box_space_drag_last_y_;
+        box_space_drag_last_y_ = logical_y;
+        box_space_drag_accum_ += static_cast<double>(dy);
+
+        // Scroll threshold tuned by feel; avoids jitter.
+        constexpr double kRowStepThresholdPx = 42.0;
+        const int max_row = gameBoxSpaceMaxRowOffset();
+        while (box_space_drag_accum_ >= kRowStepThresholdPx) {
+            // Dragging down should reveal earlier rows (scroll up).
+            if (game_box_space_row_offset_ > 0) {
+                stepGameBoxSpaceRowUp();
+            }
+            box_space_drag_accum_ -= kRowStepThresholdPx;
+            if (game_box_space_row_offset_ <= 0) {
+                break;
+            }
+        }
+        while (box_space_drag_accum_ <= -kRowStepThresholdPx) {
+            if (game_box_space_row_offset_ < max_row) {
+                stepGameBoxSpaceRowDown();
+            }
+            box_space_drag_accum_ += kRowStepThresholdPx;
+            if (game_box_space_row_offset_ >= max_row) {
+                break;
+            }
+        }
+        return;
+    }
+
     if (box_name_dropdown_style_.enabled && game_box_dropdown_open_target_ && game_box_dropdown_expand_t_ > 0.05 &&
         dropdown_lmb_down_in_panel_) {
         SDL_Rect outer{};
@@ -2797,6 +3110,25 @@ void TransferSystemScreen::handlePointerMoved(int logical_x, int logical_y) {
 }
 
 bool TransferSystemScreen::handlePointerReleased(int logical_x, int logical_y) {
+    if (box_space_drag_active_) {
+        constexpr double kClickDragThresholdPx = 6.0;
+        const bool treat_as_click = std::fabs(box_space_drag_accum_) < kClickDragThresholdPx;
+        box_space_drag_active_ = false;
+        box_space_drag_accum_ = 0.0;
+        if (treat_as_click && game_box_space_mode_ && game_save_box_viewport_ && box_space_pressed_cell_ >= 0 &&
+            box_space_pressed_cell_ < 30) {
+            const int box_index = game_box_space_row_offset_ * 6 + box_space_pressed_cell_;
+            box_space_pressed_cell_ = -1;
+            if (box_index >= 0 && box_index < static_cast<int>(game_pc_boxes_.size())) {
+                game_box_index_ = box_index;
+                setGameBoxSpaceMode(false);
+                play_button_sfx_requested_ = true;
+            }
+        } else {
+            box_space_pressed_cell_ = -1;
+        }
+        return true;
+    }
     if (!dropdown_lmb_down_in_panel_) {
         return false;
     }

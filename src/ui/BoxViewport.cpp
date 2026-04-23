@@ -297,11 +297,21 @@ BoxViewport::BoxViewport(
         std::cerr << "[BoxViewport] arrow texture load failed (" << arrow_path << "): " << ex.what() << '\n';
     }
     box_space_label_tex_ = renderTextTexture(renderer, label_font_.get(), "Box space", style_.box_space_color);
+    box_space_label_tex_white_ = renderTextTexture(renderer, label_font_.get(), "Box space", Color{255, 255, 255, 255});
 }
 
 void BoxViewport::setViewportOrigin(int viewport_x, int viewport_y) {
     viewport_x_ = viewport_x;
     viewport_y_ = viewport_y;
+}
+
+void BoxViewport::setHeaderMode(HeaderMode mode, bool show_down_arrow) {
+    header_mode_ = mode;
+    box_space_scroll_arrow_visible_ = show_down_arrow;
+}
+
+void BoxViewport::setBoxSpaceActive(bool active) {
+    box_space_active_ = active;
 }
 
 void BoxViewport::setModel(BoxViewportModel model) {
@@ -402,6 +412,9 @@ void BoxViewport::reloadGameIcon(SDL_Renderer* renderer, const std::string& game
 }
 
 bool BoxViewport::hitTestPrevBoxArrow(int logical_x, int logical_y) const {
+    if (header_mode_ != HeaderMode::Normal) {
+        return false;
+    }
     if (!arrow_tex_.texture) {
         return false;
     }
@@ -410,6 +423,9 @@ bool BoxViewport::hitTestPrevBoxArrow(int logical_x, int logical_y) const {
 }
 
 bool BoxViewport::hitTestNextBoxArrow(int logical_x, int logical_y) const {
+    if (header_mode_ != HeaderMode::Normal) {
+        return false;
+    }
     if (!arrow_tex_.texture) {
         return false;
     }
@@ -418,6 +434,9 @@ bool BoxViewport::hitTestNextBoxArrow(int logical_x, int logical_y) const {
 }
 
 bool BoxViewport::getPrevArrowBounds(SDL_Rect& out) const {
+    if (header_mode_ != HeaderMode::Normal) {
+        return false;
+    }
     if (!arrow_tex_.texture) {
         return false;
     }
@@ -426,10 +445,42 @@ bool BoxViewport::getPrevArrowBounds(SDL_Rect& out) const {
 }
 
 bool BoxViewport::getNextArrowBounds(SDL_Rect& out) const {
+    if (header_mode_ != HeaderMode::Normal) {
+        return false;
+    }
     if (!arrow_tex_.texture) {
         return false;
     }
     out = nextArrowBounds(viewport_x_, viewport_y_, arrow_tex_.width, arrow_tex_.height);
+    return true;
+}
+
+bool BoxViewport::hitTestBoxSpaceScrollArrow(int logical_x, int logical_y) const {
+    SDL_Rect r{};
+    if (!getBoxSpaceScrollArrowBounds(r)) {
+        return false;
+    }
+    return pointInRect(logical_x, logical_y, r);
+}
+
+bool BoxViewport::getBoxSpaceScrollArrowBounds(SDL_Rect& out) const {
+    if (role_ != BoxViewportRole::ExternalGameSave || header_mode_ != HeaderMode::BoxSpace || !arrow_tex_.texture ||
+        !box_space_scroll_arrow_visible_) {
+        return false;
+    }
+    // Match the Resort scroll arrow placement (bottom-center below the grid).
+    const int vx = viewport_x_;
+    const int vy = viewport_y_;
+    const int pill_y = vy + kNameTopPad;
+    const int grid_w = kCols * kSlotW + (kCols - 1) * kSlotGapX;
+    const int grid_h = kRows * kSlotH + (kRows - 1) * kSlotGapY;
+    const int grid_x = vx + (BoxViewport::kViewportWidth - grid_w) / 2;
+    const int grid_y = pill_y + kNamePillH + kNameToGridGap;
+    const int grid_bottom = grid_y + grid_h;
+    const int grid_mid_x = grid_x + grid_w / 2;
+    const int scroll_cy =
+        grid_bottom + kScrollBelowSlots + arrow_tex_.height / 2 + style_.footer_scroll_arrow_offset_y;
+    out = SDL_Rect{grid_mid_x - arrow_tex_.width / 2, scroll_cy - arrow_tex_.height / 2, arrow_tex_.width, arrow_tex_.height};
     return true;
 }
 
@@ -606,6 +657,10 @@ void BoxViewport::renderBelowNamePlate(SDL_Renderer* renderer) const {
     };
 
     auto draw_slot_sprites_only = [&](const BoxViewportModel& m, int dx) {
+        const bool box_space_grid = (header_mode_ == HeaderMode::BoxSpace);
+        const double sprite_scale = box_space_grid ? style_.box_space_sprite_scale : style_.sprite_scale;
+        const int sprite_off_x = box_space_grid ? style_.box_space_sprite_offset_x : 0;
+        const int sprite_off_y = box_space_grid ? style_.box_space_sprite_offset_y : style_.sprite_offset_y;
         for (int row = 0; row < kRows; ++row) {
             for (int col = 0; col < kCols; ++col) {
                 const int sx = grid_x + col * (kSlotW + kSlotGapX) + dx;
@@ -617,9 +672,9 @@ void BoxViewport::renderBelowNamePlate(SDL_Renderer* renderer) const {
                         drawTextureCenteredScaledRaw(
                             renderer,
                             *slot,
-                            sx + kSlotW / 2,
-                            sy + kSlotH / 2 + style_.sprite_offset_y,
-                            style_.sprite_scale);
+                            sx + kSlotW / 2 + sprite_off_x,
+                            sy + kSlotH / 2 + sprite_off_y,
+                            sprite_scale);
                     }
                 }
             }
@@ -656,16 +711,22 @@ void BoxViewport::renderBelowNamePlate(SDL_Renderer* renderer) const {
 
     auto draw_box_space_button = [&](int btn_left_x) {
         const int btn_y = footer_row_y;
-        fillRoundedRectScanlines(renderer, btn_left_x, btn_y, kBoxSpaceBtnW, kBoxSpaceBtnH - kButtonStripH, 4, kButtonMain);
+        const Color active_fill{46, 176, 92, 255};
+        const Color active_underline{36, 150, 78, 255};
+        const bool active = box_space_active_;
+        const Color fill = active ? active_fill : kButtonMain;
+        const Color underline = active ? active_underline : kButtonUnderline;
+        fillRoundedRectScanlines(renderer, btn_left_x, btn_y, kBoxSpaceBtnW, kBoxSpaceBtnH - kButtonStripH, 4, fill);
         SDL_Rect under{btn_left_x, btn_y + kBoxSpaceBtnH - kButtonStripH, kBoxSpaceBtnW, kButtonStripH};
-        setDrawColor(renderer, kButtonUnderline);
+        setDrawColor(renderer, underline);
         SDL_RenderFillRect(renderer, &under);
 
-        if (box_space_label_tex_.texture) {
-            const int bx = btn_left_x + kBoxSpaceBtnW / 2 - box_space_label_tex_.width / 2;
-            const int by = btn_y + (kBoxSpaceBtnH - kButtonStripH) / 2 - box_space_label_tex_.height / 2;
-            SDL_Rect bd{bx, by, box_space_label_tex_.width, box_space_label_tex_.height};
-            SDL_RenderCopy(renderer, box_space_label_tex_.texture.get(), nullptr, &bd);
+        const TextureHandle& label = active ? box_space_label_tex_white_ : box_space_label_tex_;
+        if (label.texture) {
+            const int bx = btn_left_x + kBoxSpaceBtnW / 2 - label.width / 2;
+            const int by = btn_y + (kBoxSpaceBtnH - kButtonStripH) / 2 - label.height / 2;
+            SDL_Rect bd{bx, by, label.width, label.height};
+            SDL_RenderCopy(renderer, label.texture.get(), nullptr, &bd);
         }
     };
 
@@ -677,12 +738,20 @@ void BoxViewport::renderBelowNamePlate(SDL_Renderer* renderer) const {
         draw_game_icon_at(vx + BoxViewport::kViewportWidth - kFooterEdgePad - kGameIconSize);
     }
 
-    if (role_ == BoxViewportRole::ResortStorage && arrow_tex_.texture) {
-        const int grid_mid_x = grid_x + grid_w / 2;
-        const int scroll_cy =
-            grid_bottom + kScrollBelowSlots + arrow_tex_.height / 2 + style_.footer_scroll_arrow_offset_y;
-        // Left-pointing asset; counter-clockwise 90° is downward (SDL angle is clockwise, so use -90°).
-        drawArrowRotated(renderer, arrow_tex_, grid_mid_x, scroll_cy, -90.0, style_.arrow_mod_color);
+    if (arrow_tex_.texture) {
+        if (role_ == BoxViewportRole::ResortStorage) {
+            const int grid_mid_x = grid_x + grid_w / 2;
+            const int scroll_cy =
+                grid_bottom + kScrollBelowSlots + arrow_tex_.height / 2 + style_.footer_scroll_arrow_offset_y;
+            // Left-pointing asset; counter-clockwise 90° is downward (SDL angle is clockwise, so use -90°).
+            drawArrowRotated(renderer, arrow_tex_, grid_mid_x, scroll_cy, -90.0, style_.arrow_mod_color);
+        } else if (role_ == BoxViewportRole::ExternalGameSave && header_mode_ == HeaderMode::BoxSpace &&
+                   box_space_scroll_arrow_visible_) {
+            const int grid_mid_x = grid_x + grid_w / 2;
+            const int scroll_cy =
+                grid_bottom + kScrollBelowSlots + arrow_tex_.height / 2 + style_.footer_scroll_arrow_offset_y;
+            drawArrowRotated(renderer, arrow_tex_, grid_mid_x, scroll_cy, -90.0, style_.arrow_mod_color);
+        }
     }
 }
 
@@ -702,7 +771,7 @@ void BoxViewport::renderNamePlate(SDL_Renderer* renderer) const {
     }
 
     const int pill_cy = pill_y + kNamePillH / 2;
-    if (arrow_tex_.texture) {
+    if (arrow_tex_.texture && header_mode_ == HeaderMode::Normal) {
         const int left_cx = pill_x - kNameToArrowGap - arrow_tex_.width / 2;
         drawArrowRotated(renderer, arrow_tex_, left_cx, pill_cy, 0.0, style_.arrow_mod_color);
         const int right_cx = pill_x + kNamePillW + kNameToArrowGap + arrow_tex_.width / 2;

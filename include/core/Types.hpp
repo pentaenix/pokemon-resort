@@ -211,6 +211,12 @@ struct GameTransferBoxViewportStyle {
     double sprite_scale = 2.0;
     /// Vertical offset applied to sprite center within each slot (positive moves down).
     int sprite_offset_y = 0;
+
+    // --- Box Space grid sprites (full/empty/noempty) ---
+    // Separate from Pokémon sprite sizing so the box icons can be tuned independently.
+    double box_space_sprite_scale = 2.0;
+    int box_space_sprite_offset_x = 0;
+    int box_space_sprite_offset_y = 0;
 };
 
 /// Browser-style Pokémon / Items pill (`config/game_transfer.json` → `pill_toggle`). Default aligns with the **right** box column.
