@@ -1,0 +1,7244 @@
+{
+  "generated_at": "2026-04-22T21:47:47Z",
+  "purpose": "Tracks unofficial pokesprite additions merged into pokemon-gen8 and pokemon.json so the sprites can be replaced later without rebuilding metadata from scratch.",
+  "sources": [
+    {
+      "name": "Martim Lobao",
+      "status": "permission pending",
+      "url": "https://github.com/martimlobao/pokesprite"
+    },
+    {
+      "name": "ACPeters",
+      "status": "permission pending",
+      "url": "https://www.deviantart.com/acpeters/art/Mega-Absol-Sword-and-Shield-Icon-1188104467"
+    }
+  ],
+  "sprite_merge": {
+    "destination": "assets/pokesprite/pokemon-gen8",
+    "total_files_copied": 306,
+    "new_files": [
+      "regular/annihilape.png",
+      "regular/appletun-gmax.png",
+      "regular/arboliva.png",
+      "regular/archaludon.png",
+      "regular/arctibax.png",
+      "regular/armarouge.png",
+      "regular/barbaracle-mega.png",
+      "regular/baxcalibur.png",
+      "regular/bellibolt.png",
+      "regular/bombirdier.png",
+      "regular/brambleghast.png",
+      "regular/bramblin.png",
+      "regular/browt.png",
+      "regular/brute-bonnet.png",
+      "regular/capsakid.png",
+      "regular/ceruledge.png",
+      "regular/cetitan.png",
+      "regular/cetoddle.png",
+      "regular/chandelure-mega.png",
+      "regular/charcadet.png",
+      "regular/chesnaught-mega.png",
+      "regular/chi-yu.png",
+      "regular/chien-pao.png",
+      "regular/clefable-mega.png",
+      "regular/clodsire.png",
+      "regular/crocalor.png",
+      "regular/cyclizar-mount.png",
+      "regular/cyclizar.png",
+      "regular/dachsbun.png",
+      "regular/delphox-mega.png",
+      "regular/dipplin.png",
+      "regular/dolliv.png",
+      "regular/dondozo.png",
+      "regular/dragalge-mega.png",
+      "regular/dragonite-mega.png",
+      "regular/drampa-mega.png",
+      "regular/dudunsparce-three-segment.png",
+      "regular/dudunsparce.png",
+      "regular/eelektross-mega.png",
+      "regular/emboar-mega.png",
+      "regular/espathra.png",
+      "regular/excadrill-mega.png",
+      "regular/falinks-mega.png",
+      "regular/farigiraf.png",
+      "regular/female/oinkologne.png",
+      "regular/feraligatr-mega.png",
+      "regular/fezandipiti.png",
+      "regular/fidough.png",
+      "regular/finizen.png",
+      "regular/flamigo.png",
+      "regular/flittle.png",
+      "regular/floette-mega.png",
+      "regular/floragato.png",
+      "regular/flutter-mane.png",
+      "regular/frigibax.png",
+      "regular/froslass-mega.png",
+      "regular/fuecoco.png",
+      "regular/garchomp-mega-z.png",
+      "regular/garganacl.png",
+      "regular/gecqua.png",
+      "regular/genesect-no-drive.png",
+      "regular/gholdengo.png",
+      "regular/gimmighoul-roaming.png",
+      "regular/gimmighoul.png",
+      "regular/glimmet.png",
+      "regular/glimmora.png",
+      "regular/golurk-mega.png",
+      "regular/gouging-fire.png",
+      "regular/grafaiai.png",
+      "regular/great-tusk.png",
+      "regular/greavard.png",
+      "regular/greninja-mega.png",
+      "regular/hawlucha-mega.png",
+      "regular/houndstone.png",
+      "regular/hydrapple.png",
+      "regular/iron-boulder.png",
+      "regular/iron-bundle.png",
+      "regular/iron-crown.png",
+      "regular/iron-hands.png",
+      "regular/iron-jugulis.png",
+      "regular/iron-leaves.png",
+      "regular/iron-moth.png",
+      "regular/iron-thorns.png",
+      "regular/iron-treads.png",
+      "regular/iron-valiant.png",
+      "regular/kilowattrel.png",
+      "regular/kingambit.png",
+      "regular/klawf.png",
+      "regular/koraidon-mount.png",
+      "regular/koraidon.png",
+      "regular/lechonk.png",
+      "regular/lokix.png",
+      "regular/lucario-mega-z.png",
+      "regular/mabosstiff.png",
+      "regular/malamar-mega.png",
+      "regular/maschiff.png",
+      "regular/maushold-family-of-four.png",
+      "regular/maushold.png",
+      "regular/meganium-mega.png",
+      "regular/meowscarada.png",
+      "regular/meowstic-mega.png",
+      "regular/miraidon-mount.png",
+      "regular/miraidon.png",
+      "regular/munkidori.png",
+      "regular/nacli.png",
+      "regular/naclstack.png",
+      "regular/nymble.png",
+      "regular/ogerpon-cornerstone-mask.png",
+      "regular/ogerpon-hearthflame-mask.png",
+      "regular/ogerpon-teal-mask.png",
+      "regular/ogerpon-wellspring-mask.png",
+      "regular/oinkologne.png",
+      "regular/okidogi.png",
+      "regular/orthworm.png",
+      "regular/palafin-hero.png",
+      "regular/palafin.png",
+      "regular/pawmi.png",
+      "regular/pawmo.png",
+      "regular/pawmot.png",
+      "regular/pecharunt.png",
+      "regular/poltchageist.png",
+      "regular/pombon.png",
+      "regular/pyroar-mega.png",
+      "regular/quaquaval.png",
+      "regular/quaxly.png",
+      "regular/quaxwell.png",
+      "regular/rabsca.png",
+      "regular/raging-bolt.png",
+      "regular/raichu-mega-x.png",
+      "regular/raichu-mega-y.png",
+      "regular/rellor.png",
+      "regular/revavroom.png",
+      "regular/roaring-moon.png",
+      "regular/rotom-stereo.png",
+      "regular/sandy-shocks.png",
+      "regular/scolipede-mega.png",
+      "regular/scovillain.png",
+      "regular/scrafty-mega.png",
+      "regular/scream-tail.png",
+      "regular/shroodle.png",
+      "regular/sinistcha.png",
+      "regular/skarmory-mega.png",
+      "regular/skeledirge.png",
+      "regular/slither-wing.png",
+      "regular/smoliv.png",
+      "regular/spidops.png",
+      "regular/sprigatito.png",
+      "regular/squawkabilly-blue.png",
+      "regular/squawkabilly-green.png",
+      "regular/squawkabilly-white.png",
+      "regular/squawkabilly-yellow.png",
+      "regular/staraptor-mega.png",
+      "regular/starmie-mega.png",
+      "regular/tadbulb.png",
+      "regular/tandemaus.png",
+      "regular/tarountula.png",
+      "regular/tatsugiri-droopy.png",
+      "regular/tatsugiri-stretchy.png",
+      "regular/tatsugiri.png",
+      "regular/tauros-aqua-breed.png",
+      "regular/tauros-blaze-breed.png",
+      "regular/tauros-combat-breed.png",
+      "regular/terapagos-stellar.png",
+      "regular/terapagos-terastal.png",
+      "regular/terapagos.png",
+      "regular/ting-lu.png",
+      "regular/tinkatink.png",
+      "regular/tinkaton.png",
+      "regular/tinkatuff.png",
+      "regular/toedscool.png",
+      "regular/toedscruel.png",
+      "regular/ursaluna-bloodmoon.png",
+      "regular/varoom.png",
+      "regular/veluza.png",
+      "regular/victreebel-mega.png",
+      "regular/walking-wake.png",
+      "regular/wattrel.png",
+      "regular/wiglett.png",
+      "regular/wo-chien.png",
+      "regular/wooper-paldea.png",
+      "regular/wugtrio.png",
+      "regular/zeraora-mega.png",
+      "regular/zygarde-mega.png",
+      "shiny/annihilape.png",
+      "shiny/appletun-gmax.png",
+      "shiny/arboliva.png",
+      "shiny/arctibax.png",
+      "shiny/armarouge.png",
+      "shiny/baxcalibur.png",
+      "shiny/bellibolt.png",
+      "shiny/bombirdier.png",
+      "shiny/brambleghast.png",
+      "shiny/bramblin.png",
+      "shiny/brute-bonnet.png",
+      "shiny/capsakid.png",
+      "shiny/ceruledge.png",
+      "shiny/cetitan.png",
+      "shiny/cetoddle.png",
+      "shiny/charcadet.png",
+      "shiny/chi-yu.png",
+      "shiny/chien-pao.png",
+      "shiny/clodsire.png",
+      "shiny/crocalor.png",
+      "shiny/cyclizar-mount.png",
+      "shiny/cyclizar.png",
+      "shiny/dachsbun.png",
+      "shiny/dolliv.png",
+      "shiny/dondozo.png",
+      "shiny/dudunsparce-three-segment.png",
+      "shiny/dudunsparce.png",
+      "shiny/espathra.png",
+      "shiny/farigiraf.png",
+      "shiny/female/oinkologne.png",
+      "shiny/fidough.png",
+      "shiny/finizen.png",
+      "shiny/flamigo.png",
+      "shiny/flittle.png",
+      "shiny/floragato.png",
+      "shiny/flutter-mane.png",
+      "shiny/frigibax.png",
+      "shiny/fuecoco.png",
+      "shiny/garganacl.png",
+      "shiny/genesect-no-drive.png",
+      "shiny/gholdengo.png",
+      "shiny/gimmighoul-roaming.png",
+      "shiny/gimmighoul.png",
+      "shiny/glimmet.png",
+      "shiny/glimmora.png",
+      "shiny/grafaiai.png",
+      "shiny/great-tusk.png",
+      "shiny/greavard.png",
+      "shiny/houndstone.png",
+      "shiny/iron-bundle.png",
+      "shiny/iron-hands.png",
+      "shiny/iron-jugulis.png",
+      "shiny/iron-moth.png",
+      "shiny/iron-thorns.png",
+      "shiny/iron-treads.png",
+      "shiny/iron-valiant.png",
+      "shiny/kilowattrel.png",
+      "shiny/kingambit.png",
+      "shiny/klawf.png",
+      "shiny/koraidon-mount.png",
+      "shiny/koraidon.png",
+      "shiny/lechonk.png",
+      "shiny/lokix.png",
+      "shiny/mabosstiff.png",
+      "shiny/maschiff.png",
+      "shiny/maushold-family-of-four.png",
+      "shiny/maushold.png",
+      "shiny/meowscarada.png",
+      "shiny/miraidon-mount.png",
+      "shiny/miraidon.png",
+      "shiny/nacli.png",
+      "shiny/naclstack.png",
+      "shiny/nymble.png",
+      "shiny/oinkologne.png",
+      "shiny/orthworm.png",
+      "shiny/palafin-hero.png",
+      "shiny/palafin.png",
+      "shiny/pawmi.png",
+      "shiny/pawmo.png",
+      "shiny/pawmot.png",
+      "shiny/quaquaval.png",
+      "shiny/quaxly.png",
+      "shiny/quaxwell.png",
+      "shiny/rabsca.png",
+      "shiny/rellor.png",
+      "shiny/revavroom.png",
+      "shiny/roaring-moon.png",
+      "shiny/sandy-shocks.png",
+      "shiny/scovillain.png",
+      "shiny/scream-tail.png",
+      "shiny/shroodle.png",
+      "shiny/skeledirge.png",
+      "shiny/slither-wing.png",
+      "shiny/smoliv.png",
+      "shiny/spidops.png",
+      "shiny/sprigatito.png",
+      "shiny/squawkabilly-blue.png",
+      "shiny/squawkabilly-green.png",
+      "shiny/squawkabilly-white.png",
+      "shiny/squawkabilly-yellow.png",
+      "shiny/tadbulb.png",
+      "shiny/tandemaus.png",
+      "shiny/tarountula.png",
+      "shiny/tatsugiri-droopy.png",
+      "shiny/tatsugiri-stretchy.png",
+      "shiny/tatsugiri.png",
+      "shiny/tauros-aqua-breed.png",
+      "shiny/tauros-blaze-breed.png",
+      "shiny/tauros-combat-breed.png",
+      "shiny/ting-lu.png",
+      "shiny/tinkatink.png",
+      "shiny/tinkaton.png",
+      "shiny/tinkatuff.png",
+      "shiny/toedscool.png",
+      "shiny/toedscruel.png",
+      "shiny/varoom.png",
+      "shiny/veluza.png",
+      "shiny/wattrel.png",
+      "shiny/wiglett.png",
+      "shiny/wo-chien.png",
+      "shiny/wooper-paldea.png",
+      "shiny/wugtrio.png"
+    ],
+    "overwritten_existing_files": [
+      "regular/absol-mega.png"
+    ],
+    "all_copied_files": [
+      "regular/absol-mega.png",
+      "regular/annihilape.png",
+      "regular/appletun-gmax.png",
+      "regular/arboliva.png",
+      "regular/archaludon.png",
+      "regular/arctibax.png",
+      "regular/armarouge.png",
+      "regular/barbaracle-mega.png",
+      "regular/baxcalibur.png",
+      "regular/bellibolt.png",
+      "regular/bombirdier.png",
+      "regular/brambleghast.png",
+      "regular/bramblin.png",
+      "regular/browt.png",
+      "regular/brute-bonnet.png",
+      "regular/capsakid.png",
+      "regular/ceruledge.png",
+      "regular/cetitan.png",
+      "regular/cetoddle.png",
+      "regular/chandelure-mega.png",
+      "regular/charcadet.png",
+      "regular/chesnaught-mega.png",
+      "regular/chi-yu.png",
+      "regular/chien-pao.png",
+      "regular/clefable-mega.png",
+      "regular/clodsire.png",
+      "regular/crocalor.png",
+      "regular/cyclizar-mount.png",
+      "regular/cyclizar.png",
+      "regular/dachsbun.png",
+      "regular/delphox-mega.png",
+      "regular/dipplin.png",
+      "regular/dolliv.png",
+      "regular/dondozo.png",
+      "regular/dragalge-mega.png",
+      "regular/dragonite-mega.png",
+      "regular/drampa-mega.png",
+      "regular/dudunsparce-three-segment.png",
+      "regular/dudunsparce.png",
+      "regular/eelektross-mega.png",
+      "regular/emboar-mega.png",
+      "regular/espathra.png",
+      "regular/excadrill-mega.png",
+      "regular/falinks-mega.png",
+      "regular/farigiraf.png",
+      "regular/female/oinkologne.png",
+      "regular/feraligatr-mega.png",
+      "regular/fezandipiti.png",
+      "regular/fidough.png",
+      "regular/finizen.png",
+      "regular/flamigo.png",
+      "regular/flittle.png",
+      "regular/floette-mega.png",
+      "regular/floragato.png",
+      "regular/flutter-mane.png",
+      "regular/frigibax.png",
+      "regular/froslass-mega.png",
+      "regular/fuecoco.png",
+      "regular/garchomp-mega-z.png",
+      "regular/garganacl.png",
+      "regular/gecqua.png",
+      "regular/genesect-no-drive.png",
+      "regular/gholdengo.png",
+      "regular/gimmighoul-roaming.png",
+      "regular/gimmighoul.png",
+      "regular/glimmet.png",
+      "regular/glimmora.png",
+      "regular/golurk-mega.png",
+      "regular/gouging-fire.png",
+      "regular/grafaiai.png",
+      "regular/great-tusk.png",
+      "regular/greavard.png",
+      "regular/greninja-mega.png",
+      "regular/hawlucha-mega.png",
+      "regular/houndstone.png",
+      "regular/hydrapple.png",
+      "regular/iron-boulder.png",
+      "regular/iron-bundle.png",
+      "regular/iron-crown.png",
+      "regular/iron-hands.png",
+      "regular/iron-jugulis.png",
+      "regular/iron-leaves.png",
+      "regular/iron-moth.png",
+      "regular/iron-thorns.png",
+      "regular/iron-treads.png",
+      "regular/iron-valiant.png",
+      "regular/kilowattrel.png",
+      "regular/kingambit.png",
+      "regular/klawf.png",
+      "regular/koraidon-mount.png",
+      "regular/koraidon.png",
+      "regular/lechonk.png",
+      "regular/lokix.png",
+      "regular/lucario-mega-z.png",
+      "regular/mabosstiff.png",
+      "regular/malamar-mega.png",
+      "regular/maschiff.png",
+      "regular/maushold-family-of-four.png",
+      "regular/maushold.png",
+      "regular/meganium-mega.png",
+      "regular/meowscarada.png",
+      "regular/meowstic-mega.png",
+      "regular/miraidon-mount.png",
+      "regular/miraidon.png",
+      "regular/munkidori.png",
+      "regular/nacli.png",
+      "regular/naclstack.png",
+      "regular/nymble.png",
+      "regular/ogerpon-cornerstone-mask.png",
+      "regular/ogerpon-hearthflame-mask.png",
+      "regular/ogerpon-teal-mask.png",
+      "regular/ogerpon-wellspring-mask.png",
+      "regular/oinkologne.png",
+      "regular/okidogi.png",
+      "regular/orthworm.png",
+      "regular/palafin-hero.png",
+      "regular/palafin.png",
+      "regular/pawmi.png",
+      "regular/pawmo.png",
+      "regular/pawmot.png",
+      "regular/pecharunt.png",
+      "regular/poltchageist.png",
+      "regular/pombon.png",
+      "regular/pyroar-mega.png",
+      "regular/quaquaval.png",
+      "regular/quaxly.png",
+      "regular/quaxwell.png",
+      "regular/rabsca.png",
+      "regular/raging-bolt.png",
+      "regular/raichu-mega-x.png",
+      "regular/raichu-mega-y.png",
+      "regular/rellor.png",
+      "regular/revavroom.png",
+      "regular/roaring-moon.png",
+      "regular/rotom-stereo.png",
+      "regular/sandy-shocks.png",
+      "regular/scolipede-mega.png",
+      "regular/scovillain.png",
+      "regular/scrafty-mega.png",
+      "regular/scream-tail.png",
+      "regular/shroodle.png",
+      "regular/sinistcha.png",
+      "regular/skarmory-mega.png",
+      "regular/skeledirge.png",
+      "regular/slither-wing.png",
+      "regular/smoliv.png",
+      "regular/spidops.png",
+      "regular/sprigatito.png",
+      "regular/squawkabilly-blue.png",
+      "regular/squawkabilly-green.png",
+      "regular/squawkabilly-white.png",
+      "regular/squawkabilly-yellow.png",
+      "regular/staraptor-mega.png",
+      "regular/starmie-mega.png",
+      "regular/tadbulb.png",
+      "regular/tandemaus.png",
+      "regular/tarountula.png",
+      "regular/tatsugiri-droopy.png",
+      "regular/tatsugiri-stretchy.png",
+      "regular/tatsugiri.png",
+      "regular/tauros-aqua-breed.png",
+      "regular/tauros-blaze-breed.png",
+      "regular/tauros-combat-breed.png",
+      "regular/terapagos-stellar.png",
+      "regular/terapagos-terastal.png",
+      "regular/terapagos.png",
+      "regular/ting-lu.png",
+      "regular/tinkatink.png",
+      "regular/tinkaton.png",
+      "regular/tinkatuff.png",
+      "regular/toedscool.png",
+      "regular/toedscruel.png",
+      "regular/ursaluna-bloodmoon.png",
+      "regular/varoom.png",
+      "regular/veluza.png",
+      "regular/victreebel-mega.png",
+      "regular/walking-wake.png",
+      "regular/wattrel.png",
+      "regular/wiglett.png",
+      "regular/wo-chien.png",
+      "regular/wooper-paldea.png",
+      "regular/wugtrio.png",
+      "regular/zeraora-mega.png",
+      "regular/zygarde-mega.png",
+      "shiny/annihilape.png",
+      "shiny/appletun-gmax.png",
+      "shiny/arboliva.png",
+      "shiny/arctibax.png",
+      "shiny/armarouge.png",
+      "shiny/baxcalibur.png",
+      "shiny/bellibolt.png",
+      "shiny/bombirdier.png",
+      "shiny/brambleghast.png",
+      "shiny/bramblin.png",
+      "shiny/brute-bonnet.png",
+      "shiny/capsakid.png",
+      "shiny/ceruledge.png",
+      "shiny/cetitan.png",
+      "shiny/cetoddle.png",
+      "shiny/charcadet.png",
+      "shiny/chi-yu.png",
+      "shiny/chien-pao.png",
+      "shiny/clodsire.png",
+      "shiny/crocalor.png",
+      "shiny/cyclizar-mount.png",
+      "shiny/cyclizar.png",
+      "shiny/dachsbun.png",
+      "shiny/dolliv.png",
+      "shiny/dondozo.png",
+      "shiny/dudunsparce-three-segment.png",
+      "shiny/dudunsparce.png",
+      "shiny/espathra.png",
+      "shiny/farigiraf.png",
+      "shiny/female/oinkologne.png",
+      "shiny/fidough.png",
+      "shiny/finizen.png",
+      "shiny/flamigo.png",
+      "shiny/flittle.png",
+      "shiny/floragato.png",
+      "shiny/flutter-mane.png",
+      "shiny/frigibax.png",
+      "shiny/fuecoco.png",
+      "shiny/garganacl.png",
+      "shiny/genesect-no-drive.png",
+      "shiny/gholdengo.png",
+      "shiny/gimmighoul-roaming.png",
+      "shiny/gimmighoul.png",
+      "shiny/glimmet.png",
+      "shiny/glimmora.png",
+      "shiny/grafaiai.png",
+      "shiny/great-tusk.png",
+      "shiny/greavard.png",
+      "shiny/houndstone.png",
+      "shiny/iron-bundle.png",
+      "shiny/iron-hands.png",
+      "shiny/iron-jugulis.png",
+      "shiny/iron-moth.png",
+      "shiny/iron-thorns.png",
+      "shiny/iron-treads.png",
+      "shiny/iron-valiant.png",
+      "shiny/kilowattrel.png",
+      "shiny/kingambit.png",
+      "shiny/klawf.png",
+      "shiny/koraidon-mount.png",
+      "shiny/koraidon.png",
+      "shiny/lechonk.png",
+      "shiny/lokix.png",
+      "shiny/mabosstiff.png",
+      "shiny/maschiff.png",
+      "shiny/maushold-family-of-four.png",
+      "shiny/maushold.png",
+      "shiny/meowscarada.png",
+      "shiny/miraidon-mount.png",
+      "shiny/miraidon.png",
+      "shiny/nacli.png",
+      "shiny/naclstack.png",
+      "shiny/nymble.png",
+      "shiny/oinkologne.png",
+      "shiny/orthworm.png",
+      "shiny/palafin-hero.png",
+      "shiny/palafin.png",
+      "shiny/pawmi.png",
+      "shiny/pawmo.png",
+      "shiny/pawmot.png",
+      "shiny/quaquaval.png",
+      "shiny/quaxly.png",
+      "shiny/quaxwell.png",
+      "shiny/rabsca.png",
+      "shiny/rellor.png",
+      "shiny/revavroom.png",
+      "shiny/roaring-moon.png",
+      "shiny/sandy-shocks.png",
+      "shiny/scovillain.png",
+      "shiny/scream-tail.png",
+      "shiny/shroodle.png",
+      "shiny/skeledirge.png",
+      "shiny/slither-wing.png",
+      "shiny/smoliv.png",
+      "shiny/spidops.png",
+      "shiny/sprigatito.png",
+      "shiny/squawkabilly-blue.png",
+      "shiny/squawkabilly-green.png",
+      "shiny/squawkabilly-white.png",
+      "shiny/squawkabilly-yellow.png",
+      "shiny/tadbulb.png",
+      "shiny/tandemaus.png",
+      "shiny/tarountula.png",
+      "shiny/tatsugiri-droopy.png",
+      "shiny/tatsugiri-stretchy.png",
+      "shiny/tatsugiri.png",
+      "shiny/tauros-aqua-breed.png",
+      "shiny/tauros-blaze-breed.png",
+      "shiny/tauros-combat-breed.png",
+      "shiny/ting-lu.png",
+      "shiny/tinkatink.png",
+      "shiny/tinkaton.png",
+      "shiny/tinkatuff.png",
+      "shiny/toedscool.png",
+      "shiny/toedscruel.png",
+      "shiny/varoom.png",
+      "shiny/veluza.png",
+      "shiny/wattrel.png",
+      "shiny/wiglett.png",
+      "shiny/wo-chien.png",
+      "shiny/wooper-paldea.png",
+      "shiny/wugtrio.png"
+    ]
+  },
+  "pokemon_json_merge": {
+    "path": "assets/pokesprite/data/pokemon.json",
+    "added_entry_ids": [
+      "906",
+      "907",
+      "908",
+      "909",
+      "910",
+      "911",
+      "912",
+      "913",
+      "914",
+      "915",
+      "916",
+      "917",
+      "918",
+      "919",
+      "920",
+      "921",
+      "922",
+      "923",
+      "924",
+      "925",
+      "926",
+      "927",
+      "928",
+      "929",
+      "930",
+      "931",
+      "932",
+      "933",
+      "934",
+      "935",
+      "936",
+      "937",
+      "938",
+      "939",
+      "940",
+      "941",
+      "942",
+      "943",
+      "944",
+      "945",
+      "946",
+      "947",
+      "948",
+      "949",
+      "950",
+      "951",
+      "952",
+      "953",
+      "954",
+      "955",
+      "956",
+      "957",
+      "958",
+      "959",
+      "960",
+      "961",
+      "962",
+      "963",
+      "964",
+      "965",
+      "966",
+      "967",
+      "968",
+      "969",
+      "970",
+      "971",
+      "972",
+      "973",
+      "974",
+      "975",
+      "976",
+      "977",
+      "978",
+      "979",
+      "980",
+      "981",
+      "982",
+      "983",
+      "984",
+      "985",
+      "986",
+      "987",
+      "988",
+      "989",
+      "990",
+      "991",
+      "992",
+      "993",
+      "994",
+      "995",
+      "996",
+      "997",
+      "998",
+      "999",
+      "1000",
+      "1001",
+      "1002",
+      "1003",
+      "1004",
+      "1005",
+      "1006",
+      "1007",
+      "1008",
+      "1009",
+      "1010",
+      "1011",
+      "1012",
+      "1013",
+      "1014",
+      "1015",
+      "1016",
+      "1017",
+      "1018",
+      "1019",
+      "1020",
+      "1021",
+      "1022",
+      "1023",
+      "1024",
+      "1025"
+    ],
+    "updated_entry_ids": [
+      "036",
+      "071",
+      "121",
+      "128",
+      "149",
+      "154",
+      "160",
+      "194",
+      "227",
+      "478",
+      "500",
+      "530",
+      "545",
+      "560",
+      "604",
+      "609",
+      "649",
+      "652",
+      "655",
+      "658",
+      "668",
+      "670",
+      "687",
+      "689",
+      "691",
+      "701",
+      "718",
+      "780",
+      "842",
+      "870",
+      "901"
+    ],
+    "gen8_forms_by_entry": {
+      "036": [
+        "$",
+        "mega"
+      ],
+      "071": [
+        "$",
+        "mega"
+      ],
+      "121": [
+        "$",
+        "mega"
+      ],
+      "128": [
+        "$",
+        "aqua-breed",
+        "blaze-breed",
+        "combat-breed"
+      ],
+      "149": [
+        "$",
+        "mega"
+      ],
+      "154": [
+        "$",
+        "mega"
+      ],
+      "160": [
+        "$",
+        "mega"
+      ],
+      "194": [
+        "$",
+        "paldea"
+      ],
+      "227": [
+        "$",
+        "mega"
+      ],
+      "478": [
+        "$",
+        "mega"
+      ],
+      "500": [
+        "$",
+        "mega"
+      ],
+      "530": [
+        "$",
+        "mega"
+      ],
+      "545": [
+        "$",
+        "mega"
+      ],
+      "560": [
+        "$",
+        "mega"
+      ],
+      "604": [
+        "$",
+        "mega"
+      ],
+      "609": [
+        "$",
+        "mega"
+      ],
+      "649": [
+        "$",
+        "burn",
+        "chill",
+        "douse",
+        "no-drive",
+        "shock",
+        "standard"
+      ],
+      "652": [
+        "$",
+        "mega"
+      ],
+      "655": [
+        "$",
+        "mega"
+      ],
+      "658": [
+        "$",
+        "ash",
+        "battle-bond",
+        "mega"
+      ],
+      "668": [
+        "$",
+        "mega"
+      ],
+      "670": [
+        "$",
+        "blue",
+        "eternal",
+        "mega",
+        "orange",
+        "red",
+        "white",
+        "yellow"
+      ],
+      "687": [
+        "$",
+        "mega"
+      ],
+      "689": [
+        "$",
+        "mega"
+      ],
+      "691": [
+        "$",
+        "mega"
+      ],
+      "701": [
+        "$",
+        "mega"
+      ],
+      "718": [
+        "$",
+        "10",
+        "50",
+        "complete",
+        "mega"
+      ],
+      "780": [
+        "$",
+        "mega"
+      ],
+      "842": [
+        "$",
+        "gmax"
+      ],
+      "870": [
+        "$",
+        "mega"
+      ],
+      "901": [
+        "$",
+        "bloodmoon"
+      ],
+      "906": [
+        "$"
+      ],
+      "907": [
+        "$"
+      ],
+      "908": [
+        "$"
+      ],
+      "909": [
+        "$"
+      ],
+      "910": [
+        "$"
+      ],
+      "911": [
+        "$"
+      ],
+      "912": [
+        "$"
+      ],
+      "913": [
+        "$"
+      ],
+      "914": [
+        "$"
+      ],
+      "915": [
+        "$"
+      ],
+      "916": [
+        "$"
+      ],
+      "917": [
+        "$"
+      ],
+      "918": [
+        "$"
+      ],
+      "919": [
+        "$"
+      ],
+      "920": [
+        "$"
+      ],
+      "921": [
+        "$"
+      ],
+      "922": [
+        "$"
+      ],
+      "923": [
+        "$"
+      ],
+      "924": [
+        "$"
+      ],
+      "925": [
+        "$",
+        "family-of-four"
+      ],
+      "926": [
+        "$"
+      ],
+      "927": [
+        "$"
+      ],
+      "928": [
+        "$"
+      ],
+      "929": [
+        "$"
+      ],
+      "930": [
+        "$"
+      ],
+      "931": [
+        "blue",
+        "green",
+        "white",
+        "yellow"
+      ],
+      "932": [
+        "$"
+      ],
+      "933": [
+        "$"
+      ],
+      "934": [
+        "$"
+      ],
+      "935": [
+        "$"
+      ],
+      "936": [
+        "$"
+      ],
+      "937": [
+        "$"
+      ],
+      "938": [
+        "$"
+      ],
+      "939": [
+        "$"
+      ],
+      "940": [
+        "$"
+      ],
+      "941": [
+        "$"
+      ],
+      "942": [
+        "$"
+      ],
+      "943": [
+        "$"
+      ],
+      "944": [
+        "$"
+      ],
+      "945": [
+        "$"
+      ],
+      "946": [
+        "$"
+      ],
+      "947": [
+        "$"
+      ],
+      "948": [
+        "$"
+      ],
+      "949": [
+        "$"
+      ],
+      "950": [
+        "$"
+      ],
+      "951": [
+        "$"
+      ],
+      "952": [
+        "$"
+      ],
+      "953": [
+        "$"
+      ],
+      "954": [
+        "$"
+      ],
+      "955": [
+        "$"
+      ],
+      "956": [
+        "$"
+      ],
+      "957": [
+        "$"
+      ],
+      "958": [
+        "$"
+      ],
+      "959": [
+        "$"
+      ],
+      "960": [
+        "$"
+      ],
+      "961": [
+        "$"
+      ],
+      "962": [
+        "$"
+      ],
+      "963": [
+        "$"
+      ],
+      "964": [
+        "$",
+        "hero"
+      ],
+      "965": [
+        "$"
+      ],
+      "966": [
+        "$"
+      ],
+      "967": [
+        "$",
+        "mount"
+      ],
+      "968": [
+        "$"
+      ],
+      "969": [
+        "$"
+      ],
+      "970": [
+        "$"
+      ],
+      "971": [
+        "$"
+      ],
+      "972": [
+        "$"
+      ],
+      "973": [
+        "$"
+      ],
+      "974": [
+        "$"
+      ],
+      "975": [
+        "$"
+      ],
+      "976": [
+        "$"
+      ],
+      "977": [
+        "$"
+      ],
+      "978": [
+        "$",
+        "droopy",
+        "stretchy"
+      ],
+      "979": [
+        "$"
+      ],
+      "980": [
+        "$"
+      ],
+      "981": [
+        "$"
+      ],
+      "982": [
+        "$",
+        "three-segment"
+      ],
+      "983": [
+        "$"
+      ],
+      "984": [
+        "$"
+      ],
+      "985": [
+        "$"
+      ],
+      "986": [
+        "$"
+      ],
+      "987": [
+        "$"
+      ],
+      "988": [
+        "$"
+      ],
+      "989": [
+        "$"
+      ],
+      "990": [
+        "$"
+      ],
+      "991": [
+        "$"
+      ],
+      "992": [
+        "$"
+      ],
+      "993": [
+        "$"
+      ],
+      "994": [
+        "$"
+      ],
+      "995": [
+        "$"
+      ],
+      "996": [
+        "$"
+      ],
+      "997": [
+        "$"
+      ],
+      "998": [
+        "$"
+      ],
+      "999": [
+        "$",
+        "roaming"
+      ],
+      "1000": [
+        "$"
+      ],
+      "1001": [
+        "$"
+      ],
+      "1002": [
+        "$"
+      ],
+      "1003": [
+        "$"
+      ],
+      "1004": [
+        "$"
+      ],
+      "1005": [
+        "$"
+      ],
+      "1006": [
+        "$"
+      ],
+      "1007": [
+        "$",
+        "mount"
+      ],
+      "1008": [
+        "$",
+        "mount"
+      ],
+      "1009": [
+        "$"
+      ],
+      "1010": [
+        "$"
+      ],
+      "1011": [
+        "$"
+      ],
+      "1012": [
+        "$"
+      ],
+      "1013": [
+        "$"
+      ],
+      "1014": [
+        "$"
+      ],
+      "1015": [
+        "$"
+      ],
+      "1016": [
+        "$"
+      ],
+      "1017": [
+        "cornerstone-mask",
+        "hearthflame-mask",
+        "teal-mask",
+        "wellspring-mask"
+      ],
+      "1018": [
+        "$"
+      ],
+      "1019": [
+        "$"
+      ],
+      "1020": [
+        "$"
+      ],
+      "1021": [
+        "$"
+      ],
+      "1022": [
+        "$"
+      ],
+      "1023": [
+        "$"
+      ],
+      "1024": [
+        "$",
+        "stellar",
+        "terastal"
+      ],
+      "1025": [
+        "$"
+      ]
+    },
+    "manual_followup_entry_ids": [
+      "026",
+      "359",
+      "398",
+      "445",
+      "448",
+      "479",
+      "623",
+      "678",
+      "807"
+    ],
+    "manual_followup_forms_by_entry": {
+      "359": [
+        "$",
+        "mega"
+      ],
+      "445": [
+        "$",
+        "mega",
+        "mega-z"
+      ],
+      "448": [
+        "$",
+        "mega",
+        "mega-z"
+      ],
+      "678": [
+        "$",
+        "mega"
+      ],
+      "807": [
+        "$",
+        "mega"
+      ],
+      "026": [
+        "$",
+        "alola",
+        "mega-x",
+        "mega-y"
+      ],
+      "398": [
+        "$",
+        "mega"
+      ],
+      "479": [
+        "$",
+        "fan",
+        "frost",
+        "heat",
+        "mow",
+        "stereo",
+        "wash"
+      ],
+      "623": [
+        "$",
+        "mega"
+      ]
+    },
+    "not_in_pokemon_json": [
+      {
+        "name": "pombon",
+        "reason": "No canonical PokeAPI/species metadata yet; sprite merged only"
+      },
+      {
+        "name": "browt",
+        "reason": "No canonical PokeAPI/species metadata yet; sprite merged only"
+      },
+      {
+        "name": "gecqua",
+        "reason": "No canonical PokeAPI/species metadata yet; sprite merged only"
+      }
+    ]
+  },
+  "replacement_notes": [
+    "If a sprite is replaced later, keep the same relative file path whenever possible so pokemon.json does not need to change.",
+    "If a future replacement changes form naming, update both the sprite file path and the matching gen-8 form key in pokemon.json.",
+    "Oinkologne female follows the standard female folder layout: regular/female/oinkologne.png and shiny/female/oinkologne.png."
+  ],
+  "normalization": {
+    "generated_at": "2026-04-22T21:55:36.256436Z",
+    "method": "Trim visible pixels and composite onto a 68x56 transparent canvas using reference occupied-zone averages from pre-existing sprites.",
+    "reference_targets": {
+      "regular": {
+        "target_cx": 34,
+        "target_bottom": 53
+      },
+      "shiny": {
+        "target_cx": 34,
+        "target_bottom": 53
+      }
+    },
+    "post_normalization_stats_for_added_files": {
+      "regular": {
+        "count": 184,
+        "avg_x": 21.19,
+        "avg_y": 25.772,
+        "avg_cx": 34.003,
+        "avg_bottom": 53,
+        "target_cx": 34,
+        "target_bottom": 53
+      },
+      "shiny": {
+        "count": 122,
+        "avg_x": 21.861,
+        "avg_y": 26.975,
+        "avg_cx": 33.988,
+        "avg_bottom": 53,
+        "target_cx": 34,
+        "target_bottom": 53
+      }
+    },
+    "normalized_files": [
+      {
+        "path": "regular/absol-mega.png",
+        "before": {
+          "x": 17,
+          "y": 13,
+          "w": 39,
+          "h": 38
+        },
+        "after": {
+          "x": 14,
+          "y": 15,
+          "w": 39,
+          "h": 38
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/annihilape.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 30,
+          "h": 32
+        },
+        "after": {
+          "x": 19,
+          "y": 21,
+          "w": 30,
+          "h": 32
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/appletun-gmax.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 27,
+          "h": 44
+        },
+        "after": {
+          "x": 20,
+          "y": 9,
+          "w": 27,
+          "h": 44
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/arboliva.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 32,
+          "h": 34
+        },
+        "after": {
+          "x": 18,
+          "y": 19,
+          "w": 32,
+          "h": 34
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/archaludon.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 31,
+          "h": 32
+        },
+        "after": {
+          "x": 18,
+          "y": 21,
+          "w": 31,
+          "h": 32
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/arctibax.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 23,
+          "h": 21
+        },
+        "after": {
+          "x": 22,
+          "y": 32,
+          "w": 23,
+          "h": 21
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/armarouge.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 21,
+          "h": 32
+        },
+        "after": {
+          "x": 24,
+          "y": 21,
+          "w": 21,
+          "h": 32
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/barbaracle-mega.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 30,
+          "h": 30
+        },
+        "after": {
+          "x": 19,
+          "y": 23,
+          "w": 30,
+          "h": 30
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/baxcalibur.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 36,
+          "h": 42
+        },
+        "after": {
+          "x": 16,
+          "y": 11,
+          "w": 36,
+          "h": 42
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/bellibolt.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 18,
+          "h": 20
+        },
+        "after": {
+          "x": 25,
+          "y": 33,
+          "w": 18,
+          "h": 20
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/bombirdier.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 16,
+          "h": 29
+        },
+        "after": {
+          "x": 26,
+          "y": 24,
+          "w": 16,
+          "h": 29
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/brambleghast.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 23,
+          "h": 23
+        },
+        "after": {
+          "x": 22,
+          "y": 30,
+          "w": 23,
+          "h": 23
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/bramblin.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 19,
+          "h": 19
+        },
+        "after": {
+          "x": 24,
+          "y": 34,
+          "w": 19,
+          "h": 19
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/browt.png",
+        "before": {
+          "x": 26,
+          "y": 25,
+          "w": 15,
+          "h": 19
+        },
+        "after": {
+          "x": 26,
+          "y": 34,
+          "w": 15,
+          "h": 19
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/brute-bonnet.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 20,
+          "h": 23
+        },
+        "after": {
+          "x": 24,
+          "y": 30,
+          "w": 20,
+          "h": 23
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/capsakid.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 14,
+          "h": 19
+        },
+        "after": {
+          "x": 27,
+          "y": 34,
+          "w": 14,
+          "h": 19
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/ceruledge.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 18,
+          "h": 32
+        },
+        "after": {
+          "x": 25,
+          "y": 21,
+          "w": 18,
+          "h": 32
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/cetitan.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 37,
+          "h": 25
+        },
+        "after": {
+          "x": 16,
+          "y": 28,
+          "w": 37,
+          "h": 25
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/cetoddle.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 19,
+          "h": 15
+        },
+        "after": {
+          "x": 24,
+          "y": 38,
+          "w": 19,
+          "h": 15
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/chandelure-mega.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 29,
+          "h": 30
+        },
+        "after": {
+          "x": 20,
+          "y": 23,
+          "w": 29,
+          "h": 30
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/charcadet.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 12,
+          "h": 25
+        },
+        "after": {
+          "x": 28,
+          "y": 28,
+          "w": 12,
+          "h": 25
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/chesnaught-mega.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 28,
+          "h": 23
+        },
+        "after": {
+          "x": 20,
+          "y": 30,
+          "w": 28,
+          "h": 23
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/chi-yu.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 23,
+          "h": 21
+        },
+        "after": {
+          "x": 22,
+          "y": 32,
+          "w": 23,
+          "h": 21
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/chien-pao.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 30,
+          "h": 27
+        },
+        "after": {
+          "x": 19,
+          "y": 26,
+          "w": 30,
+          "h": 27
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/clefable-mega.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 29,
+          "h": 26
+        },
+        "after": {
+          "x": 20,
+          "y": 27,
+          "w": 29,
+          "h": 26
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/clodsire.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 23,
+          "h": 14
+        },
+        "after": {
+          "x": 22,
+          "y": 39,
+          "w": 23,
+          "h": 14
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/crocalor.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 21,
+          "h": 25
+        },
+        "after": {
+          "x": 24,
+          "y": 28,
+          "w": 21,
+          "h": 25
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/cyclizar-mount.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 25,
+          "h": 27
+        },
+        "after": {
+          "x": 22,
+          "y": 26,
+          "w": 25,
+          "h": 27
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/cyclizar.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 25,
+          "h": 27
+        },
+        "after": {
+          "x": 22,
+          "y": 26,
+          "w": 25,
+          "h": 27
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/dachsbun.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 27,
+          "h": 23
+        },
+        "after": {
+          "x": 20,
+          "y": 30,
+          "w": 27,
+          "h": 23
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/delphox-mega.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 29,
+          "h": 27
+        },
+        "after": {
+          "x": 20,
+          "y": 26,
+          "w": 29,
+          "h": 27
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/dipplin.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 23,
+          "h": 29
+        },
+        "after": {
+          "x": 22,
+          "y": 24,
+          "w": 23,
+          "h": 29
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/dolliv.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 18,
+          "h": 28
+        },
+        "after": {
+          "x": 25,
+          "y": 25,
+          "w": 18,
+          "h": 28
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/dondozo.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 44,
+          "h": 32
+        },
+        "after": {
+          "x": 12,
+          "y": 21,
+          "w": 44,
+          "h": 32
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/dragalge-mega.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 30,
+          "h": 30
+        },
+        "after": {
+          "x": 19,
+          "y": 23,
+          "w": 30,
+          "h": 30
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/dragonite-mega.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 28,
+          "h": 30
+        },
+        "after": {
+          "x": 20,
+          "y": 23,
+          "w": 28,
+          "h": 30
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/drampa-mega.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 30,
+          "h": 28
+        },
+        "after": {
+          "x": 19,
+          "y": 25,
+          "w": 30,
+          "h": 28
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/dudunsparce-three-segment.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 27,
+          "h": 29
+        },
+        "after": {
+          "x": 20,
+          "y": 24,
+          "w": 27,
+          "h": 29
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/dudunsparce.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 24,
+          "h": 26
+        },
+        "after": {
+          "x": 22,
+          "y": 27,
+          "w": 24,
+          "h": 26
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/eelektross-mega.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 30,
+          "h": 23
+        },
+        "after": {
+          "x": 19,
+          "y": 30,
+          "w": 30,
+          "h": 23
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/emboar-mega.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 29,
+          "h": 30
+        },
+        "after": {
+          "x": 20,
+          "y": 23,
+          "w": 29,
+          "h": 30
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/espathra.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 28,
+          "h": 30
+        },
+        "after": {
+          "x": 20,
+          "y": 23,
+          "w": 28,
+          "h": 30
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/excadrill-mega.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 30,
+          "h": 25
+        },
+        "after": {
+          "x": 19,
+          "y": 28,
+          "w": 30,
+          "h": 25
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/falinks-mega.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 30,
+          "h": 29
+        },
+        "after": {
+          "x": 19,
+          "y": 24,
+          "w": 30,
+          "h": 29
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/farigiraf.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 25,
+          "h": 34
+        },
+        "after": {
+          "x": 22,
+          "y": 19,
+          "w": 25,
+          "h": 34
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/female/oinkologne.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 29,
+          "h": 25
+        },
+        "after": {
+          "x": 20,
+          "y": 28,
+          "w": 29,
+          "h": 25
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/feraligatr-mega.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 26,
+          "h": 30
+        },
+        "after": {
+          "x": 21,
+          "y": 23,
+          "w": 26,
+          "h": 30
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/fezandipiti.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 25,
+          "h": 31
+        },
+        "after": {
+          "x": 22,
+          "y": 22,
+          "w": 25,
+          "h": 31
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/fidough.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 24,
+          "h": 17
+        },
+        "after": {
+          "x": 22,
+          "y": 36,
+          "w": 24,
+          "h": 17
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/finizen.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 24,
+          "h": 18
+        },
+        "after": {
+          "x": 22,
+          "y": 35,
+          "w": 24,
+          "h": 18
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/flamigo.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 14,
+          "h": 30
+        },
+        "after": {
+          "x": 27,
+          "y": 23,
+          "w": 14,
+          "h": 30
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/flittle.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 18,
+          "h": 22
+        },
+        "after": {
+          "x": 25,
+          "y": 31,
+          "w": 18,
+          "h": 22
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/floette-mega.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 32,
+          "h": 32
+        },
+        "after": {
+          "x": 18,
+          "y": 21,
+          "w": 32,
+          "h": 32
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/floragato.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 17,
+          "h": 26
+        },
+        "after": {
+          "x": 26,
+          "y": 27,
+          "w": 17,
+          "h": 26
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/flutter-mane.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 41,
+          "h": 36
+        },
+        "after": {
+          "x": 14,
+          "y": 17,
+          "w": 41,
+          "h": 36
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/frigibax.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 14,
+          "h": 19
+        },
+        "after": {
+          "x": 27,
+          "y": 34,
+          "w": 14,
+          "h": 19
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/froslass-mega.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 23,
+          "h": 29
+        },
+        "after": {
+          "x": 22,
+          "y": 24,
+          "w": 23,
+          "h": 29
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/fuecoco.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 18,
+          "h": 22
+        },
+        "after": {
+          "x": 25,
+          "y": 31,
+          "w": 18,
+          "h": 22
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/garchomp-mega-z.png",
+        "before": {
+          "x": 15,
+          "y": 17,
+          "w": 38,
+          "h": 35
+        },
+        "after": {
+          "x": 15,
+          "y": 18,
+          "w": 38,
+          "h": 35
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/garganacl.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 27,
+          "h": 34
+        },
+        "after": {
+          "x": 20,
+          "y": 19,
+          "w": 27,
+          "h": 34
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/gecqua.png",
+        "before": {
+          "x": 24,
+          "y": 25,
+          "w": 19,
+          "h": 19
+        },
+        "after": {
+          "x": 24,
+          "y": 34,
+          "w": 19,
+          "h": 19
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/genesect-no-drive.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 22,
+          "h": 24
+        },
+        "after": {
+          "x": 23,
+          "y": 29,
+          "w": 22,
+          "h": 24
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/gholdengo.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 18,
+          "h": 28
+        },
+        "after": {
+          "x": 25,
+          "y": 25,
+          "w": 18,
+          "h": 28
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/gimmighoul-roaming.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 26,
+          "h": 30
+        },
+        "after": {
+          "x": 21,
+          "y": 23,
+          "w": 26,
+          "h": 30
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/gimmighoul.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 24,
+          "h": 32
+        },
+        "after": {
+          "x": 22,
+          "y": 21,
+          "w": 24,
+          "h": 32
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/glimmet.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 24,
+          "h": 14
+        },
+        "after": {
+          "x": 22,
+          "y": 39,
+          "w": 24,
+          "h": 14
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/glimmora.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 21,
+          "h": 21
+        },
+        "after": {
+          "x": 24,
+          "y": 32,
+          "w": 21,
+          "h": 21
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/golurk-mega.png",
+        "before": {
+          "x": 13,
+          "y": 14,
+          "w": 42,
+          "h": 41
+        },
+        "after": {
+          "x": 13,
+          "y": 12,
+          "w": 42,
+          "h": 41
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/gouging-fire.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 28,
+          "h": 29
+        },
+        "after": {
+          "x": 20,
+          "y": 24,
+          "w": 28,
+          "h": 29
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/grafaiai.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 27,
+          "h": 24
+        },
+        "after": {
+          "x": 20,
+          "y": 29,
+          "w": 27,
+          "h": 24
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/great-tusk.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 34,
+          "h": 23
+        },
+        "after": {
+          "x": 17,
+          "y": 30,
+          "w": 34,
+          "h": 23
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/greavard.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 20,
+          "h": 24
+        },
+        "after": {
+          "x": 24,
+          "y": 29,
+          "w": 20,
+          "h": 24
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/greninja-mega.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 25,
+          "h": 29
+        },
+        "after": {
+          "x": 22,
+          "y": 24,
+          "w": 25,
+          "h": 29
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/hawlucha-mega.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 25,
+          "h": 21
+        },
+        "after": {
+          "x": 22,
+          "y": 32,
+          "w": 25,
+          "h": 21
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/houndstone.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 25,
+          "h": 25
+        },
+        "after": {
+          "x": 22,
+          "y": 28,
+          "w": 25,
+          "h": 25
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/hydrapple.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 23,
+          "h": 32
+        },
+        "after": {
+          "x": 22,
+          "y": 21,
+          "w": 23,
+          "h": 32
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/iron-boulder.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 28,
+          "h": 26
+        },
+        "after": {
+          "x": 20,
+          "y": 27,
+          "w": 28,
+          "h": 26
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/iron-bundle.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 19,
+          "h": 23
+        },
+        "after": {
+          "x": 24,
+          "y": 30,
+          "w": 19,
+          "h": 23
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/iron-crown.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 20,
+          "h": 29
+        },
+        "after": {
+          "x": 24,
+          "y": 24,
+          "w": 20,
+          "h": 29
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/iron-hands.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 34,
+          "h": 30
+        },
+        "after": {
+          "x": 17,
+          "y": 23,
+          "w": 34,
+          "h": 30
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/iron-jugulis.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 30,
+          "h": 23
+        },
+        "after": {
+          "x": 19,
+          "y": 30,
+          "w": 30,
+          "h": 23
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/iron-leaves.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 19,
+          "h": 27
+        },
+        "after": {
+          "x": 24,
+          "y": 26,
+          "w": 19,
+          "h": 27
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/iron-moth.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 30,
+          "h": 26
+        },
+        "after": {
+          "x": 19,
+          "y": 27,
+          "w": 30,
+          "h": 26
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/iron-thorns.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 36,
+          "h": 36
+        },
+        "after": {
+          "x": 16,
+          "y": 17,
+          "w": 36,
+          "h": 36
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/iron-treads.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 26,
+          "h": 22
+        },
+        "after": {
+          "x": 21,
+          "y": 31,
+          "w": 26,
+          "h": 22
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/iron-valiant.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 19,
+          "h": 32
+        },
+        "after": {
+          "x": 24,
+          "y": 21,
+          "w": 19,
+          "h": 32
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/kilowattrel.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 20,
+          "h": 25
+        },
+        "after": {
+          "x": 24,
+          "y": 28,
+          "w": 20,
+          "h": 25
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/kingambit.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 27,
+          "h": 34
+        },
+        "after": {
+          "x": 20,
+          "y": 19,
+          "w": 27,
+          "h": 34
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/klawf.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 35,
+          "h": 27
+        },
+        "after": {
+          "x": 16,
+          "y": 26,
+          "w": 35,
+          "h": 27
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/koraidon-mount.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 27,
+          "h": 34
+        },
+        "after": {
+          "x": 20,
+          "y": 19,
+          "w": 27,
+          "h": 34
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/koraidon.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 27,
+          "h": 34
+        },
+        "after": {
+          "x": 20,
+          "y": 19,
+          "w": 27,
+          "h": 34
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/lechonk.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 20,
+          "h": 18
+        },
+        "after": {
+          "x": 24,
+          "y": 35,
+          "w": 20,
+          "h": 18
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/lokix.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 19,
+          "h": 30
+        },
+        "after": {
+          "x": 24,
+          "y": 23,
+          "w": 19,
+          "h": 30
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/lucario-mega-z.png",
+        "before": {
+          "x": 19,
+          "y": 16,
+          "w": 30,
+          "h": 36
+        },
+        "after": {
+          "x": 19,
+          "y": 17,
+          "w": 30,
+          "h": 36
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/mabosstiff.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 30,
+          "h": 27
+        },
+        "after": {
+          "x": 19,
+          "y": 26,
+          "w": 30,
+          "h": 27
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/malamar-mega.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 30,
+          "h": 29
+        },
+        "after": {
+          "x": 19,
+          "y": 24,
+          "w": 30,
+          "h": 29
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/maschiff.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 29,
+          "h": 21
+        },
+        "after": {
+          "x": 20,
+          "y": 32,
+          "w": 29,
+          "h": 21
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/maushold-family-of-four.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 28,
+          "h": 31
+        },
+        "after": {
+          "x": 20,
+          "y": 22,
+          "w": 28,
+          "h": 31
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/maushold.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 27,
+          "h": 29
+        },
+        "after": {
+          "x": 20,
+          "y": 24,
+          "w": 27,
+          "h": 29
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/meganium-mega.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 24,
+          "h": 30
+        },
+        "after": {
+          "x": 22,
+          "y": 23,
+          "w": 24,
+          "h": 30
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/meowscarada.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 24,
+          "h": 30
+        },
+        "after": {
+          "x": 22,
+          "y": 23,
+          "w": 24,
+          "h": 30
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/meowstic-mega.png",
+        "before": {
+          "x": 24,
+          "y": 17,
+          "w": 19,
+          "h": 34
+        },
+        "after": {
+          "x": 24,
+          "y": 19,
+          "w": 19,
+          "h": 34
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/miraidon-mount.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 28,
+          "h": 34
+        },
+        "after": {
+          "x": 20,
+          "y": 19,
+          "w": 28,
+          "h": 34
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/miraidon.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 28,
+          "h": 34
+        },
+        "after": {
+          "x": 20,
+          "y": 19,
+          "w": 28,
+          "h": 34
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/munkidori.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 15,
+          "h": 26
+        },
+        "after": {
+          "x": 26,
+          "y": 27,
+          "w": 15,
+          "h": 26
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/nacli.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 15,
+          "h": 17
+        },
+        "after": {
+          "x": 26,
+          "y": 36,
+          "w": 15,
+          "h": 17
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/naclstack.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 26,
+          "h": 24
+        },
+        "after": {
+          "x": 21,
+          "y": 29,
+          "w": 26,
+          "h": 24
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/nymble.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 21,
+          "h": 21
+        },
+        "after": {
+          "x": 24,
+          "y": 32,
+          "w": 21,
+          "h": 21
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/ogerpon-cornerstone-mask.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 30,
+          "h": 29
+        },
+        "after": {
+          "x": 19,
+          "y": 24,
+          "w": 30,
+          "h": 29
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/ogerpon-hearthflame-mask.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 29,
+          "h": 28
+        },
+        "after": {
+          "x": 20,
+          "y": 25,
+          "w": 29,
+          "h": 28
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/ogerpon-teal-mask.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 29,
+          "h": 28
+        },
+        "after": {
+          "x": 20,
+          "y": 25,
+          "w": 29,
+          "h": 28
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/ogerpon-wellspring-mask.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 28,
+          "h": 27
+        },
+        "after": {
+          "x": 20,
+          "y": 26,
+          "w": 28,
+          "h": 27
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/oinkologne.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 30,
+          "h": 24
+        },
+        "after": {
+          "x": 19,
+          "y": 29,
+          "w": 30,
+          "h": 24
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/okidogi.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 28,
+          "h": 25
+        },
+        "after": {
+          "x": 20,
+          "y": 28,
+          "w": 28,
+          "h": 25
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/orthworm.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 20,
+          "h": 21
+        },
+        "after": {
+          "x": 24,
+          "y": 32,
+          "w": 20,
+          "h": 21
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/palafin-hero.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 19,
+          "h": 32
+        },
+        "after": {
+          "x": 24,
+          "y": 21,
+          "w": 19,
+          "h": 32
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/palafin.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 24,
+          "h": 18
+        },
+        "after": {
+          "x": 22,
+          "y": 35,
+          "w": 24,
+          "h": 18
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/pawmi.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 16,
+          "h": 19
+        },
+        "after": {
+          "x": 26,
+          "y": 34,
+          "w": 16,
+          "h": 19
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/pawmo.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 17,
+          "h": 28
+        },
+        "after": {
+          "x": 26,
+          "y": 25,
+          "w": 17,
+          "h": 28
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/pawmot.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 20,
+          "h": 32
+        },
+        "after": {
+          "x": 24,
+          "y": 21,
+          "w": 20,
+          "h": 32
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/pecharunt.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 21,
+          "h": 24
+        },
+        "after": {
+          "x": 24,
+          "y": 29,
+          "w": 21,
+          "h": 24
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/poltchageist.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 29,
+          "h": 23
+        },
+        "after": {
+          "x": 20,
+          "y": 30,
+          "w": 29,
+          "h": 23
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/pombon.png",
+        "before": {
+          "x": 24,
+          "y": 23,
+          "w": 19,
+          "h": 22
+        },
+        "after": {
+          "x": 24,
+          "y": 31,
+          "w": 19,
+          "h": 22
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/pyroar-mega.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 30,
+          "h": 30
+        },
+        "after": {
+          "x": 19,
+          "y": 23,
+          "w": 30,
+          "h": 30
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/quaquaval.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 26,
+          "h": 34
+        },
+        "after": {
+          "x": 21,
+          "y": 19,
+          "w": 26,
+          "h": 34
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/quaxly.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 15,
+          "h": 22
+        },
+        "after": {
+          "x": 26,
+          "y": 31,
+          "w": 15,
+          "h": 22
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/quaxwell.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 19,
+          "h": 27
+        },
+        "after": {
+          "x": 24,
+          "y": 26,
+          "w": 19,
+          "h": 27
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/rabsca.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 23,
+          "h": 32
+        },
+        "after": {
+          "x": 22,
+          "y": 21,
+          "w": 23,
+          "h": 32
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/raging-bolt.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 29,
+          "h": 32
+        },
+        "after": {
+          "x": 20,
+          "y": 21,
+          "w": 29,
+          "h": 32
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/raichu-mega-x.png",
+        "before": {
+          "x": 12,
+          "y": 12,
+          "w": 44,
+          "h": 44
+        },
+        "after": {
+          "x": 12,
+          "y": 9,
+          "w": 44,
+          "h": 44
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/raichu-mega-y.png",
+        "before": {
+          "x": 13,
+          "y": 15,
+          "w": 42,
+          "h": 38
+        },
+        "after": {
+          "x": 13,
+          "y": 15,
+          "w": 42,
+          "h": 38
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/rellor.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 24,
+          "h": 15
+        },
+        "after": {
+          "x": 22,
+          "y": 38,
+          "w": 24,
+          "h": 15
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/revavroom.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 27,
+          "h": 24
+        },
+        "after": {
+          "x": 20,
+          "y": 29,
+          "w": 27,
+          "h": 24
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/roaring-moon.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 34,
+          "h": 34
+        },
+        "after": {
+          "x": 17,
+          "y": 19,
+          "w": 34,
+          "h": 34
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/rotom-stereo.png",
+        "before": {
+          "x": 14,
+          "y": 13,
+          "w": 40,
+          "h": 42
+        },
+        "after": {
+          "x": 14,
+          "y": 11,
+          "w": 40,
+          "h": 42
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/sandy-shocks.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 27,
+          "h": 34
+        },
+        "after": {
+          "x": 20,
+          "y": 19,
+          "w": 27,
+          "h": 34
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/scolipede-mega.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 30,
+          "h": 30
+        },
+        "after": {
+          "x": 19,
+          "y": 23,
+          "w": 30,
+          "h": 30
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/scovillain.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 22,
+          "h": 23
+        },
+        "after": {
+          "x": 23,
+          "y": 30,
+          "w": 22,
+          "h": 23
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/scrafty-mega.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 19,
+          "h": 24
+        },
+        "after": {
+          "x": 24,
+          "y": 29,
+          "w": 19,
+          "h": 24
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/scream-tail.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 24,
+          "h": 23
+        },
+        "after": {
+          "x": 22,
+          "y": 30,
+          "w": 24,
+          "h": 23
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/shroodle.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 19,
+          "h": 18
+        },
+        "after": {
+          "x": 24,
+          "y": 35,
+          "w": 19,
+          "h": 18
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/sinistcha.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 21,
+          "h": 29
+        },
+        "after": {
+          "x": 24,
+          "y": 24,
+          "w": 21,
+          "h": 29
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/skarmory-mega.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 28,
+          "h": 28
+        },
+        "after": {
+          "x": 20,
+          "y": 25,
+          "w": 28,
+          "h": 28
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/skeledirge.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 29,
+          "h": 20
+        },
+        "after": {
+          "x": 20,
+          "y": 33,
+          "w": 29,
+          "h": 20
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/slither-wing.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 26,
+          "h": 30
+        },
+        "after": {
+          "x": 21,
+          "y": 23,
+          "w": 26,
+          "h": 30
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/smoliv.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 13,
+          "h": 20
+        },
+        "after": {
+          "x": 28,
+          "y": 33,
+          "w": 13,
+          "h": 20
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/spidops.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 29,
+          "h": 27
+        },
+        "after": {
+          "x": 20,
+          "y": 26,
+          "w": 29,
+          "h": 27
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/sprigatito.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 20,
+          "h": 21
+        },
+        "after": {
+          "x": 24,
+          "y": 32,
+          "w": 20,
+          "h": 21
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/squawkabilly-blue.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 21,
+          "h": 23
+        },
+        "after": {
+          "x": 24,
+          "y": 30,
+          "w": 21,
+          "h": 23
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/squawkabilly-green.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 21,
+          "h": 23
+        },
+        "after": {
+          "x": 24,
+          "y": 30,
+          "w": 21,
+          "h": 23
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/squawkabilly-white.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 21,
+          "h": 23
+        },
+        "after": {
+          "x": 24,
+          "y": 30,
+          "w": 21,
+          "h": 23
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/squawkabilly-yellow.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 21,
+          "h": 23
+        },
+        "after": {
+          "x": 24,
+          "y": 30,
+          "w": 21,
+          "h": 23
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/staraptor-mega.png",
+        "before": {
+          "x": 15,
+          "y": 16,
+          "w": 37,
+          "h": 38
+        },
+        "after": {
+          "x": 16,
+          "y": 15,
+          "w": 37,
+          "h": 38
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/starmie-mega.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 25,
+          "h": 30
+        },
+        "after": {
+          "x": 22,
+          "y": 23,
+          "w": 25,
+          "h": 30
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/tadbulb.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 10,
+          "h": 15
+        },
+        "after": {
+          "x": 29,
+          "y": 38,
+          "w": 10,
+          "h": 15
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/tandemaus.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 27,
+          "h": 25
+        },
+        "after": {
+          "x": 20,
+          "y": 28,
+          "w": 27,
+          "h": 25
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/tarountula.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 21,
+          "h": 26
+        },
+        "after": {
+          "x": 24,
+          "y": 27,
+          "w": 21,
+          "h": 26
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/tatsugiri-droopy.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 20,
+          "h": 20
+        },
+        "after": {
+          "x": 24,
+          "y": 33,
+          "w": 20,
+          "h": 20
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/tatsugiri-stretchy.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 20,
+          "h": 20
+        },
+        "after": {
+          "x": 24,
+          "y": 33,
+          "w": 20,
+          "h": 20
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/tatsugiri.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 20,
+          "h": 20
+        },
+        "after": {
+          "x": 24,
+          "y": 33,
+          "w": 20,
+          "h": 20
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/tauros-aqua-breed.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 42,
+          "h": 37
+        },
+        "after": {
+          "x": 13,
+          "y": 16,
+          "w": 42,
+          "h": 37
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/tauros-blaze-breed.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 42,
+          "h": 39
+        },
+        "after": {
+          "x": 13,
+          "y": 14,
+          "w": 42,
+          "h": 39
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/tauros-combat-breed.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 44,
+          "h": 38
+        },
+        "after": {
+          "x": 12,
+          "y": 15,
+          "w": 44,
+          "h": 38
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/terapagos-stellar.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 26,
+          "h": 30
+        },
+        "after": {
+          "x": 21,
+          "y": 23,
+          "w": 26,
+          "h": 30
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/terapagos-terastal.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 32,
+          "h": 29
+        },
+        "after": {
+          "x": 18,
+          "y": 24,
+          "w": 32,
+          "h": 29
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/terapagos.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 28,
+          "h": 26
+        },
+        "after": {
+          "x": 20,
+          "y": 27,
+          "w": 28,
+          "h": 26
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/ting-lu.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 28,
+          "h": 34
+        },
+        "after": {
+          "x": 20,
+          "y": 19,
+          "w": 28,
+          "h": 34
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/tinkatink.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 16,
+          "h": 23
+        },
+        "after": {
+          "x": 26,
+          "y": 30,
+          "w": 16,
+          "h": 23
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/tinkaton.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 29,
+          "h": 34
+        },
+        "after": {
+          "x": 20,
+          "y": 19,
+          "w": 29,
+          "h": 34
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/tinkatuff.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 25,
+          "h": 24
+        },
+        "after": {
+          "x": 22,
+          "y": 29,
+          "w": 25,
+          "h": 24
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/toedscool.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 17,
+          "h": 25
+        },
+        "after": {
+          "x": 26,
+          "y": 28,
+          "w": 17,
+          "h": 25
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/toedscruel.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 27,
+          "h": 29
+        },
+        "after": {
+          "x": 20,
+          "y": 24,
+          "w": 27,
+          "h": 29
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/ursaluna-bloodmoon.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 36,
+          "h": 39
+        },
+        "after": {
+          "x": 16,
+          "y": 14,
+          "w": 36,
+          "h": 39
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/varoom.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 22,
+          "h": 23
+        },
+        "after": {
+          "x": 23,
+          "y": 30,
+          "w": 22,
+          "h": 23
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/veluza.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 29,
+          "h": 19
+        },
+        "after": {
+          "x": 20,
+          "y": 34,
+          "w": 29,
+          "h": 19
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/victreebel-mega.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 26,
+          "h": 29
+        },
+        "after": {
+          "x": 21,
+          "y": 24,
+          "w": 26,
+          "h": 29
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/walking-wake.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 32,
+          "h": 30
+        },
+        "after": {
+          "x": 18,
+          "y": 23,
+          "w": 32,
+          "h": 30
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/wattrel.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 18,
+          "h": 18
+        },
+        "after": {
+          "x": 25,
+          "y": 35,
+          "w": 18,
+          "h": 18
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/wiglett.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 17,
+          "h": 23
+        },
+        "after": {
+          "x": 26,
+          "y": 30,
+          "w": 17,
+          "h": 23
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/wo-chien.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 27,
+          "h": 29
+        },
+        "after": {
+          "x": 20,
+          "y": 24,
+          "w": 27,
+          "h": 29
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/wooper-paldea.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 22,
+          "h": 18
+        },
+        "after": {
+          "x": 23,
+          "y": 35,
+          "w": 22,
+          "h": 18
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/wugtrio.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 32,
+          "h": 32
+        },
+        "after": {
+          "x": 18,
+          "y": 21,
+          "w": 32,
+          "h": 32
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/zeraora-mega.png",
+        "before": {
+          "x": 15,
+          "y": 16,
+          "w": 38,
+          "h": 37
+        },
+        "after": {
+          "x": 15,
+          "y": 16,
+          "w": 38,
+          "h": 37
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "regular/zygarde-mega.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 29,
+          "h": 30
+        },
+        "after": {
+          "x": 20,
+          "y": 23,
+          "w": 29,
+          "h": 30
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/annihilape.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 30,
+          "h": 32
+        },
+        "after": {
+          "x": 19,
+          "y": 21,
+          "w": 30,
+          "h": 32
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/appletun-gmax.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 27,
+          "h": 44
+        },
+        "after": {
+          "x": 20,
+          "y": 9,
+          "w": 27,
+          "h": 44
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/arboliva.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 32,
+          "h": 34
+        },
+        "after": {
+          "x": 18,
+          "y": 19,
+          "w": 32,
+          "h": 34
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/arctibax.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 23,
+          "h": 21
+        },
+        "after": {
+          "x": 22,
+          "y": 32,
+          "w": 23,
+          "h": 21
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/armarouge.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 21,
+          "h": 32
+        },
+        "after": {
+          "x": 24,
+          "y": 21,
+          "w": 21,
+          "h": 32
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/baxcalibur.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 36,
+          "h": 42
+        },
+        "after": {
+          "x": 16,
+          "y": 11,
+          "w": 36,
+          "h": 42
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/bellibolt.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 18,
+          "h": 20
+        },
+        "after": {
+          "x": 25,
+          "y": 33,
+          "w": 18,
+          "h": 20
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/bombirdier.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 16,
+          "h": 29
+        },
+        "after": {
+          "x": 26,
+          "y": 24,
+          "w": 16,
+          "h": 29
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/brambleghast.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 23,
+          "h": 23
+        },
+        "after": {
+          "x": 22,
+          "y": 30,
+          "w": 23,
+          "h": 23
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/bramblin.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 19,
+          "h": 19
+        },
+        "after": {
+          "x": 24,
+          "y": 34,
+          "w": 19,
+          "h": 19
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/brute-bonnet.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 20,
+          "h": 23
+        },
+        "after": {
+          "x": 24,
+          "y": 30,
+          "w": 20,
+          "h": 23
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/capsakid.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 14,
+          "h": 19
+        },
+        "after": {
+          "x": 27,
+          "y": 34,
+          "w": 14,
+          "h": 19
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/ceruledge.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 18,
+          "h": 32
+        },
+        "after": {
+          "x": 25,
+          "y": 21,
+          "w": 18,
+          "h": 32
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/cetitan.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 37,
+          "h": 25
+        },
+        "after": {
+          "x": 16,
+          "y": 28,
+          "w": 37,
+          "h": 25
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/cetoddle.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 19,
+          "h": 15
+        },
+        "after": {
+          "x": 24,
+          "y": 38,
+          "w": 19,
+          "h": 15
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/charcadet.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 12,
+          "h": 25
+        },
+        "after": {
+          "x": 28,
+          "y": 28,
+          "w": 12,
+          "h": 25
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/chi-yu.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 23,
+          "h": 21
+        },
+        "after": {
+          "x": 22,
+          "y": 32,
+          "w": 23,
+          "h": 21
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/chien-pao.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 30,
+          "h": 27
+        },
+        "after": {
+          "x": 19,
+          "y": 26,
+          "w": 30,
+          "h": 27
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/clodsire.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 23,
+          "h": 14
+        },
+        "after": {
+          "x": 22,
+          "y": 39,
+          "w": 23,
+          "h": 14
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/crocalor.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 21,
+          "h": 25
+        },
+        "after": {
+          "x": 24,
+          "y": 28,
+          "w": 21,
+          "h": 25
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/cyclizar-mount.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 25,
+          "h": 27
+        },
+        "after": {
+          "x": 22,
+          "y": 26,
+          "w": 25,
+          "h": 27
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/cyclizar.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 25,
+          "h": 27
+        },
+        "after": {
+          "x": 22,
+          "y": 26,
+          "w": 25,
+          "h": 27
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/dachsbun.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 27,
+          "h": 23
+        },
+        "after": {
+          "x": 20,
+          "y": 30,
+          "w": 27,
+          "h": 23
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/dolliv.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 18,
+          "h": 28
+        },
+        "after": {
+          "x": 25,
+          "y": 25,
+          "w": 18,
+          "h": 28
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/dondozo.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 44,
+          "h": 32
+        },
+        "after": {
+          "x": 12,
+          "y": 21,
+          "w": 44,
+          "h": 32
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/dudunsparce-three-segment.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 27,
+          "h": 29
+        },
+        "after": {
+          "x": 20,
+          "y": 24,
+          "w": 27,
+          "h": 29
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/dudunsparce.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 24,
+          "h": 26
+        },
+        "after": {
+          "x": 22,
+          "y": 27,
+          "w": 24,
+          "h": 26
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/espathra.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 28,
+          "h": 30
+        },
+        "after": {
+          "x": 20,
+          "y": 23,
+          "w": 28,
+          "h": 30
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/farigiraf.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 25,
+          "h": 34
+        },
+        "after": {
+          "x": 22,
+          "y": 19,
+          "w": 25,
+          "h": 34
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/female/oinkologne.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 29,
+          "h": 25
+        },
+        "after": {
+          "x": 20,
+          "y": 28,
+          "w": 29,
+          "h": 25
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/fidough.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 24,
+          "h": 17
+        },
+        "after": {
+          "x": 22,
+          "y": 36,
+          "w": 24,
+          "h": 17
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/finizen.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 24,
+          "h": 18
+        },
+        "after": {
+          "x": 22,
+          "y": 35,
+          "w": 24,
+          "h": 18
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/flamigo.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 14,
+          "h": 30
+        },
+        "after": {
+          "x": 27,
+          "y": 23,
+          "w": 14,
+          "h": 30
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/flittle.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 18,
+          "h": 22
+        },
+        "after": {
+          "x": 25,
+          "y": 31,
+          "w": 18,
+          "h": 22
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/floragato.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 17,
+          "h": 26
+        },
+        "after": {
+          "x": 26,
+          "y": 27,
+          "w": 17,
+          "h": 26
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/flutter-mane.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 41,
+          "h": 36
+        },
+        "after": {
+          "x": 14,
+          "y": 17,
+          "w": 41,
+          "h": 36
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/frigibax.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 14,
+          "h": 19
+        },
+        "after": {
+          "x": 27,
+          "y": 34,
+          "w": 14,
+          "h": 19
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/fuecoco.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 18,
+          "h": 22
+        },
+        "after": {
+          "x": 25,
+          "y": 31,
+          "w": 18,
+          "h": 22
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/garganacl.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 27,
+          "h": 34
+        },
+        "after": {
+          "x": 20,
+          "y": 19,
+          "w": 27,
+          "h": 34
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/genesect-no-drive.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 22,
+          "h": 24
+        },
+        "after": {
+          "x": 23,
+          "y": 29,
+          "w": 22,
+          "h": 24
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/gholdengo.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 18,
+          "h": 28
+        },
+        "after": {
+          "x": 25,
+          "y": 25,
+          "w": 18,
+          "h": 28
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/gimmighoul-roaming.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 26,
+          "h": 30
+        },
+        "after": {
+          "x": 21,
+          "y": 23,
+          "w": 26,
+          "h": 30
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/gimmighoul.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 24,
+          "h": 32
+        },
+        "after": {
+          "x": 22,
+          "y": 21,
+          "w": 24,
+          "h": 32
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/glimmet.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 24,
+          "h": 14
+        },
+        "after": {
+          "x": 22,
+          "y": 39,
+          "w": 24,
+          "h": 14
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/glimmora.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 21,
+          "h": 21
+        },
+        "after": {
+          "x": 24,
+          "y": 32,
+          "w": 21,
+          "h": 21
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/grafaiai.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 27,
+          "h": 24
+        },
+        "after": {
+          "x": 20,
+          "y": 29,
+          "w": 27,
+          "h": 24
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/great-tusk.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 34,
+          "h": 23
+        },
+        "after": {
+          "x": 17,
+          "y": 30,
+          "w": 34,
+          "h": 23
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/greavard.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 20,
+          "h": 24
+        },
+        "after": {
+          "x": 24,
+          "y": 29,
+          "w": 20,
+          "h": 24
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/houndstone.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 25,
+          "h": 25
+        },
+        "after": {
+          "x": 22,
+          "y": 28,
+          "w": 25,
+          "h": 25
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/iron-bundle.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 19,
+          "h": 23
+        },
+        "after": {
+          "x": 24,
+          "y": 30,
+          "w": 19,
+          "h": 23
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/iron-hands.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 34,
+          "h": 30
+        },
+        "after": {
+          "x": 17,
+          "y": 23,
+          "w": 34,
+          "h": 30
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/iron-jugulis.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 30,
+          "h": 23
+        },
+        "after": {
+          "x": 19,
+          "y": 30,
+          "w": 30,
+          "h": 23
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/iron-moth.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 30,
+          "h": 26
+        },
+        "after": {
+          "x": 19,
+          "y": 27,
+          "w": 30,
+          "h": 26
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/iron-thorns.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 36,
+          "h": 36
+        },
+        "after": {
+          "x": 16,
+          "y": 17,
+          "w": 36,
+          "h": 36
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/iron-treads.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 26,
+          "h": 22
+        },
+        "after": {
+          "x": 21,
+          "y": 31,
+          "w": 26,
+          "h": 22
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/iron-valiant.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 19,
+          "h": 32
+        },
+        "after": {
+          "x": 24,
+          "y": 21,
+          "w": 19,
+          "h": 32
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/kilowattrel.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 20,
+          "h": 25
+        },
+        "after": {
+          "x": 24,
+          "y": 28,
+          "w": 20,
+          "h": 25
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/kingambit.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 27,
+          "h": 34
+        },
+        "after": {
+          "x": 20,
+          "y": 19,
+          "w": 27,
+          "h": 34
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/klawf.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 35,
+          "h": 27
+        },
+        "after": {
+          "x": 16,
+          "y": 26,
+          "w": 35,
+          "h": 27
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/koraidon-mount.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 27,
+          "h": 34
+        },
+        "after": {
+          "x": 20,
+          "y": 19,
+          "w": 27,
+          "h": 34
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/koraidon.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 27,
+          "h": 34
+        },
+        "after": {
+          "x": 20,
+          "y": 19,
+          "w": 27,
+          "h": 34
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/lechonk.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 20,
+          "h": 18
+        },
+        "after": {
+          "x": 24,
+          "y": 35,
+          "w": 20,
+          "h": 18
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/lokix.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 19,
+          "h": 30
+        },
+        "after": {
+          "x": 24,
+          "y": 23,
+          "w": 19,
+          "h": 30
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/mabosstiff.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 30,
+          "h": 27
+        },
+        "after": {
+          "x": 19,
+          "y": 26,
+          "w": 30,
+          "h": 27
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/maschiff.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 29,
+          "h": 21
+        },
+        "after": {
+          "x": 20,
+          "y": 32,
+          "w": 29,
+          "h": 21
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/maushold-family-of-four.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 28,
+          "h": 31
+        },
+        "after": {
+          "x": 20,
+          "y": 22,
+          "w": 28,
+          "h": 31
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/maushold.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 27,
+          "h": 29
+        },
+        "after": {
+          "x": 20,
+          "y": 24,
+          "w": 27,
+          "h": 29
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/meowscarada.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 24,
+          "h": 30
+        },
+        "after": {
+          "x": 22,
+          "y": 23,
+          "w": 24,
+          "h": 30
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/miraidon-mount.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 28,
+          "h": 34
+        },
+        "after": {
+          "x": 20,
+          "y": 19,
+          "w": 28,
+          "h": 34
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/miraidon.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 28,
+          "h": 34
+        },
+        "after": {
+          "x": 20,
+          "y": 19,
+          "w": 28,
+          "h": 34
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/nacli.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 15,
+          "h": 17
+        },
+        "after": {
+          "x": 26,
+          "y": 36,
+          "w": 15,
+          "h": 17
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/naclstack.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 26,
+          "h": 24
+        },
+        "after": {
+          "x": 21,
+          "y": 29,
+          "w": 26,
+          "h": 24
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/nymble.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 21,
+          "h": 21
+        },
+        "after": {
+          "x": 24,
+          "y": 32,
+          "w": 21,
+          "h": 21
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/oinkologne.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 30,
+          "h": 24
+        },
+        "after": {
+          "x": 19,
+          "y": 29,
+          "w": 30,
+          "h": 24
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/orthworm.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 20,
+          "h": 21
+        },
+        "after": {
+          "x": 24,
+          "y": 32,
+          "w": 20,
+          "h": 21
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/palafin-hero.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 19,
+          "h": 32
+        },
+        "after": {
+          "x": 24,
+          "y": 21,
+          "w": 19,
+          "h": 32
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/palafin.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 24,
+          "h": 18
+        },
+        "after": {
+          "x": 22,
+          "y": 35,
+          "w": 24,
+          "h": 18
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/pawmi.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 16,
+          "h": 19
+        },
+        "after": {
+          "x": 26,
+          "y": 34,
+          "w": 16,
+          "h": 19
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/pawmo.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 17,
+          "h": 28
+        },
+        "after": {
+          "x": 26,
+          "y": 25,
+          "w": 17,
+          "h": 28
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/pawmot.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 20,
+          "h": 32
+        },
+        "after": {
+          "x": 24,
+          "y": 21,
+          "w": 20,
+          "h": 32
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/quaquaval.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 26,
+          "h": 34
+        },
+        "after": {
+          "x": 21,
+          "y": 19,
+          "w": 26,
+          "h": 34
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/quaxly.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 15,
+          "h": 22
+        },
+        "after": {
+          "x": 26,
+          "y": 31,
+          "w": 15,
+          "h": 22
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/quaxwell.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 19,
+          "h": 27
+        },
+        "after": {
+          "x": 24,
+          "y": 26,
+          "w": 19,
+          "h": 27
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/rabsca.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 23,
+          "h": 32
+        },
+        "after": {
+          "x": 22,
+          "y": 21,
+          "w": 23,
+          "h": 32
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/rellor.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 24,
+          "h": 15
+        },
+        "after": {
+          "x": 22,
+          "y": 38,
+          "w": 24,
+          "h": 15
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/revavroom.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 27,
+          "h": 24
+        },
+        "after": {
+          "x": 20,
+          "y": 29,
+          "w": 27,
+          "h": 24
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/roaring-moon.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 34,
+          "h": 34
+        },
+        "after": {
+          "x": 17,
+          "y": 19,
+          "w": 34,
+          "h": 34
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/sandy-shocks.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 27,
+          "h": 34
+        },
+        "after": {
+          "x": 20,
+          "y": 19,
+          "w": 27,
+          "h": 34
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/scovillain.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 22,
+          "h": 23
+        },
+        "after": {
+          "x": 23,
+          "y": 30,
+          "w": 22,
+          "h": 23
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/scream-tail.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 24,
+          "h": 23
+        },
+        "after": {
+          "x": 22,
+          "y": 30,
+          "w": 24,
+          "h": 23
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/shroodle.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 19,
+          "h": 18
+        },
+        "after": {
+          "x": 24,
+          "y": 35,
+          "w": 19,
+          "h": 18
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/skeledirge.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 29,
+          "h": 20
+        },
+        "after": {
+          "x": 20,
+          "y": 33,
+          "w": 29,
+          "h": 20
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/slither-wing.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 26,
+          "h": 30
+        },
+        "after": {
+          "x": 21,
+          "y": 23,
+          "w": 26,
+          "h": 30
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/smoliv.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 13,
+          "h": 20
+        },
+        "after": {
+          "x": 28,
+          "y": 33,
+          "w": 13,
+          "h": 20
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/spidops.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 29,
+          "h": 27
+        },
+        "after": {
+          "x": 20,
+          "y": 26,
+          "w": 29,
+          "h": 27
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/sprigatito.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 20,
+          "h": 21
+        },
+        "after": {
+          "x": 24,
+          "y": 32,
+          "w": 20,
+          "h": 21
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/squawkabilly-blue.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 21,
+          "h": 23
+        },
+        "after": {
+          "x": 24,
+          "y": 30,
+          "w": 21,
+          "h": 23
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/squawkabilly-green.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 21,
+          "h": 23
+        },
+        "after": {
+          "x": 24,
+          "y": 30,
+          "w": 21,
+          "h": 23
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/squawkabilly-white.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 21,
+          "h": 23
+        },
+        "after": {
+          "x": 24,
+          "y": 30,
+          "w": 21,
+          "h": 23
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/squawkabilly-yellow.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 21,
+          "h": 23
+        },
+        "after": {
+          "x": 24,
+          "y": 30,
+          "w": 21,
+          "h": 23
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/tadbulb.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 10,
+          "h": 15
+        },
+        "after": {
+          "x": 29,
+          "y": 38,
+          "w": 10,
+          "h": 15
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/tandemaus.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 27,
+          "h": 25
+        },
+        "after": {
+          "x": 20,
+          "y": 28,
+          "w": 27,
+          "h": 25
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/tarountula.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 21,
+          "h": 26
+        },
+        "after": {
+          "x": 24,
+          "y": 27,
+          "w": 21,
+          "h": 26
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/tatsugiri-droopy.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 20,
+          "h": 20
+        },
+        "after": {
+          "x": 24,
+          "y": 33,
+          "w": 20,
+          "h": 20
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/tatsugiri-stretchy.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 20,
+          "h": 20
+        },
+        "after": {
+          "x": 24,
+          "y": 33,
+          "w": 20,
+          "h": 20
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/tatsugiri.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 20,
+          "h": 20
+        },
+        "after": {
+          "x": 24,
+          "y": 33,
+          "w": 20,
+          "h": 20
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/tauros-aqua-breed.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 42,
+          "h": 37
+        },
+        "after": {
+          "x": 13,
+          "y": 16,
+          "w": 42,
+          "h": 37
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/tauros-blaze-breed.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 42,
+          "h": 39
+        },
+        "after": {
+          "x": 13,
+          "y": 14,
+          "w": 42,
+          "h": 39
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/tauros-combat-breed.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 44,
+          "h": 38
+        },
+        "after": {
+          "x": 12,
+          "y": 15,
+          "w": 44,
+          "h": 38
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/ting-lu.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 28,
+          "h": 34
+        },
+        "after": {
+          "x": 20,
+          "y": 19,
+          "w": 28,
+          "h": 34
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/tinkatink.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 16,
+          "h": 23
+        },
+        "after": {
+          "x": 26,
+          "y": 30,
+          "w": 16,
+          "h": 23
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/tinkaton.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 29,
+          "h": 34
+        },
+        "after": {
+          "x": 20,
+          "y": 19,
+          "w": 29,
+          "h": 34
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/tinkatuff.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 25,
+          "h": 24
+        },
+        "after": {
+          "x": 22,
+          "y": 29,
+          "w": 25,
+          "h": 24
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/toedscool.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 17,
+          "h": 25
+        },
+        "after": {
+          "x": 26,
+          "y": 28,
+          "w": 17,
+          "h": 25
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/toedscruel.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 27,
+          "h": 29
+        },
+        "after": {
+          "x": 20,
+          "y": 24,
+          "w": 27,
+          "h": 29
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/varoom.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 22,
+          "h": 23
+        },
+        "after": {
+          "x": 23,
+          "y": 30,
+          "w": 22,
+          "h": 23
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/veluza.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 29,
+          "h": 19
+        },
+        "after": {
+          "x": 20,
+          "y": 34,
+          "w": 29,
+          "h": 19
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/wattrel.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 18,
+          "h": 18
+        },
+        "after": {
+          "x": 25,
+          "y": 35,
+          "w": 18,
+          "h": 18
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/wiglett.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 17,
+          "h": 23
+        },
+        "after": {
+          "x": 26,
+          "y": 30,
+          "w": 17,
+          "h": 23
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/wo-chien.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 27,
+          "h": 29
+        },
+        "after": {
+          "x": 20,
+          "y": 24,
+          "w": 27,
+          "h": 29
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/wooper-paldea.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 22,
+          "h": 18
+        },
+        "after": {
+          "x": 23,
+          "y": 35,
+          "w": 22,
+          "h": 18
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      },
+      {
+        "path": "shiny/wugtrio.png",
+        "before": {
+          "x": 3,
+          "y": 3,
+          "w": 32,
+          "h": 32
+        },
+        "after": {
+          "x": 18,
+          "y": 21,
+          "w": 32,
+          "h": 32
+        },
+        "target": {
+          "cx": 34,
+          "bottom": 53
+        }
+      }
+    ]
+  }
+}

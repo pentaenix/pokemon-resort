@@ -980,6 +980,14 @@
         },
         "alola": {
           "is_prev_gen_icon": true
+        },
+        "mega-x": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        },
+        "mega-y": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
         }
       }
     }
@@ -1283,7 +1291,12 @@
     "gen-8": {
       "forms": {
         "$": {
-          "is_prev_gen_icon": false
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        },
+        "mega": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
         }
       }
     }
@@ -2368,7 +2381,12 @@
     "gen-8": {
       "forms": {
         "$": {
-          "is_prev_gen_icon": false
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        },
+        "mega": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
         }
       }
     }
@@ -3946,7 +3964,12 @@
     "gen-8": {
       "forms": {
         "$": {
-          "is_prev_gen_icon": false
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        },
+        "mega": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
         }
       }
     }
@@ -4159,7 +4182,20 @@
     "gen-8": {
       "forms": {
         "$": {
-          "is_prev_gen_icon": false
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        },
+        "aqua-breed": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        },
+        "blaze-breed": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        },
+        "combat-breed": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
         }
       }
     }
@@ -4807,7 +4843,12 @@
     "gen-8": {
       "forms": {
         "$": {
-          "is_prev_gen_icon": false
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        },
+        "mega": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
         }
       }
     }
@@ -4966,7 +5007,12 @@
     "gen-8": {
       "forms": {
         "$": {
-          "is_prev_gen_icon": true
+          "is_prev_gen_icon": true,
+          "is_unofficial_icon": true
+        },
+        "mega": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
         }
       }
     }
@@ -5144,7 +5190,12 @@
     "gen-8": {
       "forms": {
         "$": {
-          "is_prev_gen_icon": true
+          "is_prev_gen_icon": true,
+          "is_unofficial_icon": true
+        },
+        "mega": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
         }
       }
     }
@@ -6146,7 +6197,12 @@
     "gen-8": {
       "forms": {
         "$": {
-          "is_prev_gen_icon": true
+          "is_prev_gen_icon": true,
+          "is_unofficial_icon": true
+        },
+        "paldea": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
         }
       }
     }
@@ -7340,7 +7396,12 @@
     "gen-8": {
       "forms": {
         "$": {
-          "is_prev_gen_icon": false
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        },
+        "mega": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
         }
       }
     }
@@ -11329,7 +11390,8 @@
           "is_prev_gen_icon": false
         },
         "mega": {
-          "is_prev_gen_icon": true
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
         }
       }
     }
@@ -12547,6 +12609,10 @@
       "forms": {
         "$": {
           "is_prev_gen_icon": true
+        },
+        "mega": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
         }
       }
     }
@@ -14045,6 +14111,10 @@
         },
         "mega": {
           "is_prev_gen_icon": true
+        },
+        "mega-z": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
         }
       }
     }
@@ -14139,6 +14209,10 @@
         },
         "mega": {
           "is_prev_gen_icon": true
+        },
+        "mega-z": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
         }
       }
     }
@@ -15024,7 +15098,12 @@
     "gen-8": {
       "forms": {
         "$": {
-          "is_prev_gen_icon": false
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        },
+        "mega": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
         }
       }
     }
@@ -15089,6 +15168,10 @@
         },
         "wash": {
           "is_prev_gen_icon": false
+        },
+        "stereo": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
         }
       }
     }
@@ -15882,7 +15965,12 @@
     "gen-8": {
       "forms": {
         "$": {
-          "is_prev_gen_icon": true
+          "is_prev_gen_icon": true,
+          "is_unofficial_icon": true
+        },
+        "mega": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
         }
       }
     }
@@ -16757,7 +16845,12 @@
     "gen-8": {
       "forms": {
         "$": {
-          "is_prev_gen_icon": false
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        },
+        "mega": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
         }
       }
     }
@@ -17199,7 +17292,12 @@
     "gen-8": {
       "forms": {
         "$": {
-          "is_prev_gen_icon": false
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        },
+        "mega": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
         }
       }
     }
@@ -17687,7 +17785,12 @@
     "gen-8": {
       "forms": {
         "$": {
-          "is_prev_gen_icon": false
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        },
+        "mega": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
         }
       }
     }
@@ -19039,7 +19142,12 @@
     "gen-8": {
       "forms": {
         "$": {
-          "is_prev_gen_icon": true
+          "is_prev_gen_icon": true,
+          "is_unofficial_icon": true
+        },
+        "mega": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
         }
       }
     }
@@ -19184,7 +19292,12 @@
     "gen-8": {
       "forms": {
         "$": {
-          "is_prev_gen_icon": false
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        },
+        "mega": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
         }
       }
     }
@@ -19594,6 +19707,10 @@
       "forms": {
         "$": {
           "is_prev_gen_icon": false
+        },
+        "mega": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
         }
       }
     }
@@ -20465,23 +20582,33 @@
     "gen-8": {
       "forms": {
         "$": {
-          "is_prev_gen_icon": false
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
         },
         "burn": {
-          "is_prev_gen_icon": false
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
         },
         "chill": {
-          "is_prev_gen_icon": false
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
         },
         "douse": {
-          "is_prev_gen_icon": false
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
         },
         "shock": {
-          "is_prev_gen_icon": false
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
         },
         "standard": {
           "is_alias_of": "$",
-          "is_prev_gen_icon": false
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        },
+        "no-drive": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
         }
       }
     }
@@ -20568,7 +20695,12 @@
     "gen-8": {
       "forms": {
         "$": {
-          "is_prev_gen_icon": true
+          "is_prev_gen_icon": true,
+          "is_unofficial_icon": true
+        },
+        "mega": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
         }
       }
     }
@@ -20655,7 +20787,12 @@
     "gen-8": {
       "forms": {
         "$": {
-          "is_prev_gen_icon": true
+          "is_prev_gen_icon": true,
+          "is_unofficial_icon": true
+        },
+        "mega": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
         }
       }
     }
@@ -20751,14 +20888,21 @@
     "gen-8": {
       "forms": {
         "$": {
-          "is_prev_gen_icon": true
+          "is_prev_gen_icon": true,
+          "is_unofficial_icon": true
         },
         "ash": {
-          "is_prev_gen_icon": true
+          "is_prev_gen_icon": true,
+          "is_unofficial_icon": true
         },
         "battle-bond": {
           "is_alias_of": "ash",
-          "is_prev_gen_icon": true
+          "is_prev_gen_icon": true,
+          "is_unofficial_icon": true
+        },
+        "mega": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
         }
       }
     }
@@ -21551,7 +21695,12 @@
       "forms": {
         "$": {
           "has_female": true,
-          "is_prev_gen_icon": true
+          "is_prev_gen_icon": true,
+          "is_unofficial_icon": true
+        },
+        "mega": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
         }
       }
     }
@@ -21671,26 +21820,37 @@
     "gen-8": {
       "forms": {
         "$": {
-          "is_prev_gen_icon": true
+          "is_prev_gen_icon": true,
+          "is_unofficial_icon": true
         },
         "blue": {
-          "is_prev_gen_icon": true
+          "is_prev_gen_icon": true,
+          "is_unofficial_icon": true
         },
         "eternal": {
-          "is_prev_gen_icon": true
+          "is_prev_gen_icon": true,
+          "is_unofficial_icon": true
         },
         "orange": {
-          "is_prev_gen_icon": true
+          "is_prev_gen_icon": true,
+          "is_unofficial_icon": true
         },
         "red": {
           "is_alias_of": "$",
-          "is_prev_gen_icon": true
+          "is_prev_gen_icon": true,
+          "is_unofficial_icon": true
         },
         "white": {
-          "is_prev_gen_icon": true
+          "is_prev_gen_icon": true,
+          "is_unofficial_icon": true
         },
         "yellow": {
-          "is_prev_gen_icon": true
+          "is_prev_gen_icon": true,
+          "is_unofficial_icon": true
+        },
+        "mega": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
         }
       }
     }
@@ -22033,6 +22193,10 @@
         "$": {
           "has_female": true,
           "is_prev_gen_icon": false
+        },
+        "mega": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
         }
       }
     }
@@ -22309,7 +22473,12 @@
     "gen-8": {
       "forms": {
         "$": {
-          "is_prev_gen_icon": false
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        },
+        "mega": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
         }
       }
     }
@@ -22367,7 +22536,12 @@
     "gen-8": {
       "forms": {
         "$": {
-          "is_prev_gen_icon": false
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        },
+        "mega": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
         }
       }
     }
@@ -22425,7 +22599,12 @@
     "gen-8": {
       "forms": {
         "$": {
-          "is_prev_gen_icon": false
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        },
+        "mega": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
         }
       }
     }
@@ -22715,7 +22894,12 @@
     "gen-8": {
       "forms": {
         "$": {
-          "is_prev_gen_icon": false
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        },
+        "mega": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
         }
       }
     }
@@ -23325,17 +23509,25 @@
     "gen-8": {
       "forms": {
         "$": {
-          "is_prev_gen_icon": false
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
         },
         "10": {
-          "is_prev_gen_icon": false
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
         },
         "50": {
           "is_alias_of": "$",
-          "is_prev_gen_icon": false
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
         },
         "complete": {
-          "is_prev_gen_icon": false
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        },
+        "mega": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
         }
       }
     }
@@ -25674,7 +25866,12 @@
     "gen-8": {
       "forms": {
         "$": {
-          "is_prev_gen_icon": false
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        },
+        "mega": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
         }
       }
     }
@@ -26504,6 +26701,10 @@
       "forms": {
         "$": {
           "is_prev_gen_icon": false
+        },
+        "mega": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
         }
       }
     }
@@ -27348,7 +27549,12 @@
     "gen-8": {
       "forms": {
         "$": {
-          "is_prev_gen_icon": false
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        },
+        "gmax": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
         }
       }
     }
@@ -28307,7 +28513,12 @@
     "gen-8": {
       "forms": {
         "$": {
-          "is_prev_gen_icon": false
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        },
+        "mega": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
         }
       }
     }
@@ -29085,6 +29296,10 @@
         "$": {
           "is_prev_gen_icon": false,
           "is_unofficial_icon": true
+        },
+        "bloodmoon": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
         }
       }
     }
@@ -29190,6 +29405,2960 @@
           "is_unofficial_icon": true
         },
         "therian": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "906": {
+    "idx": "906",
+    "name": {
+      "eng": "Sprigatito",
+      "chs": "新叶喵",
+      "jpn": "ニャオハ",
+      "jpn_ro": "Nyahoja"
+    },
+    "slug": {
+      "eng": "sprigatito",
+      "jpn": "nyaoha",
+      "jpn_ro": "nyahoja"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "907": {
+    "idx": "907",
+    "name": {
+      "eng": "Floragato",
+      "chs": "蒂蕾喵",
+      "jpn": "ニャローテ",
+      "jpn_ro": "Nyarote"
+    },
+    "slug": {
+      "eng": "floragato",
+      "jpn": "nyaroote",
+      "jpn_ro": "nyarote"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "908": {
+    "idx": "908",
+    "name": {
+      "eng": "Meowscarada",
+      "chs": "魔幻假面喵",
+      "jpn": "マスカーニャ",
+      "jpn_ro": "Masquernya"
+    },
+    "slug": {
+      "eng": "meowscarada",
+      "jpn": "masukaanya",
+      "jpn_ro": "masquernya"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "909": {
+    "idx": "909",
+    "name": {
+      "eng": "Fuecoco",
+      "chs": "呆火鳄",
+      "jpn": "ホゲータ",
+      "jpn_ro": "Hogator"
+    },
+    "slug": {
+      "eng": "fuecoco",
+      "jpn": "hogeeta",
+      "jpn_ro": "hogator"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "910": {
+    "idx": "910",
+    "name": {
+      "eng": "Crocalor",
+      "chs": "炙烫鳄",
+      "jpn": "アチゲータ",
+      "jpn_ro": "Achigator"
+    },
+    "slug": {
+      "eng": "crocalor",
+      "jpn": "achigeeta",
+      "jpn_ro": "achigator"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "911": {
+    "idx": "911",
+    "name": {
+      "eng": "Skeledirge",
+      "chs": "骨纹巨声鳄",
+      "jpn": "ラウドボーン",
+      "jpn_ro": "Laudbon"
+    },
+    "slug": {
+      "eng": "skeledirge",
+      "jpn": "raudoboon",
+      "jpn_ro": "laudbon"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "912": {
+    "idx": "912",
+    "name": {
+      "eng": "Quaxly",
+      "chs": "润水鸭",
+      "jpn": "クワッス",
+      "jpn_ro": "Kuwassu"
+    },
+    "slug": {
+      "eng": "quaxly",
+      "jpn": "kuwassu",
+      "jpn_ro": "kuwassu"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "913": {
+    "idx": "913",
+    "name": {
+      "eng": "Quaxwell",
+      "chs": "涌跃鸭",
+      "jpn": "ウェルカモ",
+      "jpn_ro": "Welkamo"
+    },
+    "slug": {
+      "eng": "quaxwell",
+      "jpn": "werukamo",
+      "jpn_ro": "welkamo"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "914": {
+    "idx": "914",
+    "name": {
+      "eng": "Quaquaval",
+      "chs": "狂欢浪舞鸭",
+      "jpn": "ウェーニバル",
+      "jpn_ro": "Wanival"
+    },
+    "slug": {
+      "eng": "quaquaval",
+      "jpn": "weenibaru",
+      "jpn_ro": "wanival"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "915": {
+    "idx": "915",
+    "name": {
+      "eng": "Lechonk",
+      "chs": "爱吃豚",
+      "jpn": "グルトン",
+      "jpn_ro": "Gourton"
+    },
+    "slug": {
+      "eng": "lechonk",
+      "jpn": "guruton",
+      "jpn_ro": "gourton"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "916": {
+    "idx": "916",
+    "name": {
+      "eng": "Oinkologne",
+      "chs": "飘香豚",
+      "jpn": "パフュートン",
+      "jpn_ro": "Perfuton"
+    },
+    "slug": {
+      "eng": "oinkologne",
+      "jpn": "pafu-ton",
+      "jpn_ro": "perfuton"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "has_female": true,
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "917": {
+    "idx": "917",
+    "name": {
+      "eng": "Tarountula",
+      "chs": "团珠蛛",
+      "jpn": "タマンチュラ",
+      "jpn_ro": "Tamantula"
+    },
+    "slug": {
+      "eng": "tarountula",
+      "jpn": "tamanchura",
+      "jpn_ro": "tamantula"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "918": {
+    "idx": "918",
+    "name": {
+      "eng": "Spidops",
+      "chs": "操陷蛛",
+      "jpn": "ワナイダー",
+      "jpn_ro": "Wanaider"
+    },
+    "slug": {
+      "eng": "spidops",
+      "jpn": "wanaidaa",
+      "jpn_ro": "wanaider"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "919": {
+    "idx": "919",
+    "name": {
+      "eng": "Nymble",
+      "chs": "豆蟋蟀",
+      "jpn": "マメバッタ",
+      "jpn_ro": "Mamebatta"
+    },
+    "slug": {
+      "eng": "nymble",
+      "jpn": "mamebatta",
+      "jpn_ro": "mamebatta"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "920": {
+    "idx": "920",
+    "name": {
+      "eng": "Lokix",
+      "chs": "烈腿蝗",
+      "jpn": "エクスレッグ",
+      "jpn_ro": "Exleg"
+    },
+    "slug": {
+      "eng": "lokix",
+      "jpn": "ekusureggu",
+      "jpn_ro": "exleg"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "921": {
+    "idx": "921",
+    "name": {
+      "eng": "Pawmi",
+      "chs": "布拨",
+      "jpn": "パモ",
+      "jpn_ro": "Pamo"
+    },
+    "slug": {
+      "eng": "pawmi",
+      "jpn": "pamo",
+      "jpn_ro": "pamo"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "922": {
+    "idx": "922",
+    "name": {
+      "eng": "Pawmo",
+      "chs": "布土拨",
+      "jpn": "パモット",
+      "jpn_ro": "Pamot"
+    },
+    "slug": {
+      "eng": "pawmo",
+      "jpn": "pamotto",
+      "jpn_ro": "pamot"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "923": {
+    "idx": "923",
+    "name": {
+      "eng": "Pawmot",
+      "chs": "巴布土拨",
+      "jpn": "パーモット",
+      "jpn_ro": "Parmot"
+    },
+    "slug": {
+      "eng": "pawmot",
+      "jpn": "paamotto",
+      "jpn_ro": "parmot"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "924": {
+    "idx": "924",
+    "name": {
+      "eng": "Tandemaus",
+      "chs": "一对鼠",
+      "jpn": "ワッカネズミ",
+      "jpn_ro": "Wakkanezumi"
+    },
+    "slug": {
+      "eng": "tandemaus",
+      "jpn": "wakkanezumi",
+      "jpn_ro": "wakkanezumi"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "925": {
+    "idx": "925",
+    "name": {
+      "eng": "Maushold",
+      "chs": "一家鼠",
+      "jpn": "イッカネズミ",
+      "jpn_ro": "Ikkanezumi"
+    },
+    "slug": {
+      "eng": "maushold",
+      "jpn": "ikkanezumi",
+      "jpn_ro": "ikkanezumi"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        },
+        "family-of-four": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "926": {
+    "idx": "926",
+    "name": {
+      "eng": "Fidough",
+      "chs": "狗仔包",
+      "jpn": "パピモッチ",
+      "jpn_ro": "Pupimocchi"
+    },
+    "slug": {
+      "eng": "fidough",
+      "jpn": "papimocchi",
+      "jpn_ro": "pupimocchi"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "927": {
+    "idx": "927",
+    "name": {
+      "eng": "Dachsbun",
+      "chs": "麻花犬",
+      "jpn": "バウッツェル",
+      "jpn_ro": "Bowtzel"
+    },
+    "slug": {
+      "eng": "dachsbun",
+      "jpn": "bauttsueru",
+      "jpn_ro": "bowtzel"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "928": {
+    "idx": "928",
+    "name": {
+      "eng": "Smoliv",
+      "chs": "迷你芙",
+      "jpn": "ミニーブ",
+      "jpn_ro": "Minive"
+    },
+    "slug": {
+      "eng": "smoliv",
+      "jpn": "miniibu",
+      "jpn_ro": "minive"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "929": {
+    "idx": "929",
+    "name": {
+      "eng": "Dolliv",
+      "chs": "奥利纽",
+      "jpn": "オリーニョ",
+      "jpn_ro": "Olinyo"
+    },
+    "slug": {
+      "eng": "dolliv",
+      "jpn": "oriinyo",
+      "jpn_ro": "olinyo"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "930": {
+    "idx": "930",
+    "name": {
+      "eng": "Arboliva",
+      "chs": "奥利瓦",
+      "jpn": "オリーヴァ",
+      "jpn_ro": "Oliva"
+    },
+    "slug": {
+      "eng": "arboliva",
+      "jpn": "oriiva",
+      "jpn_ro": "oliva"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "931": {
+    "idx": "931",
+    "name": {
+      "eng": "Squawkabilly",
+      "chs": "怒鹦哥",
+      "jpn": "イキリンコ",
+      "jpn_ro": "Ikirinko"
+    },
+    "slug": {
+      "eng": "squawkabilly",
+      "jpn": "ikirinko",
+      "jpn_ro": "ikirinko"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_alias_of": "yellow",
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        },
+        "blue": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        },
+        "green": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        },
+        "white": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        },
+        "yellow": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "932": {
+    "idx": "932",
+    "name": {
+      "eng": "Nacli",
+      "chs": "盐石宝",
+      "jpn": "コジオ",
+      "jpn_ro": "Kojio"
+    },
+    "slug": {
+      "eng": "nacli",
+      "jpn": "kojio",
+      "jpn_ro": "kojio"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "933": {
+    "idx": "933",
+    "name": {
+      "eng": "Naclstack",
+      "chs": "盐石垒",
+      "jpn": "ジオヅム",
+      "jpn_ro": "Jiodumu"
+    },
+    "slug": {
+      "eng": "naclstack",
+      "jpn": "jiozumu",
+      "jpn_ro": "jiodumu"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "934": {
+    "idx": "934",
+    "name": {
+      "eng": "Garganacl",
+      "chs": "盐石巨灵",
+      "jpn": "キョジオーン",
+      "jpn_ro": "Kyojiohn"
+    },
+    "slug": {
+      "eng": "garganacl",
+      "jpn": "kyojioon",
+      "jpn_ro": "kyojiohn"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "935": {
+    "idx": "935",
+    "name": {
+      "eng": "Charcadet",
+      "chs": "炭小侍",
+      "jpn": "カルボウ",
+      "jpn_ro": "Carbou"
+    },
+    "slug": {
+      "eng": "charcadet",
+      "jpn": "karubou",
+      "jpn_ro": "carbou"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "936": {
+    "idx": "936",
+    "name": {
+      "eng": "Armarouge",
+      "chs": "红莲铠骑",
+      "jpn": "グレンアルマ",
+      "jpn_ro": "Gurenarma"
+    },
+    "slug": {
+      "eng": "armarouge",
+      "jpn": "gurenaruma",
+      "jpn_ro": "gurenarma"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "937": {
+    "idx": "937",
+    "name": {
+      "eng": "Ceruledge",
+      "chs": "苍炎刃鬼",
+      "jpn": "ソウブレイズ",
+      "jpn_ro": "Soublades"
+    },
+    "slug": {
+      "eng": "ceruledge",
+      "jpn": "soubureizu",
+      "jpn_ro": "soublades"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "938": {
+    "idx": "938",
+    "name": {
+      "eng": "Tadbulb",
+      "chs": "光蚪仔",
+      "jpn": "ズピカ",
+      "jpn_ro": "Zupika"
+    },
+    "slug": {
+      "eng": "tadbulb",
+      "jpn": "zupika",
+      "jpn_ro": "zupika"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "939": {
+    "idx": "939",
+    "name": {
+      "eng": "Bellibolt",
+      "chs": "电肚蛙",
+      "jpn": "ハラバリー",
+      "jpn_ro": "Harabarie"
+    },
+    "slug": {
+      "eng": "bellibolt",
+      "jpn": "harabarii",
+      "jpn_ro": "harabarie"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "940": {
+    "idx": "940",
+    "name": {
+      "eng": "Wattrel",
+      "chs": "电海燕",
+      "jpn": "カイデン",
+      "jpn_ro": "Kaiden"
+    },
+    "slug": {
+      "eng": "wattrel",
+      "jpn": "kaiden",
+      "jpn_ro": "kaiden"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "941": {
+    "idx": "941",
+    "name": {
+      "eng": "Kilowattrel",
+      "chs": "大电海燕",
+      "jpn": "タイカイデン",
+      "jpn_ro": "Taikaiden"
+    },
+    "slug": {
+      "eng": "kilowattrel",
+      "jpn": "taikaiden",
+      "jpn_ro": "taikaiden"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "942": {
+    "idx": "942",
+    "name": {
+      "eng": "Maschiff",
+      "chs": "偶叫獒",
+      "jpn": "オラチフ",
+      "jpn_ro": "Orachifu"
+    },
+    "slug": {
+      "eng": "maschiff",
+      "jpn": "orachifu",
+      "jpn_ro": "orachifu"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "943": {
+    "idx": "943",
+    "name": {
+      "eng": "Mabosstiff",
+      "chs": "獒教父",
+      "jpn": "マフィティフ",
+      "jpn_ro": "Mafitiff"
+    },
+    "slug": {
+      "eng": "mabosstiff",
+      "jpn": "mafitifu",
+      "jpn_ro": "mafitiff"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "944": {
+    "idx": "944",
+    "name": {
+      "eng": "Shroodle",
+      "chs": "滋汁鼹",
+      "jpn": "シルシュルー",
+      "jpn_ro": "Shirushrew"
+    },
+    "slug": {
+      "eng": "shroodle",
+      "jpn": "shirushuruu",
+      "jpn_ro": "shirushrew"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "945": {
+    "idx": "945",
+    "name": {
+      "eng": "Grafaiai",
+      "chs": "涂标客",
+      "jpn": "タギングル",
+      "jpn_ro": "Taggingru"
+    },
+    "slug": {
+      "eng": "grafaiai",
+      "jpn": "taginguru",
+      "jpn_ro": "taggingru"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "946": {
+    "idx": "946",
+    "name": {
+      "eng": "Bramblin",
+      "chs": "纳噬草",
+      "jpn": "アノクサ",
+      "jpn_ro": "Anokusa"
+    },
+    "slug": {
+      "eng": "bramblin",
+      "jpn": "anokusa",
+      "jpn_ro": "anokusa"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "947": {
+    "idx": "947",
+    "name": {
+      "eng": "Brambleghast",
+      "chs": "怖纳噬草",
+      "jpn": "アノホラグサ",
+      "jpn_ro": "Anohoragusa"
+    },
+    "slug": {
+      "eng": "brambleghast",
+      "jpn": "anohoragusa",
+      "jpn_ro": "anohoragusa"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "948": {
+    "idx": "948",
+    "name": {
+      "eng": "Toedscool",
+      "chs": "原野水母",
+      "jpn": "ノノクラゲ",
+      "jpn_ro": "Nonokurage"
+    },
+    "slug": {
+      "eng": "toedscool",
+      "jpn": "nonokurage",
+      "jpn_ro": "nonokurage"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "949": {
+    "idx": "949",
+    "name": {
+      "eng": "Toedscruel",
+      "chs": "陆地水母",
+      "jpn": "リククラゲ",
+      "jpn_ro": "Rikukurage"
+    },
+    "slug": {
+      "eng": "toedscruel",
+      "jpn": "rikukurage",
+      "jpn_ro": "rikukurage"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "950": {
+    "idx": "950",
+    "name": {
+      "eng": "Klawf",
+      "chs": "毛崖蟹",
+      "jpn": "ガケガニ",
+      "jpn_ro": "Gakegani"
+    },
+    "slug": {
+      "eng": "klawf",
+      "jpn": "gakegani",
+      "jpn_ro": "gakegani"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "951": {
+    "idx": "951",
+    "name": {
+      "eng": "Capsakid",
+      "chs": "热辣娃",
+      "jpn": "カプサイジ",
+      "jpn_ro": "Capsaiji"
+    },
+    "slug": {
+      "eng": "capsakid",
+      "jpn": "kapusaiji",
+      "jpn_ro": "capsaiji"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "952": {
+    "idx": "952",
+    "name": {
+      "eng": "Scovillain",
+      "chs": "狠辣椒",
+      "jpn": "スコヴィラン",
+      "jpn_ro": "Scovillain"
+    },
+    "slug": {
+      "eng": "scovillain",
+      "jpn": "sukoviran",
+      "jpn_ro": "scovillain"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "953": {
+    "idx": "953",
+    "name": {
+      "eng": "Rellor",
+      "chs": "虫滚泥",
+      "jpn": "シガロコ",
+      "jpn_ro": "Shigaroko"
+    },
+    "slug": {
+      "eng": "rellor",
+      "jpn": "shigaroko",
+      "jpn_ro": "shigaroko"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "954": {
+    "idx": "954",
+    "name": {
+      "eng": "Rabsca",
+      "chs": "虫甲圣",
+      "jpn": "ベラカス",
+      "jpn_ro": "Beracas"
+    },
+    "slug": {
+      "eng": "rabsca",
+      "jpn": "berakasu",
+      "jpn_ro": "beracas"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "955": {
+    "idx": "955",
+    "name": {
+      "eng": "Flittle",
+      "chs": "飘飘雏",
+      "jpn": "ヒラヒナ",
+      "jpn_ro": "Hirahina"
+    },
+    "slug": {
+      "eng": "flittle",
+      "jpn": "hirahina",
+      "jpn_ro": "hirahina"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "956": {
+    "idx": "956",
+    "name": {
+      "eng": "Espathra",
+      "chs": "超能艳鸵",
+      "jpn": "クエスパトラ",
+      "jpn_ro": "Cuespatra"
+    },
+    "slug": {
+      "eng": "espathra",
+      "jpn": "kuesupatora",
+      "jpn_ro": "cuespatra"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "957": {
+    "idx": "957",
+    "name": {
+      "eng": "Tinkatink",
+      "chs": "小锻匠",
+      "jpn": "カヌチャン",
+      "jpn_ro": "Kanuchan"
+    },
+    "slug": {
+      "eng": "tinkatink",
+      "jpn": "kanuchan",
+      "jpn_ro": "kanuchan"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "958": {
+    "idx": "958",
+    "name": {
+      "eng": "Tinkatuff",
+      "chs": "巧锻匠",
+      "jpn": "ナカヌチャン",
+      "jpn_ro": "Nakanuchan"
+    },
+    "slug": {
+      "eng": "tinkatuff",
+      "jpn": "nakanuchan",
+      "jpn_ro": "nakanuchan"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "959": {
+    "idx": "959",
+    "name": {
+      "eng": "Tinkaton",
+      "chs": "巨锻匠",
+      "jpn": "デカヌチャン",
+      "jpn_ro": "Dekanuchan"
+    },
+    "slug": {
+      "eng": "tinkaton",
+      "jpn": "dekanuchan",
+      "jpn_ro": "dekanuchan"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "960": {
+    "idx": "960",
+    "name": {
+      "eng": "Wiglett",
+      "chs": "海地鼠",
+      "jpn": "ウミディグダ",
+      "jpn_ro": "Umidigda"
+    },
+    "slug": {
+      "eng": "wiglett",
+      "jpn": "umidiguda",
+      "jpn_ro": "umidigda"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "961": {
+    "idx": "961",
+    "name": {
+      "eng": "Wugtrio",
+      "chs": "三海地鼠",
+      "jpn": "ウミトリオ",
+      "jpn_ro": "Umitrio"
+    },
+    "slug": {
+      "eng": "wugtrio",
+      "jpn": "umitorio",
+      "jpn_ro": "umitrio"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "962": {
+    "idx": "962",
+    "name": {
+      "eng": "Bombirdier",
+      "chs": "下石鸟",
+      "jpn": "オトシドリ",
+      "jpn_ro": "Otoshidori"
+    },
+    "slug": {
+      "eng": "bombirdier",
+      "jpn": "otoshidori",
+      "jpn_ro": "otoshidori"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "963": {
+    "idx": "963",
+    "name": {
+      "eng": "Finizen",
+      "chs": "波普海豚",
+      "jpn": "ナミイルカ",
+      "jpn_ro": "Namiiruka"
+    },
+    "slug": {
+      "eng": "finizen",
+      "jpn": "namiiruka",
+      "jpn_ro": "namiiruka"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "964": {
+    "idx": "964",
+    "name": {
+      "eng": "Palafin",
+      "chs": "海豚侠",
+      "jpn": "イルカマン",
+      "jpn_ro": "Irukaman"
+    },
+    "slug": {
+      "eng": "palafin",
+      "jpn": "irukaman",
+      "jpn_ro": "irukaman"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        },
+        "hero": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "965": {
+    "idx": "965",
+    "name": {
+      "eng": "Varoom",
+      "chs": "噗隆隆",
+      "jpn": "ブロロン",
+      "jpn_ro": "Buroron"
+    },
+    "slug": {
+      "eng": "varoom",
+      "jpn": "buroron",
+      "jpn_ro": "buroron"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "966": {
+    "idx": "966",
+    "name": {
+      "eng": "Revavroom",
+      "chs": "普隆隆姆",
+      "jpn": "ブロロローム",
+      "jpn_ro": "Burororoom"
+    },
+    "slug": {
+      "eng": "revavroom",
+      "jpn": "burororoomu",
+      "jpn_ro": "burororoom"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "967": {
+    "idx": "967",
+    "name": {
+      "eng": "Cyclizar",
+      "chs": "摩托蜥",
+      "jpn": "モトトカゲ",
+      "jpn_ro": "Mototokage"
+    },
+    "slug": {
+      "eng": "cyclizar",
+      "jpn": "mototokage",
+      "jpn_ro": "mototokage"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        },
+        "mount": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "968": {
+    "idx": "968",
+    "name": {
+      "eng": "Orthworm",
+      "chs": "拖拖蚓",
+      "jpn": "ミミズズ",
+      "jpn_ro": "Mimizuzu"
+    },
+    "slug": {
+      "eng": "orthworm",
+      "jpn": "mimizuzu",
+      "jpn_ro": "mimizuzu"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "969": {
+    "idx": "969",
+    "name": {
+      "eng": "Glimmet",
+      "chs": "晶光芽",
+      "jpn": "キラーメ",
+      "jpn_ro": "Kirame"
+    },
+    "slug": {
+      "eng": "glimmet",
+      "jpn": "kiraame",
+      "jpn_ro": "kirame"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "970": {
+    "idx": "970",
+    "name": {
+      "eng": "Glimmora",
+      "chs": "晶光花",
+      "jpn": "キラフロル",
+      "jpn_ro": "Kiraflor"
+    },
+    "slug": {
+      "eng": "glimmora",
+      "jpn": "kirafuroru",
+      "jpn_ro": "kiraflor"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "971": {
+    "idx": "971",
+    "name": {
+      "eng": "Greavard",
+      "chs": "墓仔狗",
+      "jpn": "ボチ",
+      "jpn_ro": "Bochi"
+    },
+    "slug": {
+      "eng": "greavard",
+      "jpn": "bochi",
+      "jpn_ro": "bochi"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "972": {
+    "idx": "972",
+    "name": {
+      "eng": "Houndstone",
+      "chs": "墓扬犬",
+      "jpn": "ハカドッグ",
+      "jpn_ro": "Hakadog"
+    },
+    "slug": {
+      "eng": "houndstone",
+      "jpn": "hakadoggu",
+      "jpn_ro": "hakadog"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "973": {
+    "idx": "973",
+    "name": {
+      "eng": "Flamigo",
+      "chs": "纏红鹤",
+      "jpn": "カラミンゴ",
+      "jpn_ro": "Karamingo"
+    },
+    "slug": {
+      "eng": "flamigo",
+      "jpn": "karamingo",
+      "jpn_ro": "karamingo"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "974": {
+    "idx": "974",
+    "name": {
+      "eng": "Cetoddle",
+      "chs": "走鲸",
+      "jpn": "アルクジラ",
+      "jpn_ro": "Arukujira"
+    },
+    "slug": {
+      "eng": "cetoddle",
+      "jpn": "arukujira",
+      "jpn_ro": "arukujira"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "975": {
+    "idx": "975",
+    "name": {
+      "eng": "Cetitan",
+      "chs": "浩大鲸",
+      "jpn": "ハルクジラ",
+      "jpn_ro": "Hulkujira"
+    },
+    "slug": {
+      "eng": "cetitan",
+      "jpn": "harukujira",
+      "jpn_ro": "hulkujira"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "976": {
+    "idx": "976",
+    "name": {
+      "eng": "Veluza",
+      "chs": "轻身鳕",
+      "jpn": "ミガルーサ",
+      "jpn_ro": "Migalusa"
+    },
+    "slug": {
+      "eng": "veluza",
+      "jpn": "migaruusa",
+      "jpn_ro": "migalusa"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "977": {
+    "idx": "977",
+    "name": {
+      "eng": "Dondozo",
+      "chs": "吃吼霸",
+      "jpn": "ヘイラッシャ",
+      "jpn_ro": "Heyrusher"
+    },
+    "slug": {
+      "eng": "dondozo",
+      "jpn": "heirassha",
+      "jpn_ro": "heyrusher"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "978": {
+    "idx": "978",
+    "name": {
+      "eng": "Tatsugiri",
+      "chs": "米立龙",
+      "jpn": "シャリタツ",
+      "jpn_ro": "Syaritatsu"
+    },
+    "slug": {
+      "eng": "tatsugiri",
+      "jpn": "sharitatsu",
+      "jpn_ro": "syaritatsu"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        },
+        "droopy": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        },
+        "stretchy": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "979": {
+    "idx": "979",
+    "name": {
+      "eng": "Annihilape",
+      "chs": "弃世猴",
+      "jpn": "コノヨザル",
+      "jpn_ro": "Konoyozaru"
+    },
+    "slug": {
+      "eng": "annihilape",
+      "jpn": "konoyozaru",
+      "jpn_ro": "konoyozaru"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "980": {
+    "idx": "980",
+    "name": {
+      "eng": "Clodsire",
+      "chs": "土王",
+      "jpn": "ドオー",
+      "jpn_ro": "Dooh"
+    },
+    "slug": {
+      "eng": "clodsire",
+      "jpn": "dooo",
+      "jpn_ro": "dooh"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "981": {
+    "idx": "981",
+    "name": {
+      "eng": "Farigiraf",
+      "chs": "奇麒麟",
+      "jpn": "リキキリン",
+      "jpn_ro": "Rikikirin"
+    },
+    "slug": {
+      "eng": "farigiraf",
+      "jpn": "rikikirin",
+      "jpn_ro": "rikikirin"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "982": {
+    "idx": "982",
+    "name": {
+      "eng": "Dudunsparce",
+      "chs": "土龙节节",
+      "jpn": "ノココッチ",
+      "jpn_ro": "Nokokocchi"
+    },
+    "slug": {
+      "eng": "dudunsparce",
+      "jpn": "nokokocchi",
+      "jpn_ro": "nokokocchi"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        },
+        "three-segment": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "983": {
+    "idx": "983",
+    "name": {
+      "eng": "Kingambit",
+      "chs": "仆刀将军",
+      "jpn": "ドドゲザン",
+      "jpn_ro": "Dodogezan"
+    },
+    "slug": {
+      "eng": "kingambit",
+      "jpn": "dodogezan",
+      "jpn_ro": "dodogezan"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "984": {
+    "idx": "984",
+    "name": {
+      "eng": "Great Tusk",
+      "chs": "雄伟牙",
+      "jpn": "イダイナキバ",
+      "jpn_ro": "Idainakiba"
+    },
+    "slug": {
+      "eng": "great-tusk",
+      "jpn": "idainakiba",
+      "jpn_ro": "idainakiba"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "985": {
+    "idx": "985",
+    "name": {
+      "eng": "Scream Tail",
+      "chs": "吼叫尾",
+      "jpn": "サケブシッポ",
+      "jpn_ro": "Sakebushippo"
+    },
+    "slug": {
+      "eng": "scream-tail",
+      "jpn": "sakebushippo",
+      "jpn_ro": "sakebushippo"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "986": {
+    "idx": "986",
+    "name": {
+      "eng": "Brute Bonnet",
+      "chs": "猛恶菇",
+      "jpn": "アラブルタケ",
+      "jpn_ro": "Araburutake"
+    },
+    "slug": {
+      "eng": "brute-bonnet",
+      "jpn": "araburutake",
+      "jpn_ro": "araburutake"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "987": {
+    "idx": "987",
+    "name": {
+      "eng": "Flutter Mane",
+      "chs": "振翼发",
+      "jpn": "ハバタクカミ",
+      "jpn_ro": "Habatakukami"
+    },
+    "slug": {
+      "eng": "flutter-mane",
+      "jpn": "habatakukami",
+      "jpn_ro": "habatakukami"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "988": {
+    "idx": "988",
+    "name": {
+      "eng": "Slither Wing",
+      "chs": "爬地翅",
+      "jpn": "チヲハウハネ",
+      "jpn_ro": "Chiwohauhane"
+    },
+    "slug": {
+      "eng": "slither-wing",
+      "jpn": "chiohauhane",
+      "jpn_ro": "chiwohauhane"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "989": {
+    "idx": "989",
+    "name": {
+      "eng": "Sandy Shocks",
+      "chs": "沙铁皮",
+      "jpn": "スナノケガワ",
+      "jpn_ro": "Sunanokegawa"
+    },
+    "slug": {
+      "eng": "sandy-shocks",
+      "jpn": "sunanokegawa",
+      "jpn_ro": "sunanokegawa"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "990": {
+    "idx": "990",
+    "name": {
+      "eng": "Iron Treads",
+      "chs": "铁轍迹",
+      "jpn": "テツノワダチ",
+      "jpn_ro": "Tetsunowadachi"
+    },
+    "slug": {
+      "eng": "iron-treads",
+      "jpn": "tetsunowadachi",
+      "jpn_ro": "tetsunowadachi"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "991": {
+    "idx": "991",
+    "name": {
+      "eng": "Iron Bundle",
+      "chs": "铁包袱",
+      "jpn": "テツノツツミ",
+      "jpn_ro": "Tetsunotsutsumi"
+    },
+    "slug": {
+      "eng": "iron-bundle",
+      "jpn": "tetsunotsutsumi",
+      "jpn_ro": "tetsunotsutsumi"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "992": {
+    "idx": "992",
+    "name": {
+      "eng": "Iron Hands",
+      "chs": "铁臂膀",
+      "jpn": "テツノカイナ",
+      "jpn_ro": "Tetsunokaina"
+    },
+    "slug": {
+      "eng": "iron-hands",
+      "jpn": "tetsunokaina",
+      "jpn_ro": "tetsunokaina"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "993": {
+    "idx": "993",
+    "name": {
+      "eng": "Iron Jugulis",
+      "chs": "铁脖颈",
+      "jpn": "テツノコウベ",
+      "jpn_ro": "Tetsunokoube"
+    },
+    "slug": {
+      "eng": "iron-jugulis",
+      "jpn": "tetsunokoube",
+      "jpn_ro": "tetsunokoube"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "994": {
+    "idx": "994",
+    "name": {
+      "eng": "Iron Moth",
+      "chs": "铁毒蛾",
+      "jpn": "テツノドクガ",
+      "jpn_ro": "Tetsunodokuga"
+    },
+    "slug": {
+      "eng": "iron-moth",
+      "jpn": "tetsunodokuga",
+      "jpn_ro": "tetsunodokuga"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "995": {
+    "idx": "995",
+    "name": {
+      "eng": "Iron Thorns",
+      "chs": "铁荆棘",
+      "jpn": "テツノイバラ",
+      "jpn_ro": "Tetsunoibara"
+    },
+    "slug": {
+      "eng": "iron-thorns",
+      "jpn": "tetsunoibara",
+      "jpn_ro": "tetsunoibara"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "996": {
+    "idx": "996",
+    "name": {
+      "eng": "Frigibax",
+      "chs": "凉脊龙",
+      "jpn": "セビエ",
+      "jpn_ro": "Sebie"
+    },
+    "slug": {
+      "eng": "frigibax",
+      "jpn": "sebie",
+      "jpn_ro": "sebie"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "997": {
+    "idx": "997",
+    "name": {
+      "eng": "Arctibax",
+      "chs": "冻脊龙",
+      "jpn": "セゴール",
+      "jpn_ro": "Segohru"
+    },
+    "slug": {
+      "eng": "arctibax",
+      "jpn": "segooru",
+      "jpn_ro": "segohru"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "998": {
+    "idx": "998",
+    "name": {
+      "eng": "Baxcalibur",
+      "chs": "戟脊龙",
+      "jpn": "セグレイブ",
+      "jpn_ro": "Seglaive"
+    },
+    "slug": {
+      "eng": "baxcalibur",
+      "jpn": "segureibu",
+      "jpn_ro": "seglaive"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "999": {
+    "idx": "999",
+    "name": {
+      "eng": "Gimmighoul",
+      "chs": "索财灵",
+      "jpn": "コレクレー",
+      "jpn_ro": "Collecurei"
+    },
+    "slug": {
+      "eng": "gimmighoul",
+      "jpn": "korekuree",
+      "jpn_ro": "collecurei"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        },
+        "roaming": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "1000": {
+    "idx": "1000",
+    "name": {
+      "eng": "Gholdengo",
+      "chs": "赛富豪",
+      "jpn": "サーフゴー",
+      "jpn_ro": "Surfugo"
+    },
+    "slug": {
+      "eng": "gholdengo",
+      "jpn": "saafugoo",
+      "jpn_ro": "surfugo"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "1001": {
+    "idx": "1001",
+    "name": {
+      "eng": "Wo-Chien",
+      "chs": "古简蜗",
+      "jpn": "チオンジェン",
+      "jpn_ro": "Chionjen"
+    },
+    "slug": {
+      "eng": "wo-chien",
+      "jpn": "chionjen",
+      "jpn_ro": "chionjen"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "1002": {
+    "idx": "1002",
+    "name": {
+      "eng": "Chien-Pao",
+      "chs": "古剑豹",
+      "jpn": "パオジアン",
+      "jpn_ro": "Paojian"
+    },
+    "slug": {
+      "eng": "chien-pao",
+      "jpn": "paojian",
+      "jpn_ro": "paojian"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "1003": {
+    "idx": "1003",
+    "name": {
+      "eng": "Ting-Lu",
+      "chs": "古鼎鹿",
+      "jpn": "ディンルー",
+      "jpn_ro": "Dinlu"
+    },
+    "slug": {
+      "eng": "ting-lu",
+      "jpn": "dinruu",
+      "jpn_ro": "dinlu"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "1004": {
+    "idx": "1004",
+    "name": {
+      "eng": "Chi-Yu",
+      "chs": "古玉鱼",
+      "jpn": "イーユイ",
+      "jpn_ro": "Yiyui"
+    },
+    "slug": {
+      "eng": "chi-yu",
+      "jpn": "iiyui",
+      "jpn_ro": "yiyui"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "1005": {
+    "idx": "1005",
+    "name": {
+      "eng": "Roaring Moon",
+      "chs": "轰鸣月",
+      "jpn": "トドロクツキ",
+      "jpn_ro": "Todorokutsuki"
+    },
+    "slug": {
+      "eng": "roaring-moon",
+      "jpn": "todorokutsuki",
+      "jpn_ro": "todorokutsuki"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "1006": {
+    "idx": "1006",
+    "name": {
+      "eng": "Iron Valiant",
+      "chs": "铁武者",
+      "jpn": "テツノブジン",
+      "jpn_ro": "Tetsunobujin"
+    },
+    "slug": {
+      "eng": "iron-valiant",
+      "jpn": "tetsunobujin",
+      "jpn_ro": "tetsunobujin"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "1007": {
+    "idx": "1007",
+    "name": {
+      "eng": "Koraidon",
+      "chs": "故勒顿",
+      "jpn": "コライドン",
+      "jpn_ro": "Koraidon"
+    },
+    "slug": {
+      "eng": "koraidon",
+      "jpn": "koraidon",
+      "jpn_ro": "koraidon"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        },
+        "mount": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "1008": {
+    "idx": "1008",
+    "name": {
+      "eng": "Miraidon",
+      "chs": "密勒顿",
+      "jpn": "ミライドン",
+      "jpn_ro": "Miraidon"
+    },
+    "slug": {
+      "eng": "miraidon",
+      "jpn": "miraidon",
+      "jpn_ro": "miraidon"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        },
+        "mount": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "1009": {
+    "idx": "1009",
+    "name": {
+      "eng": "Walking Wake",
+      "chs": "波荡水",
+      "jpn": "ウネルミナモ",
+      "jpn_ro": "Uneruminamo"
+    },
+    "slug": {
+      "eng": "walking-wake",
+      "jpn": "uneruminamo",
+      "jpn_ro": "uneruminamo"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "1010": {
+    "idx": "1010",
+    "name": {
+      "eng": "Iron Leaves",
+      "chs": "铁斑叶",
+      "jpn": "テツノイサハ",
+      "jpn_ro": "Tetsunoisaha"
+    },
+    "slug": {
+      "eng": "iron-leaves",
+      "jpn": "tetsunoisaha",
+      "jpn_ro": "tetsunoisaha"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "1011": {
+    "idx": "1011",
+    "name": {
+      "eng": "Dipplin",
+      "chs": "裹蜜虫",
+      "jpn": "カミッチュ",
+      "jpn_ro": "Kamicchu"
+    },
+    "slug": {
+      "eng": "dipplin",
+      "jpn": "kamicchu",
+      "jpn_ro": "kamicchu"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "1012": {
+    "idx": "1012",
+    "name": {
+      "eng": "Poltchageist",
+      "chs": "斯魔茶",
+      "jpn": "チャデス",
+      "jpn_ro": "Chadesu"
+    },
+    "slug": {
+      "eng": "poltchageist",
+      "jpn": "chadesu",
+      "jpn_ro": "chadesu"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "1013": {
+    "idx": "1013",
+    "name": {
+      "eng": "Sinistcha",
+      "chs": "来悲粗茶",
+      "jpn": "ヤバソチャ",
+      "jpn_ro": "Yabasocha"
+    },
+    "slug": {
+      "eng": "sinistcha",
+      "jpn": "yabasocha",
+      "jpn_ro": "yabasocha"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "1014": {
+    "idx": "1014",
+    "name": {
+      "eng": "Okidogi",
+      "chs": "够赞狗",
+      "jpn": "イイネイヌ",
+      "jpn_ro": "Iineinu"
+    },
+    "slug": {
+      "eng": "okidogi",
+      "jpn": "iineinu",
+      "jpn_ro": "iineinu"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "1015": {
+    "idx": "1015",
+    "name": {
+      "eng": "Munkidori",
+      "chs": "愿增猿",
+      "jpn": "マシマシラ",
+      "jpn_ro": "Mashimashira"
+    },
+    "slug": {
+      "eng": "munkidori",
+      "jpn": "mashimashira",
+      "jpn_ro": "mashimashira"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "1016": {
+    "idx": "1016",
+    "name": {
+      "eng": "Fezandipiti",
+      "chs": "吉雉鸡",
+      "jpn": "キチキギス",
+      "jpn_ro": "Kichikigisu"
+    },
+    "slug": {
+      "eng": "fezandipiti",
+      "jpn": "kichikigisu",
+      "jpn_ro": "kichikigisu"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "1017": {
+    "idx": "1017",
+    "name": {
+      "eng": "Ogerpon",
+      "chs": "厄诡椪",
+      "jpn": "オーガポン",
+      "jpn_ro": "Oogapon"
+    },
+    "slug": {
+      "eng": "ogerpon",
+      "jpn": "oogapon",
+      "jpn_ro": "oogapon"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "cornerstone-mask": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        },
+        "hearthflame-mask": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        },
+        "teal-mask": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        },
+        "wellspring-mask": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "1018": {
+    "idx": "1018",
+    "name": {
+      "eng": "Archaludon",
+      "chs": "铝钢桥龙",
+      "jpn": "ブリジュラス",
+      "jpn_ro": "Burijurasu"
+    },
+    "slug": {
+      "eng": "archaludon",
+      "jpn": "burijurasu",
+      "jpn_ro": "burijurasu"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "1019": {
+    "idx": "1019",
+    "name": {
+      "eng": "Hydrapple",
+      "chs": "蜜集大蛇",
+      "jpn": "カミツオロチ",
+      "jpn_ro": "Kamitsuorochi"
+    },
+    "slug": {
+      "eng": "hydrapple",
+      "jpn": "kamitsuorochi",
+      "jpn_ro": "kamitsuorochi"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "1020": {
+    "idx": "1020",
+    "name": {
+      "eng": "Gouging Fire",
+      "chs": "破空焰",
+      "jpn": "ウガツホムラ",
+      "jpn_ro": "Ugatsuhomura"
+    },
+    "slug": {
+      "eng": "gouging-fire",
+      "jpn": "ugatsuhomura",
+      "jpn_ro": "ugatsuhomura"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "1021": {
+    "idx": "1021",
+    "name": {
+      "eng": "Raging Bolt",
+      "chs": "猛雷鼓",
+      "jpn": "タケルライコ",
+      "jpn_ro": "Takeruraiko"
+    },
+    "slug": {
+      "eng": "raging-bolt",
+      "jpn": "takeruraiko",
+      "jpn_ro": "takeruraiko"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "1022": {
+    "idx": "1022",
+    "name": {
+      "eng": "Iron Boulder",
+      "chs": "鐵磐岩",
+      "jpn": "テツノイワオ",
+      "jpn_ro": "Tetsunoiwao"
+    },
+    "slug": {
+      "eng": "iron-boulder",
+      "jpn": "tetsunoiwao",
+      "jpn_ro": "tetsunoiwao"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "1023": {
+    "idx": "1023",
+    "name": {
+      "eng": "Iron Crown",
+      "chs": "鐵頭殼",
+      "jpn": "テツノカシラ",
+      "jpn_ro": "Tetsunokashira"
+    },
+    "slug": {
+      "eng": "iron-crown",
+      "jpn": "tetsunokashira",
+      "jpn_ro": "tetsunokashira"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "1024": {
+    "idx": "1024",
+    "name": {
+      "eng": "Terapagos",
+      "chs": "太乐巴戈斯",
+      "jpn": "テラパゴス",
+      "jpn_ro": "Terapagosu"
+    },
+    "slug": {
+      "eng": "terapagos",
+      "jpn": "terapagosu",
+      "jpn_ro": "terapagosu"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        },
+        "stellar": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        },
+        "terastal": {
+          "is_prev_gen_icon": false,
+          "is_unofficial_icon": true
+        }
+      }
+    }
+  },
+  "1025": {
+    "idx": "1025",
+    "name": {
+      "eng": "Pecharunt",
+      "chs": "桃歹郎",
+      "jpn": "モモワロウ",
+      "jpn_ro": "Momowarou"
+    },
+    "slug": {
+      "eng": "pecharunt",
+      "jpn": "momowarou",
+      "jpn_ro": "momowarou"
+    },
+    "gen-7": {
+    },
+    "gen-8": {
+      "forms": {
+        "$": {
           "is_prev_gen_icon": false,
           "is_unofficial_icon": true
         }
