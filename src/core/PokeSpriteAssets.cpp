@@ -169,25 +169,6 @@ public:
         }
         resolved.resolved_form_key = form_key;
 
-        // Debug: help diagnose form mismatches for common multi-form species.
-        if (request.species_id == 412 || request.species_id == 413 || // burmy/wormadam
-            request.species_id == 422 || request.species_id == 423 || // shellos/gastrodon
-            request.species_id == 585 || request.species_id == 586) { // deerling/sawsbuck
-            static std::unordered_set<std::string> warned;
-            const std::string warn_key =
-                std::to_string(request.species_id) + "|" + slug + "|" + request.form_key + "|" + form_key;
-            if (warned.insert(warn_key).second) {
-                std::cerr << "[PokeSpriteAssets] form_debug species_id=" << request.species_id
-                          << " slug=" << slug
-                          << " request_form_key=\"" << request.form_key << "\""
-                          << " normalized_form_key=\"" << stripKnownFormSuffixes(normalizeToken(request.form_key)) << "\""
-                          << " resolved_form_key=\"" << form_key << "\""
-                          << " gender=" << request.gender
-                          << " shiny=" << (request.is_shiny ? "true" : "false")
-                          << "\n";
-            }
-        }
-
         std::vector<std::pair<std::string, bool>> candidates;
         auto push_candidate = [&](const std::string& stem, bool female_variant) {
             if (stem.empty()) {

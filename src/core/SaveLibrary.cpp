@@ -10,7 +10,6 @@
 #include <iomanip>
 #include <iostream>
 #include <map>
-#include <unordered_set>
 #include <sstream>
 #include <system_error>
 
@@ -58,6 +57,9 @@ bool isLikelySaveCandidate(const fs::path& path) {
     if (filename == "main") {
         return true;
     }
+    if (filename == ".DS_Store") {
+        return false;
+    }
 
     const std::string extension = path.extension().string();
     static const std::vector<std::string> allowed{
@@ -68,8 +70,19 @@ bool isLikelySaveCandidate(const fs::path& path) {
         ".bin",
         ".raw"
     };
+    if (std::find(allowed.begin(), allowed.end(), extension) != allowed.end()) {
+        return true;
+    }
 
-    return std::find(allowed.begin(), allowed.end(), extension) != allowed.end();
+    // Many modern Switch/3DS exports are extensionless. If it has no extension and no dot in the name,
+    // try probing it (PKHeX will reject unsupported formats).
+    if (extension.empty()) {
+        if (filename.find('.') == std::string::npos && !filename.empty() && filename[0] != '.') {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 std::string trimTrailingWhitespace(std::string value) {
@@ -98,6 +111,40 @@ std::string formatFileTime(const fs::file_time_type& value) {
     std::ostringstream out;
     out << std::put_time(&local_time, "%Y-%m-%d %H:%M:%S");
     return out.str();
+}
+
+bool parsePlayTimeHhMm(const std::string& s, int& out_hours, int& out_minutes) {
+    out_hours = 0;
+    out_minutes = 0;
+    const std::size_t colon = s.find(':');
+    if (colon == std::string::npos) return false;
+    try {
+        out_hours = std::stoi(s.substr(0, colon));
+        out_minutes = std::stoi(s.substr(colon + 1));
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+std::vector<std::string> suspiciousSummaryReasons(const TransferSaveSummary& summary) {
+    std::vector<std::string> reasons;
+    if (summary.player_name.empty()) reasons.push_back("missing_ot");
+    if (summary.game_id.empty()) reasons.push_back("missing_game_id");
+
+    if (summary.party.empty() && summary.party_slots.empty()) reasons.push_back("empty_party");
+    if (summary.pokedex_count <= 0) reasons.push_back("pokedex_0");
+    if (summary.badges < 0) reasons.push_back("badges_negative");
+
+    int hh = 0, mm = 0;
+    if (summary.play_time.empty()) {
+        reasons.push_back("missing_play_time");
+    } else if (parsePlayTimeHhMm(summary.play_time, hh, mm)) {
+        if (hh <= 0 && mm <= 0) reasons.push_back("play_time_0");
+        if (hh < 0 || mm < 0) reasons.push_back("play_time_negative");
+    }
+
+    return reasons;
 }
 
 const char* probeStatusLabel(SaveProbeStatus status) {
@@ -153,112 +200,6 @@ std::vector<std::string> parseStringArray(const JsonValue* value) {
         }
     }
     return result;
-}
-
-std::string jsonEscapeDebug(const std::string& s) {
-    std::string out;
-    out.reserve(s.size() + 8);
-    for (const unsigned char uc : s) {
-        const char c = static_cast<char>(uc);
-        switch (c) {
-            case '\\': out += "\\\\"; break;
-            case '"': out += "\\\""; break;
-            case '\n': out += "\\n"; break;
-            case '\r': out += "\\r"; break;
-            case '\t': out += "\\t"; break;
-            default:
-                if (uc < 0x20) {
-                    // Control chars: emit \u00XX
-                    static const char* hex = "0123456789abcdef";
-                    out += "\\u00";
-                    out.push_back(hex[(uc >> 4) & 0xF]);
-                    out.push_back(hex[uc & 0xF]);
-                } else {
-                    out.push_back(c);
-                }
-                break;
-        }
-    }
-    return out;
-}
-
-void appendJsonDebug(std::string& out, const JsonValue& v, int indent, int depth) {
-    if (depth > 32) {
-        out += "\"<max_depth>\"";
-        return;
-    }
-    if (v.isNull()) {
-        out += "null";
-        return;
-    }
-    if (v.isBool()) {
-        out += (v.asBool() ? "true" : "false");
-        return;
-    }
-    if (v.isNumber()) {
-        // Preserve integers cleanly where possible.
-        const double d = v.asNumber();
-        const long long as_i = static_cast<long long>(d);
-        if (static_cast<double>(as_i) == d) {
-            out += std::to_string(as_i);
-        } else {
-            std::ostringstream ss;
-            ss << d;
-            out += ss.str();
-        }
-        return;
-    }
-    if (v.isString()) {
-        out += "\"";
-        out += jsonEscapeDebug(v.asString());
-        out += "\"";
-        return;
-    }
-    if (v.isArray()) {
-        out += "[";
-        const auto& arr = v.asArray();
-        if (!arr.empty()) {
-            out += "\n";
-            for (std::size_t i = 0; i < arr.size(); ++i) {
-                out.append(static_cast<std::size_t>(indent + 2), ' ');
-                appendJsonDebug(out, arr[i], indent + 2, depth + 1);
-                if (i + 1 < arr.size()) out += ",";
-                out += "\n";
-            }
-            out.append(static_cast<std::size_t>(indent), ' ');
-        }
-        out += "]";
-        return;
-    }
-    if (v.isObject()) {
-        out += "{";
-        const auto& obj = v.asObject();
-        if (!obj.empty()) {
-            out += "\n";
-            std::size_t i = 0;
-            for (const auto& [k, vv] : obj) {
-                out.append(static_cast<std::size_t>(indent + 2), ' ');
-                out += "\"";
-                out += jsonEscapeDebug(k);
-                out += "\": ";
-                appendJsonDebug(out, vv, indent + 2, depth + 1);
-                if (i + 1 < obj.size()) out += ",";
-                out += "\n";
-                ++i;
-            }
-            out.append(static_cast<std::size_t>(indent), ' ');
-        }
-        out += "}";
-        return;
-    }
-    out += "\"<unknown>\"";
-}
-
-std::string toJsonDebugString(const JsonValue& v) {
-    std::string out;
-    out.reserve(4096);
-    appendJsonDebug(out, v, 0, 0);
-    return out;
 }
 
 std::string speciesSlugFromPokemonObject(const JsonValue& pokemon) {
@@ -409,31 +350,6 @@ void fillSlotFromPokemonObject(PcSlotSpecies& out, const JsonValue& pokemon) {
         out.slot_index = asIntOrDefault(childAny(*location, {"Slot", "slot"}), out.slot_index);
         out.global_index = asIntOrDefault(childAny(*location, {"GlobalIndex", "globalIndex", "global_index"}),
                                           out.global_index);
-    }
-
-    // Debug: dump the raw bridge Pokemon object for multi-form species.
-    if (out.species_id == 201 || // unown
-        out.species_id == 412 || out.species_id == 413 || // burmy/wormadam
-        out.species_id == 422 || out.species_id == 423 || // shellos/gastrodon
-        out.species_id == 585 || out.species_id == 586) { // deerling/sawsbuck
-        static std::unordered_set<std::string> warned;
-        const std::string key =
-            std::to_string(out.species_id) + "|" + out.slug + "|" + std::to_string(out.box_index) + "|" +
-            std::to_string(out.slot_index) + "|" + std::to_string(out.global_index) + "|" + out.form_key;
-        if (warned.insert(key).second) {
-            std::cerr << "[SaveLibrary] bridge_pokemon_debug species_id=" << out.species_id
-                      << " slug=" << out.slug
-                      << " area=" << out.area
-                      << " box=" << out.box_index
-                      << " slot=" << out.slot_index
-                      << " global=" << out.global_index
-                      << " parsed_form=" << out.form
-                      << " parsed_form_key=\"" << out.form_key << "\""
-                      << " parsed_gender=" << out.gender
-                      << " parsed_level=" << out.level
-                      << "\n"
-                      << toJsonDebugString(pokemon) << "\n";
-        }
     }
 
     out.moves = {};
@@ -1072,6 +988,12 @@ bool hasUsableTransferSummary(const std::optional<TransferSaveSummary>& summary)
            (!summary->party_slots.empty() || !summary->party.empty());
 }
 
+bool shouldReprobeForKnownBadGameId(const std::optional<TransferSaveSummary>& summary) {
+    if (!summary) return false;
+    // Legacy/buggy bridge ids that break icon/title mapping. Always re-probe to refresh.
+    return summary->game_id == "pokemon_or" || summary->game_id == "pokemon_as";
+}
+
 std::map<std::string, CachedSaveRecord> parseCacheRecords(const JsonValue& root) {
     std::map<std::string, CachedSaveRecord> records;
     const JsonValue* entries = child(root, "records");
@@ -1240,15 +1162,7 @@ void SaveLibrary::discoverFiles() {
             return lhs.filename < rhs.filename;
         });
 
-    std::cerr << "[SaveLibrary] discovered_count=" << records_.size() << '\n';
-    for (const SaveFileRecord& record : records_) {
-        std::cerr << "[SaveLibrary] file"
-                  << " filename=" << record.filename
-                  << " size=" << record.size
-                  << " last_write=\"" << formatFileTime(record.last_write_time) << "\""
-                  << " path=" << record.path
-                  << '\n';
-    }
+    // Noisy details removed; errors are logged during probing.
 }
 
 void SaveLibrary::probeDiscoveredFiles() {
@@ -1274,9 +1188,6 @@ void SaveLibrary::probeDiscoveredFiles() {
                 continue;
             }
 
-            std::cerr << "[SaveLibrary] hash_status=ok filename=" << record.filename
-                      << " hash=" << record.file_hash << '\n';
-
             const auto cache_it = cache_records.find(record.path);
             bool should_probe = true;
             if (cache_it != cache_records.end() &&
@@ -1287,14 +1198,11 @@ void SaveLibrary::probeDiscoveredFiles() {
                 record.transfer_summary = cache_it->second.transfer_summary;
                 record.bridge_result.bridge_path = "cache";
                 record.bridge_result.command = "cache_hit";
-                std::cerr << "[SaveLibrary] cache_result=hit filename=" << record.filename
-                          << " probe_status=" << probeStatusLabel(record.probe_status) << '\n';
                 should_probe =
                     record.probe_status == SaveProbeStatus::ValidSave &&
-                    !hasUsableTransferSummary(record.transfer_summary);
+                    (!hasUsableTransferSummary(record.transfer_summary) ||
+                     shouldReprobeForKnownBadGameId(record.transfer_summary));
                 if (should_probe) {
-                    std::cerr << "[SaveLibrary] cache_result=stale filename=" << record.filename
-                              << " reason=missing_required_transfer_fields\n";
                     record.used_cache = false;
                     record.transfer_summary.reset();
                     record.raw_bridge_output.clear();
@@ -1302,7 +1210,6 @@ void SaveLibrary::probeDiscoveredFiles() {
             }
 
             if (should_probe) {
-                std::cerr << "[SaveLibrary] cache_result=miss filename=" << record.filename << '\n';
                 record.bridge_result = probeSaveWithBridge(project_root_, argv0_, record.path);
                 record.raw_bridge_output = trimTrailingWhitespace(record.bridge_result.stdout_text);
 
@@ -1340,35 +1247,52 @@ void SaveLibrary::probeDiscoveredFiles() {
                       << " error=" << e.what() << '\n';
         }
 
-        std::cerr << "[SaveLibrary] probe"
-                  << " filename=" << record.filename
-                  << " status=" << probeStatusLabel(record.probe_status)
-                  << " cache=" << (record.used_cache ? "hit" : "miss")
-                  << " launched=" << (record.bridge_result.launched ? "true" : "false")
-                  << " exit_code=" << record.bridge_result.exit_code
-                  << " bridge_path=" << record.bridge_result.bridge_path
-                  << '\n';
-        std::cerr << "[SaveLibrary] probe_command=" << record.bridge_result.command << '\n';
-        std::cerr << "[SaveLibrary] probe_stdout=" << trimTrailingWhitespace(record.bridge_result.stdout_text) << '\n';
-        std::cerr << "[SaveLibrary] probe_stderr=" << trimTrailingWhitespace(record.bridge_result.stderr_text) << '\n';
+        if (record.probe_status != SaveProbeStatus::ValidSave) {
+            std::cerr << "[SaveLibrary] probe_warning"
+                      << " filename=" << record.filename
+                      << " status=" << probeStatusLabel(record.probe_status)
+                      << " cache=" << (record.used_cache ? "hit" : "miss")
+                      << " launched=" << (record.bridge_result.launched ? "true" : "false")
+                      << " exit_code=" << record.bridge_result.exit_code
+                      << " bridge_path=" << record.bridge_result.bridge_path
+                      << " command=" << record.bridge_result.command
+                      << '\n';
+        }
         if (!record.bridge_result.error_message.empty()) {
             std::cerr << "[SaveLibrary] probe_error=" << record.bridge_result.error_message << '\n';
         }
         if (record.transfer_summary) {
             const TransferSaveSummary& summary = *record.transfer_summary;
-            std::cerr << "[SaveLibrary] summary"
-                      << " filename=" << record.filename
-                      << " game_id=" << summary.game_id
-                      << " player_name=" << summary.player_name
-                      << " play_time=" << summary.play_time
-                      << " pokedex_count=" << summary.pokedex_count
-                      << " badges=" << summary.badges
-                      << " party=[" << joinParty(summary.party) << "]"
-                      << " status=" << summary.status;
-            if (!summary.error.empty()) {
-                std::cerr << " error=" << summary.error;
+            if (summary.game_id == "pokemon_or" || summary.game_id == "pokemon_as") {
+                std::cerr << "[SaveLibrary] probe_warning"
+                          << " filename=" << record.filename
+                          << " reason=unmapped_gen6_game_id"
+                          << " game_id=" << summary.game_id
+                          << " bridge_path=" << record.bridge_result.bridge_path
+                          << " command=" << record.bridge_result.command
+                          << '\n';
             }
-            std::cerr << '\n';
+            const std::vector<std::string> reasons = suspiciousSummaryReasons(summary);
+            if (!reasons.empty()) {
+                std::ostringstream r;
+                for (std::size_t i = 0; i < reasons.size(); ++i) {
+                    if (i) r << ",";
+                    r << reasons[i];
+                }
+                std::cerr << "[SaveLibrary] save_suspicious"
+                          << " filename=" << record.filename
+                          << " game_id=" << summary.game_id
+                          << " player_name=" << summary.player_name
+                          << " play_time=" << summary.play_time
+                          << " pokedex_count=" << summary.pokedex_count
+                          << " badges=" << summary.badges
+                          << " status=" << summary.status
+                          << " reasons=" << r.str();
+                if (!summary.error.empty()) {
+                    std::cerr << " error=" << summary.error;
+                }
+                std::cerr << '\n';
+            }
         }
     }
 }
@@ -1376,6 +1300,12 @@ void SaveLibrary::probeDiscoveredFiles() {
 void SaveLibrary::saveCache() const {
     const fs::path cache_path = cacheFilePath();
     try {
+        // Guardrail: never wipe a previously-good cache to 0 entries just because discovery found no probeable files.
+        if (records_.empty()) {
+            std::cerr << "[SaveLibrary] cache_status=skipped reason=no_discovered_records path=" << cache_path.string() << '\n';
+            return;
+        }
+
         const fs::path directory = cache_path.parent_path();
         if (!directory.empty()) {
             fs::create_directories(directory);
