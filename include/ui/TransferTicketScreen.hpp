@@ -3,8 +3,9 @@
 #include "core/Assets.hpp"
 #include "core/PokeSpriteAssets.hpp"
 #include "core/Types.hpp"
-#include "ui/ScreenInput.hpp"
+#include "ui/Screen.hpp"
 #include "ui/TransferSaveSelection.hpp"
+#include "ui/transfer_ticket/TransferTicketListController.hpp"
 
 #include <SDL.h>
 #include <map>
@@ -14,7 +15,7 @@
 
 namespace pr {
 
-class TransferTicketScreen : public ScreenInput {
+class TransferTicketScreen : public Screen {
 public:
     TransferTicketScreen(
         SDL_Renderer* renderer,
@@ -25,8 +26,8 @@ public:
 
     void enter();
     void setSaveSelections(SDL_Renderer* renderer, const std::vector<TransferSaveSelection>& selections);
-    void update(double dt);
-    void render(SDL_Renderer* renderer) const;
+    void update(double dt) override;
+    void render(SDL_Renderer* renderer) override;
 
     bool canNavigate() const override;
     void onNavigate(int delta) override;
@@ -45,6 +46,19 @@ public:
     const std::string& musicPath() const;
     double musicSilenceSeconds() const;
     double musicFadeInSeconds() const;
+
+#ifdef PR_ENABLE_TEST_HOOKS
+    bool debugTicketGameTitleTextureReady(int index) const {
+        return index >= 0 &&
+            index < static_cast<int>(tickets_.size()) &&
+            tickets_[static_cast<std::size_t>(index)].text.game_title.texture != nullptr;
+    }
+    bool debugTicketTrainerTextureReady(int index) const {
+        return index >= 0 &&
+            index < static_cast<int>(tickets_.size()) &&
+            tickets_[static_cast<std::size_t>(index)].text.trainer_name.texture != nullptr;
+    }
+#endif
 
 private:
     struct TicketAssets {
@@ -183,9 +197,6 @@ private:
     void buildTextTextures(SDL_Renderer* renderer, const std::vector<TransferSaveSelection>& selections);
     void buildScreenTextTextures(SDL_Renderer* renderer);
     Color colorForGame(const std::string& key, const Color& fallback) const;
-    void beginRipForActivatingTicket();
-    void beginOrCompleteHandoff();
-
     void drawTextureTopLeft(SDL_Renderer* renderer, const TextureHandle& texture, int x, int y) const;
     void drawTextureTopLeftTinted(SDL_Renderer* renderer, const TextureHandle& texture, int x, int y, const Color& tint) const;
     void drawTextureCentered(SDL_Renderer* renderer, const TextureHandle& texture, int x, int y) const;
@@ -223,10 +234,8 @@ private:
     void drawSelectionOutline(SDL_Renderer* renderer, int x, int y, int width, int height) const;
     void drawRoundedSelectionRect(SDL_Renderer* renderer, int x, int y, int width, int height, int radius) const;
     void renderTicket(SDL_Renderer* renderer, int index, int x, int y, bool selected) const;
-    void updateScrollOffset();
     bool pointInTicket(int logical_x, int logical_y, int index) const;
     int ticketCount() const;
-    double maxScrollOffset() const;
 
     WindowConfig window_config_;
     std::string font_path_;
@@ -248,27 +257,9 @@ private:
     std::vector<TicketEntry> tickets_;
     std::map<std::string, Color> game_palette_;
     double elapsed_seconds_ = 0.0;
-    std::vector<int> right_stub_offsets_;
-    std::vector<double> rip_elapsed_seconds_;
     bool play_button_sfx_requested_ = false;
     bool play_rip_sfx_requested_ = false;
-    bool return_to_main_menu_requested_ = false;
-    bool open_transfer_system_requested_ = false;
-    TransferSaveSelection selected_transfer_save_;
-    bool fade_to_black_active_ = false;
-    double fade_to_black_elapsed_seconds_ = 0.0;
-    bool pointer_pressed_on_ticket_ = false;
-    bool pointer_dragging_list_ = false;
-    int pointer_pressed_ticket_index_ = -1;
-    int pointer_press_y_ = 0;
-    int pointer_last_y_ = 0;
-    double pointer_press_scroll_offset_y_ = 0.0;
-    int selected_ticket_index_ = 0;
-    int activating_ticket_index_ = -1;
-    double scroll_offset_y_ = 0.0;
-    double target_scroll_offset_y_ = 0.0;
-    std::vector<bool> rip_animation_active_;
-    std::vector<bool> ripped_;
+    transfer_ticket::TransferTicketListController list_controller_;
 };
 
 } // namespace pr

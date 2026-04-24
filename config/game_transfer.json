@@ -27,6 +27,17 @@
       "sprite_offset_y": 0
     }
   },
+  "mini_preview": {
+    "enabled": true,
+    "width": 350,
+    "height": 300,
+    "corner_radius": 14,
+    "border_thickness": 6,
+    "offset_y": 375,
+    "edge_pad": 18,
+    "enter_smoothing": 18.0,
+    "sprite_scale": 1
+  },
   "pill_toggle": {
     "track_width": 530,
     "track_height": 77,

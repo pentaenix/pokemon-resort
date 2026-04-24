@@ -89,6 +89,11 @@ public:
     /// Name pill, title texture, and prev/next arrows (after optional overlay).
     void renderNamePlate(SDL_Renderer* renderer) const;
 
+#ifdef PR_ENABLE_TEST_HOOKS
+    bool debugTitleTextureReady() const { return cached_title_tex_.texture != nullptr; }
+    const std::string& debugCachedTitleText() const { return cached_title_text_; }
+#endif
+
 private:
     void refreshTitleTexture(SDL_Renderer* renderer) const;
     static std::string gameIconFilenameForGameId(const std::string& game_id);

@@ -51,7 +51,7 @@ TextureHandle loadTexture(SDL_Renderer* renderer, const fs::path& path) {
 }
 
 FontHandle loadStyledFont(const std::string& font_path, int pt_size, int style, const std::string& project_root) {
-    FontHandle font = loadFont(font_path, pt_size, project_root);
+    FontHandle font = loadFontPreferringUnicode(font_path, pt_size, project_root);
     TTF_SetFontStyle(font.get(), style);
     return font;
 }
@@ -148,26 +148,30 @@ TransferTicketScreen::TransferTicketScreen(
     fonts_.data_value = loadStyledFont(font_path_, layout_.font_sizes.data_value, TTF_STYLE_NORMAL, project_root_);
     fonts_.boarding_pass = loadStyledFont(font_path_, layout_.font_sizes.boarding_pass, TTF_STYLE_BOLD, project_root_);
     buildScreenTextTextures(renderer);
+    list_controller_.configure(
+        transfer_ticket::TicketListMetrics{
+            list_layout_.start.x,
+            list_layout_.start.y,
+            list_layout_.separation_y,
+            list_layout_.viewport,
+            list_layout_.scroll_speed,
+            assets_.main_left.width,
+            assets_.main_left.height},
+        transfer_ticket::TicketRipAnimationConfig{
+            rip_animation_.enabled,
+            rip_animation_.distance,
+            rip_animation_.pre_tug_distance,
+            rip_animation_.pre_tug_duration_seconds,
+            rip_animation_.duration_seconds},
+        transfer_ticket::TicketSelectionTransitionConfig{
+            selection_transition_.fade_to_black_seconds,
+            selection_transition_.fade_to_black_max_alpha});
 }
 
 void TransferTicketScreen::enter() {
-    const auto count = static_cast<std::size_t>(ticketCount());
-    right_stub_offsets_.assign(count, 0);
-    rip_elapsed_seconds_.assign(count, 0.0);
-    rip_animation_active_.assign(count, false);
-    ripped_.assign(count, false);
     play_rip_sfx_requested_ = false;
-    open_transfer_system_requested_ = false;
-    fade_to_black_active_ = false;
-    fade_to_black_elapsed_seconds_ = 0.0;
     fade_in_elapsed_seconds_ = 0.0;
-    pointer_pressed_on_ticket_ = false;
-    pointer_pressed_ticket_index_ = -1;
-    selected_ticket_index_ = count > 0 ? 0 : -1;
-    activating_ticket_index_ = -1;
-    scroll_offset_y_ = 0.0;
-    target_scroll_offset_y_ = 0.0;
-    return_to_main_menu_requested_ = false;
+    list_controller_.enter();
 }
 
 void TransferTicketScreen::setSaveSelections(
@@ -180,77 +184,16 @@ void TransferTicketScreen::setSaveSelections(
                   << ex.what() << '\n';
         tickets_.clear();
     }
-    const auto count = static_cast<std::size_t>(ticketCount());
-    selected_ticket_index_ = count > 0 ? 0 : -1;
-    activating_ticket_index_ = -1;
-    scroll_offset_y_ = 0.0;
-    target_scroll_offset_y_ = 0.0;
-    right_stub_offsets_.assign(count, 0);
-    rip_elapsed_seconds_.assign(count, 0.0);
-    rip_animation_active_.assign(count, false);
-    ripped_.assign(count, false);
+    list_controller_.setSelections(selections);
 }
 
 void TransferTicketScreen::update(double dt) {
     elapsed_seconds_ += dt;
     fade_in_elapsed_seconds_ += dt;
-
-    const double scroll_speed = std::max(0.0, list_layout_.scroll_speed);
-    if (scroll_speed <= 0.0) {
-        scroll_offset_y_ = target_scroll_offset_y_;
-    } else {
-        const double scroll_alpha = 1.0 - std::exp(-scroll_speed * std::max(0.0, dt));
-        scroll_offset_y_ += (target_scroll_offset_y_ - scroll_offset_y_) * scroll_alpha;
-        if (std::abs(target_scroll_offset_y_ - scroll_offset_y_) < 0.1) {
-            scroll_offset_y_ = target_scroll_offset_y_;
-        }
-    }
-
-    if (fade_to_black_active_) {
-        fade_to_black_elapsed_seconds_ += dt;
-        if (selection_transition_.fade_to_black_seconds <= 0.0 ||
-            fade_to_black_elapsed_seconds_ >= selection_transition_.fade_to_black_seconds) {
-            fade_to_black_active_ = false;
-            open_transfer_system_requested_ = true;
-        }
-    }
-
-    const double pre_tug_duration = std::max(0.0, rip_animation_.pre_tug_duration_seconds);
-    const double rip_duration = std::max(0.001, rip_animation_.duration_seconds);
-    const double total_duration = pre_tug_duration + rip_duration;
-    for (std::size_t i = 0; i < rip_animation_active_.size(); ++i) {
-        if (!rip_animation_active_[i]) {
-            continue;
-        }
-
-        rip_elapsed_seconds_[i] += dt;
-        if (pre_tug_duration > 0.0 && rip_elapsed_seconds_[i] < pre_tug_duration) {
-            const double t = std::min(1.0, rip_elapsed_seconds_[i] / pre_tug_duration);
-            const double tug = std::sin(t * kPi);
-            right_stub_offsets_[i] = -static_cast<int>(std::round(
-                static_cast<double>(rip_animation_.pre_tug_distance) * tug));
-            continue;
-        }
-
-        const double t = std::min(1.0, (rip_elapsed_seconds_[i] - pre_tug_duration) / rip_duration);
-        const double eased = 1.0 - ((1.0 - t) * (1.0 - t));
-        const double start = -static_cast<double>(rip_animation_.pre_tug_distance);
-        const double end = static_cast<double>(rip_animation_.distance);
-        right_stub_offsets_[i] = static_cast<int>(std::round(start + (end - start) * eased));
-        if (rip_elapsed_seconds_[i] >= total_duration) {
-            right_stub_offsets_[i] = rip_animation_.distance;
-            rip_animation_active_[i] = false;
-            ripped_[i] = true;
-            if (static_cast<int>(i) == activating_ticket_index_ &&
-                activating_ticket_index_ >= 0 &&
-                activating_ticket_index_ < static_cast<int>(tickets_.size())) {
-                beginOrCompleteHandoff();
-            }
-        }
-    }
+    list_controller_.update(dt);
 }
 
-void TransferTicketScreen::render(SDL_Renderer* renderer) const {
+void TransferTicketScreen::render(SDL_Renderer* renderer) {
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer);
@@ -264,14 +207,14 @@ void TransferTicketScreen::render(SDL_Renderer* renderer) const {
         list_layout_.viewport.h + kListEffectBleed * 2
     };
     SDL_RenderSetClipRect(renderer, &clip);
-    const int rounded_scroll_offset_y = static_cast<int>(std::round(scroll_offset_y_));
+    const int rounded_scroll_offset_y = static_cast<int>(std::round(list_controller_.scrollOffset()));
     for (int i = 0; i < ticketCount(); ++i) {
         renderTicket(
             renderer,
             i,
             list_layout_.start.x,
             list_layout_.start.y + i * list_layout_.separation_y - rounded_scroll_offset_y,
-            i == selected_ticket_index_);
+            i == list_controller_.selectedTicketIndex());
     }
 
     SDL_RenderSetClipRect(renderer, nullptr);
@@ -281,7 +224,7 @@ void TransferTicketScreen::render(SDL_Renderer* renderer) const {
     drawTextureCentered(renderer, screen_text_.subtitle, screen_header_.subtitle_center.x, screen_header_.subtitle_center.y);
     drawTextureTopLeft(renderer, assets_.stamp, 0, 0);
 
-    if (!fade_to_black_active_ && fade_in_seconds_ > 0.0) {
+    if (!list_controller_.fadeToBlackActive() && fade_in_seconds_ > 0.0) {
         const double t = clamp01(fade_in_elapsed_seconds_ / fade_in_seconds_);
         const int alpha = static_cast<int>(std::round(255.0 * (1.0 - t)));
         if (alpha > 0) {
@@ -292,8 +235,9 @@ void TransferTicketScreen::render(SDL_Renderer* renderer) const {
         }
     }
 
-    if (fade_to_black_active_ && selection_transition_.fade_to_black_seconds > 0.0) {
-        const double t = clamp01(fade_to_black_elapsed_seconds_ / selection_transition_.fade_to_black_seconds);
+    if (list_controller_.fadeToBlackActive() && selection_transition_.fade_to_black_seconds > 0.0) {
+        const double t = clamp01(
+            list_controller_.fadeToBlackElapsedSeconds() / selection_transition_.fade_to_black_seconds);
         const int alpha = static_cast<int>(std::round(
             static_cast<double>(selection_transition_.fade_to_black_max_alpha) * t));
         if (alpha > 0) {
@@ -311,123 +255,44 @@ void TransferTicketScreen::render(SDL_Renderer* renderer) const {
 }
 
 bool TransferTicketScreen::canNavigate() const {
-    return ticketCount() > 0 && activating_ticket_index_ < 0;
+    return list_controller_.canNavigate();
 }
 
 void TransferTicketScreen::onNavigate(int delta) {
-    const int count = ticketCount();
-    if (count <= 0 || delta == 0) {
-        return;
-    }
-    if (activating_ticket_index_ >= 0) {
-        return;
-    }
-
-    const int previous = selected_ticket_index_;
-    selected_ticket_index_ = (selected_ticket_index_ + delta) % count;
-    if (selected_ticket_index_ < 0) {
-        selected_ticket_index_ += count;
-    }
-    if (selected_ticket_index_ != previous) {
-        const bool wrapped_to_end = previous == 0 && selected_ticket_index_ == count - 1;
-        const bool wrapped_to_start = previous == count - 1 && selected_ticket_index_ == 0;
+    if (list_controller_.navigate(delta)) {
         requestButtonSfx();
-        updateScrollOffset();
-        if (wrapped_to_end || wrapped_to_start) {
-            scroll_offset_y_ = target_scroll_offset_y_;
-        }
     }
 }
 
 void TransferTicketScreen::onAdvancePressed() {
-    if (selected_ticket_index_ < 0 ||
-        selected_ticket_index_ >= static_cast<int>(ripped_.size()) ||
-        rip_animation_active_[static_cast<std::size_t>(selected_ticket_index_)] ||
-        ripped_[static_cast<std::size_t>(selected_ticket_index_)]) {
-        return;
+    const int selected = list_controller_.selectedTicketIndex();
+    if (selected >= 0 && list_controller_.advance()) {
+        play_rip_sfx_requested_ = true;
     }
-
-    activating_ticket_index_ = selected_ticket_index_;
-    beginRipForActivatingTicket();
 }
 
 void TransferTicketScreen::onBackPressed() {
     requestButtonSfx();
-    return_to_main_menu_requested_ = true;
+    list_controller_.back();
 }
 
 void TransferTicketScreen::handlePointerMoved(int logical_x, int logical_y) {
-    (void)logical_x;
-    if (!pointer_pressed_on_ticket_ || activating_ticket_index_ >= 0) {
-        return;
-    }
-
-    constexpr int kDragThresholdPixels = 4;
-    const int delta_y = logical_y - pointer_press_y_;
-    if (!pointer_dragging_list_ && std::abs(delta_y) >= kDragThresholdPixels) {
-        pointer_dragging_list_ = true;
-    }
-    if (!pointer_dragging_list_) {
-        return;
-    }
-
-    pointer_last_y_ = logical_y;
-    target_scroll_offset_y_ = std::max(
-        0.0,
-        std::min(maxScrollOffset(), pointer_press_scroll_offset_y_ - static_cast<double>(delta_y)));
-    scroll_offset_y_ = target_scroll_offset_y_;
+    list_controller_.handlePointerMoved(logical_x, logical_y);
 }
 
 bool TransferTicketScreen::handlePointerPressed(int logical_x, int logical_y) {
-    pointer_pressed_on_ticket_ = false;
-    pointer_dragging_list_ = false;
-    pointer_pressed_ticket_index_ = -1;
-    if (activating_ticket_index_ >= 0) {
-        return false;
-    }
-    const bool inside_viewport =
-        logical_x >= list_layout_.viewport.x &&
-        logical_x < list_layout_.viewport.x + list_layout_.viewport.w &&
-        logical_y >= list_layout_.viewport.y &&
-        logical_y < list_layout_.viewport.y + list_layout_.viewport.h;
-    if (!inside_viewport) {
-        return false;
-    }
-
-    pointer_pressed_on_ticket_ = true;
-    pointer_press_y_ = logical_y;
-    pointer_last_y_ = logical_y;
-    pointer_press_scroll_offset_y_ = scroll_offset_y_;
-    for (int i = ticketCount() - 1; i >= 0; --i) {
-        if (pointInTicket(logical_x, logical_y, i)) {
-            pointer_pressed_ticket_index_ = i;
-            break;
-        }
-    }
-    return true;
+    return list_controller_.handlePointerPressed(logical_x, logical_y);
 }
 
 bool TransferTicketScreen::handlePointerReleased(int logical_x, int logical_y) {
-    const bool started_on_ticket = pointer_pressed_on_ticket_;
-    const int pressed_ticket_index = pointer_pressed_ticket_index_;
-    const bool dragged_list = pointer_dragging_list_;
-    pointer_pressed_on_ticket_ = false;
-    pointer_dragging_list_ = false;
-    pointer_pressed_ticket_index_ = -1;
-    if (!started_on_ticket) {
-        return false;
+    const bool consumed = list_controller_.handlePointerReleased(logical_x, logical_y);
+    if (consumed) {
+        const int selected = list_controller_.selectedTicketIndex();
+        if (selected >= 0 && list_controller_.isRipAnimationActive(selected)) {
+            play_rip_sfx_requested_ = true;
+        }
     }
-    if (dragged_list) {
-        return true;
-    }
-
-    if (pressed_ticket_index < 0 || !pointInTicket(logical_x, logical_y, pressed_ticket_index)) {
-        return false;
-    }
-
-    selected_ticket_index_ = pressed_ticket_index;
-    onAdvancePressed();
-    return true;
+    return consumed;
 }
 
 bool TransferTicketScreen::consumeButtonSfxRequest() {
@@ -443,46 +308,17 @@ bool TransferTicketScreen::consumeRipSfxRequest() {
 }
 
 bool TransferTicketScreen::consumeReturnToMainMenuRequest() {
-    const bool requested = return_to_main_menu_requested_;
-    return_to_main_menu_requested_ = false;
-    return requested;
+    return list_controller_.consumeReturnToMainMenuRequest();
 }
 
 bool TransferTicketScreen::consumeOpenTransferSystemRequest(TransferSaveSelection& out_selection) {
-    const bool requested = open_transfer_system_requested_;
-    if (requested) {
-        out_selection = selected_transfer_save_;
-    }
-    open_transfer_system_requested_ = false;
-    return requested;
+    return list_controller_.consumeOpenTransferSystemRequest(out_selection);
 }
 
 void TransferTicketScreen::prepareReturnFromGameTransferScreen() {
-    const auto count = static_cast<std::size_t>(ticketCount());
-    activating_ticket_index_ = -1;
-    fade_to_black_active_ = false;
-    fade_to_black_elapsed_seconds_ = 0.0;
     fade_in_elapsed_seconds_ = 0.0;
-    open_transfer_system_requested_ = false;
-    pointer_pressed_on_ticket_ = false;
-    pointer_dragging_list_ = false;
-    pointer_pressed_ticket_index_ = -1;
     play_rip_sfx_requested_ = false;
-
-    right_stub_offsets_.assign(count, 0);
-    rip_elapsed_seconds_.assign(count, 0.0);
-    rip_animation_active_.assign(count, false);
-    ripped_.assign(count, false);
-
-    if (selected_ticket_index_ >= static_cast<int>(count)) {
-        selected_ticket_index_ = count > 0 ? static_cast<int>(count) - 1 : -1;
-    }
-    if (selected_ticket_index_ < 0 && count > 0) {
-        selected_ticket_index_ = 0;
-    }
-
-    updateScrollOffset();
-    scroll_offset_y_ = target_scroll_offset_y_;
+    list_controller_.prepareReturnFromGameTransferScreen();
 }
 
 const std::string& TransferTicketScreen::musicPath() const {
@@ -499,40 +335,6 @@ double TransferTicketScreen::musicFadeInSeconds() const {
 
 void TransferTicketScreen::requestButtonSfx() {
     play_button_sfx_requested_ = true;
-}
-
-void TransferTicketScreen::beginRipForActivatingTicket() {
-    if (activating_ticket_index_ < 0 ||
-        activating_ticket_index_ >= static_cast<int>(ripped_.size())) {
-        return;
-    }
-
-    const auto index = static_cast<std::size_t>(activating_ticket_index_);
-    play_rip_sfx_requested_ = true;
-    if (rip_animation_.enabled && rip_animation_.duration_seconds > 0.0) {
-        rip_elapsed_seconds_[index] = 0.0;
-        rip_animation_active_[index] = true;
-    } else {
-        right_stub_offsets_[index] = rip_animation_.distance;
-        ripped_[index] = true;
-        beginOrCompleteHandoff();
-    }
-}
-
-void TransferTicketScreen::beginOrCompleteHandoff() {
-    if (activating_ticket_index_ < 0 ||
-        activating_ticket_index_ >= static_cast<int>(tickets_.size())) {
-        return;
-    }
-
-    selected_transfer_save_ = tickets_[static_cast<std::size_t>(activating_ticket_index_)].data;
-    if (selection_transition_.fade_to_black_seconds > 0.0 &&
-        selection_transition_.fade_to_black_max_alpha > 0) {
-        fade_to_black_elapsed_seconds_ = 0.0;
-        fade_to_black_active_ = true;
-    } else {
-        open_transfer_system_requested_ = true;
-    }
 }
 
 void TransferTicketScreen::loadTransferConfig() {
@@ -1052,13 +854,10 @@ void TransferTicketScreen::renderTicket(SDL_Renderer* renderer, int index, int x
     const int ticket_height = assets_.main_left.height;
     const int ticket_left = x;
     const int ticket_top = y;
-    const auto state_index = static_cast<std::size_t>(std::max(0, std::min(index, static_cast<int>(right_stub_offsets_.size()) - 1)));
-    const int right_offset = right_stub_offsets_.empty() ? 0 : right_stub_offsets_[state_index];
+    const int right_offset = list_controller_.rightStubOffset(index);
     const int right_x = ticket_left + right_offset;
-    const bool ticket_ripping =
-        state_index < rip_animation_active_.size() && rip_animation_active_[state_index];
-    const bool ticket_ripped =
-        state_index < ripped_.size() && ripped_[state_index];
+    const bool ticket_ripping = list_controller_.isRipAnimationActive(index);
+    const bool ticket_ripped = list_controller_.isRipped(index);
     const double rip_progress =
         rip_animation_.distance == 0
             ? 0.0
@@ -1152,29 +951,10 @@ void TransferTicketScreen::renderTicket(SDL_Renderer* renderer, int index, int x
     }
 }
 
-void TransferTicketScreen::updateScrollOffset() {
-    if (ticketCount() <= 0 || selected_ticket_index_ <= 0) {
-        target_scroll_offset_y_ = 0.0;
-        return;
-    }
-
-    const double ticket_center_y =
-        static_cast<double>(list_layout_.start.y) +
-        static_cast<double>(selected_ticket_index_ * list_layout_.separation_y) +
-        static_cast<double>(assets_.main_left.height) * 0.5;
-    const double viewport_center_y =
-        static_cast<double>(list_layout_.viewport.y) +
-        static_cast<double>(list_layout_.viewport.h) * 0.5;
-
-    target_scroll_offset_y_ = std::max(
-        0.0,
-        std::min(maxScrollOffset(), ticket_center_y - viewport_center_y));
-}
-
 bool TransferTicketScreen::pointInTicket(int logical_x, int logical_y, int index) const {
     const int ticket_width = assets_.main_left.width;
     const int ticket_height = assets_.main_left.height;
-    const int rounded_scroll_offset_y = static_cast<int>(std::round(scroll_offset_y_));
+    const int rounded_scroll_offset_y = static_cast<int>(std::round(list_controller_.scrollOffset()));
     const int ticket_left = list_layout_.start.x;
     const int ticket_top = list_layout_.start.y + index * list_layout_.separation_y - rounded_scroll_offset_y;
 
@@ -1191,23 +971,7 @@ bool TransferTicketScreen::pointInTicket(int logical_x, int logical_y, int index
 }
 
 int TransferTicketScreen::ticketCount() const {
-    return static_cast<int>(tickets_.size());
-}
-
-double TransferTicketScreen::maxScrollOffset() const {
-    const int count = ticketCount();
-    if (count <= 1) {
-        return 0.0;
-    }
-
-    const double last_ticket_center_y =
-        static_cast<double>(list_layout_.start.y) +
-        static_cast<double>((count - 1) * list_layout_.separation_y) +
-        static_cast<double>(assets_.main_left.height) * 0.5;
-    const double viewport_center_y =
-        static_cast<double>(list_layout_.viewport.y) +
-        static_cast<double>(list_layout_.viewport.h) * 0.5;
-    return std::max(0.0, last_ticket_center_y - viewport_center_y);
+    return list_controller_.ticketCount();
 }
 
 } // namespace pr

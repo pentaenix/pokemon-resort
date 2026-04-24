@@ -2,7 +2,10 @@
 
 #include "core/Assets.hpp"
 #include "core/Types.hpp"
-#include "ui/ScreenInput.hpp"
+#include "ui/Screen.hpp"
+#include "ui/title_screen/MainMenuController.hpp"
+#include "ui/title_screen/OptionsMenuController.hpp"
+#include "ui/title_screen/SectionScreenController.hpp"
 #include <SDL.h>
 #include <cstdint>
 #include <memory>
@@ -30,17 +33,18 @@ enum class TitleState {
     SectionScreen
 };
 
-enum class SectionKind {
-    Resort,
-    Trade
+enum class TitleScreenEvent {
+    ButtonSfxRequested,
+    UserSettingsSaveRequested,
+    OpenTransferRequested
 };
 
-class TitleScreen : public ScreenInput {
+class TitleScreen : public Screen {
 public:
     TitleScreen(TitleScreenConfig config, Assets assets);
 
-    void update(double dt);
-    void render(SDL_Renderer* renderer) const;
+    void update(double dt) override;
+    void render(SDL_Renderer* renderer) override;
 
     bool canNavigate() const override;
     void onAdvancePressed() override;
@@ -52,13 +56,18 @@ public:
     bool wantsMenuMusic() const;
     float musicVolume() const;
     float sfxVolume() const;
-    bool consumeButtonSfxRequest();
-    bool consumeUserSettingsSaveRequest();
-    bool consumeOpenTransferRequest();
+    std::vector<TitleScreenEvent> consumeEvents();
     UserSettings currentUserSettings() const;
     void applyUserSettings(const UserSettings& settings);
     void returnToMainMenuFromTransfer();
     void restartFromExternalScreen();
+
+#ifdef PR_ENABLE_TEST_HOOKS
+    TitleState debugState() const;
+    int debugMainMenuSelectedIndex() const;
+    int debugOptionsSelectedIndex() const;
+    std::string debugCurrentSectionTitle() const;
+#endif
 
 private:
     void changeState(TitleState next);
@@ -74,7 +83,7 @@ private:
     void activateOptionSelection();
     void returnToMainMenu();
     void restartFromSplash();
-    void requestButtonSfx();
+    void emitEvent(TitleScreenEvent event);
 
     void renderSplash(SDL_Renderer* renderer) const;
     void renderMainLogoOnBlack(SDL_Renderer* renderer) const;
@@ -121,20 +130,14 @@ private:
 
     TitleScreenConfig config_;
     Assets assets_;
+    title_screen::MainMenuController main_menu_;
+    title_screen::OptionsMenuController options_menu_;
+    title_screen::SectionScreenController section_screen_;
     TitleState state_ = TitleState::SplashFadeIn;
-    SectionKind current_section_ = SectionKind::Resort;
-    SectionKind pending_section_ = SectionKind::Resort;
     double state_time_ = 0.0;
     double title_scene_elapsed_ = 0.0;
-    int selected_main_menu_index_ = 0;
-    int selected_option_index_ = 0;
-    int text_speed_index_ = 2;
-    int music_volume_ = 7;
-    int sfx_volume_ = 8;
-    bool play_button_sfx_requested_ = false;
-    bool user_settings_save_requested_ = false;
-    bool open_transfer_requested_ = false;
     bool pending_transfer_after_fade_ = false;
+    std::vector<TitleScreenEvent> pending_events_;
 
     mutable bool option_textures_dirty_ = true;
     mutable std::vector<TextureHandle> option_textures_;
