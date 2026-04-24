@@ -288,8 +288,8 @@ BoxViewport::BoxViewport(
       role_(role),
       viewport_x_(viewport_x),
       viewport_y_(viewport_y),
-      title_font_(loadFont(font_path, std::max(1, style_.box_name_font_pt), project_root)),
-      label_font_(loadFont(font_path, std::max(1, style_.box_space_font_pt), project_root)) {
+      title_font_(loadFontPreferringUnicode(font_path, std::max(1, style_.box_name_font_pt), project_root)),
+      label_font_(loadFontPreferringUnicode(font_path, std::max(1, style_.box_space_font_pt), project_root)) {
     const fs::path arrow_path = fs::path(project_root_) / style_.arrow_texture;
     try {
         arrow_tex_ = loadTextureOrThrow(renderer, arrow_path);

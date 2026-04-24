@@ -118,7 +118,7 @@ void LoadingScreen::update(double dt) {
     }
 }
 
-void LoadingScreen::render(SDL_Renderer* renderer) const {
+void LoadingScreen::render(SDL_Renderer* renderer) {
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer);

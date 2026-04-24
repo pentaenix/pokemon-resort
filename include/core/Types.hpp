@@ -219,6 +219,19 @@ struct GameTransferBoxViewportStyle {
     int box_space_sprite_offset_y = 0;
 };
 
+/// Small “mini preview” box that slides in to preview hovered boxes.
+struct GameTransferMiniPreviewStyle {
+    bool enabled = true;
+    int width = 240;
+    int height = 200;
+    int corner_radius = 14;
+    int border_thickness = 6;
+    int offset_y = 110;
+    int edge_pad = 18;
+    double enter_smoothing = 18.0;
+    double sprite_scale = 1.2;
+};
+
 /// Browser-style Pokémon / Items pill (`config/game_transfer.json` → `pill_toggle`). Default aligns with the **right** box column.
 struct GameTransferPillToggleStyle {
     int track_width = 530;

@@ -3,6 +3,7 @@
 #include "core/Assets.hpp"
 #include "core/Font.hpp"
 #include "core/Types.hpp"
+#include "ui/Screen.hpp"
 
 #include <SDL.h>
 #include <random>
@@ -11,7 +12,7 @@
 
 namespace pr {
 
-class LoadingScreen {
+class LoadingScreen : public Screen {
 public:
     LoadingScreen(
         SDL_Renderer* renderer,
@@ -20,8 +21,8 @@ public:
         const std::string& project_root);
 
     void enter();
-    void update(double dt);
-    void render(SDL_Renderer* renderer) const;
+    void update(double dt) override;
+    void render(SDL_Renderer* renderer) override;
 
 private:
     struct LoadingConfig {

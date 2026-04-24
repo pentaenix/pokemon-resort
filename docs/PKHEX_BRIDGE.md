@@ -127,6 +127,7 @@ Use these fields for new features:
 - `all_pokemon` is an index-friendly convenience view. `boxes` remains the source of truth for visualizing box layout.
 - Bag pocket names and capacities are whatever PKHeX exposes for that game. Do not hardcode pocket order in UI.
 - Item names can be unknown or placeholder-like for some IDs. Always use `item_id` as the stable identity.
+- Some saves expose ambiguous raw PKHeX version strings such as `HGSS`, `SWSH`, `SV`, or even generation-style labels like `GN`. `BridgeProbe.cs` is responsible for normalizing those into stable `game_id` values, using explicit aliases first and filename hints second. Keep that normalization centralized in the bridge instead of papering over bad ids in native UI code.
 
 ## Reader Models
 
