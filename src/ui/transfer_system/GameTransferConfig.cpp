@@ -198,6 +198,29 @@ LoadedGameTransfer loadGameTransfer(const std::string& project_root) {
             out.box_viewport.sprite_scale = doubleFromObjectOrDefault(o, "sprite_scale", out.box_viewport.sprite_scale);
             out.box_viewport.sprite_offset_y = intFromObjectOrDefault(o, "sprite_offset_y", out.box_viewport.sprite_offset_y);
 
+            if (const JsonValue* item_tool = o.get("item_tool")) {
+                if (item_tool->isObject()) {
+                    out.box_viewport.item_tool_item_size =
+                        intFromObjectOrDefault(*item_tool, "item_size", out.box_viewport.item_tool_item_size);
+                    out.box_viewport.item_tool_grow_smoothing =
+                        doubleFromObjectOrDefault(*item_tool, "grow_smoothing", out.box_viewport.item_tool_grow_smoothing);
+                    if (const JsonValue* sprite_mod = item_tool->get("sprite_mod_color")) {
+                        if (sprite_mod->isString()) {
+                            out.box_viewport.item_tool_sprite_mod_color =
+                                parseHexColorString(sprite_mod->asString(), out.box_viewport.item_tool_sprite_mod_color);
+                        }
+                    }
+                    out.box_viewport.item_tool_sprite_mod_color.a =
+                        std::clamp(
+                            intFromObjectOrDefault(
+                                *item_tool,
+                                "sprite_mod_alpha",
+                                out.box_viewport.item_tool_sprite_mod_color.a),
+                            0,
+                            255);
+                }
+            }
+
             if (const JsonValue* bs = o.get("box_space_sprites")) {
                 if (bs->isObject()) {
                     out.box_viewport.box_space_sprite_scale =

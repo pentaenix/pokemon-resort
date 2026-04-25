@@ -72,6 +72,7 @@ public:
     bool debugMiniPreviewVisible() const { return mini_preview_t_ > 1e-3 && mini_preview_box_index_ >= 0; }
     bool debugInfoBannerVisible() const { return info_banner_style_.enabled; }
     std::optional<SDL_Rect> debugPillTrackBounds() const;
+    std::string debugSpeechBubbleLineForFocus(FocusNodeId focus_id) const { return speechBubbleLineForFocus(focus_id); }
     std::string debugInfoBannerPokemonName() const {
         if (const PcSlotSpecies* slot = activeInfoBannerPokemon()) {
             return !slot->nickname.empty() ? slot->nickname : slot->species_name;
@@ -125,6 +126,9 @@ private:
     /// Cycles selection: `dir` −1 = previous tool, +1 = next (infinite wrap).
     void cycleToolCarousel(int dir);
     bool carouselSlideAnimating() const;
+    bool itemToolActive() const;
+    bool gameSlotHasHeldItem(int slot_index) const;
+    std::string gameSlotHeldItemName(int slot_index) const;
     Color carouselFrameColorForIndex(int tool_index) const;
     int carouselScreenY() const;
 

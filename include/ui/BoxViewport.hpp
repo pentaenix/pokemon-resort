@@ -23,6 +23,8 @@ struct BoxViewportModel {
     std::string box_name = "BOX 1";
     /// Per-slot Pokémon sprite; empty optional = empty slot chrome only.
     std::array<std::optional<TextureHandle>, 30> slot_sprites{};
+    /// Per-slot held-item sprite used by the item tool overlay.
+    std::array<std::optional<TextureHandle>, 30> held_item_sprites{};
 };
 
 class BoxViewport {
@@ -81,6 +83,7 @@ public:
     void setHeaderMode(HeaderMode mode, bool show_down_arrow);
     HeaderMode headerMode() const { return header_mode_; }
     void setBoxSpaceActive(bool active);
+    void setItemOverlayActive(bool active);
 
     void render(SDL_Renderer* renderer) const;
 
@@ -123,6 +126,8 @@ private:
     HeaderMode header_mode_ = HeaderMode::Normal;
     bool box_space_scroll_arrow_visible_ = false;
     bool box_space_active_ = false;
+    bool item_overlay_active_ = false;
+    double item_overlay_t_ = 0.0;
 };
 
 } // namespace pr

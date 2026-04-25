@@ -776,6 +776,11 @@ void TransferSystemScreen::enter(const TransferSaveSelection& selection, SDL_Ren
             for (std::size_t i = 0; i < m.slot_sprites.size() && i < b.slots.size(); ++i) {
                 const auto& slot = b.slots[i];
                 m.slot_sprites[i] = sprite_for(slot);
+                    if (slot.occupied() && slot.held_item_id > 0 && sprite_assets_ && renderer_) {
+                        TextureHandle item = sprite_assets_->loadItemTexture(renderer_, slot.held_item_id);
+                        m.held_item_sprites[i] =
+                            item.texture ? std::optional<TextureHandle>(std::move(item)) : std::nullopt;
+                    }
             }
         }
         return m;
@@ -1064,6 +1069,11 @@ std::string TransferSystemScreen::speechBubbleLineForFocus(FocusNodeId focus_id)
             return sb.empty_slot_label;
         }
         const auto& pc = slots[static_cast<std::size_t>(slot)];
+        if (itemToolActive()) {
+            return pc.occupied() && pc.held_item_id > 0
+                ? (!pc.held_item_name.empty() ? pc.held_item_name : ("Item " + std::to_string(pc.held_item_id)))
+                : std::string{};
+        }
         if (!pc.occupied()) {
             return sb.empty_slot_label;
         }
@@ -1231,7 +1241,9 @@ bool TransferSystemScreen::currentFocusWantsSpeechBubble() const {
     bool slot_has_payload = false;
     if (is_slot) {
         const int idx = (focus_id >= 2000) ? (focus_id - 2000) : (focus_id - 1000);
-        if (focus_id >= 2000 && game_box_browser_.gameBoxSpaceMode()) {
+        if (itemToolActive()) {
+            slot_has_payload = focus_id >= 2000 && !game_box_browser_.gameBoxSpaceMode() && gameSlotHasHeldItem(idx);
+        } else if (focus_id >= 2000 && game_box_browser_.gameBoxSpaceMode()) {
             const int box_index = game_box_browser_.gameBoxSpaceRowOffset() * 6 + idx;
             slot_has_payload = (box_index >= 0 && box_index < static_cast<int>(game_pc_boxes_.size()));
         } else {
@@ -1341,6 +1353,11 @@ BoxViewportModel TransferSystemScreen::gameBoxViewportModelAt(int box_index) con
         }
         TextureHandle texture = sprite_assets_->loadPokemonTexture(renderer_, pc);
         incoming.slot_sprites[i] = texture.texture ? std::optional<TextureHandle>(std::move(texture)) : std::nullopt;
+        if (pc.held_item_id > 0) {
+            TextureHandle item = sprite_assets_->loadItemTexture(renderer_, pc.held_item_id);
+            incoming.held_item_sprites[i] =
+                item.texture ? std::optional<TextureHandle>(std::move(item)) : std::nullopt;
+        }
     }
     return incoming;
 }
@@ -1995,10 +2012,13 @@ void TransferSystemScreen::update(double dt) {
     updateCarouselSlide(dt);
     updateGameBoxDropdown(dt);
     updateMiniPreview(dt);
+    const bool item_overlay_active = itemToolActive();
     if (resort_box_viewport_) {
+        resort_box_viewport_->setItemOverlayActive(item_overlay_active);
         resort_box_viewport_->update(dt);
     }
     if (game_save_box_viewport_) {
+        game_save_box_viewport_->setItemOverlayActive(item_overlay_active);
         game_save_box_viewport_->update(dt);
     }
     syncBoxViewportPositions();
@@ -2047,6 +2067,33 @@ Color TransferSystemScreen::carouselFrameColorForIndex(int tool_index) const {
 
 bool TransferSystemScreen::carouselSlideAnimating() const {
     return ui_state_.carouselSlideAnimating();
+}
+
+bool TransferSystemScreen::itemToolActive() const {
+    return ui_state_.selectedToolIndex() == 3 && !game_box_browser_.gameBoxSpaceMode();
+}
+
+bool TransferSystemScreen::gameSlotHasHeldItem(int slot_index) const {
+    if (slot_index < 0 || slot_index >= 30) {
+        return false;
+    }
+    const int game_box_index = game_box_browser_.gameBoxIndex();
+    if (game_box_index < 0 || game_box_index >= static_cast<int>(game_pc_boxes_.size())) {
+        return false;
+    }
+    const auto& slots = game_pc_boxes_[static_cast<std::size_t>(game_box_index)].slots;
+    return slot_index < static_cast<int>(slots.size()) &&
+           slots[static_cast<std::size_t>(slot_index)].occupied() &&
+           slots[static_cast<std::size_t>(slot_index)].held_item_id > 0;
+}
+
+std::string TransferSystemScreen::gameSlotHeldItemName(int slot_index) const {
+    if (!gameSlotHasHeldItem(slot_index)) {
+        return {};
+    }
+    const int game_box_index = game_box_browser_.gameBoxIndex();
+    const auto& slot = game_pc_boxes_[static_cast<std::size_t>(game_box_index)].slots[static_cast<std::size_t>(slot_index)];
+    return !slot.held_item_name.empty() ? slot.held_item_name : ("Item " + std::to_string(slot.held_item_id));
 }
 
 void TransferSystemScreen::cycleToolCarousel(int dir) {
@@ -2170,6 +2217,10 @@ std::optional<std::pair<FocusNodeId, SDL_Rect>> TransferSystemScreen::speechBubb
                     if (box_index < 0 || box_index >= static_cast<int>(game_pc_boxes_.size())) {
                         return std::nullopt;
                     }
+                } else if (itemToolActive()) {
+                    if (!gameSlotHasHeldItem(i)) {
+                        return std::nullopt;
+                    }
                 } else if (!gameSaveSlotHasSpecies(i)) {
                     return std::nullopt;
                 }
@@ -2183,6 +2234,9 @@ std::optional<std::pair<FocusNodeId, SDL_Rect>> TransferSystemScreen::speechBubb
     if (resort_box_viewport_) {
         for (int i = 0; i < 30; ++i) {
             if (resort_box_viewport_->getSlotBounds(i, r) && in(logical_x, logical_y, r)) {
+                if (itemToolActive()) {
+                    return std::nullopt;
+                }
                 if (!resortSlotHasSpecies(i)) {
                     return std::nullopt;
                 }

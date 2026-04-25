@@ -19,8 +19,13 @@
     "footer_scroll_arrow_offset_y": -8,
     "content_slide_smoothing": 18.0,
     "sprite_scale": 2.0,
-    "sprite_offset_y": -15
-    ,
+    "sprite_offset_y": -15,
+    "item_tool": {
+      "item_size": 84,
+      "grow_smoothing": 22.0,
+      "sprite_mod_color": "#969696",
+      "sprite_mod_alpha": 64
+    },
     "box_space_sprites": {
       "sprite_scale": 1.3,
       "sprite_offset_x": 0,
