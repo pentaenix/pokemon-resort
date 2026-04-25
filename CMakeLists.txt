@@ -63,6 +63,7 @@ add_executable(title_screen_demo
     src/ui/transfer_system/GameBoxBrowserController.cpp
     src/ui/transfer_system/TransferSystemFocusGraph.cpp
     src/ui/transfer_system/TransferInfoBannerPresenter.cpp
+    src/ui/transfer_system/TransferInfoBannerRenderer.cpp
     src/ui/transfer_system/TransferSystemRenderer.cpp
     src/ui/transfer_system/TransferSystemUiStateController.cpp
     src/ui/BoxViewport.cpp
@@ -266,6 +267,7 @@ add_executable(transfer_system_flow_harness_tests
     src/ui/transfer_system/GameBoxBrowserController.cpp
     src/ui/transfer_system/TransferSystemFocusGraph.cpp
     src/ui/transfer_system/TransferInfoBannerPresenter.cpp
+    src/ui/transfer_system/TransferInfoBannerRenderer.cpp
     src/ui/transfer_system/TransferSystemRenderer.cpp
     src/ui/transfer_system/TransferSystemUiStateController.cpp
     src/ui/BoxViewport.cpp
