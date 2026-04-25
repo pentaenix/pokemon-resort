@@ -36,15 +36,28 @@ struct PcSlotSpecies {
     int level = -1;
     bool is_egg = false;
     bool is_shiny = false;
+    int ball_id = -1;
 
     std::string ot_name;
     int tid16 = -1;
     int sid16 = -1;
+    std::string origin_game;
+    int met_location_id = -1;
+    std::string met_location_name;
 
     int held_item_id = -1;
     std::string held_item_name;
     std::string nature;
     int ability_id = -1;
+    std::string ability_name;
+    std::string primary_type;
+    std::string secondary_type;
+    std::string tera_type;
+    std::string mark_icon;
+    std::string pokerus_status;
+    bool is_alpha = false;
+    bool is_gigantamax = false;
+    int markings = 0;
 
     std::array<PcSlotMoveSummary, 4> moves{};
     int move_count = 0;

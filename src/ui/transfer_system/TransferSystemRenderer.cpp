@@ -2,10 +2,16 @@
 
 #include <algorithm>
 #include <cmath>
+#include <unordered_map>
+#include <vector>
+
+#include "ui/transfer_system/TransferInfoBannerPresenter.hpp"
 
 namespace pr {
 
 namespace {
+
+constexpr int kInfoBannerLabelGap = 8;
 
 void setDrawColor(SDL_Renderer* renderer, const Color& c) {
     SDL_SetRenderDrawColor(
@@ -14,6 +20,94 @@ void setDrawColor(SDL_Renderer* renderer, const Color& c) {
         static_cast<Uint8>(c.g),
         static_cast<Uint8>(c.b),
         static_cast<Uint8>(c.a));
+}
+
+void fillCircle(SDL_Renderer* renderer, int cx, int cy, int radius, const Color& color) {
+    if (radius <= 0) {
+        return;
+    }
+    setDrawColor(renderer, color);
+    for (int dy = -radius; dy <= radius; ++dy) {
+        const int dx = static_cast<int>(std::sqrt(static_cast<double>(radius * radius - dy * dy)));
+        SDL_RenderDrawLine(renderer, cx - dx, cy + dy, cx + dx, cy + dy);
+    }
+}
+
+void fillPolygon(SDL_Renderer* renderer, const std::vector<SDL_Point>& points, const Color& color) {
+    if (points.size() < 3) {
+        return;
+    }
+
+    int min_y = points.front().y;
+    int max_y = points.front().y;
+    for (const SDL_Point& p : points) {
+        min_y = std::min(min_y, p.y);
+        max_y = std::max(max_y, p.y);
+    }
+
+    setDrawColor(renderer, color);
+    std::vector<int> intersections;
+    intersections.reserve(points.size());
+    for (int y = min_y; y <= max_y; ++y) {
+        intersections.clear();
+        for (std::size_t i = 0; i < points.size(); ++i) {
+            const SDL_Point& a = points[i];
+            const SDL_Point& b = points[(i + 1) % points.size()];
+            if ((a.y <= y && b.y > y) || (b.y <= y && a.y > y)) {
+                const double t = static_cast<double>(y - a.y) / static_cast<double>(b.y - a.y);
+                intersections.push_back(static_cast<int>(std::lround(static_cast<double>(a.x) + t * (b.x - a.x))));
+            }
+        }
+        std::sort(intersections.begin(), intersections.end());
+        for (std::size_t i = 0; i + 1 < intersections.size(); i += 2) {
+            SDL_RenderDrawLine(renderer, intersections[i], y, intersections[i + 1], y);
+        }
+    }
+}
+
+void drawMarkingIcon(SDL_Renderer* renderer, const std::string& icon_key, const SDL_Rect& dst) {
+    Color color{145, 145, 145, 255};
+    if (icon_key.find("_blue") != std::string::npos || icon_key.find("_on") != std::string::npos) {
+        color = Color{38, 92, 214, 255};
+    } else if (icon_key.find("_red") != std::string::npos) {
+        color = Color{218, 54, 54, 255};
+    }
+    const std::string shape = icon_key.substr(0, icon_key.find('_'));
+    const int cx = dst.x + dst.w / 2;
+    const int cy = dst.y + dst.h / 2;
+    int r = std::max(2, std::min(dst.w, dst.h) / 2 - 2);
+    if (shape == "circle" || shape == "triangle" || shape == "square") {
+        r = std::max(2, static_cast<int>(std::lround(static_cast<double>(r) * 0.78)));
+    }
+
+    if (shape == "circle") {
+        fillCircle(renderer, cx, cy, r, color);
+    } else if (shape == "triangle") {
+        fillPolygon(renderer, {{cx, cy - r}, {cx - r, cy + r}, {cx + r, cy + r}}, color);
+    } else if (shape == "square") {
+        setDrawColor(renderer, color);
+        SDL_Rect rect{cx - r, cy - r, r * 2, r * 2};
+        SDL_RenderFillRect(renderer, &rect);
+    } else if (shape == "heart") {
+        const int lobe = std::max(2, r / 2);
+        fillCircle(renderer, cx - lobe, cy - lobe / 2, lobe, color);
+        fillCircle(renderer, cx + lobe, cy - lobe / 2, lobe, color);
+        fillPolygon(renderer, {{cx - r, cy - lobe / 2}, {cx + r, cy - lobe / 2}, {cx, cy + r}}, color);
+    } else if (shape == "star") {
+        std::vector<SDL_Point> points;
+        points.reserve(10);
+        constexpr double pi = 3.14159265358979323846;
+        for (int i = 0; i < 10; ++i) {
+            const double angle = -pi / 2.0 + static_cast<double>(i) * pi / 5.0;
+            const double radius = (i % 2 == 0) ? static_cast<double>(r) : static_cast<double>(r) * 0.42;
+            points.push_back(SDL_Point{
+                cx + static_cast<int>(std::lround(std::cos(angle) * radius)),
+                cy + static_cast<int>(std::lround(std::sin(angle) * radius))});
+        }
+        fillPolygon(renderer, points, color);
+    } else {
+        fillPolygon(renderer, {{cx, cy - r}, {cx + r, cy}, {cx, cy + r}, {cx - r, cy}}, color);
+    }
 }
 
 void fillRoundedRectScanlines(SDL_Renderer* renderer, int x, int y, int w, int h, int radius, const Color& c) {
@@ -340,31 +434,140 @@ void TransferSystemScreen::drawGameBoxNameDropdownList(SDL_Renderer* renderer) c
 }
 
 void TransferSystemScreen::drawBottomBanner(SDL_Renderer* renderer) const {
+    if (!info_banner_style_.enabled) {
+        return;
+    }
     const int screen_w = window_config_.virtual_width;
     const int screen_h = window_config_.virtual_height;
-    constexpr int help_h = 33;
-    constexpr int stats_h = 75;
-    constexpr int top_line_h = 4;
-    const int total_h = help_h + stats_h + top_line_h;
-
-    const Color c_help{191, 191, 191, 255};
-    const Color c_stats{224, 224, 224, 255};
-    const Color c_line{191, 191, 191, 255};
+    const int stats_h = std::max(0, info_banner_style_.info_height);
+    const int top_line_h = std::max(0, info_banner_style_.separator_height);
+    const int total_h = stats_h + top_line_h;
 
     const int off = static_cast<int>(std::lround((1.0 - ui_state_.bottomBannerReveal()) * static_cast<double>(total_h)));
     const int y0 = screen_h - total_h + off;
 
     SDL_Rect r_line{0, y0, screen_w, top_line_h};
-    setDrawColor(renderer, c_line);
+    setDrawColor(renderer, info_banner_style_.separator_color);
     SDL_RenderFillRect(renderer, &r_line);
 
     SDL_Rect r_stats{0, y0 + top_line_h, screen_w, stats_h};
-    setDrawColor(renderer, c_stats);
+    setDrawColor(renderer, info_banner_style_.info_background_color);
     SDL_RenderFillRect(renderer, &r_stats);
 
-    SDL_Rect r_help{0, y0 + top_line_h + stats_h, screen_w, help_h};
-    setDrawColor(renderer, c_help);
-    SDL_RenderFillRect(renderer, &r_help);
+    const auto context = activeInfoBannerContext();
+
+    const int info_origin_y = y0 + top_line_h;
+    std::unordered_map<std::string, int> flow_x;
+    for (const auto& field : info_banner_style_.fields) {
+        if (std::find(field.contexts.begin(), field.contexts.end(), context.mode) == field.contexts.end()) {
+            continue;
+        }
+        const auto value = transfer_system::resolveTransferInfoBannerField(field.field, context);
+        if (!value.visible && field.kind != "text") {
+            continue;
+        }
+
+        int draw_x = field.x;
+        const int draw_y = info_origin_y + field.y;
+        if (field.kind == "icon") {
+            const int width = field.width > 0 ? field.width : 32;
+            const int height = field.height > 0 ? field.height : 32;
+            if (!field.flow_group.empty()) {
+                auto [it, inserted] = flow_x.emplace(field.flow_group, field.x);
+                draw_x = it->second;
+                it->second += width + field.flow_gap;
+            }
+            SDL_Rect dst{draw_x, draw_y, width, height};
+
+            if (value.icon_group == "marking") {
+                drawMarkingIcon(renderer, value.icon_key, dst);
+                continue;
+            }
+            if (value.icon_group == "gender-symbol") {
+                const bool female = value.icon_key == "female";
+                const std::string symbol = female ? u8"\u2640" : u8"\u2642";
+                const Color symbol_color = female
+                    ? info_banner_style_.gender_symbol_female_color
+                    : info_banner_style_.gender_symbol_male_color;
+                const int font_pt = info_banner_style_.gender_symbol_font_pt > 0
+                    ? info_banner_style_.gender_symbol_font_pt
+                    : std::max(8, dst.h + 4);
+                TextureHandle symbol_texture = infoBannerTextTexture(renderer, font_pt, symbol_color, symbol);
+                if (!symbol_texture.texture) {
+                    continue;
+                }
+                const int tx = dst.x + (dst.w - symbol_texture.width) / 2 + info_banner_style_.gender_symbol_x_adjust;
+                const int ty = dst.y + (dst.h - symbol_texture.height) / 2 + info_banner_style_.gender_symbol_y_adjust;
+                SDL_Rect symbol_dst{tx, ty, symbol_texture.width, symbol_texture.height};
+                SDL_RenderCopy(renderer, symbol_texture.texture.get(), nullptr, &symbol_dst);
+                SDL_Rect bold_dst{tx + 1, ty, symbol_texture.width, symbol_texture.height};
+                SDL_RenderCopy(renderer, symbol_texture.texture.get(), nullptr, &bold_dst);
+                continue;
+            }
+
+            TextureHandle texture;
+            if (value.use_pokesprite_item && value.pokesprite_item_id > 0 && sprite_assets_) {
+                texture = sprite_assets_->loadItemTexture(renderer, value.pokesprite_item_id);
+            }
+            if (!texture.texture && value.icon_group.rfind("misc:", 0) == 0 && sprite_assets_) {
+                texture = sprite_assets_->loadMiscTexture(renderer, value.icon_group.substr(5), value.icon_key);
+            }
+            if (!texture.texture) {
+                texture = infoBannerIconTexture(renderer, value.icon_group, value.icon_key);
+            }
+            if (!texture.texture) {
+                continue;
+            }
+            dst.w = field.width > 0 ? field.width : texture.width;
+            dst.h = field.height > 0 ? field.height : texture.height;
+            SDL_RenderCopy(renderer, texture.texture.get(), nullptr, &dst);
+            continue;
+        }
+
+        std::string text_value = value.text.empty() ? field.empty_text : value.text;
+        if (field.field == "nickname") {
+            text_value = infoBannerTextFitToReference(renderer, field.font_pt, field.color, text_value, "Abomasnow00");
+        }
+        if (field.label.empty()) {
+            TextureHandle text_texture = infoBannerTextTexture(renderer, field.font_pt, field.color, text_value);
+            if (!text_texture.texture) {
+                continue;
+            }
+            SDL_Rect dst{draw_x, draw_y, text_texture.width, text_texture.height};
+            if (field.width > 0) {
+                dst.w = std::min(dst.w, field.width);
+            }
+            if (field.height > 0) {
+                dst.h = std::min(dst.h, field.height);
+            }
+            SDL_RenderCopy(renderer, text_texture.texture.get(), nullptr, &dst);
+            continue;
+        }
+
+        const std::string label_text = field.label + ":";
+        TextureHandle label_texture =
+            infoBannerTextTexture(renderer, field.label_font_pt, field.label_color, label_text);
+        TextureHandle value_texture =
+            infoBannerTextTexture(renderer, field.font_pt, field.color, text_value);
+        if (!label_texture.texture || !value_texture.texture) {
+            continue;
+        }
+
+        SDL_Rect label_dst{draw_x, draw_y, label_texture.width, label_texture.height};
+        SDL_Rect value_dst{
+            draw_x + label_texture.width + kInfoBannerLabelGap,
+            draw_y,
+            value_texture.width,
+            value_texture.height};
+        if (field.height > 0) {
+            label_dst.h = std::min(label_dst.h, field.height);
+            value_dst.h = std::min(value_dst.h, field.height);
+        }
+        SDL_RenderCopy(renderer, label_texture.texture.get(), nullptr, &label_dst);
+        SDL_Rect bold_label_dst{label_dst.x + 1, label_dst.y, label_dst.w, label_dst.h};
+        SDL_RenderCopy(renderer, label_texture.texture.get(), nullptr, &bold_label_dst);
+        SDL_RenderCopy(renderer, value_texture.texture.get(), nullptr, &value_dst);
+    }
 }
 
 void TransferSystemScreen::drawBackground(SDL_Renderer* renderer) const {

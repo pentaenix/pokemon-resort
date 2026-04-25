@@ -20,7 +20,7 @@ namespace pr {
 namespace {
 
 /// Must match `bridge_probe_schema` in `tools/pkhex_bridge/BridgeConsole.cs`.
-constexpr int kBridgeProbeSchemaRequired = 2;
+constexpr int kBridgeProbeSchemaRequired = 4;
 
 struct CachedSaveRecord {
     std::string path;
@@ -334,13 +334,29 @@ void fillSlotFromPokemonObject(PcSlotSpecies& out, const JsonValue& pokemon) {
     out.level = asIntOrDefault(childAny(pokemon, {"Level", "level"}), out.level);
     out.is_egg = asBoolOrDefault(childAny(pokemon, {"IsEgg", "isEgg", "is_egg"}), out.is_egg);
     out.is_shiny = asBoolOrDefault(childAny(pokemon, {"IsShiny", "isShiny", "is_shiny"}), out.is_shiny);
+    out.ball_id = asIntOrDefault(childAny(pokemon, {"BallId", "ballId", "ball_id"}), out.ball_id);
     out.ot_name = asStringOrEmpty(childAny(pokemon, {"OtName", "otName", "ot_name"}));
     out.tid16 = asIntOrDefault(childAny(pokemon, {"Tid16", "tid16"}), out.tid16);
     out.sid16 = asIntOrDefault(childAny(pokemon, {"Sid16", "sid16"}), out.sid16);
+    out.origin_game = asStringOrEmpty(childAny(pokemon, {"OriginGame", "originGame", "origin_game"}));
+    out.met_location_id =
+        asIntOrDefault(childAny(pokemon, {"MetLocationId", "metLocationId", "met_location_id"}), out.met_location_id);
+    out.met_location_name =
+        asStringOrEmpty(childAny(pokemon, {"MetLocationName", "metLocationName", "met_location_name"}));
     out.held_item_id = asIntOrDefault(childAny(pokemon, {"HeldItemId", "heldItemId", "held_item_id"}), out.held_item_id);
     out.held_item_name = asStringOrEmpty(childAny(pokemon, {"HeldItemName", "heldItemName", "held_item_name"}));
     out.nature = asStringOrEmpty(childAny(pokemon, {"Nature", "nature"}));
     out.ability_id = asIntOrDefault(childAny(pokemon, {"AbilityId", "abilityId", "ability_id"}), out.ability_id);
+    out.ability_name = asStringOrEmpty(childAny(pokemon, {"AbilityName", "abilityName", "ability_name"}));
+    out.primary_type = asStringOrEmpty(childAny(pokemon, {"PrimaryType", "primaryType", "primary_type"}));
+    out.secondary_type = asStringOrEmpty(childAny(pokemon, {"SecondaryType", "secondaryType", "secondary_type"}));
+    out.tera_type = asStringOrEmpty(childAny(pokemon, {"TeraType", "teraType", "tera_type"}));
+    out.mark_icon = asStringOrEmpty(childAny(pokemon, {"MarkIcon", "markIcon", "mark_icon"}));
+    out.pokerus_status = asStringOrEmpty(childAny(pokemon, {"PokerusStatus", "pokerusStatus", "pokerus_status"}));
+    out.is_alpha = asBoolOrDefault(childAny(pokemon, {"IsAlpha", "isAlpha", "is_alpha"}), out.is_alpha);
+    out.is_gigantamax =
+        asBoolOrDefault(childAny(pokemon, {"IsGigantamax", "isGigantamax", "is_gigantamax"}), out.is_gigantamax);
+    out.markings = asIntOrDefault(childAny(pokemon, {"Markings", "markings"}), out.markings);
     out.checksum_valid =
         asBoolOrDefault(childAny(pokemon, {"ChecksumValid", "checksumValid", "checksum_valid"}), out.checksum_valid);
 
@@ -678,13 +694,26 @@ std::vector<PcSlotSpecies> parseBoxOneSlotsArrayField(const JsonValue* value) {
             s.level = asIntOrDefault(child(item, "level"), s.level);
             s.is_egg = asBoolOrDefault(child(item, "is_egg"), s.is_egg);
             s.is_shiny = asBoolOrDefault(child(item, "is_shiny"), s.is_shiny);
+            s.ball_id = asIntOrDefault(child(item, "ball_id"), s.ball_id);
             s.ot_name = asStringOrEmpty(child(item, "ot_name"));
             s.tid16 = asIntOrDefault(child(item, "tid16"), s.tid16);
             s.sid16 = asIntOrDefault(child(item, "sid16"), s.sid16);
+            s.origin_game = asStringOrEmpty(child(item, "origin_game"));
+            s.met_location_id = asIntOrDefault(child(item, "met_location_id"), s.met_location_id);
+            s.met_location_name = asStringOrEmpty(child(item, "met_location_name"));
             s.held_item_id = asIntOrDefault(child(item, "held_item_id"), s.held_item_id);
             s.held_item_name = asStringOrEmpty(child(item, "held_item_name"));
             s.nature = asStringOrEmpty(child(item, "nature"));
             s.ability_id = asIntOrDefault(child(item, "ability_id"), s.ability_id);
+            s.ability_name = asStringOrEmpty(child(item, "ability_name"));
+            s.primary_type = asStringOrEmpty(child(item, "primary_type"));
+            s.secondary_type = asStringOrEmpty(child(item, "secondary_type"));
+            s.tera_type = asStringOrEmpty(child(item, "tera_type"));
+            s.mark_icon = asStringOrEmpty(child(item, "mark_icon"));
+            s.pokerus_status = asStringOrEmpty(child(item, "pokerus_status"));
+            s.is_alpha = asBoolOrDefault(child(item, "is_alpha"), s.is_alpha);
+            s.is_gigantamax = asBoolOrDefault(child(item, "is_gigantamax"), s.is_gigantamax);
+            s.markings = asIntOrDefault(child(item, "markings"), s.markings);
             s.checksum_valid = asBoolOrDefault(child(item, "checksum_valid"), s.checksum_valid);
             s.present = asBoolOrDefault(
                 present_value,
@@ -798,6 +827,14 @@ std::optional<TransferSaveSummary> parseTransferSummary(const std::string& json_
         }
         summary.play_time = asStringOrEmpty(child(root, "play_time"));
         summary.pokedex_count = asIntOrZero(child(root, "pokedex_count"));
+        if (const JsonValue* pokedex = child(root, "pokedex"); pokedex && pokedex->isObject()) {
+            summary.pokedex_seen_count = asIntOrDefault(childAny(*pokedex, {"SeenCount", "seenCount", "seen_count"}), 0);
+            summary.pokedex_caught_count =
+                asIntOrDefault(childAny(*pokedex, {"CaughtCount", "caughtCount", "caught_count"}), summary.pokedex_count);
+        } else {
+            summary.pokedex_seen_count = summary.pokedex_count;
+            summary.pokedex_caught_count = summary.pokedex_count;
+        }
         summary.badges = asIntOrZero(child(root, "badges"));
         summary.status = asStringOrEmpty(child(root, "status"));
         summary.error = asStringOrEmpty(child(root, "error"));
@@ -850,13 +887,26 @@ std::string serializePcSlotArray(const std::vector<PcSlotSpecies>& slots, const 
             << child_padding << "    \"level\": " << s.level << ",\n"
             << child_padding << "    \"is_egg\": " << (s.is_egg ? "true" : "false") << ",\n"
             << child_padding << "    \"is_shiny\": " << (s.is_shiny ? "true" : "false") << ",\n"
+            << child_padding << "    \"ball_id\": " << s.ball_id << ",\n"
             << child_padding << "    \"ot_name\": \"" << escapeJson(s.ot_name) << "\",\n"
             << child_padding << "    \"tid16\": " << s.tid16 << ",\n"
             << child_padding << "    \"sid16\": " << s.sid16 << ",\n"
+            << child_padding << "    \"origin_game\": \"" << escapeJson(s.origin_game) << "\",\n"
+            << child_padding << "    \"met_location_id\": " << s.met_location_id << ",\n"
+            << child_padding << "    \"met_location_name\": \"" << escapeJson(s.met_location_name) << "\",\n"
             << child_padding << "    \"held_item_id\": " << s.held_item_id << ",\n"
             << child_padding << "    \"held_item_name\": \"" << escapeJson(s.held_item_name) << "\",\n"
             << child_padding << "    \"nature\": \"" << escapeJson(s.nature) << "\",\n"
             << child_padding << "    \"ability_id\": " << s.ability_id << ",\n"
+            << child_padding << "    \"ability_name\": \"" << escapeJson(s.ability_name) << "\",\n"
+            << child_padding << "    \"primary_type\": \"" << escapeJson(s.primary_type) << "\",\n"
+            << child_padding << "    \"secondary_type\": \"" << escapeJson(s.secondary_type) << "\",\n"
+            << child_padding << "    \"tera_type\": \"" << escapeJson(s.tera_type) << "\",\n"
+            << child_padding << "    \"mark_icon\": \"" << escapeJson(s.mark_icon) << "\",\n"
+            << child_padding << "    \"pokerus_status\": \"" << escapeJson(s.pokerus_status) << "\",\n"
+            << child_padding << "    \"is_alpha\": " << (s.is_alpha ? "true" : "false") << ",\n"
+            << child_padding << "    \"is_gigantamax\": " << (s.is_gigantamax ? "true" : "false") << ",\n"
+            << child_padding << "    \"markings\": " << s.markings << ",\n"
             << child_padding << "    \"checksum_valid\": " << (s.checksum_valid ? "true" : "false") << ",\n"
             << child_padding << "    \"moves\": [";
         for (int move_index = 0; move_index < s.move_count; ++move_index) {
@@ -933,6 +983,8 @@ std::string serializeTransferSummary(const TransferSaveSummary& summary, int ind
         << child_padding << "\"party_slots\": " << serializePcSlotArray(summary.party_slots, child_padding) << ",\n"
         << child_padding << "\"play_time\": \"" << escapeJson(summary.play_time) << "\",\n"
         << child_padding << "\"pokedex_count\": " << summary.pokedex_count << ",\n"
+        << child_padding << "\"pokedex_seen_count\": " << summary.pokedex_seen_count << ",\n"
+        << child_padding << "\"pokedex_caught_count\": " << summary.pokedex_caught_count << ",\n"
         << child_padding << "\"badges\": " << summary.badges << ",\n"
         << child_padding << "\"status\": \"" << escapeJson(summary.status) << "\",\n"
         << child_padding << "\"error\": \"" << escapeJson(summary.error) << "\",\n"
@@ -972,6 +1024,8 @@ std::optional<TransferSaveSummary> parseTransferSummaryFromObject(const JsonValu
     }
     summary.play_time = asStringOrEmpty(child(object, "play_time"));
     summary.pokedex_count = asIntOrZero(child(object, "pokedex_count"));
+    summary.pokedex_seen_count = asIntOrDefault(child(object, "pokedex_seen_count"), summary.pokedex_count);
+    summary.pokedex_caught_count = asIntOrDefault(child(object, "pokedex_caught_count"), summary.pokedex_count);
     summary.badges = asIntOrZero(child(object, "badges"));
     summary.status = asStringOrEmpty(child(object, "status"));
     summary.error = asStringOrEmpty(child(object, "error"));
@@ -981,8 +1035,9 @@ std::optional<TransferSaveSummary> parseTransferSummaryFromObject(const JsonValu
 
 bool hasUsableTransferSummary(const std::optional<TransferSaveSummary>& summary) {
     // Ticket UI needs at least party data to render. If we have no party slots/strings, treat cache as stale
-    // so we re-probe instead of showing empty sprites until the user clears the cache manually.
+    // so we re-probe instead of showing empty sprites or stale bridge fields until the user clears the cache manually.
     return summary &&
+           summary->bridge_probe_schema >= kBridgeProbeSchemaRequired &&
            !summary->game_id.empty() &&
            !summary->player_name.empty() &&
            (!summary->party_slots.empty() || !summary->party.empty());

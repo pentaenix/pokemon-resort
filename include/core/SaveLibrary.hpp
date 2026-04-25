@@ -27,6 +27,8 @@ struct TransferSaveSummary {
     std::vector<PcSlotSpecies> party_slots;
     std::string play_time;
     int pokedex_count = 0;
+    int pokedex_seen_count = 0;
+    int pokedex_caught_count = 0;
     int badges = 0;
     std::string status;
     std::string error;

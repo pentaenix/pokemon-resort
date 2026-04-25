@@ -282,8 +282,10 @@ The current transfer box-detail path parses one native per-slot struct from `box
 - `format`
 - species ID, species name, sprite slug, nickname, form, `form_key`, gender, level
 - shiny and egg flags
+- ball ID
 - held item ID and held item name
-- nature and ability ID
+- nature, ability ID, and ability name
+- primary / secondary type labels, pokerus status, and markings
 - up to four moves with move ID, name, current PP, and PP Ups
 - checksum validity
 

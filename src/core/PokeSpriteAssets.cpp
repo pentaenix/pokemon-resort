@@ -260,12 +260,45 @@ public:
         return resolved;
     }
 
+    ResolvedMiscIcon resolveMiscIcon(const std::string& category, const std::string& icon_key) const {
+        ResolvedMiscIcon resolved;
+        resolved.category = normalizeToken(category);
+        resolved.icon_key = normalizeToken(icon_key);
+
+        const auto exact = misc_icon_paths_.find(miscIconMapKey(resolved.category, resolved.icon_key));
+        const auto alias = resolved.category.empty()
+            ? misc_icon_paths_.find(miscIconMapKey({}, resolved.icon_key))
+            : misc_icon_paths_.end();
+        const std::string mapped = exact != misc_icon_paths_.end()
+            ? exact->second
+            : (alias != misc_icon_paths_.end() ? alias->second : std::string{});
+
+        if (!mapped.empty()) {
+            const fs::path relative = fs::path("misc") / mapped;
+            if (fs::exists(root_ / relative)) {
+                resolved.cache_key = "misc|" + resolved.category + "|" + resolved.icon_key;
+                resolved.relative_path = relative.generic_string();
+                return resolved;
+            }
+        }
+
+        const fs::path fallback_relative = fs::path(pokemon_style_directory_) / "unknown.png";
+        resolved.cache_key = "misc|unknown|" + resolved.category + "|" + resolved.icon_key;
+        resolved.relative_path = fallback_relative.generic_string();
+        resolved.used_fallback = true;
+        return resolved;
+    }
+
     TextureHandle loadPokemonTexture(SDL_Renderer* renderer, const PokemonSpriteRequest& request) const {
         return loadTexture(renderer, resolvePokemon(request));
     }
 
     TextureHandle loadItemTexture(SDL_Renderer* renderer, int item_id, ItemIconUsage usage) const {
         return loadTexture(renderer, resolveItemIcon(item_id, usage));
+    }
+
+    TextureHandle loadMiscTexture(SDL_Renderer* renderer, const std::string& category, const std::string& icon_key) const {
+        return loadTexture(renderer, resolveMiscIcon(category, icon_key));
     }
 
 private:
@@ -300,6 +333,102 @@ private:
             value.replace(value.size() - from.size(), from.size(), to);
         }
         return value;
+    }
+
+    static std::string miscIconMapKey(const std::string& category, const std::string& icon_key) {
+        return category + "|" + icon_key;
+    }
+
+    static std::string bestMiscFilePath(const JsonValue& files) {
+        if (files.isString()) {
+            return files.asString();
+        }
+        if (files.isArray()) {
+            for (const JsonValue& item : files.asArray()) {
+                if (item.isString()) {
+                    return item.asString();
+                }
+            }
+            return {};
+        }
+        if (!files.isObject()) {
+            return {};
+        }
+
+        static const char* kPreferredKeys[] = {"gen-8", "legends-arceus", "home", "gen-7", "gen-6", "gen-5", "gen-4"};
+        for (const char* key : kPreferredKeys) {
+            if (const JsonValue* value = files.get(key)) {
+                const std::string path = bestMiscFilePath(*value);
+                if (!path.empty()) {
+                    return path;
+                }
+            }
+        }
+        for (const auto& [_, value] : files.asObject()) {
+            const std::string path = bestMiscFilePath(value);
+            if (!path.empty()) {
+                return path;
+            }
+        }
+        return {};
+    }
+
+    void loadMiscIconMetadata() {
+        const fs::path misc_path = root_ / "data" / "misc.json";
+        if (!fs::exists(misc_path)) {
+            return;
+        }
+        const JsonValue misc = parseJsonFile(misc_path.string());
+        if (!misc.isObject()) {
+            return;
+        }
+        for (const auto& [category_raw, entries] : misc.asObject()) {
+            if (!entries.isArray()) {
+                continue;
+            }
+            const std::string category = normalizeToken(category_raw);
+            for (const JsonValue& entry : entries.asArray()) {
+                if (!entry.isObject()) {
+                    continue;
+                }
+                const JsonValue* name = entry.get("name");
+                const JsonValue* files = entry.get("files");
+                if (!name || !name->isObject() || !files) {
+                    continue;
+                }
+                const JsonValue* english = name->get("eng");
+                if (!english || !english->isString()) {
+                    continue;
+                }
+                const std::string icon_key = normalizeToken(english->asString());
+                const std::string file_path = bestMiscFilePath(*files);
+                if (icon_key.empty() || file_path.empty()) {
+                    continue;
+                }
+                misc_icon_paths_.emplace(miscIconMapKey(category, icon_key), file_path);
+                misc_icon_paths_.emplace(miscIconMapKey({}, icon_key), file_path);
+            }
+        }
+
+        // Stable aliases used by the transfer banner; they keep UI names independent
+        // from the human-facing labels in misc.json.
+        aliasMiscIcon("special-attribute", "shiny", "shiny-stars");
+        aliasMiscIcon("special-attribute", "pokerus", "pokrus");
+        aliasMiscIcon("special-attribute", "infected", "pokrus");
+        aliasMiscIcon("special-attribute", "cured", "pokrus-cured");
+        aliasMiscIcon("special-attribute", "pokerus-status", "pokrus");
+        aliasMiscIcon("special-attribute", "genderless", "unknown");
+    }
+
+    void aliasMiscIcon(const std::string& category, const std::string& alias, const std::string& target) {
+        const std::string normalized_category = normalizeToken(category);
+        const std::string normalized_alias = normalizeToken(alias);
+        const std::string normalized_target = normalizeToken(target);
+        const auto it = misc_icon_paths_.find(miscIconMapKey(normalized_category, normalized_target));
+        if (it != misc_icon_paths_.end()) {
+            misc_icon_paths_[miscIconMapKey(normalized_category, normalized_alias)] = it->second;
+            misc_icon_paths_[miscIconMapKey({}, normalized_alias)] = it->second;
+        }
     }
 
     const SpeciesMetadata* findSpecies(int species_id) const {
@@ -371,6 +500,8 @@ private:
                 }
             }
         }
+
+        loadMiscIconMetadata();
     }
 
     void discoverPokemonStyleDirectory() {
@@ -438,6 +569,7 @@ private:
     std::string pokemon_style_directory_ = "pokemon-gen8";
     std::unordered_map<int, SpeciesMetadata> species_{};
     std::unordered_map<std::string, std::string> item_icon_paths_{};
+    std::unordered_map<std::string, std::string> misc_icon_paths_{};
     mutable std::unordered_map<std::string, TextureHandle> texture_cache_{};
 };
 
@@ -470,6 +602,10 @@ ResolvedItemIcon PokeSpriteAssets::resolveItemIcon(int item_id, ItemIconUsage us
     return impl_->resolveItemIcon(item_id, usage);
 }
 
+ResolvedMiscIcon PokeSpriteAssets::resolveMiscIcon(const std::string& category, const std::string& icon_key) const {
+    return impl_->resolveMiscIcon(category, icon_key);
+}
+
 TextureHandle PokeSpriteAssets::loadPokemonTexture(SDL_Renderer* renderer, const PokemonSpriteRequest& request) const {
     return impl_->loadPokemonTexture(renderer, request);
 }
@@ -482,6 +618,13 @@ TextureHandle PokeSpriteAssets::loadPokemonTexture(SDL_Renderer* renderer, const
 
 TextureHandle PokeSpriteAssets::loadItemTexture(SDL_Renderer* renderer, int item_id, ItemIconUsage usage) const {
     return impl_->loadItemTexture(renderer, item_id, usage);
+}
+
+TextureHandle PokeSpriteAssets::loadMiscTexture(
+    SDL_Renderer* renderer,
+    const std::string& category,
+    const std::string& icon_key) const {
+    return impl_->loadMiscTexture(renderer, category, icon_key);
 }
 
 } // namespace pr

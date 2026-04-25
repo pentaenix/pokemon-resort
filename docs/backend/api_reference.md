@@ -102,7 +102,7 @@ Repositories own SQL only. Do not put identity, merge, projection, or UI logic h
 Implemented in [`tools/pkhex_bridge`](/Users/vanta/Desktop/title_screen_demo/tools/pkhex_bridge):
 
 - `PKHeXBridge <save-path>`
-  Probe/preview command. Emits `bridge_probe_schema: 2` plus legacy ticket fields.
+  Probe/preview command. Emits `bridge_probe_schema: 4` plus legacy ticket fields.
 - `PKHeXBridge import <save-path>`
   Import-grade read. Emits `bridge_import_schema: 1`, including exact per-Pokemon raw payload bytes and SHA-256 hashes.
 - `PKHeXBridge write-projection <save-path> <projection-json-path>`

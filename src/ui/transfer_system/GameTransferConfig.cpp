@@ -3,6 +3,7 @@
 #include "core/Json.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <filesystem>
 
 namespace fs = std::filesystem;
@@ -56,6 +57,68 @@ bool boolFromObjectOrDefault(const JsonValue& obj, const std::string& key, bool 
 std::string stringFromObjectOrDefault(const JsonValue& obj, const std::string& key, std::string fallback) {
     const JsonValue* value = obj.get(key);
     return (value && value->isString()) ? value->asString() : std::move(fallback);
+}
+
+const JsonValue* objectChild(const JsonValue* value, const std::string& key) {
+    if (!value || !value->isObject()) {
+        return nullptr;
+    }
+    const JsonValue* child = value->get(key);
+    return (child && child->isObject()) ? child : nullptr;
+}
+
+void applyInfoBannerLayoutField(
+    GameTransferInfoBannerFieldStyle& field,
+    const JsonValue& banner,
+    const JsonValue& field_value) {
+    const JsonValue* layout = objectChild(&banner, "layout");
+    if (!layout) {
+        return;
+    }
+
+    const std::string layout_context =
+        stringFromObjectOrDefault(field_value, "layout", field.contexts.empty() ? std::string{"pokemon"} : field.contexts.front());
+    const JsonValue* context_layout = objectChild(layout, layout_context);
+    if (!context_layout) {
+        return;
+    }
+
+    const std::string row_key = stringFromObjectOrDefault(field_value, "row", {});
+    const std::string column_key = stringFromObjectOrDefault(field_value, "column", {});
+    const JsonValue* row = objectChild(objectChild(context_layout, "rows"), row_key);
+    const JsonValue* column = objectChild(objectChild(context_layout, "columns"), column_key);
+
+    if (column) {
+        field.x = intFromObjectOrDefault(*column, "x", field.x);
+        const int slot = intFromObjectOrDefault(field_value, "slot", 0);
+        const int step = intFromObjectOrDefault(*column, "step", 0);
+        field.x += slot * step;
+        field.x += intFromObjectOrDefault(*column, "x_adjust", 0);
+    }
+    if (row) {
+        const char* y_key = field.kind == "icon" ? "icon_y" : "text_y";
+        field.y = intFromObjectOrDefault(*row, y_key, intFromObjectOrDefault(*row, "y", field.y));
+
+        if (field.kind == "icon") {
+            const int icon_base_size = intFromObjectOrDefault(
+                field_value,
+                "icon_base_size",
+                column
+                    ? intFromObjectOrDefault(*column, "icon_size", intFromObjectOrDefault(*row, "icon_size", field.width > 0 ? field.width : 40))
+                    : intFromObjectOrDefault(*row, "icon_size", field.width > 0 ? field.width : 40));
+            const double section_scale = column ? doubleFromObjectOrDefault(*column, "scale", 1.0) : 1.0;
+            const double field_scale = doubleFromObjectOrDefault(field_value, "scale", 1.0);
+            const double width_scale = section_scale * doubleFromObjectOrDefault(field_value, "width_scale", field_scale);
+            const double height_scale = section_scale * doubleFromObjectOrDefault(field_value, "height_scale", field_scale);
+            const int width = std::max(1, static_cast<int>(std::lround(static_cast<double>(icon_base_size) * width_scale)));
+            const int height = std::max(1, static_cast<int>(std::lround(static_cast<double>(icon_base_size) * height_scale)));
+            field.width = intFromObjectOrDefault(field_value, "width", width);
+            field.height = intFromObjectOrDefault(field_value, "height", height);
+        }
+    }
+
+    field.x += intFromObjectOrDefault(field_value, "x_adjust", 0);
+    field.y += intFromObjectOrDefault(field_value, "y_adjust", 0);
 }
 
 } // namespace
@@ -163,6 +226,149 @@ LoadedGameTransfer loadGameTransfer(const std::string& project_root) {
                 doubleFromObjectOrDefault(o, "enter_smoothing", out.mini_preview.enter_smoothing);
             out.mini_preview.sprite_scale =
                 doubleFromObjectOrDefault(o, "sprite_scale", out.mini_preview.sprite_scale);
+        }
+    }
+
+    if (const JsonValue* banner = root.get("info_banner")) {
+        if (banner->isObject()) {
+            const JsonValue& o = *banner;
+            out.info_banner.enabled = boolFromObjectOrDefault(o, "enabled", out.info_banner.enabled);
+            out.info_banner.separator_height =
+                intFromObjectOrDefault(o, "separator_height", out.info_banner.separator_height);
+            out.info_banner.info_height =
+                intFromObjectOrDefault(o, "info_height", out.info_banner.info_height);
+            out.info_banner.icon_directory =
+                stringFromObjectOrDefault(o, "icon_directory", out.info_banner.icon_directory);
+            out.info_banner.game_icon_directory =
+                stringFromObjectOrDefault(o, "game_icon_directory", out.info_banner.game_icon_directory);
+            out.info_banner.unknown_icon =
+                stringFromObjectOrDefault(o, "unknown_icon", out.info_banner.unknown_icon);
+            out.info_banner.tool_multiple_title =
+                stringFromObjectOrDefault(o, "tool_multiple_title", out.info_banner.tool_multiple_title);
+            out.info_banner.tool_multiple_body =
+                stringFromObjectOrDefault(o, "tool_multiple_body", out.info_banner.tool_multiple_body);
+            out.info_banner.tool_basic_title =
+                stringFromObjectOrDefault(o, "tool_basic_title", out.info_banner.tool_basic_title);
+            out.info_banner.tool_basic_body =
+                stringFromObjectOrDefault(o, "tool_basic_body", out.info_banner.tool_basic_body);
+            out.info_banner.tool_swap_title =
+                stringFromObjectOrDefault(o, "tool_swap_title", out.info_banner.tool_swap_title);
+            out.info_banner.tool_swap_body =
+                stringFromObjectOrDefault(o, "tool_swap_body", out.info_banner.tool_swap_body);
+            out.info_banner.tool_items_title =
+                stringFromObjectOrDefault(o, "tool_items_title", out.info_banner.tool_items_title);
+            out.info_banner.tool_items_body =
+                stringFromObjectOrDefault(o, "tool_items_body", out.info_banner.tool_items_body);
+            out.info_banner.pill_pokemon_title =
+                stringFromObjectOrDefault(o, "pill_pokemon_title", out.info_banner.pill_pokemon_title);
+            out.info_banner.pill_pokemon_body =
+                stringFromObjectOrDefault(o, "pill_pokemon_body", out.info_banner.pill_pokemon_body);
+            out.info_banner.pill_items_title =
+                stringFromObjectOrDefault(o, "pill_items_title", out.info_banner.pill_items_title);
+            out.info_banner.pill_items_body =
+                stringFromObjectOrDefault(o, "pill_items_body", out.info_banner.pill_items_body);
+            out.info_banner.box_space_title =
+                stringFromObjectOrDefault(o, "box_space_title", out.info_banner.box_space_title);
+            out.info_banner.box_space_body =
+                stringFromObjectOrDefault(o, "box_space_body", out.info_banner.box_space_body);
+            if (const JsonValue* c = o.get("separator_color")) {
+                if (c->isString()) {
+                    out.info_banner.separator_color =
+                        parseHexColorString(c->asString(), out.info_banner.separator_color);
+                }
+            }
+            if (const JsonValue* c = o.get("info_background_color")) {
+                if (c->isString()) {
+                    out.info_banner.info_background_color =
+                        parseHexColorString(c->asString(), out.info_banner.info_background_color);
+                }
+            }
+            if (const JsonValue* text_defaults = objectChild(&o, "text_defaults")) {
+                out.info_banner.text_font_pt =
+                    intFromObjectOrDefault(*text_defaults, "font_pt", out.info_banner.text_font_pt);
+                out.info_banner.label_font_pt =
+                    intFromObjectOrDefault(*text_defaults, "label_font_pt", out.info_banner.label_font_pt);
+                if (const JsonValue* c = text_defaults->get("color")) {
+                    if (c->isString()) {
+                        out.info_banner.text_color = parseHexColorString(c->asString(), out.info_banner.text_color);
+                    }
+                }
+                if (const JsonValue* c = text_defaults->get("label_color")) {
+                    if (c->isString()) {
+                        out.info_banner.label_color = parseHexColorString(c->asString(), out.info_banner.label_color);
+                    }
+                }
+            }
+            if (const JsonValue* gender_symbol = objectChild(&o, "gender_symbol")) {
+                out.info_banner.gender_symbol_font_pt =
+                    intFromObjectOrDefault(*gender_symbol, "font_pt", out.info_banner.gender_symbol_font_pt);
+                out.info_banner.gender_symbol_x_adjust =
+                    intFromObjectOrDefault(*gender_symbol, "x_adjust", out.info_banner.gender_symbol_x_adjust);
+                out.info_banner.gender_symbol_y_adjust =
+                    intFromObjectOrDefault(*gender_symbol, "y_adjust", out.info_banner.gender_symbol_y_adjust);
+                if (const JsonValue* c = gender_symbol->get("male_color")) {
+                    if (c->isString()) {
+                        out.info_banner.gender_symbol_male_color =
+                            parseHexColorString(c->asString(), out.info_banner.gender_symbol_male_color);
+                    }
+                }
+                if (const JsonValue* c = gender_symbol->get("female_color")) {
+                    if (c->isString()) {
+                        out.info_banner.gender_symbol_female_color =
+                            parseHexColorString(c->asString(), out.info_banner.gender_symbol_female_color);
+                    }
+                }
+            }
+            out.info_banner.fields.clear();
+            if (const JsonValue* fields = o.get("fields"); fields && fields->isArray()) {
+                for (const JsonValue& field_value : fields->asArray()) {
+                    if (!field_value.isObject()) {
+                        continue;
+                    }
+                    GameTransferInfoBannerFieldStyle field;
+                    field.font_pt = out.info_banner.text_font_pt;
+                    field.color = out.info_banner.text_color;
+                    field.label_font_pt = out.info_banner.label_font_pt;
+                    field.label_color = out.info_banner.label_color;
+                    field.field = stringFromObjectOrDefault(field_value, "field", field.field);
+                    field.kind = stringFromObjectOrDefault(field_value, "kind", field.kind);
+                    field.label = stringFromObjectOrDefault(field_value, "label", field.label);
+                    field.empty_text = stringFromObjectOrDefault(field_value, "empty_text", field.empty_text);
+                    field.x = intFromObjectOrDefault(field_value, "x", field.x);
+                    field.y = intFromObjectOrDefault(field_value, "y", field.y);
+                    field.width = intFromObjectOrDefault(field_value, "width", field.width);
+                    field.height = intFromObjectOrDefault(field_value, "height", field.height);
+                    field.flow_group = stringFromObjectOrDefault(field_value, "flow_group", field.flow_group);
+                    field.flow_gap = intFromObjectOrDefault(field_value, "flow_gap", field.flow_gap);
+                    field.font_pt = intFromObjectOrDefault(field_value, "font_pt", field.font_pt);
+                    field.label_font_pt = intFromObjectOrDefault(field_value, "label_font_pt", field.label_font_pt);
+                    if (const JsonValue* c = field_value.get("color")) {
+                        if (c->isString()) {
+                            field.color = parseHexColorString(c->asString(), field.color);
+                        }
+                    }
+                    if (const JsonValue* c = field_value.get("label_color")) {
+                        if (c->isString()) {
+                            field.label_color = parseHexColorString(c->asString(), field.label_color);
+                        }
+                    }
+                    field.contexts.clear();
+                    if (const JsonValue* contexts = field_value.get("contexts"); contexts && contexts->isArray()) {
+                        for (const JsonValue& context_value : contexts->asArray()) {
+                            if (context_value.isString()) {
+                                field.contexts.push_back(context_value.asString());
+                            }
+                        }
+                    }
+                    if (field.contexts.empty()) {
+                        field.contexts = {"pokemon", "empty"};
+                    }
+                    applyInfoBannerLayoutField(field, o, field_value);
+                    if (!field.field.empty()) {
+                        out.info_banner.fields.push_back(std::move(field));
+                    }
+                }
+            }
         }
     }
 

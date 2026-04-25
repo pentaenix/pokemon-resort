@@ -8,7 +8,7 @@ Use the PKHeX bridge probe command to see what is in an external save for previe
 dotnet /Users/vanta/Desktop/title_screen_demo/tools/pkhex_bridge/bin/Debug/net10.0/PKHeXBridge.dll "/absolute/path/to/save.sav"
 ```
 
-This emits `bridge_probe_schema: 2` JSON with trainer, Pokedex, bag, boxes, and preview Pokemon models. These fields are useful for UI display, but they are not canonical Resort data.
+This emits `bridge_probe_schema: 4` JSON with trainer, Pokedex, bag, boxes, and preview Pokemon models. These fields are useful for UI display, but they are not canonical Resort data.
 
 ## Import-Grade Save Read
 
