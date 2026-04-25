@@ -39,6 +39,8 @@ add_executable(title_screen_demo
     src/core/InputBindings.cpp
     src/core/InputRouter.cpp
     src/core/Json.cpp
+    src/core/PokemonBall.cpp
+    src/core/PokemonOrigin.cpp
     src/core/PokeSpriteAssets.cpp
     src/core/ConfigLoader.cpp
     src/core/SaveBridgeClient.cpp
@@ -60,6 +62,7 @@ add_executable(title_screen_demo
     src/ui/transfer_system/GameTransferConfig.cpp
     src/ui/transfer_system/GameBoxBrowserController.cpp
     src/ui/transfer_system/TransferSystemFocusGraph.cpp
+    src/ui/transfer_system/TransferInfoBannerPresenter.cpp
     src/ui/transfer_system/TransferSystemRenderer.cpp
     src/ui/transfer_system/TransferSystemUiStateController.cpp
     src/ui/BoxViewport.cpp
@@ -127,6 +130,7 @@ add_test(NAME transfer_ticket_list_tests COMMAND transfer_ticket_list_tests)
 
 add_executable(transfer_selection_builder_tests
     ../tests/native/transfer_flow/transfer_selection_builder_tests.cpp
+    src/core/PokemonOrigin.cpp
     src/ui/transfer_flow/TransferSelectionBuilder.cpp
 )
 target_include_directories(transfer_selection_builder_tests PRIVATE include)
@@ -146,6 +150,15 @@ add_executable(game_transfer_config_tests
 )
 target_include_directories(game_transfer_config_tests PRIVATE include)
 add_test(NAME game_transfer_config_tests COMMAND game_transfer_config_tests)
+
+add_executable(transfer_info_banner_presenter_tests
+    ../tests/native/transfer_system/transfer_info_banner_presenter_tests.cpp
+    src/core/PokemonBall.cpp
+    src/core/PokemonOrigin.cpp
+    src/ui/transfer_system/TransferInfoBannerPresenter.cpp
+)
+target_include_directories(transfer_info_banner_presenter_tests PRIVATE include)
+add_test(NAME transfer_info_banner_presenter_tests COMMAND transfer_info_banner_presenter_tests)
 
 add_executable(transfer_system_ui_state_controller_tests
     ../tests/native/transfer_system/transfer_system_ui_state_controller_tests.cpp
@@ -185,6 +198,15 @@ add_executable(config_loader_tests
 )
 target_include_directories(config_loader_tests PRIVATE include)
 add_test(NAME config_loader_tests COMMAND config_loader_tests)
+
+add_executable(pokesprite_assets_tests
+    ../tests/native/core/pokesprite_assets_tests.cpp
+    src/core/Json.cpp
+    src/core/PokeSpriteAssets.cpp
+)
+target_include_directories(pokesprite_assets_tests PRIVATE include)
+target_link_libraries(pokesprite_assets_tests PRIVATE SDL2::SDL2 SDL2_image::SDL2_image SDL2_ttf::SDL2_ttf)
+add_test(NAME pokesprite_assets_tests COMMAND pokesprite_assets_tests)
 
 add_executable(save_library_cache_tests
     ../tests/native/core/save_library_cache_tests.cpp
@@ -236,11 +258,14 @@ add_executable(transfer_system_flow_harness_tests
     src/core/ConfigLoader.cpp
     src/core/Font.cpp
     src/core/Json.cpp
+    src/core/PokemonBall.cpp
+    src/core/PokemonOrigin.cpp
     src/core/PokeSpriteAssets.cpp
     src/ui/TransferSystemScreen.cpp
     src/ui/transfer_system/GameTransferConfig.cpp
     src/ui/transfer_system/GameBoxBrowserController.cpp
     src/ui/transfer_system/TransferSystemFocusGraph.cpp
+    src/ui/transfer_system/TransferInfoBannerPresenter.cpp
     src/ui/transfer_system/TransferSystemRenderer.cpp
     src/ui/transfer_system/TransferSystemUiStateController.cpp
     src/ui/BoxViewport.cpp

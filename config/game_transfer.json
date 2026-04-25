@@ -38,6 +38,117 @@
     "enter_smoothing": 18.0,
     "sprite_scale": 1
   },
+  "info_banner": {
+    "enabled": true,
+    "separator_height": 4,
+    "info_height": 110,
+    "separator_color": "#BFBFBF",
+    "info_background_color": "#E0E0E0",
+    "text_defaults": {
+      "font_pt": 28,
+      "label_font_pt": 28,
+      "color": "#4A4A4A",
+      "label_color": "#111111"
+    },
+    "gender_symbol": {
+      "male_color": "#6495ED",
+      "female_color": "#FF5A5A",
+      "font_pt": 50,
+      "x_adjust": 0,
+      "y_adjust": -5
+    },
+    "icon_directory": "assets/game_transfer/pokemon_icons",
+    "game_icon_directory": "assets/game_transfer/pokemon_icons/game_icons",
+    "unknown_icon": "assets/pokesprite/pokemon-gen8/unknown.png",
+    "tool_multiple_title": "Drag Zone",
+    "tool_multiple_body": "Drag across several slots to stage a group transfer between the game PC and Resort boxes.",
+    "tool_basic_title": "Basic Move",
+    "tool_basic_body": "Move one Pokemon at a time between the game PC and Resort storage.",
+    "tool_swap_title": "Swap Pokemon",
+    "tool_swap_body": "Exchange the selected Pokemon with another slot while keeping both box positions tidy.",
+    "tool_items_title": "Held Items",
+    "tool_items_body": "Give, move, or take held items between Pokemon, the game Bag, and the Resort deposit.",
+    "pill_pokemon_title": "Pokemon Storage",
+    "pill_pokemon_body": "Move Pokemon between the game PC boxes and your Resort boxes.",
+    "pill_items_title": "Bag Storage",
+    "pill_items_body": "Move items between the game Bag and Resort deposit, and move money between games.",
+    "box_space_title": "Box Space",
+    "box_space_body": "See every game PC box at a glance, then open the box you want to manage.",
+    "layout": {
+      "pokemon": {
+        "rows": {
+          "top_text_row": { "text_y": 0 },
+          "bottom_text_row": { "text_y": 55 },
+          "ball_top_icon_row": { "icon_y": 0, "icon_size": 46 },
+          "ball_bottom_icon_row": { "icon_y": 55, "icon_size": 38 },
+          "level_status_icon_row": { "icon_y": 60, "icon_size": 50 },
+          "type_tera_icon_row": { "icon_y": 5, "icon_size": 40 },
+          "bottom_status_icon_row": { "icon_y": 60, "icon_size": 38 },
+          "marking_top_row": { "icon_y": 15, "icon_size": 46 },
+          "marking_bottom_row": { "icon_y": 65, "icon_size": 38 }
+        },
+        "columns": {
+          "ball_icons": { "x": 10, "icon_size": 50, "scale": 1.0 },
+          "name_species_text": { "x": 60 },
+          "level_text": { "x": 280 },
+          "level_status_icons": { "x": 275, "step": 36, "icon_size": 35, "scale": 0.9 },
+          "type_and_tera_icons": { "x": 400, "step": 48, "icon_size": 41, "scale": 1.0 },
+          "bottom_status_icons": { "x": 400, "step": 48, "icon_size": 38, "scale": 1.0 },
+          "left_detail_text": { "x": 590 },
+          "right_detail_text": { "x": 860 },
+          "marking_top_symbols": { "x": 1170, "step": 35, "icon_size": 46, "scale": 1.0 },
+          "marking_bottom_symbols": { "x": 1170, "step": 35, "icon_size": 38, "scale": 1.0 }
+        }
+      },
+      "game_icon": {
+        "rows": {
+          "top": { "text_y": 12, "icon_y": 8, "icon_size": 40 },
+          "bottom": { "text_y": 55, "icon_y": 55, "icon_size": 40 }
+        },
+        "columns": {
+          "icon": { "x": 26 },
+          "summary_left": { "x": 78 },
+          "summary_mid": { "x": 420 },
+          "summary_right": { "x": 700 }
+        }
+      }
+    },
+    "fields": [
+      { "field": "ball_icon", "kind": "icon", "contexts": ["pokemon"], "row": "ball_top_icon_row", "column": "ball_icons" },
+      { "field": "held_item_icon", "kind": "icon", "contexts": ["pokemon"], "row": "ball_bottom_icon_row", "column": "ball_icons" },
+      { "field": "nickname", "kind": "text", "contexts": ["pokemon", "empty"], "row": "top_text_row", "column": "name_species_text", "font_pt": 32, "color": "#101010", "empty_text": "-" },
+      { "field": "level", "kind": "text", "contexts": ["pokemon", "empty"], "row": "top_text_row", "column": "level_text", "font_pt": 32, "color": "#313131", "empty_text": "-" },
+      { "field": "gender_icon", "kind": "icon", "contexts": ["pokemon"], "row": "level_status_icon_row", "column": "level_status_icons", "slot": 0 },
+      { "field": "type_icon", "kind": "icon", "contexts": ["pokemon"], "row": "type_tera_icon_row", "column": "type_and_tera_icons", "slot": 0, "scale": 1.0 },
+      { "field": "type_secondary_icon", "kind": "icon", "contexts": ["pokemon"], "row": "type_tera_icon_row", "column": "type_and_tera_icons", "slot": 1, "scale": 1.0 },
+      { "field": "tera_type_icon", "kind": "icon", "contexts": ["pokemon"], "row": "type_tera_icon_row", "column": "type_and_tera_icons", "slot": 2, "scale": 1.0 },
+      { "field": "shiny_icon", "kind": "icon", "contexts": ["pokemon"], "row": "bottom_status_icon_row", "column": "bottom_status_icons", "slot": 0, "scale": 1.0, "flow_group": "pokemon_status_icons", "flow_gap": 10 },
+      { "field": "mark_icon", "kind": "icon", "contexts": ["pokemon"], "row": "bottom_status_icon_row", "column": "bottom_status_icons", "slot": 0, "scale": 1.0, "flow_group": "pokemon_status_icons", "flow_gap": 10 },
+      { "field": "alpha_icon", "kind": "icon", "contexts": ["pokemon"], "row": "bottom_status_icon_row", "column": "bottom_status_icons", "slot": 0, "scale": 1.0, "flow_group": "pokemon_status_icons", "flow_gap": 10 },
+      { "field": "gigantamax_icon", "kind": "icon", "contexts": ["pokemon"], "row": "bottom_status_icon_row", "column": "bottom_status_icons", "slot": 0, "scale": 1.0, "flow_group": "pokemon_status_icons", "flow_gap": 10 },
+      { "field": "pokerus_icon", "kind": "icon", "contexts": ["pokemon"], "row": "level_status_icon_row", "column": "level_status_icons", "slot": 1 },
+      { "field": "mark_circle_icon", "kind": "icon", "contexts": ["pokemon"], "row": "marking_top_row", "column": "marking_top_symbols", "slot": 0, "scale": 0.6 },
+      { "field": "mark_triangle_icon", "kind": "icon", "contexts": ["pokemon"], "row": "marking_top_row", "column": "marking_top_symbols", "slot": 1, "scale": 0.6 },
+      { "field": "mark_square_icon", "kind": "icon", "contexts": ["pokemon"], "row": "marking_top_row", "column": "marking_top_symbols", "slot": 2, "scale": 0.6 },
+      { "field": "mark_heart_icon", "kind": "icon", "contexts": ["pokemon"], "row": "marking_bottom_row", "column": "marking_bottom_symbols", "slot": 0, "scale": 0.72 },
+      { "field": "mark_star_icon", "kind": "icon", "contexts": ["pokemon"], "row": "marking_bottom_row", "column": "marking_bottom_symbols", "slot": 1, "scale": 0.72 },
+      { "field": "mark_diamond_icon", "kind": "icon", "contexts": ["pokemon"], "row": "marking_bottom_row", "column": "marking_bottom_symbols", "slot": 2, "scale": 0.72 },
+      { "field": "species", "kind": "text", "contexts": ["pokemon", "empty"], "row": "bottom_text_row", "column": "name_species_text", "font_pt": 30, "color": "#101010", "empty_text": "-" },
+      { "field": "ot_name", "kind": "text", "contexts": ["pokemon", "empty"], "label": "OT", "row": "top_text_row", "column": "left_detail_text", "empty_text": "-" },
+      { "field": "ability", "kind": "text", "contexts": ["pokemon", "empty"], "label": "Ability", "row": "top_text_row", "column": "right_detail_text", "empty_text": "-" },
+      { "field": "origin_region", "kind": "text", "contexts": ["pokemon", "empty"], "label": "Origin", "row": "bottom_text_row", "column": "left_detail_text", "empty_text": "-" },
+      { "field": "nature", "kind": "text", "contexts": ["pokemon", "empty"], "label": "Nature", "row": "bottom_text_row", "column": "right_detail_text", "empty_text": "-" },
+
+      { "field": "game_title", "kind": "text", "contexts": ["game_icon"], "label": "Game", "row": "top", "column": "summary_left" },
+      { "field": "ot_name", "kind": "text", "contexts": ["game_icon"], "label": "OT", "row": "bottom", "column": "summary_left" },
+      { "field": "play_time", "kind": "text", "contexts": ["game_icon"], "label": "Play Time", "row": "top", "column": "summary_mid" },
+      { "field": "badges", "kind": "text", "contexts": ["game_icon"], "label": "Badges", "row": "bottom", "column": "summary_mid" },
+      { "field": "pokedex_seen", "kind": "text", "contexts": ["game_icon"], "label": "Dex Seen", "row": "top", "column": "summary_right" },
+      { "field": "pokedex_caught", "kind": "text", "contexts": ["game_icon"], "label": "Dex Caught", "row": "bottom", "column": "summary_right" },
+      { "field": "tooltip_title", "kind": "text", "contexts": ["tool", "pill", "box_space"], "layout": "game_icon", "label": "Mode", "row": "top", "column": "summary_left" },
+      { "field": "tooltip_body", "kind": "text", "contexts": ["tool", "pill", "box_space"], "layout": "game_icon", "row": "bottom", "column": "summary_left", "font_pt": 24 }
+    ]
+  },
   "pill_toggle": {
     "track_width": 530,
     "track_height": 77,
@@ -47,7 +158,7 @@
     "gap_above_boxes": 10,
     "track_color": "#E0E0E0",
     "pill_color": "#FBFBFB",
-    "font_pt": 28,
+    "font_pt": 36,
     "toggle_smoothing": 24.0,
     "box_smoothing": 12.5
   },

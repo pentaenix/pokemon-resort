@@ -19,6 +19,7 @@ struct LoadedGameTransfer {
     BackgroundAnimLoaded background_animation{};
     GameTransferBoxViewportStyle box_viewport{};
     GameTransferMiniPreviewStyle mini_preview{};
+    GameTransferInfoBannerStyle info_banner{};
     GameTransferPillToggleStyle pill_toggle{};
     GameTransferToolCarouselStyle tool_carousel{};
     GameTransferBoxNameDropdownStyle box_name_dropdown{};
@@ -28,4 +29,3 @@ struct LoadedGameTransfer {
 LoadedGameTransfer loadGameTransfer(const std::string& project_root);
 
 } // namespace pr::transfer_system
-

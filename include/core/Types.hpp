@@ -232,6 +232,59 @@ struct GameTransferMiniPreviewStyle {
     double sprite_scale = 1.2;
 };
 
+struct GameTransferInfoBannerFieldStyle {
+    std::string field;
+    std::string kind = "text";
+    std::string label;
+    std::string empty_text = "-";
+    int x = 0;
+    int y = 0;
+    int width = 0;
+    int height = 0;
+    std::string flow_group;
+    int flow_gap = 2;
+    int font_pt = 22;
+    Color color{26, 26, 26, 255};
+    int label_font_pt = 16;
+    Color label_color{76, 76, 76, 255};
+    std::vector<std::string> contexts{"pokemon", "empty"};
+};
+
+struct GameTransferInfoBannerStyle {
+    bool enabled = true;
+    int separator_height = 4;
+    int info_height = 75;
+    Color separator_color{191, 191, 191, 255};
+    Color info_background_color{224, 224, 224, 255};
+    std::string icon_directory = "assets/game_transfer/pokemon_icons";
+    std::string game_icon_directory = "assets/game_transfer/pokemon_icons/game_icons";
+    std::string unknown_icon = "assets/game_transfer/pokemon_icons/unknown.png";
+    int text_font_pt = 22;
+    Color text_color{26, 26, 26, 255};
+    int label_font_pt = 16;
+    Color label_color{76, 76, 76, 255};
+    Color gender_symbol_male_color{140, 203, 255, 255};
+    Color gender_symbol_female_color{255, 90, 90, 255};
+    int gender_symbol_font_pt = 0;
+    int gender_symbol_x_adjust = 0;
+    int gender_symbol_y_adjust = 0;
+    std::string tool_multiple_title = "Multiple";
+    std::string tool_multiple_body = "Move several Pokemon in one trip.";
+    std::string tool_basic_title = "Basic";
+    std::string tool_basic_body = "Move one Pokemon at a time with the standard flow.";
+    std::string tool_swap_title = "Swap";
+    std::string tool_swap_body = "Exchange two Pokemon between boxes.";
+    std::string tool_items_title = "Items";
+    std::string tool_items_body = "Browse held-item and bag features.";
+    std::string pill_pokemon_title = "Pokemon View";
+    std::string pill_pokemon_body = "Show Pokemon boxes and transfer details.";
+    std::string pill_items_title = "Items View";
+    std::string pill_items_body = "Switch the transfer screen over to item tools.";
+    std::string box_space_title = "Box Space";
+    std::string box_space_body = "Browse every PC box at once, then open the box you want to manage.";
+    std::vector<GameTransferInfoBannerFieldStyle> fields{};
+};
+
 /// Browser-style Pokémon / Items pill (`config/game_transfer.json` → `pill_toggle`). Default aligns with the **right** box column.
 struct GameTransferPillToggleStyle {
     int track_width = 530;

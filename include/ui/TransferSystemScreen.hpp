@@ -9,6 +9,7 @@
 #include "ui/Screen.hpp"
 #include "ui/TransferSaveSelection.hpp"
 #include "ui/transfer_system/GameBoxBrowserController.hpp"
+#include "ui/transfer_system/TransferInfoBannerPresenter.hpp"
 #include "ui/transfer_system/TransferSystemUiStateController.hpp"
 
 #include <SDL.h>
@@ -69,6 +70,15 @@ public:
     std::optional<SDL_Rect> debugMiniPreviewFirstSpriteRect() const { return debug_mini_preview_first_sprite_rect_; }
     SDL_Point debugMiniPreviewCellSize() const { return debug_mini_preview_cell_size_; }
     bool debugMiniPreviewVisible() const { return mini_preview_t_ > 1e-3 && mini_preview_box_index_ >= 0; }
+    bool debugInfoBannerVisible() const { return info_banner_style_.enabled; }
+    std::optional<SDL_Rect> debugPillTrackBounds() const;
+    std::string debugInfoBannerPokemonName() const {
+        if (const PcSlotSpecies* slot = activeInfoBannerPokemon()) {
+            return !slot->nickname.empty() ? slot->nickname : slot->species_name;
+        }
+        return {};
+    }
+    std::string debugInfoBannerMode() const;
     std::optional<SDL_Rect> debugGameSlotBounds(int slot_index) const {
         if (!game_save_box_viewport_) {
             return std::nullopt;
@@ -139,6 +149,7 @@ private:
     GameTransferBoxNameDropdownStyle box_name_dropdown_style_;
     GameTransferSelectionCursorStyle selection_cursor_style_;
     GameTransferMiniPreviewStyle mini_preview_style_;
+    GameTransferInfoBannerStyle info_banner_style_;
     std::array<TextureHandle, 4> tool_icons_{};
     FontHandle pill_font_;
     FontHandle dropdown_item_font_;
@@ -168,6 +179,10 @@ private:
     std::string current_game_key_{};
     /// Display name for the external save footer icon callout (`selection.game_title`).
     std::string selection_game_title_;
+    TransferSaveSelection transfer_selection_{};
+    mutable std::unordered_map<int, FontHandle> info_banner_font_cache_{};
+    mutable std::unordered_map<std::string, TextureHandle> info_banner_text_cache_{};
+    mutable std::unordered_map<std::string, TextureHandle> info_banner_icon_cache_{};
     mutable TextureHandle speech_bubble_label_tex_{};
     mutable std::string speech_bubble_label_cache_{};
 
@@ -192,6 +207,7 @@ private:
     bool selection_cursor_hidden_after_mouse_ = false;
     /// Mouse is over a Pokémon slot or game icon (speech bubble stays visible even if `selection_cursor_hidden_after_mouse_`).
     bool speech_hover_active_ = false;
+    FocusNodeId mouse_hover_focus_node_ = -1;
 
     /// Mouse: distinguish click (pick box) vs drag-to-scroll inside the dropdown list.
     bool dropdown_lmb_down_in_panel_ = false;
@@ -217,6 +233,17 @@ private:
     void stepDropdownHighlight(int delta);
     void applyGameBoxDropdownSelection();
     BoxViewportModel gameBoxViewportModelAt(int box_index) const;
+    transfer_system::TransferInfoBannerContext activeInfoBannerContext() const;
+    const PcSlotSpecies* activeInfoBannerPokemon() const;
+    FontHandle infoBannerFont(int font_pt) const;
+    TextureHandle infoBannerTextTexture(SDL_Renderer* renderer, int font_pt, const Color& color, const std::string& text) const;
+    std::string infoBannerTextFitToReference(
+        SDL_Renderer* renderer,
+        int font_pt,
+        const Color& color,
+        const std::string& text,
+        const std::string& reference_text) const;
+    TextureHandle infoBannerIconTexture(SDL_Renderer* renderer, const std::string& icon_group, const std::string& icon_key) const;
     void jumpGameBoxToIndex(int target_index);
     bool panelsReadyForInteraction() const;
     bool dropdownAcceptsNavigation() const;

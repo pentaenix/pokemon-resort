@@ -3,6 +3,7 @@
 #include "core/Assets.hpp"
 #include "core/Json.hpp"
 #include "ui/transfer_system/GameTransferConfig.hpp"
+#include "ui/transfer_system/TransferInfoBannerPresenter.hpp"
 #include "ui/transfer_system/TransferSystemFocusGraph.hpp"
 
 #include <SDL_image.h>
@@ -37,6 +38,24 @@ std::string spriteFilenameForSlug(const std::string& slug) {
         return slug;
     }
     return slug + ".png";
+}
+
+bool isUtf8ContinuationByte(unsigned char c) {
+    return (c & 0xC0) == 0x80;
+}
+
+std::vector<std::size_t> utf8CodepointEndOffsets(const std::string& text) {
+    std::vector<std::size_t> offsets;
+    offsets.reserve(text.size());
+    for (std::size_t i = 0; i < text.size(); ++i) {
+        if (i == 0 || !isUtf8ContinuationByte(static_cast<unsigned char>(text[i]))) {
+            if (i > 0) {
+                offsets.push_back(i);
+            }
+        }
+    }
+    offsets.push_back(text.size());
+    return offsets;
 }
 
 std::string asciiLowerCopy(std::string s) {
@@ -629,6 +648,7 @@ TransferSystemScreen::TransferSystemScreen(
     box_name_dropdown_style_ = loaded.box_name_dropdown;
     selection_cursor_style_ = loaded.selection_cursor;
     mini_preview_style_ = loaded.mini_preview;
+    info_banner_style_ = loaded.info_banner;
     pill_font_ = loadFontPreferringUnicode(font_path_, std::max(8, pill_style_.font_pt), project_root_);
     dropdown_item_font_ =
         loadFontPreferringUnicode(font_path_, std::max(8, box_name_dropdown_style_.item_font_pt), project_root_);
@@ -683,8 +703,188 @@ void TransferSystemScreen::cachePillLabelTextures(SDL_Renderer* renderer) {
     pill_label_items_white_ = renderTextTexture(renderer, pill_font_.get(), "Items", white);
 }
 
+transfer_system::TransferInfoBannerContext TransferSystemScreen::activeInfoBannerContext() const {
+    transfer_system::TransferInfoBannerContext context;
+    context.source_game_key = current_game_key_;
+    context.game_title = selection_game_title_;
+    context.trainer_name = transfer_selection_.trainer_name;
+    context.play_time = transfer_selection_.time;
+    context.pokedex_seen = transfer_selection_.pokedex_seen;
+    context.pokedex_caught = transfer_selection_.pokedex_caught;
+    context.badges = transfer_selection_.badges;
+    context.selected_tool_index = ui_state_.selectedToolIndex();
+    context.items_mode = ui_state_.sliderT() >= 0.5;
+    context.tooltip_copy = info_banner_style_;
+
+    FocusNodeId focus_id = focus_.current();
+    if (selection_cursor_hidden_after_mouse_) {
+        if (mouse_hover_focus_node_ >= 0) {
+            focus_id = mouse_hover_focus_node_;
+        } else if (!speech_hover_active_) {
+            context.mode = "empty";
+            return context;
+        }
+    }
+    if (focus_id == 2110) {
+        context.mode = "box_space";
+        return context;
+    }
+    if (game_box_browser_.gameBoxSpaceMode() || game_box_browser_.dropdownOpenTarget()) {
+        context.mode = "empty";
+        return context;
+    }
+    if (focus_id >= 2000 && focus_id <= 2029) {
+        const int slot_index = focus_id - 2000;
+        const int box_index = game_box_browser_.gameBoxIndex();
+        if (box_index >= 0 && box_index < static_cast<int>(game_pc_boxes_.size())) {
+            const auto& slots = game_pc_boxes_[static_cast<std::size_t>(box_index)].slots;
+            if (slot_index >= 0 && slot_index < static_cast<int>(slots.size())) {
+                const PcSlotSpecies& slot = slots[static_cast<std::size_t>(slot_index)];
+                if (slot.occupied()) {
+                    context.mode = "pokemon";
+                    context.slot = &slot;
+                    return context;
+                }
+            }
+        }
+        context.mode = "empty";
+        return context;
+    }
+    if (focus_id == 2111) {
+        context.mode = "game_icon";
+        return context;
+    }
+    if (focus_id == 3000) {
+        context.mode = "tool";
+        return context;
+    }
+    if (focus_id == 4000) {
+        context.mode = "pill";
+        return context;
+    }
+    context.mode = "empty";
+    return context;
+}
+
+const PcSlotSpecies* TransferSystemScreen::activeInfoBannerPokemon() const {
+    return activeInfoBannerContext().slot;
+}
+
+FontHandle TransferSystemScreen::infoBannerFont(int font_pt) const {
+    const int key = std::max(8, font_pt);
+    auto it = info_banner_font_cache_.find(key);
+    if (it != info_banner_font_cache_.end()) {
+        return it->second;
+    }
+    FontHandle font = loadFontPreferringUnicode(font_path_, key, project_root_);
+    info_banner_font_cache_.emplace(key, font);
+    return font;
+}
+
+TextureHandle TransferSystemScreen::infoBannerTextTexture(
+    SDL_Renderer* renderer,
+    int font_pt,
+    const Color& color,
+    const std::string& text) const {
+    if (text.empty()) {
+        return {};
+    }
+    const std::string key =
+        std::to_string(std::max(8, font_pt)) + "|" + std::to_string(color.r) + "|" + std::to_string(color.g) + "|" +
+        std::to_string(color.b) + "|" + text;
+    auto it = info_banner_text_cache_.find(key);
+    if (it != info_banner_text_cache_.end()) {
+        return it->second;
+    }
+    FontHandle font = infoBannerFont(font_pt);
+    TextureHandle texture = renderTextTexture(renderer, font.get(), text, color);
+    info_banner_text_cache_.emplace(key, texture);
+    return texture;
+}
+
+std::string TransferSystemScreen::infoBannerTextFitToReference(
+    SDL_Renderer* renderer,
+    int font_pt,
+    const Color& color,
+    const std::string& text,
+    const std::string& reference_text) const {
+    if (text.empty()) {
+        return text;
+    }
+
+    const TextureHandle reference = infoBannerTextTexture(renderer, font_pt, color, reference_text);
+    const TextureHandle full = infoBannerTextTexture(renderer, font_pt, color, text);
+    if (!reference.texture || !full.texture || full.width <= reference.width) {
+        return text;
+    }
+
+    const std::string ellipsis = "...";
+    const TextureHandle ellipsis_texture = infoBannerTextTexture(renderer, font_pt, color, ellipsis);
+    if (!ellipsis_texture.texture || ellipsis_texture.width >= reference.width) {
+        return ellipsis;
+    }
+
+    const std::vector<std::size_t> offsets = utf8CodepointEndOffsets(text);
+    std::size_t lo = 0;
+    std::size_t hi = offsets.size();
+    while (lo < hi) {
+        const std::size_t mid = (lo + hi + 1) / 2;
+        const std::size_t byte_count = mid == 0 ? 0 : offsets[mid - 1];
+        const std::string candidate = text.substr(0, byte_count) + ellipsis;
+        const TextureHandle texture = infoBannerTextTexture(renderer, font_pt, color, candidate);
+        if (texture.texture && texture.width <= reference.width) {
+            lo = mid;
+        } else {
+            hi = mid - 1;
+        }
+    }
+
+    const std::size_t byte_count = lo == 0 ? 0 : offsets[lo - 1];
+    return text.substr(0, byte_count) + ellipsis;
+}
+
+TextureHandle TransferSystemScreen::infoBannerIconTexture(
+    SDL_Renderer* renderer,
+    const std::string& icon_group,
+    const std::string& icon_key) const {
+    const std::string normalized_key = icon_key.empty() ? "unknown" : icon_key;
+    const fs::path base_dir = (icon_group == "game")
+        ? resolvePath(project_root_, info_banner_style_.game_icon_directory)
+        : resolvePath(project_root_, info_banner_style_.icon_directory);
+    const fs::path candidate = base_dir / (normalized_key + ".png");
+    const fs::path fallback = resolvePath(project_root_, info_banner_style_.unknown_icon);
+    const fs::path chosen = fs::exists(candidate) ? candidate : fallback;
+    const std::string cache_key = chosen.string();
+    auto it = info_banner_icon_cache_.find(cache_key);
+    if (it != info_banner_icon_cache_.end()) {
+        return it->second;
+    }
+    TextureHandle texture = loadTextureOptional(renderer, chosen);
+    info_banner_icon_cache_.emplace(cache_key, texture);
+    return texture;
+}
+
+#ifdef PR_ENABLE_TEST_HOOKS
+std::string TransferSystemScreen::debugInfoBannerMode() const {
+    return activeInfoBannerContext().mode;
+}
+
+std::optional<SDL_Rect> TransferSystemScreen::debugPillTrackBounds() const {
+    int tx = 0;
+    int ty = 0;
+    int tw = 0;
+    int th = 0;
+    getPillTrackBounds(pill_style_, window_config_.virtual_width, tx, ty, tw, th);
+    const int enter_off =
+        static_cast<int>(std::lround((1.0 - ui_state_.uiEnter()) * static_cast<double>(-(th + 24))));
+    ty += enter_off;
+    return SDL_Rect{tx, ty, tw, th};
+}
+#endif
+
 void TransferSystemScreen::enter(const TransferSaveSelection& selection, SDL_Renderer* renderer, int initial_game_box_index) {
     ui_state_.enter();
+    transfer_selection_ = selection;
     selection_cursor_hidden_after_mouse_ = false;
     speech_hover_active_ = false;
     dropdown_lmb_down_in_panel_ = false;
@@ -696,6 +896,7 @@ void TransferSystemScreen::enter(const TransferSaveSelection& selection, SDL_Ren
     speech_bubble_label_cache_.clear();
     speech_bubble_label_tex_ = {};
     mouse_hover_mini_preview_box_index_ = -1;
+    mouse_hover_focus_node_ = -1;
     box_space_drag_active_ = false;
     box_space_drag_last_y_ = 0;
     box_space_drag_accum_ = 0.0;
@@ -2244,6 +2445,7 @@ bool TransferSystemScreen::handlePointerPressed(int logical_x, int logical_y) {
 
 void TransferSystemScreen::handlePointerMoved(int logical_x, int logical_y) {
     mouse_hover_mini_preview_box_index_ = -1;
+    mouse_hover_focus_node_ = -1;
 
     if (game_box_browser_.gameBoxSpaceMode() && box_space_drag_active_ && game_save_box_viewport_) {
         const int dy = logical_y - box_space_drag_last_y_;
@@ -2308,9 +2510,22 @@ void TransferSystemScreen::handlePointerMoved(int logical_x, int logical_y) {
         return;
     }
 
+    if (ui_state_.uiEnter() > 0.85 && hitTestPillTrack(logical_x, logical_y)) {
+        mouse_hover_focus_node_ = 4000;
+        focus_.setCurrent(4000);
+        selection_cursor_hidden_after_mouse_ = true;
+        speech_hover_active_ = false;
+        return;
+    }
+
     if (!(box_name_dropdown_style_.enabled && game_box_browser_.dropdownOpenTarget() &&
           game_box_browser_.dropdownExpandT() > 0.05) &&
         ui_state_.panelsReveal() > 0.85 && ui_state_.uiEnter() > 0.85) {
+        if (const std::optional<FocusNodeId> hovered = focusNodeAtPointer(logical_x, logical_y)) {
+            mouse_hover_focus_node_ = *hovered;
+            focus_.setCurrent(*hovered);
+            selection_cursor_hidden_after_mouse_ = true;
+        }
         if (const auto hit = speechBubbleTargetAtPointer(logical_x, logical_y)) {
             focus_.setCurrent(hit->first);
             // Mouse hover should not show the legacy yellow rectangle; keep "mouse mode" on.
