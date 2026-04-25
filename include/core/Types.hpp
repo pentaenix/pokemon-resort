@@ -212,6 +212,11 @@ struct GameTransferBoxViewportStyle {
     /// Vertical offset applied to sprite center within each slot (positive moves down).
     int sprite_offset_y = 0;
 
+    // --- Item tool overlays ---
+    int item_tool_item_size = 42;
+    double item_tool_grow_smoothing = 18.0;
+    Color item_tool_sprite_mod_color{150, 150, 150, 128};
+
     // --- Box Space grid sprites (full/empty/noempty) ---
     // Separate from Pokémon sprite sizing so the box icons can be tuned independently.
     double box_space_sprite_scale = 2.0;

@@ -135,7 +135,8 @@ void drawTextureCenteredScaledRaw(
     const TextureHandle& tex,
     int cx,
     int cy,
-    double desired_scale) {
+    double desired_scale,
+    const Color& mod = Color{255, 255, 255, 255}) {
     if (!tex.texture) {
         return;
     }
@@ -144,9 +145,21 @@ void drawTextureCenteredScaledRaw(
     const int dh = std::max(1, static_cast<int>(std::lround(static_cast<double>(tex.height) * desired_scale)));
     const SDL_Rect dst{cx - dw / 2, cy - dh / 2, dw, dh};
     SDL_SetTextureBlendMode(tex.texture.get(), SDL_BLENDMODE_BLEND);
-    SDL_SetTextureAlphaMod(tex.texture.get(), 255);
-    SDL_SetTextureColorMod(tex.texture.get(), 255, 255, 255);
+    SDL_SetTextureAlphaMod(tex.texture.get(), static_cast<Uint8>(std::clamp(mod.a, 0, 255)));
+    SDL_SetTextureColorMod(
+        tex.texture.get(),
+        static_cast<Uint8>(std::clamp(mod.r, 0, 255)),
+        static_cast<Uint8>(std::clamp(mod.g, 0, 255)),
+        static_cast<Uint8>(std::clamp(mod.b, 0, 255)));
     SDL_RenderCopy(renderer, tex.texture.get(), nullptr, &dst);
+}
+
+void drawTextureCenteredAtMaxSize(SDL_Renderer* renderer, const TextureHandle& tex, int cx, int cy, int max_size) {
+    if (!tex.texture || max_size <= 0) {
+        return;
+    }
+    const int longest = std::max(1, std::max(tex.width, tex.height));
+    drawTextureCenteredScaledRaw(renderer, tex, cx, cy, static_cast<double>(max_size) / static_cast<double>(longest));
 }
 
 /// `angle` clockwise degrees; texture points left at 0°. `mod` tints the arrow for contrast on `#E0E0E0` / `#FBFBFB` UI.
@@ -312,6 +325,13 @@ void BoxViewport::setHeaderMode(HeaderMode mode, bool show_down_arrow) {
 
 void BoxViewport::setBoxSpaceActive(bool active) {
     box_space_active_ = active;
+}
+
+void BoxViewport::setItemOverlayActive(bool active) {
+    if (active && !item_overlay_active_) {
+        item_overlay_t_ = 0.0;
+    }
+    item_overlay_active_ = active;
 }
 
 void BoxViewport::setModel(BoxViewportModel model) {
@@ -596,6 +616,8 @@ void BoxViewport::queueContentSlide(BoxViewportModel incoming, int dir) {
 }
 
 void BoxViewport::update(double dt) {
+    const double item_target = item_overlay_active_ ? 1.0 : 0.0;
+    approachExponential(item_overlay_t_, item_target, dt, std::max(1.0, style_.item_tool_grow_smoothing));
     if (!content_slide_active_) {
         return;
     }
@@ -661,6 +683,8 @@ void BoxViewport::renderBelowNamePlate(SDL_Renderer* renderer) const {
         const double sprite_scale = box_space_grid ? style_.box_space_sprite_scale : style_.sprite_scale;
         const int sprite_off_x = box_space_grid ? style_.box_space_sprite_offset_x : 0;
         const int sprite_off_y = box_space_grid ? style_.box_space_sprite_offset_y : style_.sprite_offset_y;
+        const bool show_item_overlay = !box_space_grid && item_overlay_t_ > 0.001;
+        const bool grey_pokemon = !box_space_grid && item_overlay_active_;
         for (int row = 0; row < kRows; ++row) {
             for (int col = 0; col < kCols; ++col) {
                 const int sx = grid_x + col * (kSlotW + kSlotGapX) + dx;
@@ -674,7 +698,17 @@ void BoxViewport::renderBelowNamePlate(SDL_Renderer* renderer) const {
                             *slot,
                             sx + kSlotW / 2 + sprite_off_x,
                             sy + kSlotH / 2 + sprite_off_y,
-                            sprite_scale);
+                            sprite_scale,
+                            grey_pokemon ? style_.item_tool_sprite_mod_color : Color{255, 255, 255, 255});
+                    }
+                    if (show_item_overlay && idx < m.held_item_sprites.size()) {
+                        const auto& item = m.held_item_sprites[idx];
+                        if (item.has_value() && item->texture) {
+                            const int target_size = std::max(
+                                1,
+                                static_cast<int>(std::lround(static_cast<double>(style_.item_tool_item_size) * item_overlay_t_)));
+                            drawTextureCenteredAtMaxSize(renderer, *item, sx + kSlotW / 2, sy + kSlotH / 2, target_size);
+                        }
                     }
                 }
             }
