@@ -135,6 +135,20 @@ LoadedGameTransfer loadGameTransfer(const std::string& project_root) {
         return out;
     }
 
+    // Optional exit button chrome (left of tool belt).
+    out.exit_button_enabled = boolFromObjectOrDefault(root, "exit_button_enabled", out.exit_button_enabled);
+    if (const JsonValue* exit_btn = root.get("exit_button")) {
+        if (exit_btn->isObject()) {
+            const JsonValue& o = *exit_btn;
+            out.exit_button_enabled = boolFromObjectOrDefault(o, "enabled", out.exit_button_enabled);
+            out.exit_button_gap_pixels = std::max(0, intFromObjectOrDefault(o, "gap_pixels", out.exit_button_gap_pixels));
+            out.exit_button_icon_scale = std::clamp(
+                doubleFromObjectOrDefault(o, "icon_scale", out.exit_button_icon_scale),
+                0.05,
+                4.0);
+        }
+    }
+
     if (const JsonValue* fade = root.get("fade_in_seconds")) {
         if (fade->isNumber()) {
             out.fade_in_seconds = std::max(0.0, fade->asNumber());
@@ -417,6 +431,10 @@ LoadedGameTransfer loadGameTransfer(const std::string& project_root) {
                 stringFromObjectOrDefault(o, "box_space_title", out.info_banner.box_space_title);
             out.info_banner.box_space_body =
                 stringFromObjectOrDefault(o, "box_space_body", out.info_banner.box_space_body);
+            out.info_banner.exit_tooltip_title =
+                stringFromObjectOrDefault(o, "exit_tooltip_title", out.info_banner.exit_tooltip_title);
+            out.info_banner.exit_tooltip_body =
+                stringFromObjectOrDefault(o, "exit_tooltip_body", out.info_banner.exit_tooltip_body);
             if (const JsonValue* c = o.get("separator_color")) {
                 if (c->isString()) {
                     out.info_banner.separator_color =

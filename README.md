@@ -1,35 +1,32 @@
-# Pokemon Resort UI Demo
+# Pokemon Resort
 
-A small SDL2 UI project for macOS that is driven by `config/title_screen.json`.
+Pokemon Resort is a macOS-oriented SDL2 prototype for a Pokemon storage and transfer experience. It now includes a title/menu flow, options persistence, transfer save scanning, transfer-ticket selection, a post-ticket transfer system screen, PokeSprite-backed Pokemon/item rendering, a process-based PKHeX bridge, and a SQLite-backed Resort storage foundation.
 
-## Expected asset layout
+The current codebase is no longer just a title-screen demo. Treat this README as the orientation page, then follow the deeper docs for architecture, config, bridge, backend, assets, and testing.
 
-```text
-assets/
-  title/
-    background_a.png
-    background_b.png
-    logo_splash.png
-    logo_main.png
-  fonts/
-    Arial.ttf    # optional but recommended
-config/
-  title_screen.json
-```
+## Start Here
 
-## Sequence implemented
+- [`docs/ARCHITECTURE.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/ARCHITECTURE.md) is the central architecture map.
+- [`../tests/README.md`](/Users/vanta/Desktop/title_screen_demo/tests/README.md) is the canonical testing map.
+- [`docs/config/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/config/README.md) explains which JSON files own which UI surfaces.
+- [`docs/PKHEX_BRIDGE.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/PKHEX_BRIDGE.md) is the canonical PKHeX bridge contract.
+- [`docs/assets/pokesprite_subsystem.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/assets/pokesprite_subsystem.md) documents Pokemon, item, and misc icon asset resolution.
+- [`docs/backend/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/backend/README.md) documents canonical Resort storage, import, export, and backend-facing services.
 
-- black background + `logo_splash.png` fades in and out
-- `logo_main.png` appears over black
-- quick white flash
-- `logo_main.png` over `background_a.png` with `background_b.png` underneath
-- after a delay, blinking `PRESS START`
-- on input, `logo_main.png` and `background_a.png` move upward, with the logo moving slightly faster
-- `background_b.png` is revealed underneath
+## Current Runtime Flows
 
-## Build on macOS
+- title intro, title hold, main menu, options menu, and placeholder Resort/Trade section flow
+- transfer entry from the main menu
+- loading screen while save files are scanned and probed
+- transfer-ticket list built from `SaveLibrary` summaries
+- selected-save deep probe into the transfer system screen
+- transfer-system box/grid UI, Box Space view, tool carousel, info banner, Pokemon action menu, item action menu, and temporary in-memory Pokemon/item movement
+- persisted title/options settings through `SaveDataStore`
+- canonical Resort backend services opened by the app, with UI replacement still deferred
 
-Run all commands from the project root:
+## Build On macOS
+
+Run commands from the project root:
 
 ```bash
 cd /Users/vanta/Desktop/title_screen_demo/pokemon-resort
@@ -41,7 +38,7 @@ Install dependencies:
 brew install sdl2 sdl2_image sdl2_ttf
 ```
 
-Build:
+Build and run:
 
 ```bash
 cmake -S . -B build
@@ -49,176 +46,90 @@ cmake --build build
 ./build/title_screen_demo
 ```
 
-Run with a custom config path:
+Run with a custom title config path:
 
 ```bash
 ./build/title_screen_demo /absolute/path/to/title_screen.json
 ```
 
-## PKHeX bridge
+Clear the transfer save-probe cache and exit:
 
-This repo now includes a small .NET helper under [`tools/pkhex_bridge`](/Users/vanta/Desktop/title_screen_demo/tools/pkhex_bridge) that is intended to be the safe integration boundary with `PKHeX.Core`.
+```bash
+./build/title_screen_demo --clear-save-cache
+```
 
-On macOS, build it separately with the .NET SDK installed:
+## Subsystem Navigation
+
+Use this map before changing code:
+
+- **App orchestration:** `src/core/App.cpp` owns SDL setup, app loop, active flow selection, persistence wiring, audio wiring, and high-level transfer lifecycle.
+- **Title/menu/options:** `src/ui/TitleScreen.cpp` owns title flow coordination. Extracted title collaborators live under `src/ui/title_screen/`.
+- **Transfer flow shell:** `src/ui/TransferFlowCoordinator.cpp` owns async save scanning/deep probing and concrete screen transitions. Pure flow decisions live under `src/ui/transfer_flow/`.
+- **Transfer ticket list:** `src/ui/TransferTicketScreen.cpp` renders tickets. List behavior lives in `src/ui/transfer_ticket/TransferTicketListController.cpp`.
+- **Transfer system screen:** `src/ui/TransferSystemScreen.cpp` adapts real SDL input/render state to smaller controllers. Pure controllers and render helpers live under `src/ui/transfer_system/`.
+- **Input:** `src/core/InputRouter.cpp`, `src/core/InputBindings.cpp`, and `include/ui/ScreenInput.hpp` keep keyboard/controller/mouse routing centralized.
+- **Save scanning and bridge summaries:** `src/core/SaveLibrary.cpp` owns save discovery, bridge probing, cache behavior, and parsed transfer models.
+- **PKHeX bridge boundary:** `src/core/SaveBridgeClient.cpp` launches the .NET helper in `../tools/pkhex_bridge`; native C++ should not link `PKHeX.Core`.
+- **PokeSprite assets:** `src/core/PokeSpriteAssets.cpp` owns Pokemon, item, and misc icon path resolution plus texture caching.
+- **Resort backend:** `src/resort/` and `include/resort/` own canonical Pokemon storage, import/export services, repositories, and SQLite persistence.
+
+## Config Sources Of Truth
+
+Prefer JSON when changing authored layout, timing, text, colors, asset paths, or tuneable UI behavior. Prefer runtime code when changing state transitions, input semantics, persistence, parsing, or controller behavior. Prefer persisted data only when the player/profile state itself must survive app restarts.
+
+Important config files:
+
+- [`config/app.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/app.json): window/logical size, app title, shared input bindings, shared audio assets/default volume.
+- [`config/title_screen.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/title_screen.json): title/menu/options authoring, intro timings, prompt/menu labels, save identity, skip flags, logo shine.
+- [`config/loading_screen.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/loading_screen.json): transfer loading animation.
+- [`config/transfer_select_save.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/transfer_select_save.json): transfer-ticket screen layout, ticket art/text, rip animation, palette.
+- [`config/game_transfer.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/game_transfer.json): transfer-system layout, box viewport tuning, Box Space timing, tool carousel, action menus, item tool visuals, info banner, mini preview, dropdown, selection cursor, and speech bubbles.
+
+See [`docs/config/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/config/README.md) and [`docs/config/game_transfer.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/config/game_transfer.md) before adding new transfer UI config.
+
+## PKHeX Bridge
+
+The PKHeX integration is intentionally process-based. The native app calls a .NET helper under [`../tools/pkhex_bridge`](/Users/vanta/Desktop/title_screen_demo/tools/pkhex_bridge) through `SaveBridgeClient`.
+
+For development:
 
 ```bash
 cd /Users/vanta/Desktop/title_screen_demo/tools/pkhex_bridge
 dotnet restore
 dotnet build
+dotnet run --project PKHeXBridge.csproj -- "/absolute/path/to/save.sav"
 ```
 
-Run it directly:
-
-```bash
-dotnet run --project /Users/vanta/Desktop/title_screen_demo/tools/pkhex_bridge/PKHeXBridge.csproj -- "/absolute/path/to/save.sav"
-```
-
-For export or bundling, publish a self-contained macOS helper:
+For shipping-style bundling, publish a self-contained helper:
 
 ```bash
 cd /Users/vanta/Desktop/title_screen_demo/pokemon-resort
 cmake --build build --target pkhex_bridge_publish
 ```
 
-That emits the bridge to:
+The full launch order, JSON contract, import-grade model, and guarded write-projection behavior are documented in [`docs/PKHEX_BRIDGE.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/PKHEX_BRIDGE.md). Keep that file canonical instead of copying bridge details into new docs.
 
-```text
-pokemon-resort/build/pkhex_bridge/osx-arm64/
+## Testing
+
+The canonical test guide is [`../tests/README.md`](/Users/vanta/Desktop/title_screen_demo/tests/README.md).
+
+Before finishing behavior or architecture changes, run the relevant focused tests and then the native suite:
+
+```bash
+cd /Users/vanta/Desktop/title_screen_demo/pokemon-resort
+cmake -S . -B build
+cmake --build build
+ctest --test-dir build --output-on-failure
 ```
 
-The native app now looks for the bridge in this order:
+Run bridge unit/integration/e2e tests when touching `tools/pkhex_bridge`, save probing, import-grade JSON, write-projection validation, bridge-backed native import, or bridge output consumed by `SaveLibrary`.
 
-- `PKHEX_BRIDGE_EXECUTABLE` env override
-- bundled helper next to the app executable
-- bundled helper in `MyApp.app/Contents/Resources/pkhex_bridge/`
-- debug or release build output in `tools/pkhex_bridge/bin/`
-- published helper in `tools/pkhex_bridge/publish/`
-- development fallback to `dotnet run --project tools/pkhex_bridge/PKHeXBridge.csproj`
+## Contributor Rules Of Thumb
 
-When the player opens TRANSFER, [`SaveLibrary.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/SaveLibrary.cpp) scans [`/Users/vanta/Desktop/title_screen_demo/saves`](/Users/vanta/Desktop/title_screen_demo/saves), probes saves through the bridge, caches probe summaries, and feeds transfer-ticket preview data to the current UI.
-
-## Resort backend docs
-
-The backend storage/transfer subsystem is documented under [`docs/backend`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/backend/README.md).
-
-Use these docs before adding UI against Resort storage:
-
-- [`storage_model.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/backend/storage_model.md)
-- [`api_reference.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/backend/api_reference.md)
-- [`import_flow.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/backend/import_flow.md)
-- [`export_flow.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/backend/export_flow.md)
-- [`frontend_integration.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/backend/frontend_integration.md)
-- [`testing_and_seed_data.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/backend/testing_and_seed_data.md)
-
-## Sprite asset docs
-
-Pokemon and item icon asset resolution is documented in:
-
-- [`docs/assets/pokesprite_subsystem.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/assets/pokesprite_subsystem.md)
-
-Use that document before changing transfer-ticket party sprites, transfer box sprites, or future item icon rendering.
-
-For backend integration tests, build `resort_backend_tool` with CMake. It can seed canonical Pokemon and create export projections without going through UI screens.
-
-## Changing how far the main logo moves
-
-The title-screen transition control is in `config/title_screen.json`:
-
-```json
-"transition": {
-  "main_logo_end_y": -260,
-  "background_a_end_y": -768,
-  "logo_speed_scale": 1.20
-}
-```
-
-If your logo should move fully off-screen, make `main_logo_end_y` more negative.
-
-Examples:
-
-- `-260` = partly off-screen for a medium logo
-- `-400` = higher
-- `-600` = almost certainly fully gone
-
-A good rule is:
-
-```text
-main_logo_end_y < -(logo_height / 2)
-```
-
-So if the logo is 300 px tall, any value less than `-150` places its center high enough for the whole image to leave the window.
-
-## What is data-driven
-
-Editable in JSON:
-
-- shared window size, logical size, design size, and title in `config/app.json`
-- asset paths
-- all major timings
-- prompt text, color, size, position
-- splash and main logo positions
-- background positions
-- logo/background transition destinations
-- logo speed factor during transition
-- input toggles
-
-## Code layout
-
-```text
-src/
-  main.cpp
-  core/
-    App.cpp
-    Assets.cpp
-    Audio.mm
-    Font.cpp
-    Json.cpp
-    PokeSpriteAssets.cpp
-    ConfigLoader.cpp
-    SaveBridgeClient.cpp
-    SaveDataStore.cpp
-    SaveLibrary.cpp
-  resort/
-    domain/
-    integration/
-    persistence/
-    services/
-  ui/
-    LoadingScreen.cpp
-    TitleScreen.cpp
-    TransferTicketScreen.cpp
-    TransferSystemScreen.cpp
-    BoxViewport.cpp
-  tools/
-    resort_backend_tool.cpp
-include/
-  core/
-    App.hpp
-    Assets.hpp
-    ConfigLoader.hpp
-    Font.hpp
-    Json.hpp
-    PokeSpriteAssets.hpp
-    SaveBridgeClient.hpp
-    SaveDataStore.hpp
-    SaveLibrary.hpp
-    Types.hpp
-  resort/
-    domain/
-    integration/
-    persistence/
-    services/
-  ui/
-    LoadingScreen.hpp
-    ScreenInput.hpp
-    TitleScreen.hpp
-    TransferTicketScreen.hpp
-    TransferSystemScreen.hpp
-    BoxViewport.hpp
-```
-
-## Notes
-
-- Logos are rendered at their real texture size and centered.
-- Backgrounds are rendered at their real texture size using top-left placement.
-- For shipping, bundling a font is better than relying on macOS system fonts.
+- Keep `App.cpp` orchestration-focused.
+- Keep PKHeX behind the external bridge.
+- Keep bridge parsing and cache behavior in `SaveLibrary`, not UI screens.
+- Keep transfer-system navigation in focus/flow/controller seams instead of adding long-lived state bags to `TransferSystemScreen.cpp`.
+- Keep visual tuning in config and parsing in the relevant config loader.
+- Keep UI screens consuming read models; do not put SQL, bridge JSON parsing, or Resort import/export rules in render code.
+- Update docs when module boundaries, config contracts, test coverage, or bridge output change.

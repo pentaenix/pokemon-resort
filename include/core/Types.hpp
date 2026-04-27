@@ -323,6 +323,9 @@ struct GameTransferInfoBannerStyle {
     std::string pill_items_body = "Switch the transfer screen over to item tools.";
     std::string box_space_title = "Box Space";
     std::string box_space_body = "Browse every PC box at once, then open the box you want to manage.";
+    /// Tooltip shown when the Exit button is focused/hovered.
+    std::string exit_tooltip_title = "Exit";
+    std::string exit_tooltip_body = "Return to the save selection.";
     std::vector<GameTransferInfoBannerFieldStyle> fields{};
 };
 

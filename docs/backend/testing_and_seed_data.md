@@ -1,5 +1,7 @@
 # Testing And Seed Data
 
+This page covers backend-specific tests and seed/export workflows. The canonical repository-wide test map is [`/Users/vanta/Desktop/title_screen_demo/tests/README.md`](/Users/vanta/Desktop/title_screen_demo/tests/README.md).
+
 ## Native Test Suite
 
 Build and run:
@@ -11,15 +13,17 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
-The native test executable is:
+The backend-focused native CTest target is:
 
 ```bash
-/Users/vanta/Desktop/title_screen_demo/pokemon-resort/build/resort_storage_tests
+resort_storage_tests
 ```
 
 It covers storage, import, merge, mirror sessions, export projection, managed return import, rollback, bridge import parsing, and the seed tool.
 
-Bridge tests:
+This is one target within the larger native CTest suite. Do not treat it as the only native test executable.
+
+Bridge tests should be run when backend changes touch bridge import, import-grade JSON, or guarded write-back validation:
 
 ```bash
 DOTNET_CLI_HOME=/Users/vanta/Desktop/title_screen_demo/.dotnet \
@@ -86,7 +90,9 @@ The export command writes an export snapshot, opens a mirror session, and option
 
 ## Bridge Commands
 
-Preview an external save:
+For bridge contract details, launch resolution, and JSON examples, use [`../PKHEX_BRIDGE.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/PKHEX_BRIDGE.md) as the canonical guide.
+
+Development-time preview of an external save:
 
 ```bash
 dotnet /Users/vanta/Desktop/title_screen_demo/tools/pkhex_bridge/bin/Debug/net10.0/PKHeXBridge.dll "/absolute/path/to/save.sav"

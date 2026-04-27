@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/PcSlotSpecies.hpp"
+#include "ui/transfer_system/move/HeldMoveController.hpp"
 
 #include <SDL.h>
 
@@ -51,9 +52,9 @@ public:
         SDL_Point pointer{0, 0};
     };
 
-    bool active() const { return held_.has_value(); }
-    const HeldPokemon* held() const { return held_ ? &*held_ : nullptr; }
-    HeldPokemon* held() { return held_ ? &*held_ : nullptr; }
+    bool active() const { return impl_.active(); }
+    const HeldPokemon* held() const;
+    HeldPokemon* held();
 
     void pickUp(
         const PcSlotSpecies& pokemon,
@@ -66,7 +67,8 @@ public:
     void swapHeldWith(const PcSlotSpecies& target, const SlotRef& next_return_slot);
 
 private:
-    std::optional<HeldPokemon> held_{};
+    // Implementation is shared with other draggable entities (e.g. Box Space boxes, Items later).
+    transfer_system::move::HeldMoveController impl_{};
 };
 
 } // namespace pr::transfer_system

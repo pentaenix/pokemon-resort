@@ -1,4 +1,9 @@
 {
+  "exit_button": {
+    "enabled": true,
+    "gap_pixels": 16,
+    "icon_scale": 1.2
+  },
   "background_animation": {
     "enabled": true,
     "scale": 0.5,
@@ -111,6 +116,8 @@
     "pill_items_body": "Move items between the game Bag and Resort deposit, and move money between games.",
     "box_space_title": "Box Space",
     "box_space_body": "See every game PC box at a glance, then open the box you want to manage.",
+    "exit_tooltip_title": "Exit",
+    "exit_tooltip_body": "Return to the save selection.",
     "layout": {
       "pokemon": {
         "rows": {
@@ -182,8 +189,8 @@
       { "field": "badges", "kind": "text", "contexts": ["game_icon"], "label": "Badges", "row": "bottom", "column": "summary_mid" },
       { "field": "pokedex_seen", "kind": "text", "contexts": ["game_icon"], "label": "Dex Seen", "row": "top", "column": "summary_right" },
       { "field": "pokedex_caught", "kind": "text", "contexts": ["game_icon"], "label": "Dex Caught", "row": "bottom", "column": "summary_right" },
-      { "field": "tooltip_title", "kind": "text", "contexts": ["tool", "pill", "box_space"], "layout": "game_icon", "label": "Mode", "row": "top", "column": "summary_left" },
-      { "field": "tooltip_body", "kind": "text", "contexts": ["tool", "pill", "box_space"], "layout": "game_icon", "row": "bottom", "column": "summary_left", "font_pt": 24 }
+      { "field": "tooltip_title", "kind": "text", "contexts": ["tool", "pill", "box_space", "exit"], "layout": "game_icon", "label": "Mode", "row": "top", "column": "summary_left" },
+      { "field": "tooltip_body", "kind": "text", "contexts": ["tool", "pill", "box_space", "exit"], "layout": "game_icon", "row": "bottom", "column": "summary_left", "font_pt": 24 }
     ]
   },
   "pill_toggle": {

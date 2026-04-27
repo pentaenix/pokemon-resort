@@ -1,7 +1,7 @@
 # PKHeX Bridge Integration
 
 This document describes how Pokemon Resort reads external Pokemon save files through `PKHeX.Core`.
-It is the contributor-facing guide for the transfer save-reading layer, box visualizer work, bag visualizer work, and future save editing.
+It is the canonical contributor-facing guide for the transfer save-reading layer, box visualizer work, bag visualizer work, import-grade backend reads, and future save editing.
 
 ## Architecture Summary
 
@@ -67,6 +67,18 @@ On failure, it exits non-zero and still writes one JSON object with `success: fa
 
 `write-projection` currently validates the save and projection schema, then returns `write_back_not_implemented`. This is intentional: real save mutation requires target-format PKM conversion and per-save safe slot write rules.
 
+Write-projection output includes:
+
+- `bridge_write_schema`
+- `success`
+- `status`
+- `error`
+- `details`
+- `backup_created`
+- `backup_path`
+
+The current expected status for valid-but-unimplemented mutation is `write_back_not_implemented`.
+
 The native launcher resolves bridge candidates in this order:
 
 - `PKHEX_BRIDGE_EXECUTABLE` environment override
@@ -76,16 +88,19 @@ The native launcher resolves bridge candidates in this order:
 - published helper under `tools/pkhex_bridge/publish`
 - development fallback using `dotnet run --project`
 
-For shipping, prefer a published self-contained helper rather than the development fallback.
+Development builds intentionally prefer local `bin/Debug` or `bin/Release` output before `tools/pkhex_bridge/publish` so contributors do not accidentally run stale published JSON after changing the bridge. Shipping builds should bundle a freshly published self-contained helper next to the native executable or inside app resources, and should not depend on `dotnet run`.
 
 ## JSON Contract
 
 The helper emits both legacy summary fields and expanded reader fields.
 
-### Legacy Summary Fields
+### Probe Schema And Legacy Summary Fields
+
+Probe output includes `bridge_probe_schema`. Native transfer UI currently requires the expected schema before treating a probe as a usable deep transfer summary.
 
 These fields exist so the current transfer ticket UI can keep working:
 
+- `bridge_probe_schema`
 - `success`
 - `game_id`
 - `player_name`

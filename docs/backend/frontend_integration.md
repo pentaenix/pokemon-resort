@@ -1,5 +1,7 @@
 # Frontend Integration Guide
 
+This guide is for UI that reads or mutates canonical Resort storage. The current transfer system screen still uses parsed external-save models plus temporary in-memory slot arrays for Pokemon/item movement. Replacing that prototype state with backend-backed Resort storage is deferred and should be done as an explicit integration project, not as incidental UI cleanup.
+
 ## External Save UI
 
 For "what is in this external game save?" screens, use existing save discovery and bridge probe data. Reliable display fields include:
@@ -12,6 +14,8 @@ For "what is in this external game save?" screens, use existing save discovery a
 
 This is preview/import-source data, not canonical Resort data.
 
+Current transfer-ticket and transfer-system external game views are in this category. They should continue to use `SaveLibrary` / `TransferSaveSelection` data until a flow intentionally imports into or syncs with canonical Resort storage.
+
 ## Resort Box UI
 
 Use:
@@ -21,6 +25,8 @@ Use:
 - `PokemonResortService::getPokemonLocation(profile_id, pkrid)` for placement lookup
 
 Render boxes from `PokemonSlotView`, not from snapshots, bridge DTOs, or transfer tickets.
+
+When replacing the transfer screen's in-memory Resort-side slots, this is the target read model. Keep the transition one-way at first: render Resort boxes from service read models, then add explicit backend service calls for move/import/export operations instead of mutating UI arrays and hoping persistence catches up later.
 
 ## Import UI
 

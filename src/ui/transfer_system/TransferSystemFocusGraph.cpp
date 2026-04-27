@@ -35,6 +35,7 @@ void applyTransferSystemFocusEdges(std::vector<FocusNode>& nodes) {
     constexpr FocusNodeId kGNext = 2103;
     constexpr FocusNodeId kGBoxSpace = 2110;
     constexpr FocusNodeId kGIcon = 2111;
+    constexpr FocusNodeId kExit = 5000;
     constexpr FocusNodeId kCarousel = 3000;
     constexpr FocusNodeId kPill = 4000;
 
@@ -100,7 +101,15 @@ void applyTransferSystemFocusEdges(std::vector<FocusNode>& nodes) {
             connect(kRNext, kFocusNeighborRight, kRPrev);
         }
 
-        connect(kRPrev, kFocusNeighborUp, kCarousel);
+        if (byId(kExit)) {
+            connect(kRPrev, kFocusNeighborUp, kExit);
+            connect(kExit, kFocusNeighborDown, kRPrev);
+            connect(kExit, kFocusNeighborUp, kRIcon);
+            connect(kExit, kFocusNeighborRight, kCarousel);
+            connect(kCarousel, kFocusNeighborLeft, kExit);
+        } else {
+            connect(kRPrev, kFocusNeighborUp, kCarousel);
+        }
         connect(kRName, kFocusNeighborUp, kCarousel);
         connect(kRNext, kFocusNeighborUp, kCarousel);
 
@@ -188,9 +197,16 @@ void applyTransferSystemFocusEdges(std::vector<FocusNode>& nodes) {
         connect(kGNext, kFocusNeighborDown, gameSlot(kCols - 1));
 
         if (hasResortGrid) {
-            connect(kGBoxSpace, kFocusNeighborRight, kRBoxSpace);
-            connect(kGIcon, kFocusNeighborLeft, kRIcon);
+            // Cross-panel footer connections.
             connect(kGBoxSpace, kFocusNeighborLeft, kRBoxSpace);
+            connect(kRBoxSpace, kFocusNeighborRight, kGBoxSpace);
+            connect(kRIcon, kFocusNeighborLeft, kGIcon);
+            connect(kGIcon, kFocusNeighborRight, kRIcon);
+            // Footer ring:
+            // Resort icon -> resort scroll/down -> resort boxspace -> game boxspace -> game icon -> (wrap) resort icon.
+            connect(kGBoxSpace, kFocusNeighborLeft, kRBoxSpace);
+            connect(kGBoxSpace, kFocusNeighborRight, kGIcon);
+            connect(kGIcon, kFocusNeighborLeft, kGBoxSpace);
             connect(kGIcon, kFocusNeighborRight, kRIcon);
         } else {
             connect(kGBoxSpace, kFocusNeighborRight, kGIcon);

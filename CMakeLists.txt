@@ -61,7 +61,8 @@ add_executable(title_screen_demo
     src/ui/TransferSystemScreen.cpp
     src/ui/transfer_system/GameTransferConfig.cpp
     src/ui/transfer_system/GameBoxBrowserController.cpp
-    src/ui/transfer_system/BoxSpaceBoxMoveController.cpp
+    src/ui/transfer_system/move/HeldMoveController.cpp
+    src/ui/transfer_system/ItemActionMenuController.cpp
     src/ui/transfer_system/PokemonActionMenuController.cpp
     src/ui/transfer_system/PokemonMoveController.cpp
     src/ui/transfer_system/TransferSystemFocusGraph.cpp
@@ -276,7 +277,8 @@ add_executable(transfer_system_flow_harness_tests
     src/ui/TransferSystemScreen.cpp
     src/ui/transfer_system/GameTransferConfig.cpp
     src/ui/transfer_system/GameBoxBrowserController.cpp
-    src/ui/transfer_system/BoxSpaceBoxMoveController.cpp
+    src/ui/transfer_system/move/HeldMoveController.cpp
+    src/ui/transfer_system/ItemActionMenuController.cpp
     src/ui/transfer_system/PokemonActionMenuController.cpp
     src/ui/transfer_system/PokemonMoveController.cpp
     src/ui/transfer_system/TransferSystemFocusGraph.cpp

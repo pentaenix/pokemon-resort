@@ -76,6 +76,9 @@ const PcSlotSpecies* activeSlot(const TransferInfoBannerContext& context) {
 }
 
 std::pair<std::string, std::string> tooltipCopyForContext(const TransferInfoBannerContext& context) {
+    if (context.mode == "exit") {
+        return {context.tooltip_copy.exit_tooltip_title, context.tooltip_copy.exit_tooltip_body};
+    }
     if (context.mode == "tool") {
         switch (context.selected_tool_index) {
             case 0:
