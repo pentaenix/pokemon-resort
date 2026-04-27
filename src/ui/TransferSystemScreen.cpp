@@ -630,6 +630,9 @@ TransferSystemScreen::TransferSystemScreen(
     box_name_dropdown_style_ = loaded.box_name_dropdown;
     selection_cursor_style_ = loaded.selection_cursor;
     mini_preview_style_ = loaded.mini_preview;
+    box_viewport_style_ = loaded.box_viewport;
+    pokemon_action_menu_style_ = loaded.pokemon_action_menu;
+    box_space_long_press_style_ = loaded.box_space_long_press;
     info_banner_style_ = loaded.info_banner;
     pill_font_ = loadFontPreferringUnicode(font_path_, std::max(8, pill_style_.font_pt), project_root_);
     dropdown_item_font_ =
@@ -637,6 +640,10 @@ TransferSystemScreen::TransferSystemScreen(
     speech_bubble_font_ = loadFontPreferringUnicode(
         font_path_,
         std::max(8, selection_cursor_style_.speech_bubble.font_pt),
+        project_root_);
+    pokemon_action_menu_font_ = loadFontPreferringUnicode(
+        font_path_,
+        std::max(8, pokemon_action_menu_style_.font_pt),
         project_root_);
     cachePillLabelTextures(renderer);
 
@@ -697,11 +704,20 @@ std::optional<SDL_Rect> TransferSystemScreen::debugPillTrackBounds() const {
     ty += enter_off;
     return SDL_Rect{tx, ty, tw, th};
 }
+
+std::optional<int> TransferSystemScreen::debugDropdownRowAtScreen(int logical_x, int logical_y) const {
+    return dropdownRowIndexAtScreen(logical_x, logical_y);
+}
 #endif
 
 void TransferSystemScreen::enter(const TransferSaveSelection& selection, SDL_Renderer* renderer, int initial_game_box_index) {
     ui_state_.enter();
     transfer_selection_ = selection;
+    resort_slots_.assign(30, PcSlotSpecies{});
+    pokemon_move_.clear();
+    held_move_sprite_tex_ = {};
+    pickup_sfx_requested_ = false;
+    putdown_sfx_requested_ = false;
     selection_cursor_hidden_after_mouse_ = false;
     speech_hover_active_ = false;
     dropdown_lmb_down_in_panel_ = false;
@@ -714,6 +730,7 @@ void TransferSystemScreen::enter(const TransferSaveSelection& selection, SDL_Ren
     speech_bubble_label_tex_ = {};
     mouse_hover_mini_preview_box_index_ = -1;
     mouse_hover_focus_node_ = -1;
+    last_pointer_position_ = SDL_Point{0, 0};
     box_space_drag_active_ = false;
     box_space_drag_last_y_ = 0;
     box_space_drag_accum_ = 0.0;
@@ -721,7 +738,7 @@ void TransferSystemScreen::enter(const TransferSaveSelection& selection, SDL_Ren
     // Focus graph is rebuilt at end of enter() once bounds are valid.
 
     if (resort_box_viewport_) {
-        resort_box_viewport_->setModel(BoxViewportModel{});
+        resort_box_viewport_->setModel(resortBoxViewportModel());
         resort_box_viewport_->reloadResortIcon(renderer);
     }
     if (game_save_box_viewport_) {
@@ -1227,6 +1244,9 @@ bool TransferSystemScreen::currentFocusWantsSpeechBubble() const {
     if (!selection_cursor_style_.speech_bubble.enabled) {
         return false;
     }
+    if (pokemon_move_.active() || pokemon_action_menu_.visible() || game_box_browser_.dropdownOpenTarget()) {
+        return false;
+    }
 
     const FocusNodeId focus_id = focus_.current();
     if (!focusIdUsesSpeechBubble(focus_id)) {
@@ -1260,6 +1280,14 @@ bool TransferSystemScreen::currentFocusWantsSpeechBubble() const {
 
 void TransferSystemScreen::onNavigate2d(int dx, int dy) {
     selection_cursor_hidden_after_mouse_ = false;
+    if (pokemon_action_menu_.visible()) {
+        if (dy != 0) {
+            pokemon_action_menu_.stepSelection(dy > 0 ? 1 : -1);
+            ui_state_.requestUiMoveSfx();
+        }
+        (void)dx;
+        return;
+    }
     if (dropdownAcceptsNavigation()) {
         if (dy < 0) {
             stepDropdownHighlight(-1);
@@ -1379,6 +1407,67 @@ std::optional<int> TransferSystemScreen::focusedGameSlotIndex() const {
     return current - 2000;
 }
 
+std::optional<int> TransferSystemScreen::focusedBoxSpaceBoxIndex() const {
+    if (!game_box_browser_.gameBoxSpaceMode()) {
+        return std::nullopt;
+    }
+    const FocusNodeId current = focus_.current();
+    if (current < 2000 || current > 2029) {
+        return std::nullopt;
+    }
+    const int cell = current - 2000;
+    const int box_index = game_box_browser_.gameBoxSpaceRowOffset() * 6 + cell;
+    if (box_index < 0 || box_index >= static_cast<int>(game_pc_boxes_.size())) {
+        return std::nullopt;
+    }
+    return box_index;
+}
+
+bool TransferSystemScreen::swapGamePcBoxes(int a, int b) {
+    if (a < 0 || b < 0 || a >= static_cast<int>(game_pc_boxes_.size()) || b >= static_cast<int>(game_pc_boxes_.size())) {
+        return false;
+    }
+    if (a == b) {
+        return true;
+    }
+    std::swap(game_pc_boxes_[static_cast<std::size_t>(a)], game_pc_boxes_[static_cast<std::size_t>(b)]);
+    if (game_save_box_viewport_ && game_box_browser_.gameBoxSpaceMode()) {
+        const bool show_down =
+            game_pc_boxes_.size() > 30 && game_box_browser_.gameBoxSpaceRowOffset() < gameBoxSpaceMaxRowOffset();
+        game_save_box_viewport_->setHeaderMode(BoxViewport::HeaderMode::BoxSpace, show_down);
+        game_save_box_viewport_->snapContentToModel(gameBoxSpaceViewportModelAt(game_box_browser_.gameBoxSpaceRowOffset()));
+    }
+    mini_preview_box_index_ = -1;
+    mouse_hover_mini_preview_box_index_ = -1;
+    ui_state_.requestButtonSfx();
+    return true;
+}
+
+bool TransferSystemScreen::dropHeldPokemonIntoFirstEmptySlotInBox(int box_index) {
+    using Move = transfer_system::PokemonMoveController;
+    if (!pokemon_move_.active()) {
+        return false;
+    }
+    if (box_index < 0 || box_index >= static_cast<int>(game_pc_boxes_.size())) {
+        return false;
+    }
+    auto& slots = game_pc_boxes_[static_cast<std::size_t>(box_index)].slots;
+    for (int i = 0; i < static_cast<int>(slots.size()); ++i) {
+        if (!slots[static_cast<std::size_t>(i)].occupied()) {
+            return dropHeldPokemonAt(Move::SlotRef{Move::Panel::Game, box_index, i});
+        }
+    }
+    return false;
+}
+
+bool TransferSystemScreen::gameBoxHasEmptySlot(int box_index) const {
+    if (box_index < 0 || box_index >= static_cast<int>(game_pc_boxes_.size())) {
+        return false;
+    }
+    const auto& slots = game_pc_boxes_[static_cast<std::size_t>(box_index)].slots;
+    return std::any_of(slots.begin(), slots.end(), [](const PcSlotSpecies& s) { return !s.occupied(); });
+}
+
 bool TransferSystemScreen::gameBoxHasPreviewContent(int box_index) const {
     if (box_index < 0 || box_index >= static_cast<int>(game_pc_boxes_.size())) {
         return false;
@@ -1447,9 +1536,15 @@ BoxViewportModel TransferSystemScreen::gameBoxSpaceViewportModelAt(int row_offse
     m.box_name = "BOX SPACE";
 
     const int base_box_index = std::max(0, row_offset) * 6;
+    const int hide_box_index =
+        (box_space_box_move_.activeState() && !pokemon_move_.active()) ? box_space_box_move_.activeState()->source_box_index : -1;
     for (int i = 0; i < 30; ++i) {
         const int box_index = base_box_index + i;
         if (box_index < 0 || box_index >= static_cast<int>(game_pc_boxes_.size())) {
+            m.slot_sprites[static_cast<std::size_t>(i)] = std::nullopt;
+            continue;
+        }
+        if (hide_box_index >= 0 && box_index == hide_box_index) {
             m.slot_sprites[static_cast<std::size_t>(i)] = std::nullopt;
             continue;
         }
@@ -1508,6 +1603,12 @@ void TransferSystemScreen::setGameBoxSpaceMode(bool enabled) {
     box_space_drag_last_y_ = 0;
     box_space_drag_accum_ = 0.0;
     box_space_pressed_cell_ = -1;
+    box_space_quick_drop_pending_ = false;
+    box_space_quick_drop_elapsed_seconds_ = 0.0;
+    box_space_quick_drop_target_box_index_ = -1;
+    if (!game_box_browser_.gameBoxSpaceMode()) {
+        box_space_box_move_.clear();
+    }
 }
 
 void TransferSystemScreen::stepGameBoxSpaceRowDown() {
@@ -1768,9 +1869,38 @@ bool TransferSystemScreen::handleGameBoxSpacePointerPressed(int logical_x, int l
         box_space_drag_active_ = true;
         box_space_drag_last_y_ = logical_y;
         box_space_drag_accum_ = 0.0;
+        box_space_quick_drop_pending_ = false;
+        box_space_quick_drop_elapsed_seconds_ = 0.0;
+        box_space_quick_drop_target_box_index_ = -1;
         if (const std::optional<FocusNodeId> picked = focusNodeAtPointer(logical_x, logical_y)) {
             if (*picked >= 2000 && *picked <= 2029) {
+                // In Box Space, pointer press should update focus immediately so any callouts anchor correctly.
+                focus_.setCurrent(*picked);
+                selection_cursor_hidden_after_mouse_ = true;
+                speech_hover_active_ = true;
                 box_space_pressed_cell_ = *picked - 2000;
+                // If not holding a Pokémon, a long hold on the cell can turn into a box move (drag-to-scroll stays default).
+                if (!pokemon_move_.active()) {
+                    const int box_index = game_box_browser_.gameBoxSpaceRowOffset() * 6 + box_space_pressed_cell_;
+                    SDL_Rect cell_bounds{};
+                    if (box_index >= 0 && box_index < static_cast<int>(game_pc_boxes_.size()) &&
+                        game_save_box_viewport_->getSlotBounds(box_space_pressed_cell_, cell_bounds)) {
+                        box_space_box_move_.beginPointerPending(box_index, SDL_Point{logical_x, logical_y}, cell_bounds);
+                    }
+                } else {
+                    // Holding a Pokémon: allow a press-and-hold (without moving) to quick-drop into the first empty slot.
+                    const int box_index = game_box_browser_.gameBoxSpaceRowOffset() * 6 + box_space_pressed_cell_;
+                    SDL_Rect cell_bounds{};
+                    if (box_index >= 0 && box_index < static_cast<int>(game_pc_boxes_.size()) &&
+                        gameBoxHasEmptySlot(box_index) &&
+                        game_save_box_viewport_->getSlotBounds(box_space_pressed_cell_, cell_bounds)) {
+                        box_space_quick_drop_pending_ = true;
+                        box_space_quick_drop_elapsed_seconds_ = 0.0;
+                        box_space_quick_drop_start_pointer_ = SDL_Point{logical_x, logical_y};
+                        box_space_quick_drop_start_cell_bounds_ = cell_bounds;
+                        box_space_quick_drop_target_box_index_ = box_index;
+                    }
+                }
             }
         }
         return true;
@@ -1839,6 +1969,22 @@ bool TransferSystemScreen::handleGameBoxNavigationPointerPressed(int logical_x, 
     return true;
 }
 
+void TransferSystemScreen::syncBoxSpaceMiniPreviewHoverFromPointer(int logical_x, int logical_y) {
+    if (!game_box_browser_.gameBoxSpaceMode() || !game_save_box_viewport_) {
+        return;
+    }
+    if (const std::optional<FocusNodeId> picked = focusNodeAtPointer(logical_x, logical_y)) {
+        if (*picked >= 2000 && *picked <= 2029) {
+            const int cell = *picked - 2000;
+            const int idx = game_box_browser_.gameBoxSpaceRowOffset() * 6 + cell;
+            if (idx >= 0 && idx < static_cast<int>(game_pc_boxes_.size()) &&
+                gameBoxHasPreviewContent(idx)) {
+                mouse_hover_mini_preview_box_index_ = idx;
+            }
+        }
+    }
+}
+
 void TransferSystemScreen::updateMiniPreview(double dt) {
     if (!mini_preview_style_.enabled || !game_save_box_viewport_ || game_pc_boxes_.empty()) {
         mini_preview_target_ = 0.0;
@@ -1848,6 +1994,10 @@ void TransferSystemScreen::updateMiniPreview(double dt) {
             mini_preview_box_index_ = -1;
         }
         return;
+    }
+
+    if (pokemon_move_.active() && game_box_browser_.gameBoxSpaceMode()) {
+        syncBoxSpaceMiniPreviewHoverFromPointer(last_pointer_position_.x, last_pointer_position_.y);
     }
 
     int wanted = -1;
@@ -2012,18 +2162,297 @@ void TransferSystemScreen::update(double dt) {
     updateCarouselSlide(dt);
     updateGameBoxDropdown(dt);
     updateMiniPreview(dt);
+    updatePokemonActionMenu(dt);
+
+    // Box Space: if the user is holding the mouse down in the grid, allow a hold-to-pickup box move
+    // without interfering with normal drag-to-scroll (movement cancels the hold activation).
+    if (game_box_browser_.gameBoxSpaceMode() &&
+        box_space_drag_active_ &&
+        box_space_box_move_.pending() &&
+        !pokemon_move_.active()) {
+        const auto* p = box_space_box_move_.pendingState();
+        auto in = [](int px, int py, const SDL_Rect& r) {
+            return px >= r.x && px < r.x + r.w && py >= r.y && py < r.y + r.h;
+        };
+        const bool still_in_cell = p ? in(last_pointer_position_.x, last_pointer_position_.y, p->start_cell_bounds) : false;
+        const int dx = p ? (last_pointer_position_.x - p->start_pointer.x) : 0;
+        const int dy = p ? (last_pointer_position_.y - p->start_pointer.y) : 0;
+        constexpr int kMoveCancelThresholdPx = 6;
+        const bool moved_far = (dx * dx + dy * dy) >= kMoveCancelThresholdPx * kMoveCancelThresholdPx;
+        const bool activated = box_space_box_move_.updatePointerPending(
+            dt,
+            box_space_long_press_style_.box_swap_hold_seconds,
+            last_pointer_position_,
+            still_in_cell,
+            moved_far);
+        if (activated) {
+            // Cancel scroll drag and treat the rest of the gesture as a held box move.
+            box_space_drag_active_ = false;
+            box_space_drag_accum_ = 0.0;
+            box_space_pressed_cell_ = -1;
+            if (game_save_box_viewport_) {
+                game_save_box_viewport_->snapContentToModel(gameBoxSpaceViewportModelAt(game_box_browser_.gameBoxSpaceRowOffset()));
+            }
+            requestPickupSfx();
+        }
+    }
+
+    // Box Space: while holding a Pokémon, allow press-and-hold on a not-full tile to drop into the first empty slot.
+    if (game_box_browser_.gameBoxSpaceMode() &&
+        box_space_drag_active_ &&
+        box_space_quick_drop_pending_ &&
+        pokemon_move_.active()) {
+        auto in = [](int px, int py, const SDL_Rect& r) {
+            return px >= r.x && px < r.x + r.w && py >= r.y && py < r.y + r.h;
+        };
+        const bool still_in_cell = in(
+            last_pointer_position_.x,
+            last_pointer_position_.y,
+            box_space_quick_drop_start_cell_bounds_);
+        const int dx = last_pointer_position_.x - box_space_quick_drop_start_pointer_.x;
+        const int dy = last_pointer_position_.y - box_space_quick_drop_start_pointer_.y;
+        constexpr int kQuickDropCancelThresholdPx = 6;
+        const bool moved_far = (dx * dx + dy * dy) >= kQuickDropCancelThresholdPx * kQuickDropCancelThresholdPx;
+        if (!still_in_cell || moved_far) {
+            box_space_quick_drop_pending_ = false;
+        } else {
+            box_space_quick_drop_elapsed_seconds_ += dt;
+            if (box_space_quick_drop_elapsed_seconds_ >= box_space_long_press_style_.quick_drop_hold_seconds) {
+                const int target_box = box_space_quick_drop_target_box_index_;
+                box_space_quick_drop_pending_ = false;
+                box_space_quick_drop_target_box_index_ = -1;
+                const bool dropped = dropHeldPokemonIntoFirstEmptySlotInBox(target_box);
+                if (dropped) {
+                    // Prevent the corresponding release from being treated as a click (open box).
+                    box_space_drag_active_ = false;
+                    box_space_drag_accum_ = 0.0;
+                    box_space_pressed_cell_ = -1;
+                    if (game_save_box_viewport_) {
+                        game_save_box_viewport_->snapContentToModel(
+                            gameBoxSpaceViewportModelAt(game_box_browser_.gameBoxSpaceRowOffset()));
+                    }
+                    // Force mini-preview + hover preview to refresh (box occupancy and contents changed).
+                    mini_preview_box_index_ = -1;
+                    mouse_hover_mini_preview_box_index_ = target_box;
+                }
+            }
+        }
+    }
     const bool item_overlay_active = itemToolActive();
+    const bool focus_dimming_active =
+        pokemon_action_menu_style_.dim_background_sprites && pokemon_action_menu_.visible() && !pokemon_move_.active();
+    const std::optional<int> resort_dim_slot =
+        focus_dimming_active && !pokemon_action_menu_.fromGameBox()
+            ? std::optional<int>(pokemon_action_menu_.slotIndex())
+            : std::nullopt;
+    const std::optional<int> game_dim_slot =
+        focus_dimming_active && pokemon_action_menu_.fromGameBox()
+            ? std::optional<int>(pokemon_action_menu_.slotIndex())
+            : std::nullopt;
     if (resort_box_viewport_) {
         resort_box_viewport_->setItemOverlayActive(item_overlay_active);
+        resort_box_viewport_->setFocusDimming(
+            focus_dimming_active,
+            resort_dim_slot,
+            pokemon_action_menu_style_.dim_sprite_mod_color);
         resort_box_viewport_->update(dt);
     }
     if (game_save_box_viewport_) {
         game_save_box_viewport_->setItemOverlayActive(item_overlay_active);
+        game_save_box_viewport_->setFocusDimming(
+            focus_dimming_active,
+            game_dim_slot,
+            pokemon_action_menu_style_.dim_sprite_mod_color);
         game_save_box_viewport_->update(dt);
     }
     syncBoxViewportPositions();
 
     // Commit box index once the content slide finishes.
+}
+
+void TransferSystemScreen::updatePokemonActionMenu(double dt) {
+    pokemon_action_menu_.update(dt, pokemon_action_menu_style_);
+}
+
+void TransferSystemScreen::openPokemonActionMenu(bool from_game_box, int slot_index, const SDL_Rect& anchor_rect) {
+    pokemon_action_menu_.open(from_game_box, slot_index, anchor_rect);
+    ui_state_.requestButtonSfx();
+}
+
+void TransferSystemScreen::closePokemonActionMenu() {
+    pokemon_action_menu_.close();
+}
+
+bool TransferSystemScreen::pokemonActionMenuInteractive() const {
+    return pokemon_action_menu_.interactive();
+}
+
+SDL_Rect TransferSystemScreen::pokemonActionMenuFinalRect() const {
+    return pokemon_action_menu_.finalRect(
+        pokemon_action_menu_style_,
+        window_config_.virtual_width,
+        pokemonActionMenuBottomLimitY());
+}
+
+int TransferSystemScreen::pokemonActionMenuBottomLimitY() const {
+    if (!info_banner_style_.enabled) {
+        return window_config_.virtual_height;
+    }
+    constexpr int kGapAboveBanner = 5;
+    const int total_h = std::max(0, info_banner_style_.separator_height) + std::max(0, info_banner_style_.info_height);
+    const int banner_top = window_config_.virtual_height - total_h;
+    return std::max(1, banner_top - kGapAboveBanner);
+}
+
+const PcSlotSpecies* TransferSystemScreen::pokemonActionMenuPokemon() const {
+    if (!pokemon_action_menu_.visible()) {
+        return nullptr;
+    }
+    const int slot_index = pokemon_action_menu_.slotIndex();
+    if (!pokemon_action_menu_.fromGameBox()) {
+        if (slot_index < 0 || slot_index >= static_cast<int>(resort_slots_.size())) {
+            return nullptr;
+        }
+        const PcSlotSpecies& slot = resort_slots_[static_cast<std::size_t>(slot_index)];
+        return slot.occupied() ? &slot : nullptr;
+    }
+    const int box_index = game_box_browser_.gameBoxIndex();
+    if (box_index < 0 || box_index >= static_cast<int>(game_pc_boxes_.size()) || slot_index < 0) {
+        return nullptr;
+    }
+    const auto& slots = game_pc_boxes_[static_cast<std::size_t>(box_index)].slots;
+    if (slot_index >= static_cast<int>(slots.size())) {
+        return nullptr;
+    }
+    const PcSlotSpecies& slot = slots[static_cast<std::size_t>(slot_index)];
+    return slot.occupied() ? &slot : nullptr;
+}
+
+std::optional<int> TransferSystemScreen::pokemonActionMenuRowAtPoint(int logical_x, int logical_y) const {
+    return pokemon_action_menu_.rowAtPoint(
+        logical_x,
+        logical_y,
+        pokemon_action_menu_style_,
+        window_config_.virtual_width,
+        pokemonActionMenuBottomLimitY());
+}
+
+void TransferSystemScreen::activatePokemonActionMenuRow(int row) {
+    if (pokemon_action_menu_.actionForRow(row) == transfer_system::PokemonActionMenuController::Action::Move) {
+        using Move = transfer_system::PokemonMoveController;
+        const Move::SlotRef ref{
+            pokemon_action_menu_.fromGameBox() ? Move::Panel::Game : Move::Panel::Resort,
+            pokemon_action_menu_.fromGameBox() ? game_box_browser_.gameBoxIndex() : 0,
+            pokemon_action_menu_.slotIndex()};
+        const Move::InputMode input_mode = selection_cursor_hidden_after_mouse_
+            ? Move::InputMode::Pointer
+            : Move::InputMode::Keyboard;
+        (void)beginPokemonMoveFromSlot(ref, input_mode, Move::PickupSource::ActionMenu, last_pointer_position_);
+        return;
+    }
+    closePokemonActionMenu();
+    ui_state_.requestButtonSfx();
+}
+
+void TransferSystemScreen::hoverPokemonActionMenuRow(int logical_x, int logical_y) {
+    if (const std::optional<int> row = pokemonActionMenuRowAtPoint(logical_x, logical_y)) {
+        pokemon_action_menu_.selectRow(*row);
+    }
+}
+
+bool TransferSystemScreen::activateFocusedPokemonSlotActionMenu() {
+    if (!normalPokemonToolActive()) {
+        return false;
+    }
+    if (game_box_browser_.gameBoxSpaceMode()) {
+        return false;
+    }
+    const FocusNodeId cur = focus_.current();
+    SDL_Rect r{};
+    if (cur >= 2000 && cur <= 2029 && game_save_box_viewport_) {
+        const int slot = cur - 2000;
+        if (gameSaveSlotHasSpecies(slot) && game_save_box_viewport_->getSlotBounds(slot, r)) {
+            openPokemonActionMenu(true, slot, r);
+            return true;
+        }
+    }
+    if (cur >= 1000 && cur <= 1029 && resort_box_viewport_) {
+        const int slot = cur - 1000;
+        if (resortSlotHasSpecies(slot) && resort_box_viewport_->getSlotBounds(slot, r)) {
+            openPokemonActionMenu(false, slot, r);
+            return true;
+        }
+    }
+    return false;
+}
+
+bool TransferSystemScreen::handlePokemonActionMenuPointerPressed(int logical_x, int logical_y) {
+    if (!pokemon_action_menu_.visible()) {
+        return false;
+    }
+    const std::optional<int> row = pokemonActionMenuRowAtPoint(logical_x, logical_y);
+    if (row.has_value()) {
+        activatePokemonActionMenuRow(*row);
+        return true;
+    }
+    closePokemonActionMenu();
+    return true;
+}
+
+bool TransferSystemScreen::handlePokemonSlotActionPointerPressed(int logical_x, int logical_y) {
+    if (game_box_browser_.gameBoxSpaceMode()) {
+        return false;
+    }
+    if (!normalPokemonToolActive() && !swapToolActive()) {
+        return false;
+    }
+    auto in = [](int px, int py, const SDL_Rect& r) {
+        return px >= r.x && px < r.x + r.w && py >= r.y && py < r.y + r.h;
+    };
+    SDL_Rect r{};
+    if (game_save_box_viewport_) {
+        for (int i = 0; i < 30; ++i) {
+            if (game_save_box_viewport_->getSlotBounds(i, r) && in(logical_x, logical_y, r)) {
+                if (!gameSaveSlotHasSpecies(i)) {
+                    return false;
+                }
+                if (swapToolActive()) {
+                    return beginPokemonMoveFromSlot(
+                        transfer_system::PokemonMoveController::SlotRef{
+                            transfer_system::PokemonMoveController::Panel::Game,
+                            game_box_browser_.gameBoxIndex(),
+                            i},
+                        transfer_system::PokemonMoveController::InputMode::Pointer,
+                        transfer_system::PokemonMoveController::PickupSource::SwapTool,
+                        last_pointer_position_);
+                }
+                openPokemonActionMenu(true, i, r);
+                return true;
+            }
+        }
+    }
+    if (resort_box_viewport_) {
+        for (int i = 0; i < 30; ++i) {
+            if (resort_box_viewport_->getSlotBounds(i, r) && in(logical_x, logical_y, r)) {
+                if (!resortSlotHasSpecies(i)) {
+                    return false;
+                }
+                if (swapToolActive()) {
+                    return beginPokemonMoveFromSlot(
+                        transfer_system::PokemonMoveController::SlotRef{
+                            transfer_system::PokemonMoveController::Panel::Resort,
+                            0,
+                            i},
+                        transfer_system::PokemonMoveController::InputMode::Pointer,
+                        transfer_system::PokemonMoveController::PickupSource::SwapTool,
+                        last_pointer_position_);
+                }
+                openPokemonActionMenu(false, i, r);
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 void TransferSystemScreen::togglePillTarget() {
@@ -2073,6 +2502,26 @@ bool TransferSystemScreen::itemToolActive() const {
     return ui_state_.selectedToolIndex() == 3 && !game_box_browser_.gameBoxSpaceMode();
 }
 
+bool TransferSystemScreen::normalPokemonToolActive() const {
+    return ui_state_.selectedToolIndex() == 1 && !game_box_browser_.gameBoxSpaceMode();
+}
+
+bool TransferSystemScreen::swapToolActive() const {
+    return ui_state_.selectedToolIndex() == 2 && !game_box_browser_.gameBoxSpaceMode();
+}
+
+bool TransferSystemScreen::pokemonMoveActive() const {
+    return pokemon_move_.active();
+}
+
+void TransferSystemScreen::requestPickupSfx() {
+    pickup_sfx_requested_ = true;
+}
+
+void TransferSystemScreen::requestPutdownSfx() {
+    putdown_sfx_requested_ = true;
+}
+
 bool TransferSystemScreen::gameSlotHasHeldItem(int slot_index) const {
     if (slot_index < 0 || slot_index >= 30) {
         return false;
@@ -2096,7 +2545,232 @@ std::string TransferSystemScreen::gameSlotHeldItemName(int slot_index) const {
     return !slot.held_item_name.empty() ? slot.held_item_name : ("Item " + std::to_string(slot.held_item_id));
 }
 
+BoxViewportModel TransferSystemScreen::resortBoxViewportModel() const {
+    BoxViewportModel model;
+    model.box_name = "RESORT";
+    for (std::size_t i = 0; i < model.slot_sprites.size() && i < resort_slots_.size(); ++i) {
+        const PcSlotSpecies& slot = resort_slots_[i];
+        if (!slot.occupied() || !sprite_assets_ || !renderer_) {
+            continue;
+        }
+        TextureHandle texture = sprite_assets_->loadPokemonTexture(renderer_, slot);
+        model.slot_sprites[i] = texture.texture ? std::optional<TextureHandle>(std::move(texture)) : std::nullopt;
+        if (slot.held_item_id > 0) {
+            TextureHandle item = sprite_assets_->loadItemTexture(renderer_, slot.held_item_id);
+            model.held_item_sprites[i] = item.texture ? std::optional<TextureHandle>(std::move(item)) : std::nullopt;
+        }
+    }
+    return model;
+}
+
+void TransferSystemScreen::refreshResortBoxViewportModel() {
+    if (resort_box_viewport_) {
+        resort_box_viewport_->setModel(resortBoxViewportModel());
+    }
+}
+
+void TransferSystemScreen::refreshGameBoxViewportModel() {
+    if (game_save_box_viewport_ && !game_pc_boxes_.empty() && !game_box_browser_.gameBoxSpaceMode()) {
+        game_save_box_viewport_->setModel(gameBoxViewportModelAt(game_box_browser_.gameBoxIndex()));
+    }
+}
+
+std::optional<transfer_system::PokemonMoveController::SlotRef> TransferSystemScreen::slotRefForFocus(FocusNodeId focus_id) const {
+    using Move = transfer_system::PokemonMoveController;
+    if (focus_id >= 1000 && focus_id <= 1029) {
+        return Move::SlotRef{Move::Panel::Resort, 0, focus_id - 1000};
+    }
+    if (focus_id >= 2000 && focus_id <= 2029 && !game_box_browser_.gameBoxSpaceMode()) {
+        return Move::SlotRef{Move::Panel::Game, game_box_browser_.gameBoxIndex(), focus_id - 2000};
+    }
+    return std::nullopt;
+}
+
+std::optional<transfer_system::PokemonMoveController::SlotRef> TransferSystemScreen::slotRefAtPointer(int logical_x, int logical_y) const {
+    const std::optional<FocusNodeId> focus_id = focusNodeAtPointer(logical_x, logical_y);
+    return focus_id ? slotRefForFocus(*focus_id) : std::nullopt;
+}
+
+PcSlotSpecies* TransferSystemScreen::mutablePokemonAt(const transfer_system::PokemonMoveController::SlotRef& ref) {
+    using Move = transfer_system::PokemonMoveController;
+    if (ref.slot_index < 0 || ref.slot_index >= 30) {
+        return nullptr;
+    }
+    if (ref.panel == Move::Panel::Resort) {
+        if (ref.slot_index >= static_cast<int>(resort_slots_.size())) {
+            return nullptr;
+        }
+        return &resort_slots_[static_cast<std::size_t>(ref.slot_index)];
+    }
+    if (ref.box_index < 0 || ref.box_index >= static_cast<int>(game_pc_boxes_.size())) {
+        return nullptr;
+    }
+    auto& slots = game_pc_boxes_[static_cast<std::size_t>(ref.box_index)].slots;
+    if (ref.slot_index >= static_cast<int>(slots.size())) {
+        return nullptr;
+    }
+    return &slots[static_cast<std::size_t>(ref.slot_index)];
+}
+
+const PcSlotSpecies* TransferSystemScreen::pokemonAt(const transfer_system::PokemonMoveController::SlotRef& ref) const {
+    return const_cast<TransferSystemScreen*>(this)->mutablePokemonAt(ref);
+}
+
+void TransferSystemScreen::clearPokemonAt(const transfer_system::PokemonMoveController::SlotRef& ref) {
+    if (PcSlotSpecies* slot = mutablePokemonAt(ref)) {
+        *slot = PcSlotSpecies{};
+    }
+}
+
+void TransferSystemScreen::setPokemonAt(const transfer_system::PokemonMoveController::SlotRef& ref, PcSlotSpecies pokemon) {
+    if (PcSlotSpecies* slot = mutablePokemonAt(ref)) {
+        pokemon.present = true;
+        pokemon.slot_index = ref.slot_index;
+        pokemon.box_index = ref.box_index;
+        pokemon.area = ref.panel == transfer_system::PokemonMoveController::Panel::Resort ? "resort" : "box";
+        *slot = std::move(pokemon);
+    }
+}
+
+bool TransferSystemScreen::beginPokemonMoveFromSlot(
+    const transfer_system::PokemonMoveController::SlotRef& ref,
+    transfer_system::PokemonMoveController::InputMode input_mode,
+    transfer_system::PokemonMoveController::PickupSource source,
+    SDL_Point pointer) {
+    if (pokemon_move_.active()) {
+        return false;
+    }
+    const PcSlotSpecies* slot = pokemonAt(ref);
+    if (!slot || !slot->occupied()) {
+        return false;
+    }
+    pokemon_move_.pickUp(*slot, ref, input_mode, source, pointer);
+    clearPokemonAt(ref);
+    refreshHeldMoveSpriteTexture();
+    refreshResortBoxViewportModel();
+    refreshGameBoxViewportModel();
+    pokemon_action_menu_.clear();
+    requestPickupSfx();
+    return true;
+}
+
+bool TransferSystemScreen::dropHeldPokemonAt(const transfer_system::PokemonMoveController::SlotRef& target) {
+    using Move = transfer_system::PokemonMoveController;
+    Move::HeldPokemon* held = pokemon_move_.held();
+    if (!held) {
+        return false;
+    }
+    PcSlotSpecies* target_slot = mutablePokemonAt(target);
+    if (!target_slot) {
+        return false;
+    }
+
+    const bool target_occupied = target_slot->occupied();
+    PcSlotSpecies held_pokemon = held->pokemon;
+    const Move::SlotRef return_slot = held->return_slot;
+    const bool swap_into_hand =
+        held->source == Move::PickupSource::SwapTool
+            ? pokemon_action_menu_style_.swap_tool_swaps_into_hand
+            : pokemon_action_menu_style_.modal_move_swaps_into_hand;
+
+    if (!target_occupied) {
+        setPokemonAt(target, std::move(held_pokemon));
+        pokemon_move_.clear();
+        held_move_sprite_tex_ = {};
+        requestPutdownSfx();
+    } else if (swap_into_hand) {
+        PcSlotSpecies target_pokemon = *target_slot;
+        setPokemonAt(target, std::move(held_pokemon));
+        pokemon_move_.swapHeldWith(target_pokemon, return_slot);
+        requestPutdownSfx();
+        requestPickupSfx();
+    } else {
+        if (target != return_slot) {
+            const PcSlotSpecies* return_pokemon = pokemonAt(return_slot);
+            if (return_pokemon && return_pokemon->occupied()) {
+                // Keep both Pokemon safe: if the configured return slot is unexpectedly occupied,
+                // fall back to hand-swap semantics rather than overwriting anything.
+                PcSlotSpecies target_pokemon = *target_slot;
+                setPokemonAt(target, std::move(held_pokemon));
+                pokemon_move_.swapHeldWith(target_pokemon, return_slot);
+                requestPutdownSfx();
+                requestPickupSfx();
+                refreshResortBoxViewportModel();
+                refreshGameBoxViewportModel();
+                refreshHeldMoveSpriteTexture();
+                if (!game_box_browser_.gameBoxSpaceMode()) {
+                    if (target.panel == Move::Panel::Game) {
+                        focus_.setCurrent(2000 + target.slot_index);
+                    } else {
+                        focus_.setCurrent(1000 + target.slot_index);
+                    }
+                    selection_cursor_hidden_after_mouse_ = false;
+                }
+                return true;
+            }
+            setPokemonAt(return_slot, *target_slot);
+        }
+        setPokemonAt(target, std::move(held_pokemon));
+        pokemon_move_.clear();
+        held_move_sprite_tex_ = {};
+        requestPutdownSfx();
+    }
+
+    refreshResortBoxViewportModel();
+    refreshGameBoxViewportModel();
+    if (!pokemon_move_.active()) {
+        held_move_sprite_tex_ = {};
+    } else {
+        refreshHeldMoveSpriteTexture();
+    }
+
+    if (!game_box_browser_.gameBoxSpaceMode()) {
+        if (target.panel == Move::Panel::Game) {
+            focus_.setCurrent(2000 + target.slot_index);
+        } else {
+            focus_.setCurrent(1000 + target.slot_index);
+        }
+        selection_cursor_hidden_after_mouse_ = false;
+    }
+
+    return true;
+}
+
+bool TransferSystemScreen::cancelHeldPokemonMove() {
+    using Move = transfer_system::PokemonMoveController;
+    Move::HeldPokemon* held = pokemon_move_.held();
+    if (!held) {
+        return false;
+    }
+    const Move::SlotRef return_slot = held->return_slot;
+    const PcSlotSpecies* occupant = pokemonAt(return_slot);
+    if (occupant && occupant->occupied()) {
+        return false;
+    }
+    setPokemonAt(return_slot, held->pokemon);
+    pokemon_move_.clear();
+    held_move_sprite_tex_ = {};
+    refreshResortBoxViewportModel();
+    refreshGameBoxViewportModel();
+    requestPutdownSfx();
+    return true;
+}
+
+void TransferSystemScreen::refreshHeldMoveSpriteTexture() {
+    if (!pokemon_move_.active() || !sprite_assets_ || !renderer_) {
+        held_move_sprite_tex_ = {};
+        return;
+    }
+    if (const auto* h = pokemon_move_.held()) {
+        held_move_sprite_tex_ = sprite_assets_->loadPokemonTexture(renderer_, h->pokemon);
+    }
+}
+
 void TransferSystemScreen::cycleToolCarousel(int dir) {
+    if (pokemon_move_.active()) {
+        return;
+    }
+    closePokemonActionMenu();
     ui_state_.cycleToolCarousel(dir, carousel_style_);
 }
 
@@ -2252,8 +2926,72 @@ std::optional<std::pair<FocusNodeId, SDL_Rect>> TransferSystemScreen::speechBubb
 
 void TransferSystemScreen::onAdvancePressed() {
     selection_cursor_hidden_after_mouse_ = false;
+    if (box_space_box_move_.active() && !pokemon_move_.active()) {
+        if (const auto target_box = focusedBoxSpaceBoxIndex()) {
+            if (const auto swap = box_space_box_move_.dropOn(*target_box)) {
+                (void)swapGamePcBoxes(swap->first, swap->second);
+            }
+            if (game_save_box_viewport_) {
+                game_save_box_viewport_->snapContentToModel(gameBoxSpaceViewportModelAt(game_box_browser_.gameBoxSpaceRowOffset()));
+            }
+            requestPutdownSfx();
+            return;
+        }
+    }
+    if (pokemon_move_.active()) {
+        if (dropdownAcceptsNavigation()) {
+            applyGameBoxDropdownSelection();
+            return;
+        }
+        if (const auto target = slotRefForFocus(focus_.current())) {
+            (void)dropHeldPokemonAt(*target);
+            return;
+        }
+        if (game_box_browser_.gameBoxSpaceMode()) {
+            if (activateFocusedGameSlot()) {
+                return;
+            }
+        }
+        if (focus_.current() == 2101) {
+            advanceGameBox(-1);
+            return;
+        }
+        if (focus_.current() == 2103) {
+            advanceGameBox(1);
+            return;
+        }
+        if (box_name_dropdown_style_.enabled && !game_box_browser_.dropdownOpenTarget() && focus_.current() == 2102 &&
+            game_pc_boxes_.size() >= 2) {
+            toggleGameBoxDropdown();
+            return;
+        }
+        if (focus_.current() == 2110) {
+            setGameBoxSpaceMode(!game_box_browser_.gameBoxSpaceMode());
+            closeGameBoxDropdown();
+            return;
+        }
+        return;
+    }
+    if (pokemon_action_menu_.visible()) {
+        activatePokemonActionMenuRow(pokemon_action_menu_.selectedRow());
+        return;
+    }
     if (dropdownAcceptsNavigation()) {
         applyGameBoxDropdownSelection();
+        return;
+    }
+    if (swapToolActive()) {
+        if (const auto ref = slotRefForFocus(focus_.current())) {
+            if (beginPokemonMoveFromSlot(
+                    *ref,
+                    transfer_system::PokemonMoveController::InputMode::Keyboard,
+                    transfer_system::PokemonMoveController::PickupSource::SwapTool,
+                    last_pointer_position_)) {
+                return;
+            }
+        }
+    }
+    if (activateFocusedPokemonSlotActionMenu()) {
         return;
     }
     if (activateFocusedGameSlot()) {
@@ -2267,7 +3005,102 @@ void TransferSystemScreen::onAdvancePressed() {
     focus_.activate();
 }
 
+bool TransferSystemScreen::captureAdvanceForLongPress() const {
+    if (!game_box_browser_.gameBoxSpaceMode()) {
+        return false;
+    }
+    if (!focusedBoxSpaceBoxIndex().has_value()) {
+        return false;
+    }
+    if (pokemon_move_.active()) {
+        return box_space_long_press_style_.quick_drop_hold_seconds > 1e-6;
+    }
+    return box_space_long_press_style_.box_swap_hold_seconds > 1e-6;
+}
+
+std::optional<double> TransferSystemScreen::advanceLongPressSeconds() const {
+    if (!game_box_browser_.gameBoxSpaceMode()) {
+        return std::nullopt;
+    }
+    if (!focusedBoxSpaceBoxIndex().has_value()) {
+        return std::nullopt;
+    }
+    return pokemon_move_.active()
+        ? std::optional<double>(box_space_long_press_style_.quick_drop_hold_seconds)
+        : std::optional<double>(box_space_long_press_style_.box_swap_hold_seconds);
+}
+
+void TransferSystemScreen::onAdvanceLongPress() {
+    if (!game_box_browser_.gameBoxSpaceMode()) {
+        return;
+    }
+    const auto box_index = focusedBoxSpaceBoxIndex();
+    if (!box_index.has_value()) {
+        return;
+    }
+    if (pokemon_move_.active()) {
+        (void)dropHeldPokemonIntoFirstEmptySlotInBox(*box_index);
+        return;
+    }
+    box_space_box_move_.beginKeyboardActive(*box_index);
+    if (game_save_box_viewport_) {
+        game_save_box_viewport_->snapContentToModel(gameBoxSpaceViewportModelAt(game_box_browser_.gameBoxSpaceRowOffset()));
+    }
+    requestPickupSfx();
+}
+
+bool TransferSystemScreen::captureNavigate2dForLongPress(int dx, int dy) const {
+    if (dx != 0 || dy != 1) {
+        return false;
+    }
+    if (!pokemon_move_.active()) {
+        return false;
+    }
+    if (!game_box_browser_.gameBoxSpaceMode()) {
+        return false;
+    }
+    return focusedBoxSpaceBoxIndex().has_value() && box_space_long_press_style_.quick_drop_hold_seconds > 1e-6;
+}
+
+std::optional<double> TransferSystemScreen::navigate2dLongPressSeconds(int dx, int dy) const {
+    if (dx != 0 || dy != 1) {
+        return std::nullopt;
+    }
+    if (!pokemon_move_.active() || !game_box_browser_.gameBoxSpaceMode() || !focusedBoxSpaceBoxIndex().has_value()) {
+        return std::nullopt;
+    }
+    return box_space_long_press_style_.quick_drop_hold_seconds;
+}
+
+void TransferSystemScreen::onNavigate2dLongPress(int dx, int dy) {
+    if (dx != 0 || dy != 1) {
+        return;
+    }
+    if (!pokemon_move_.active() || !game_box_browser_.gameBoxSpaceMode()) {
+        return;
+    }
+    if (const auto box_index = focusedBoxSpaceBoxIndex()) {
+        (void)dropHeldPokemonIntoFirstEmptySlotInBox(*box_index);
+    }
+}
+
 void TransferSystemScreen::onBackPressed() {
+    if (box_space_box_move_.active() || box_space_box_move_.pending()) {
+        box_space_box_move_.clear();
+        if (game_box_browser_.gameBoxSpaceMode() && game_save_box_viewport_) {
+            game_save_box_viewport_->snapContentToModel(gameBoxSpaceViewportModelAt(game_box_browser_.gameBoxSpaceRowOffset()));
+        }
+        requestPutdownSfx();
+        return;
+    }
+    if (pokemon_move_.active()) {
+        (void)cancelHeldPokemonMove();
+        return;
+    }
+    if (pokemon_action_menu_.visible()) {
+        closePokemonActionMenu();
+        return;
+    }
     if (game_box_browser_.dropdownOpenTarget()) {
         closeGameBoxDropdown();
         return;
@@ -2277,10 +3110,70 @@ void TransferSystemScreen::onBackPressed() {
 }
 
 bool TransferSystemScreen::handlePointerPressed(int logical_x, int logical_y) {
+    last_pointer_position_ = SDL_Point{logical_x, logical_y};
+    pointer_drag_pickup_pending_ = false;
+    if (pokemon_move_.active()) {
+        pokemon_move_.updatePointer(last_pointer_position_, window_config_.virtual_width, window_config_.virtual_height);
+        if (handleGameBoxSpacePointerPressed(logical_x, logical_y) ||
+            handleDropdownPointerPressed(logical_x, logical_y) ||
+            handleGameBoxNavigationPointerPressed(logical_x, logical_y)) {
+            return true;
+        }
+        if (hitTestToolCarousel(logical_x, logical_y) || hitTestPillTrack(logical_x, logical_y)) {
+            return true;
+        }
+        if (const auto target = slotRefAtPointer(logical_x, logical_y)) {
+            return dropHeldPokemonAt(*target);
+        }
+        return true;
+    }
+
+    if (handlePokemonActionMenuPointerPressed(logical_x, logical_y)) {
+        return true;
+    }
+
     if (const std::optional<FocusNodeId> picked = focusNodeAtPointer(logical_x, logical_y)) {
         focus_.setCurrent(*picked);
         // Pointer input puts us in "mouse mode" (no legacy yellow rectangle).
         selection_cursor_hidden_after_mouse_ = true;
+    }
+
+    // Mouse mode: allow click-drag pickup directly from a slot with the normal tool.
+    if (normalPokemonToolActive() && selection_cursor_hidden_after_mouse_ && panelsReadyForInteraction() &&
+        !game_box_browser_.gameBoxSpaceMode() && !game_box_browser_.dropdownOpenTarget() &&
+        !pokemon_action_menu_.visible() && !pokemon_move_.active()) {
+        auto in = [](int px, int py, const SDL_Rect& r) {
+            return px >= r.x && px < r.x + r.w && py >= r.y && py < r.y + r.h;
+        };
+        SDL_Rect r{};
+        if (game_save_box_viewport_) {
+            for (int i = 0; i < 30; ++i) {
+                if (game_save_box_viewport_->getSlotBounds(i, r) && in(logical_x, logical_y, r) && gameSaveSlotHasSpecies(i)) {
+                    pointer_drag_pickup_pending_ = true;
+                    pointer_drag_pickup_from_game_ = true;
+                    pointer_drag_pickup_slot_index_ = i;
+                    pointer_drag_pickup_bounds_ = r;
+                    pointer_drag_pickup_start_ = last_pointer_position_;
+                    return true;
+                }
+            }
+        }
+        if (resort_box_viewport_) {
+            for (int i = 0; i < 30; ++i) {
+                if (resort_box_viewport_->getSlotBounds(i, r) && in(logical_x, logical_y, r) && resortSlotHasSpecies(i)) {
+                    pointer_drag_pickup_pending_ = true;
+                    pointer_drag_pickup_from_game_ = false;
+                    pointer_drag_pickup_slot_index_ = i;
+                    pointer_drag_pickup_bounds_ = r;
+                    pointer_drag_pickup_start_ = last_pointer_position_;
+                    return true;
+                }
+            }
+        }
+    }
+
+    if (handlePokemonSlotActionPointerPressed(logical_x, logical_y)) {
+        return true;
     }
 
     if (handleGameBoxSpacePointerPressed(logical_x, logical_y)) {
@@ -2315,8 +3208,67 @@ bool TransferSystemScreen::handlePointerPressed(int logical_x, int logical_y) {
 }
 
 void TransferSystemScreen::handlePointerMoved(int logical_x, int logical_y) {
+    const bool pointer_moved =
+        logical_x != last_pointer_position_.x || logical_y != last_pointer_position_.y;
+    last_pointer_position_ = SDL_Point{logical_x, logical_y};
+    if (pointer_moved) {
+        selection_cursor_hidden_after_mouse_ = true;
+        if (pokemon_move_.active()) {
+            if (auto* h = pokemon_move_.held()) {
+                h->input_mode = transfer_system::PokemonMoveController::InputMode::Pointer;
+            }
+        }
+    }
     mouse_hover_mini_preview_box_index_ = -1;
     mouse_hover_focus_node_ = -1;
+
+    if (pokemon_move_.active()) {
+        pokemon_move_.updatePointer(last_pointer_position_, window_config_.virtual_width, window_config_.virtual_height);
+    }
+
+    if (box_space_box_move_.active()) {
+        box_space_box_move_.updatePointer(last_pointer_position_);
+    }
+
+    if (box_space_quick_drop_pending_) {
+        auto in = [](int px, int py, const SDL_Rect& r) {
+            return px >= r.x && px < r.x + r.w && py >= r.y && py < r.y + r.h;
+        };
+        const int dx = logical_x - box_space_quick_drop_start_pointer_.x;
+        const int dy = logical_y - box_space_quick_drop_start_pointer_.y;
+        constexpr int kQuickDropCancelThresholdPx = 6;
+        const bool moved_far = (dx * dx + dy * dy) >= kQuickDropCancelThresholdPx * kQuickDropCancelThresholdPx;
+        if (!in(logical_x, logical_y, box_space_quick_drop_start_cell_bounds_) || moved_far) {
+            box_space_quick_drop_pending_ = false;
+            box_space_quick_drop_target_box_index_ = -1;
+        }
+    }
+
+    if (pointer_drag_pickup_pending_) {
+        const int dx = logical_x - pointer_drag_pickup_start_.x;
+        const int dy = logical_y - pointer_drag_pickup_start_.y;
+        const int dist2 = dx * dx + dy * dy;
+        auto in = [](int px, int py, const SDL_Rect& r) {
+            return px >= r.x && px < r.x + r.w && py >= r.y && py < r.y + r.h;
+        };
+        constexpr int kDragPickupThresholdPx = 7;
+        const bool moved_far = dist2 >= kDragPickupThresholdPx * kDragPickupThresholdPx;
+        const bool left_bounds = !in(logical_x, logical_y, pointer_drag_pickup_bounds_);
+        if (moved_far || left_bounds) {
+            using Move = transfer_system::PokemonMoveController;
+            const Move::SlotRef ref{
+                pointer_drag_pickup_from_game_ ? Move::Panel::Game : Move::Panel::Resort,
+                pointer_drag_pickup_from_game_ ? game_box_browser_.gameBoxIndex() : 0,
+                pointer_drag_pickup_slot_index_};
+            pointer_drag_pickup_pending_ = false;
+            (void)beginPokemonMoveFromSlot(ref, Move::InputMode::Pointer, Move::PickupSource::ActionMenu, last_pointer_position_);
+        }
+    }
+
+    if (pokemon_action_menu_.visible()) {
+        hoverPokemonActionMenuRow(logical_x, logical_y);
+        return;
+    }
 
     if (game_box_browser_.gameBoxSpaceMode() && box_space_drag_active_ && game_save_box_viewport_) {
         const int dy = logical_y - box_space_drag_last_y_;
@@ -2344,6 +3296,9 @@ void TransferSystemScreen::handlePointerMoved(int logical_x, int logical_y) {
             if (game_box_browser_.gameBoxSpaceRowOffset() >= max_row) {
                 break;
             }
+        }
+        if (pokemon_move_.active()) {
+            syncBoxSpaceMiniPreviewHoverFromPointer(logical_x, logical_y);
         }
         return;
     }
@@ -2389,6 +3344,13 @@ void TransferSystemScreen::handlePointerMoved(int logical_x, int logical_y) {
         return;
     }
 
+    if (pokemon_move_.active()) {
+        if (game_box_browser_.gameBoxSpaceMode() && ui_state_.panelsReveal() > 0.85 && ui_state_.uiEnter() > 0.85) {
+            syncBoxSpaceMiniPreviewHoverFromPointer(logical_x, logical_y);
+        }
+        return;
+    }
+
     if (!(box_name_dropdown_style_.enabled && game_box_browser_.dropdownOpenTarget() &&
           game_box_browser_.dropdownExpandT() > 0.05) &&
         ui_state_.panelsReveal() > 0.85 && ui_state_.uiEnter() > 0.85) {
@@ -2407,21 +3369,29 @@ void TransferSystemScreen::handlePointerMoved(int logical_x, int logical_y) {
         }
 
         if (game_box_browser_.gameBoxSpaceMode()) {
-            if (const std::optional<FocusNodeId> picked = focusNodeAtPointer(logical_x, logical_y)) {
-                if (*picked >= 2000 && *picked <= 2029) {
-                    const int cell = *picked - 2000;
-                    const int idx = game_box_browser_.gameBoxSpaceRowOffset() * 6 + cell;
-                    if (idx >= 0 && idx < static_cast<int>(game_pc_boxes_.size()) &&
-                        gameBoxHasPreviewContent(idx)) {
-                        mouse_hover_mini_preview_box_index_ = idx;
-                    }
-                }
-            }
+            syncBoxSpaceMiniPreviewHoverFromPointer(logical_x, logical_y);
         }
     }
 }
 
 bool TransferSystemScreen::handlePointerReleased(int logical_x, int logical_y) {
+    last_pointer_position_ = SDL_Point{logical_x, logical_y};
+    if (pointer_drag_pickup_pending_) {
+        // Treat as a click: open the action menu. Drag pickup would have cleared `pointer_drag_pickup_pending_`.
+        const bool from_game = pointer_drag_pickup_from_game_;
+        const int slot = pointer_drag_pickup_slot_index_;
+        const SDL_Rect r = pointer_drag_pickup_bounds_;
+        pointer_drag_pickup_pending_ = false;
+        if (from_game) {
+            openPokemonActionMenu(true, slot, r);
+        } else {
+            openPokemonActionMenu(false, slot, r);
+        }
+        return true;
+    }
+    if (pokemon_move_.active()) {
+        pokemon_move_.updatePointer(last_pointer_position_, window_config_.virtual_width, window_config_.virtual_height);
+    }
     if (box_space_drag_active_) {
         constexpr double kClickDragThresholdPx = 6.0;
         const bool treat_as_click = std::fabs(box_space_drag_accum_) < kClickDragThresholdPx;
@@ -2431,10 +3401,29 @@ bool TransferSystemScreen::handlePointerReleased(int logical_x, int logical_y) {
             box_space_pressed_cell_ < 30) {
             const int box_index = game_box_browser_.gameBoxSpaceRowOffset() * 6 + box_space_pressed_cell_;
             box_space_pressed_cell_ = -1;
+            box_space_box_move_.clear();
             (void)openGameBoxFromBoxSpaceSelection(box_index);
         } else {
             box_space_pressed_cell_ = -1;
+            box_space_box_move_.clear();
         }
+        return true;
+    }
+
+    if (box_space_box_move_.active()) {
+        int target_box_index = -1;
+        if (const auto picked = focusNodeAtPointer(logical_x, logical_y)) {
+            if (*picked >= 2000 && *picked <= 2029) {
+                target_box_index = game_box_browser_.gameBoxSpaceRowOffset() * 6 + (*picked - 2000);
+            }
+        }
+        if (const auto swap = box_space_box_move_.dropOn(target_box_index)) {
+            (void)swapGamePcBoxes(swap->first, swap->second);
+        }
+        if (game_save_box_viewport_) {
+            game_save_box_viewport_->snapContentToModel(gameBoxSpaceViewportModelAt(game_box_browser_.gameBoxSpaceRowOffset()));
+        }
+        requestPutdownSfx();
         return true;
     }
     if (!dropdown_lmb_down_in_panel_) {
@@ -2477,6 +3466,18 @@ bool TransferSystemScreen::consumeButtonSfxRequest() {
 
 bool TransferSystemScreen::consumeUiMoveSfxRequest() {
     return ui_state_.consumeUiMoveSfxRequest();
+}
+
+bool TransferSystemScreen::consumePickupSfxRequest() {
+    const bool requested = pickup_sfx_requested_;
+    pickup_sfx_requested_ = false;
+    return requested;
+}
+
+bool TransferSystemScreen::consumePutdownSfxRequest() {
+    const bool requested = putdown_sfx_requested_;
+    putdown_sfx_requested_ = false;
+    return requested;
 }
 
 bool TransferSystemScreen::consumeReturnToTicketListRequest() {

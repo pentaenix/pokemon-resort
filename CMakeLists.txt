@@ -61,6 +61,9 @@ add_executable(title_screen_demo
     src/ui/TransferSystemScreen.cpp
     src/ui/transfer_system/GameTransferConfig.cpp
     src/ui/transfer_system/GameBoxBrowserController.cpp
+    src/ui/transfer_system/BoxSpaceBoxMoveController.cpp
+    src/ui/transfer_system/PokemonActionMenuController.cpp
+    src/ui/transfer_system/PokemonMoveController.cpp
     src/ui/transfer_system/TransferSystemFocusGraph.cpp
     src/ui/transfer_system/TransferInfoBannerPresenter.cpp
     src/ui/transfer_system/TransferInfoBannerRenderer.cpp
@@ -175,6 +178,14 @@ add_executable(game_box_browser_controller_tests
 target_include_directories(game_box_browser_controller_tests PRIVATE include)
 add_test(NAME game_box_browser_controller_tests COMMAND game_box_browser_controller_tests)
 
+add_executable(pokemon_action_menu_controller_tests
+    ../tests/native/transfer_system/pokemon_action_menu_controller_tests.cpp
+    src/ui/transfer_system/PokemonActionMenuController.cpp
+)
+target_include_directories(pokemon_action_menu_controller_tests PRIVATE include)
+target_link_libraries(pokemon_action_menu_controller_tests PRIVATE SDL2::SDL2)
+add_test(NAME pokemon_action_menu_controller_tests COMMAND pokemon_action_menu_controller_tests)
+
 add_executable(transfer_system_focus_graph_tests
     ../tests/native/transfer_system/transfer_system_focus_graph_tests.cpp
     src/ui/transfer_system/TransferSystemFocusGraph.cpp
@@ -265,6 +276,9 @@ add_executable(transfer_system_flow_harness_tests
     src/ui/TransferSystemScreen.cpp
     src/ui/transfer_system/GameTransferConfig.cpp
     src/ui/transfer_system/GameBoxBrowserController.cpp
+    src/ui/transfer_system/BoxSpaceBoxMoveController.cpp
+    src/ui/transfer_system/PokemonActionMenuController.cpp
+    src/ui/transfer_system/PokemonMoveController.cpp
     src/ui/transfer_system/TransferSystemFocusGraph.cpp
     src/ui/transfer_system/TransferInfoBannerPresenter.cpp
     src/ui/transfer_system/TransferInfoBannerRenderer.cpp

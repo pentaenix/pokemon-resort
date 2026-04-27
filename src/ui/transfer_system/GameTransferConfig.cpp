@@ -252,6 +252,129 @@ LoadedGameTransfer loadGameTransfer(const std::string& project_root) {
         }
     }
 
+    if (const JsonValue* bsp = root.get("box_space_long_press")) {
+        if (bsp->isObject()) {
+            const JsonValue& o = *bsp;
+            out.box_space_long_press.box_swap_hold_seconds = std::max(
+                0.0,
+                doubleFromObjectOrDefault(o, "box_swap_hold_seconds", out.box_space_long_press.box_swap_hold_seconds));
+            out.box_space_long_press.quick_drop_hold_seconds = std::max(
+                0.0,
+                doubleFromObjectOrDefault(o, "quick_drop_hold_seconds", out.box_space_long_press.quick_drop_hold_seconds));
+        }
+    }
+
+    if (const JsonValue* action_menu = root.get("pokemon_action_menu")) {
+        if (action_menu->isObject()) {
+            const JsonValue& o = *action_menu;
+            out.pokemon_action_menu.width = intFromObjectOrDefault(o, "width", out.pokemon_action_menu.width);
+            out.pokemon_action_menu.row_height =
+                intFromObjectOrDefault(o, "row_height", out.pokemon_action_menu.row_height);
+            out.pokemon_action_menu.padding_y =
+                intFromObjectOrDefault(o, "padding_y", out.pokemon_action_menu.padding_y);
+            out.pokemon_action_menu.gap_from_slot =
+                intFromObjectOrDefault(o, "gap_from_slot", out.pokemon_action_menu.gap_from_slot);
+            out.pokemon_action_menu.corner_radius =
+                intFromObjectOrDefault(o, "corner_radius", out.pokemon_action_menu.corner_radius);
+            out.pokemon_action_menu.border_thickness =
+                intFromObjectOrDefault(o, "border_thickness", out.pokemon_action_menu.border_thickness);
+            out.pokemon_action_menu.font_pt = intFromObjectOrDefault(o, "font_pt", out.pokemon_action_menu.font_pt);
+            out.pokemon_action_menu.grow_smoothing =
+                doubleFromObjectOrDefault(o, "grow_smoothing", out.pokemon_action_menu.grow_smoothing);
+            if (const JsonValue* c = o.get("background_color")) {
+                if (c->isString()) {
+                    const int alpha = out.pokemon_action_menu.background_color.a;
+                    out.pokemon_action_menu.background_color =
+                        parseHexColorString(c->asString(), out.pokemon_action_menu.background_color);
+                    out.pokemon_action_menu.background_color.a = alpha;
+                }
+            }
+            out.pokemon_action_menu.background_color.a =
+                std::clamp(intFromObjectOrDefault(o, "background_alpha", out.pokemon_action_menu.background_color.a), 0, 255);
+            if (const JsonValue* c = o.get("border_color")) {
+                if (c->isString()) {
+                    out.pokemon_action_menu.border_color =
+                        parseHexColorString(c->asString(), out.pokemon_action_menu.border_color);
+                }
+            }
+            if (const JsonValue* c = o.get("selected_row_color")) {
+                if (c->isString()) {
+                    const int alpha = out.pokemon_action_menu.selected_row_color.a;
+                    out.pokemon_action_menu.selected_row_color =
+                        parseHexColorString(c->asString(), out.pokemon_action_menu.selected_row_color);
+                    out.pokemon_action_menu.selected_row_color.a = alpha;
+                }
+            }
+            out.pokemon_action_menu.selected_row_color.a =
+                std::clamp(
+                    intFromObjectOrDefault(
+                        o,
+                        "selected_row_alpha",
+                        out.pokemon_action_menu.selected_row_color.a),
+                    0,
+                    255);
+            if (const JsonValue* c = o.get("text_color")) {
+                if (c->isString()) {
+                    out.pokemon_action_menu.text_color =
+                        parseHexColorString(c->asString(), out.pokemon_action_menu.text_color);
+                }
+            }
+            out.pokemon_action_menu.dim_background_sprites =
+                boolFromObjectOrDefault(o, "dim_background_sprites", out.pokemon_action_menu.dim_background_sprites);
+            if (const JsonValue* c = o.get("dim_sprite_mod_color")) {
+                if (c->isString()) {
+                    const int alpha = out.pokemon_action_menu.dim_sprite_mod_color.a;
+                    out.pokemon_action_menu.dim_sprite_mod_color =
+                        parseHexColorString(c->asString(), out.pokemon_action_menu.dim_sprite_mod_color);
+                    out.pokemon_action_menu.dim_sprite_mod_color.a = alpha;
+                }
+            }
+            out.pokemon_action_menu.dim_sprite_mod_color.a =
+                std::clamp(
+                    intFromObjectOrDefault(
+                        o,
+                        "dim_sprite_mod_alpha",
+                        out.pokemon_action_menu.dim_sprite_mod_color.a),
+                    0,
+                    255);
+            out.pokemon_action_menu.modal_move_swaps_into_hand =
+                boolFromObjectOrDefault(o, "modal_move_swaps_into_hand", out.pokemon_action_menu.modal_move_swaps_into_hand);
+            out.pokemon_action_menu.swap_tool_swaps_into_hand =
+                boolFromObjectOrDefault(o, "swap_tool_swaps_into_hand", out.pokemon_action_menu.swap_tool_swaps_into_hand);
+            out.pokemon_action_menu.held_sprite_shadow_enabled =
+                boolFromObjectOrDefault(o, "held_sprite_shadow_enabled", out.pokemon_action_menu.held_sprite_shadow_enabled);
+            if (const JsonValue* c = o.get("held_sprite_shadow_color")) {
+                if (c->isString()) {
+                    const int alpha = out.pokemon_action_menu.held_sprite_shadow_color.a;
+                    out.pokemon_action_menu.held_sprite_shadow_color =
+                        parseHexColorString(c->asString(), out.pokemon_action_menu.held_sprite_shadow_color);
+                    out.pokemon_action_menu.held_sprite_shadow_color.a = alpha;
+                }
+            }
+            out.pokemon_action_menu.held_sprite_shadow_color.a =
+                std::clamp(
+                    intFromObjectOrDefault(
+                        o,
+                        "held_sprite_shadow_alpha",
+                        out.pokemon_action_menu.held_sprite_shadow_color.a),
+                    0,
+                    255);
+            out.pokemon_action_menu.held_sprite_shadow_offset_y =
+                intFromObjectOrDefault(o, "held_sprite_shadow_offset_y", out.pokemon_action_menu.held_sprite_shadow_offset_y);
+            out.pokemon_action_menu.held_sprite_shadow_width =
+                intFromObjectOrDefault(o, "held_sprite_shadow_width", out.pokemon_action_menu.held_sprite_shadow_width);
+            out.pokemon_action_menu.held_sprite_shadow_height =
+                intFromObjectOrDefault(o, "held_sprite_shadow_height", out.pokemon_action_menu.held_sprite_shadow_height);
+            out.pokemon_action_menu.held_sprite_scale_multiplier = std::clamp(
+                doubleFromObjectOrDefault(
+                    o,
+                    "held_sprite_scale_multiplier",
+                    out.pokemon_action_menu.held_sprite_scale_multiplier),
+                0.01,
+                32.0);
+        }
+    }
+
     if (const JsonValue* banner = root.get("info_banner")) {
         if (banner->isObject()) {
             const JsonValue& o = *banner;

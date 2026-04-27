@@ -1,5 +1,7 @@
 #pragma once
 
+#include <optional>
+
 namespace pr {
 
 class ScreenInput {
@@ -19,6 +21,31 @@ public:
     virtual bool acceptsAdvanceInput() const { return true; }
     virtual void onAdvancePressed() {}
     virtual void onBackPressed() {}
+
+    // --- Optional "long press" hooks (implemented by InputRouter) ---
+    // If `captureAdvanceForLongPress()` is true, InputRouter will NOT call `onAdvancePressed()` on key-down.
+    // Instead, it will either call `onAdvanceLongPress()` once the configured duration elapses, or call
+    // `onAdvancePressed()` on key-up if the press was shorter than the threshold.
+    virtual bool captureAdvanceForLongPress() const { return false; }
+    virtual std::optional<double> advanceLongPressSeconds() const { return std::nullopt; }
+    virtual void onAdvanceLongPress() {}
+
+    // If `captureNavigate2dForLongPress(dx, dy)` is true, InputRouter will defer `onNavigate2d(dx, dy)` until key-up
+    // (unless the long press triggers first).
+    virtual bool captureNavigate2dForLongPress(int dx, int dy) const {
+        (void)dx;
+        (void)dy;
+        return false;
+    }
+    virtual std::optional<double> navigate2dLongPressSeconds(int dx, int dy) const {
+        (void)dx;
+        (void)dy;
+        return std::nullopt;
+    }
+    virtual void onNavigate2dLongPress(int dx, int dy) {
+        (void)dx;
+        (void)dy;
+    }
 
     virtual void handlePointerMoved(int logical_x, int logical_y) {
         (void)logical_x;

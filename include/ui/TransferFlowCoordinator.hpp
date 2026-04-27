@@ -48,6 +48,8 @@ public:
     bool consumeButtonSfxRequest();
     bool consumeRipSfxRequest();
     bool consumeUiMoveSfxRequest();
+    bool consumePickupSfxRequest();
+    bool consumePutdownSfxRequest();
 
 private:
     void ensureLoadingScreen();

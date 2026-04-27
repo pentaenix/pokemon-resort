@@ -175,6 +175,18 @@ transfer_system::TransferInfoBannerContext TransferSystemScreen::activeInfoBanne
     context.items_mode = ui_state_.sliderT() >= 0.5;
     context.tooltip_copy = info_banner_style_;
 
+    if (const auto* held = pokemon_move_.held()) {
+        context.mode = "pokemon";
+        context.slot = &held->pokemon;
+        return context;
+    }
+
+    if (const PcSlotSpecies* modal_slot = pokemonActionMenuPokemon()) {
+        context.mode = "pokemon";
+        context.slot = modal_slot;
+        return context;
+    }
+
     FocusNodeId focus_id = focus_.current();
     if (selection_cursor_hidden_after_mouse_) {
         if (mouse_hover_focus_node_ >= 0) {

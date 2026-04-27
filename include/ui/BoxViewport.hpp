@@ -84,6 +84,7 @@ public:
     HeaderMode headerMode() const { return header_mode_; }
     void setBoxSpaceActive(bool active);
     void setItemOverlayActive(bool active);
+    void setFocusDimming(bool active, std::optional<int> focused_slot, const Color& dim_color);
 
     void render(SDL_Renderer* renderer) const;
 
@@ -128,6 +129,9 @@ private:
     bool box_space_active_ = false;
     bool item_overlay_active_ = false;
     double item_overlay_t_ = 0.0;
+    bool focus_dimming_active_ = false;
+    std::optional<int> focus_dimming_slot_{};
+    Color focus_dimming_color_{150, 150, 150, 128};
 };
 
 } // namespace pr

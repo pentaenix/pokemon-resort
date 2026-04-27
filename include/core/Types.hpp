@@ -136,6 +136,8 @@ struct AudioConfig {
     std::string button_sfx = "assets/sfx/btn.mp3";
     std::string rip_sfx = "assets/sfx/rip.mp3";
     std::string ui_move_sfx = "assets/sfx/ui_move.mp3";
+    std::string pickup_sfx = "assets/sfx/pickup.mp3";
+    std::string putdown_sfx = "assets/sfx/putdown.mp3";
     int music_volume = 7;
     int sfx_volume = 8;
 };
@@ -235,6 +237,40 @@ struct GameTransferMiniPreviewStyle {
     int edge_pad = 18;
     double enter_smoothing = 18.0;
     double sprite_scale = 1.2;
+};
+
+/// Box Space-only long press interactions (`config/game_transfer.json` → `box_space_long_press`).
+struct GameTransferBoxSpaceLongPressStyle {
+    /// Long press duration (seconds) to arm "swap PC boxes" while in Box Space mode and not holding a Pokémon.
+    double box_swap_hold_seconds = 3.0;
+    /// Long press duration (seconds) to drop held Pokémon into the first empty slot of the focused box while in Box Space mode.
+    double quick_drop_hold_seconds = 2.0;
+};
+
+struct GameTransferPokemonActionMenuStyle {
+    int width = 260;
+    int row_height = 52;
+    int padding_y = 12;
+    int gap_from_slot = 14;
+    int corner_radius = 12;
+    int border_thickness = 4;
+    int font_pt = 30;
+    double grow_smoothing = 40.0;
+    Color background_color{251, 251, 251, 246};
+    Color border_color{220, 50, 50, 255};
+    Color selected_row_color{191, 191, 191, 150};
+    Color text_color{17, 17, 17, 255};
+    bool dim_background_sprites = false;
+    Color dim_sprite_mod_color{150, 150, 150, 128};
+    bool modal_move_swaps_into_hand = false;
+    bool swap_tool_swaps_into_hand = true;
+    bool held_sprite_shadow_enabled = true;
+    Color held_sprite_shadow_color{0, 0, 0, 90};
+    int held_sprite_shadow_offset_y = 24;
+    int held_sprite_shadow_width = 58;
+    int held_sprite_shadow_height = 18;
+    /// Applied on top of `box_viewport.sprite_scale` for held Pokémon (1.0 = same as in-box slots).
+    double held_sprite_scale_multiplier = 1.0;
 };
 
 struct GameTransferInfoBannerFieldStyle {

@@ -334,6 +334,12 @@ void BoxViewport::setItemOverlayActive(bool active) {
     item_overlay_active_ = active;
 }
 
+void BoxViewport::setFocusDimming(bool active, std::optional<int> focused_slot, const Color& dim_color) {
+    focus_dimming_active_ = active;
+    focus_dimming_slot_ = focused_slot;
+    focus_dimming_color_ = dim_color;
+}
+
 void BoxViewport::setModel(BoxViewportModel model) {
     if (model.box_name != model_.box_name) {
         title_dirty_ = true;
@@ -685,6 +691,7 @@ void BoxViewport::renderBelowNamePlate(SDL_Renderer* renderer) const {
         const int sprite_off_y = box_space_grid ? style_.box_space_sprite_offset_y : style_.sprite_offset_y;
         const bool show_item_overlay = !box_space_grid && item_overlay_t_ > 0.001;
         const bool grey_pokemon = !box_space_grid && item_overlay_active_;
+        const bool dim_for_focus = !box_space_grid && focus_dimming_active_;
         for (int row = 0; row < kRows; ++row) {
             for (int col = 0; col < kCols; ++col) {
                 const int sx = grid_x + col * (kSlotW + kSlotGapX) + dx;
@@ -693,13 +700,21 @@ void BoxViewport::renderBelowNamePlate(SDL_Renderer* renderer) const {
                 if (idx < m.slot_sprites.size()) {
                     const auto& slot = m.slot_sprites[idx];
                     if (slot.has_value() && slot->texture) {
+                        Color sprite_mod{255, 255, 255, 255};
+                        if (grey_pokemon) {
+                            sprite_mod = style_.item_tool_sprite_mod_color;
+                        } else if (dim_for_focus &&
+                                   (!focus_dimming_slot_.has_value() ||
+                                    static_cast<int>(idx) != *focus_dimming_slot_)) {
+                            sprite_mod = focus_dimming_color_;
+                        }
                         drawTextureCenteredScaledRaw(
                             renderer,
                             *slot,
                             sx + kSlotW / 2 + sprite_off_x,
                             sy + kSlotH / 2 + sprite_off_y,
                             sprite_scale,
-                            grey_pokemon ? style_.item_tool_sprite_mod_color : Color{255, 255, 255, 255});
+                            sprite_mod);
                     }
                     if (show_item_overlay && idx < m.held_item_sprites.size()) {
                         const auto& item = m.held_item_sprites[idx];

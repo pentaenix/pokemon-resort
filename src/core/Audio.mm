@@ -30,6 +30,16 @@ public:
             [ui_move_player_ release];
             ui_move_player_ = nil;
         }
+        if (pickup_player_ != nil) {
+            [pickup_player_ stop];
+            [pickup_player_ release];
+            pickup_player_ = nil;
+        }
+        if (putdown_player_ != nil) {
+            [putdown_player_ stop];
+            [putdown_player_ release];
+            putdown_player_ = nil;
+        }
     }
 
     bool loadMusic(const std::string& path) {
@@ -125,6 +135,14 @@ public:
         return true;
     }
 
+    bool loadPickupSfx(const std::string& path) {
+        return loadSfx(path, pickup_player_);
+    }
+
+    bool loadPutdownSfx(const std::string& path) {
+        return loadSfx(path, putdown_player_);
+    }
+
     void playMusicLoop() {
         if (player_ != nil && !player_.playing) {
             [player_ play];
@@ -150,6 +168,14 @@ public:
             ui_move_player_.currentTime = 0.0;
             [ui_move_player_ play];
         }
+    }
+
+    void playPickupSfx() {
+        playSfx(pickup_player_);
+    }
+
+    void playPutdownSfx() {
+        playSfx(putdown_player_);
     }
 
     void stopMusic() {
@@ -179,6 +205,14 @@ public:
             const float clamped = volume_01 < 0.0f ? 0.0f : (volume_01 > 1.0f ? 1.0f : volume_01);
             ui_move_player_.volume = clamped;
         }
+        if (pickup_player_ != nil) {
+            const float clamped = volume_01 < 0.0f ? 0.0f : (volume_01 > 1.0f ? 1.0f : volume_01);
+            pickup_player_.volume = clamped;
+        }
+        if (putdown_player_ != nil) {
+            const float clamped = volume_01 < 0.0f ? 0.0f : (volume_01 > 1.0f ? 1.0f : volume_01);
+            putdown_player_.volume = clamped;
+        }
     }
 
     bool isMusicLoaded() const {
@@ -190,10 +224,43 @@ public:
     }
 
 private:
+    bool loadSfx(const std::string& path, AVAudioPlayer*& player_slot) {
+        if (player_slot != nil) {
+            [player_slot stop];
+            [player_slot release];
+            player_slot = nil;
+        }
+
+        NSString* ns_path = [NSString stringWithUTF8String:path.c_str()];
+        if (ns_path == nil) {
+            return false;
+        }
+
+        NSURL* url = [NSURL fileURLWithPath:ns_path];
+        NSError* error = nil;
+        AVAudioPlayer* player = [[AVAudioPlayer alloc] initWithContentsOfURL:url error:&error];
+        if (player == nil) {
+            return false;
+        }
+
+        [player prepareToPlay];
+        player_slot = player;
+        return true;
+    }
+
+    void playSfx(AVAudioPlayer* player) {
+        if (player != nil) {
+            player.currentTime = 0.0;
+            [player play];
+        }
+    }
+
     AVAudioPlayer* player_ = nil;
     AVAudioPlayer* button_player_ = nil;
     AVAudioPlayer* rip_player_ = nil;
     AVAudioPlayer* ui_move_player_ = nil;
+    AVAudioPlayer* pickup_player_ = nil;
+    AVAudioPlayer* putdown_player_ = nil;
 };
 
 AudioController::AudioController()
@@ -235,6 +302,14 @@ bool AudioController::loadUiMoveSfx(const std::string& path) {
     return impl_ != nullptr && impl_->loadUiMoveSfx(path);
 }
 
+bool AudioController::loadPickupSfx(const std::string& path) {
+    return impl_ != nullptr && impl_->loadPickupSfx(path);
+}
+
+bool AudioController::loadPutdownSfx(const std::string& path) {
+    return impl_ != nullptr && impl_->loadPutdownSfx(path);
+}
+
 void AudioController::playMusicLoop() {
     if (impl_ != nullptr) {
         impl_->playMusicLoop();
@@ -256,6 +331,18 @@ void AudioController::playRipSfx() {
 void AudioController::playUiMoveSfx() {
     if (impl_ != nullptr) {
         impl_->playUiMoveSfx();
+    }
+}
+
+void AudioController::playPickupSfx() {
+    if (impl_ != nullptr) {
+        impl_->playPickupSfx();
+    }
+}
+
+void AudioController::playPutdownSfx() {
+    if (impl_ != nullptr) {
+        impl_->playPutdownSfx();
     }
 }
 
@@ -319,10 +406,14 @@ bool AudioController::loadMusic(const std::string&) { return false; }
 bool AudioController::loadButtonSfx(const std::string&) { return false; }
 bool AudioController::loadRipSfx(const std::string&) { return false; }
 bool AudioController::loadUiMoveSfx(const std::string&) { return false; }
+bool AudioController::loadPickupSfx(const std::string&) { return false; }
+bool AudioController::loadPutdownSfx(const std::string&) { return false; }
 void AudioController::playMusicLoop() {}
 void AudioController::playButtonSfx() {}
 void AudioController::playRipSfx() {}
 void AudioController::playUiMoveSfx() {}
+void AudioController::playPickupSfx() {}
+void AudioController::playPutdownSfx() {}
 void AudioController::stopMusic() {}
 void AudioController::setMusicVolume(float) {}
 void AudioController::setSfxVolume(float) {}

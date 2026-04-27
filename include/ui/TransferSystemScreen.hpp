@@ -9,6 +9,9 @@
 #include "ui/Screen.hpp"
 #include "ui/TransferSaveSelection.hpp"
 #include "ui/transfer_system/GameBoxBrowserController.hpp"
+#include "ui/transfer_system/BoxSpaceBoxMoveController.hpp"
+#include "ui/transfer_system/PokemonActionMenuController.hpp"
+#include "ui/transfer_system/PokemonMoveController.hpp"
 #include "ui/transfer_system/TransferInfoBannerPresenter.hpp"
 #include "ui/transfer_system/TransferSystemUiStateController.hpp"
 
@@ -41,6 +44,12 @@ public:
 
     void onAdvancePressed() override;
     void onBackPressed() override;
+    bool captureAdvanceForLongPress() const override;
+    std::optional<double> advanceLongPressSeconds() const override;
+    void onAdvanceLongPress() override;
+    bool captureNavigate2dForLongPress(int dx, int dy) const override;
+    std::optional<double> navigate2dLongPressSeconds(int dx, int dy) const override;
+    void onNavigate2dLongPress(int dx, int dy) override;
     bool handlePointerPressed(int logical_x, int logical_y) override;
     void handlePointerMoved(int logical_x, int logical_y) override;
     bool handlePointerReleased(int logical_x, int logical_y) override;
@@ -48,6 +57,8 @@ public:
     bool consumeButtonSfxRequest();
     /// Lighter tick when 2D focus changes (Transfer system only; uses `app.json` → `ui_move_sfx`).
     bool consumeUiMoveSfxRequest();
+    bool consumePickupSfxRequest();
+    bool consumePutdownSfxRequest();
     bool consumeReturnToTicketListRequest();
 
     bool canNavigate2d() const override { return true; }
@@ -80,6 +91,37 @@ public:
         return {};
     }
     std::string debugInfoBannerMode() const;
+    bool debugPokemonActionMenuVisible() const { return pokemon_action_menu_.visible() && !pokemon_action_menu_.closing(); }
+    bool debugPokemonActionMenuFromGameBox() const { return pokemon_action_menu_.fromGameBox(); }
+    int debugPokemonActionMenuSelectedRow() const { return pokemon_action_menu_.selectedRow(); }
+    bool debugPokemonMoveActive() const { return pokemon_move_.active(); }
+    std::string debugHeldPokemonName() const {
+        if (const auto* held = pokemon_move_.held()) {
+            return !held->pokemon.nickname.empty() ? held->pokemon.nickname : held->pokemon.species_name;
+        }
+        return {};
+    }
+    std::string debugGameSlotPokemonName(int slot_index) const {
+        if (const PcSlotSpecies* slot = pokemonAt(transfer_system::PokemonMoveController::SlotRef{
+                transfer_system::PokemonMoveController::Panel::Game,
+                game_box_browser_.gameBoxIndex(),
+                slot_index})) {
+            return slot->occupied() ? (!slot->nickname.empty() ? slot->nickname : slot->species_name) : std::string{};
+        }
+        return {};
+    }
+    std::string debugResortSlotPokemonName(int slot_index) const {
+        if (const PcSlotSpecies* slot = pokemonAt(transfer_system::PokemonMoveController::SlotRef{
+                transfer_system::PokemonMoveController::Panel::Resort,
+                0,
+                slot_index})) {
+            return slot->occupied() ? (!slot->nickname.empty() ? slot->nickname : slot->species_name) : std::string{};
+        }
+        return {};
+    }
+    std::optional<SDL_Rect> debugPokemonActionMenuRect() const {
+        return pokemon_action_menu_.visible() ? std::optional<SDL_Rect>(pokemonActionMenuFinalRect()) : std::nullopt;
+    }
     std::optional<SDL_Rect> debugGameSlotBounds(int slot_index) const {
         if (!game_save_box_viewport_) {
             return std::nullopt;
@@ -87,6 +129,14 @@ public:
         SDL_Rect out{};
         return game_save_box_viewport_->getSlotBounds(slot_index, out) ? std::optional<SDL_Rect>(out) : std::nullopt;
     }
+    std::optional<SDL_Rect> debugGameNamePlateBounds() const {
+        if (!game_save_box_viewport_) {
+            return std::nullopt;
+        }
+        SDL_Rect out{};
+        return game_save_box_viewport_->getNamePlateBounds(out) ? std::optional<SDL_Rect>(out) : std::nullopt;
+    }
+    std::optional<int> debugDropdownRowAtScreen(int logical_x, int logical_y) const;
 #endif
 
 private:
@@ -109,6 +159,7 @@ private:
     /// Changes PC box for the external save panel (`dir` −1 / +1). No-op if UI not ready or no boxes.
     void advanceGameBox(int dir);
     void drawToolCarousel(SDL_Renderer* renderer) const;
+    void drawPokemonActionMenu(SDL_Renderer* renderer) const;
     void drawBottomBanner(SDL_Renderer* renderer) const;
     void drawGameBoxNameDropdownChrome(SDL_Renderer* renderer) const;
     void drawGameBoxNameDropdownList(SDL_Renderer* renderer) const;
@@ -127,6 +178,7 @@ private:
     void cycleToolCarousel(int dir);
     bool carouselSlideAnimating() const;
     bool itemToolActive() const;
+    bool normalPokemonToolActive() const;
     bool gameSlotHasHeldItem(int slot_index) const;
     std::string gameSlotHeldItemName(int slot_index) const;
     Color carouselFrameColorForIndex(int tool_index) const;
@@ -153,11 +205,15 @@ private:
     GameTransferBoxNameDropdownStyle box_name_dropdown_style_;
     GameTransferSelectionCursorStyle selection_cursor_style_;
     GameTransferMiniPreviewStyle mini_preview_style_;
+    GameTransferBoxViewportStyle box_viewport_style_;
+    GameTransferPokemonActionMenuStyle pokemon_action_menu_style_;
+    GameTransferBoxSpaceLongPressStyle box_space_long_press_style_;
     GameTransferInfoBannerStyle info_banner_style_;
     std::array<TextureHandle, 4> tool_icons_{};
     FontHandle pill_font_;
     FontHandle dropdown_item_font_;
     FontHandle speech_bubble_font_;
+    FontHandle pokemon_action_menu_font_;
     TextureHandle pill_label_pokemon_black_;
     TextureHandle pill_label_items_black_;
     TextureHandle pill_label_pokemon_white_;
@@ -171,6 +227,7 @@ private:
     int mouse_hover_mini_preview_box_index_ = -1;
     BoxViewportModel mini_preview_model_{};
     void updateMiniPreview(double dt);
+    void syncBoxSpaceMiniPreviewHoverFromPointer(int logical_x, int logical_y);
     void drawMiniPreview(SDL_Renderer* renderer) const;
 #ifdef PR_ENABLE_TEST_HOOKS
     mutable std::optional<SDL_Rect> debug_mini_preview_first_sprite_rect_{};
@@ -184,6 +241,7 @@ private:
     /// Display name for the external save footer icon callout (`selection.game_title`).
     std::string selection_game_title_;
     TransferSaveSelection transfer_selection_{};
+    std::vector<PcSlotSpecies> resort_slots_{};
     mutable std::unordered_map<int, FontHandle> info_banner_font_cache_{};
     mutable std::unordered_map<std::string, TextureHandle> info_banner_text_cache_{};
     mutable std::unordered_map<std::string, TextureHandle> info_banner_icon_cache_{};
@@ -205,6 +263,12 @@ private:
     int box_space_drag_last_y_ = 0;
     double box_space_drag_accum_ = 0.0;
     int box_space_pressed_cell_ = -1;
+    transfer_system::BoxSpaceBoxMoveController box_space_box_move_{};
+    bool box_space_quick_drop_pending_ = false;
+    double box_space_quick_drop_elapsed_seconds_ = 0.0;
+    SDL_Point box_space_quick_drop_start_pointer_{0, 0};
+    SDL_Rect box_space_quick_drop_start_cell_bounds_{0, 0, 0, 0};
+    int box_space_quick_drop_target_box_index_ = -1;
 
     FocusManager focus_;
     /// After a mouse hit on a focusable control, hide the controller selection ring until keyboard/gamepad input.
@@ -212,6 +276,57 @@ private:
     /// Mouse is over a Pokémon slot or game icon (speech bubble stays visible even if `selection_cursor_hidden_after_mouse_`).
     bool speech_hover_active_ = false;
     FocusNodeId mouse_hover_focus_node_ = -1;
+    SDL_Point last_pointer_position_{0, 0};
+
+    // --- Pointer drag-to-move (normal tool, mouse mode) ---
+    bool pointer_drag_pickup_pending_ = false;
+    bool pointer_drag_pickup_from_game_ = true;
+    int pointer_drag_pickup_slot_index_ = -1;
+    SDL_Rect pointer_drag_pickup_bounds_{0, 0, 0, 0};
+    SDL_Point pointer_drag_pickup_start_{0, 0};
+
+    transfer_system::PokemonActionMenuController pokemon_action_menu_;
+    transfer_system::PokemonMoveController pokemon_move_;
+    bool pickup_sfx_requested_ = false;
+    bool putdown_sfx_requested_ = false;
+    /// Snapshot of the held Pokémon sprite at pickup / hand-swap so the in-hand texture does not change over time.
+    TextureHandle held_move_sprite_tex_{};
+    void updatePokemonActionMenu(double dt);
+    void openPokemonActionMenu(bool from_game_box, int slot_index, const SDL_Rect& anchor_rect);
+    void closePokemonActionMenu();
+    bool pokemonActionMenuInteractive() const;
+    SDL_Rect pokemonActionMenuFinalRect() const;
+    int pokemonActionMenuBottomLimitY() const;
+    const PcSlotSpecies* pokemonActionMenuPokemon() const;
+    std::optional<int> pokemonActionMenuRowAtPoint(int logical_x, int logical_y) const;
+    void activatePokemonActionMenuRow(int row);
+    void hoverPokemonActionMenuRow(int logical_x, int logical_y);
+    bool activateFocusedPokemonSlotActionMenu();
+    bool handlePokemonActionMenuPointerPressed(int logical_x, int logical_y);
+    bool handlePokemonSlotActionPointerPressed(int logical_x, int logical_y);
+    bool swapToolActive() const;
+    bool pokemonMoveActive() const;
+    void requestPickupSfx();
+    void requestPutdownSfx();
+    BoxViewportModel resortBoxViewportModel() const;
+    void refreshResortBoxViewportModel();
+    void refreshGameBoxViewportModel();
+    std::optional<transfer_system::PokemonMoveController::SlotRef> slotRefForFocus(FocusNodeId focus_id) const;
+    std::optional<transfer_system::PokemonMoveController::SlotRef> slotRefAtPointer(int logical_x, int logical_y) const;
+    PcSlotSpecies* mutablePokemonAt(const transfer_system::PokemonMoveController::SlotRef& ref);
+    const PcSlotSpecies* pokemonAt(const transfer_system::PokemonMoveController::SlotRef& ref) const;
+    void clearPokemonAt(const transfer_system::PokemonMoveController::SlotRef& ref);
+    void setPokemonAt(const transfer_system::PokemonMoveController::SlotRef& ref, PcSlotSpecies pokemon);
+    bool beginPokemonMoveFromSlot(
+        const transfer_system::PokemonMoveController::SlotRef& ref,
+        transfer_system::PokemonMoveController::InputMode input_mode,
+        transfer_system::PokemonMoveController::PickupSource source,
+        SDL_Point pointer);
+    bool dropHeldPokemonAt(const transfer_system::PokemonMoveController::SlotRef& target);
+    bool cancelHeldPokemonMove();
+    void refreshHeldMoveSpriteTexture();
+    void drawHeldPokemon(SDL_Renderer* renderer);
+    void drawHeldBoxSpaceBox(SDL_Renderer* renderer);
 
     /// Mouse: distinguish click (pick box) vs drag-to-scroll inside the dropdown list.
     bool dropdown_lmb_down_in_panel_ = false;
@@ -252,6 +367,10 @@ private:
     bool panelsReadyForInteraction() const;
     bool dropdownAcceptsNavigation() const;
     std::optional<int> focusedGameSlotIndex() const;
+    std::optional<int> focusedBoxSpaceBoxIndex() const;
+    bool swapGamePcBoxes(int a, int b);
+    bool dropHeldPokemonIntoFirstEmptySlotInBox(int box_index);
+    bool gameBoxHasEmptySlot(int box_index) const;
     bool gameBoxHasPreviewContent(int box_index) const;
     bool shouldShowMiniPreviewForBox(int box_index, MiniPreviewContext context) const;
     bool openGameBoxFromBoxSpaceSelection(int box_index);

@@ -43,6 +43,38 @@
     "enter_smoothing": 18.0,
     "sprite_scale": 1
   },
+  "box_space_long_press": {
+    "box_swap_hold_seconds": 1.0,
+    "quick_drop_hold_seconds": 2.0
+  },
+  "pokemon_action_menu": {
+    "width": 270,
+    "row_height": 54,
+    "padding_y": 12,
+    "gap_from_slot": 14,
+    "corner_radius": 12,
+    "border_thickness": 4,
+    "font_pt": 30,
+    "grow_smoothing": 42.0,
+    "background_color": "#FFFFFF",
+    "background_alpha": 246,
+    "border_color": "#DC3232",
+    "selected_row_color": "#BFBFBF",
+    "selected_row_alpha": 150,
+    "text_color": "#111111",
+    "dim_background_sprites": false,
+    "dim_sprite_mod_color": "#969696",
+    "dim_sprite_mod_alpha": 128,
+    "modal_move_swaps_into_hand": false,
+    "swap_tool_swaps_into_hand": true,
+    "held_sprite_shadow_enabled": true,
+    "held_sprite_shadow_color": "#000000",
+    "held_sprite_shadow_alpha": 90,
+    "held_sprite_shadow_offset_y": 24,
+    "held_sprite_shadow_width": 58,
+    "held_sprite_shadow_height": 18,
+    "held_sprite_scale_multiplier": 1.0
+  },
   "info_banner": {
     "enabled": true,
     "separator_height": 4,
