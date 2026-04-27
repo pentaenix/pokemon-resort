@@ -9,9 +9,11 @@
 #include "ui/Screen.hpp"
 #include "ui/TransferSaveSelection.hpp"
 #include "ui/transfer_system/GameBoxBrowserController.hpp"
-#include "ui/transfer_system/BoxSpaceBoxMoveController.hpp"
 #include "ui/transfer_system/PokemonActionMenuController.hpp"
 #include "ui/transfer_system/PokemonMoveController.hpp"
+#include "ui/transfer_system/ItemActionMenuController.hpp"
+#include "ui/transfer_system/move/Gestures.hpp"
+#include "ui/transfer_system/move/HeldMoveController.hpp"
 #include "ui/transfer_system/TransferInfoBannerPresenter.hpp"
 #include "ui/transfer_system/TransferSystemUiStateController.hpp"
 
@@ -101,6 +103,12 @@ public:
         }
         return {};
     }
+    std::string debugHeldItemName() const {
+        if (const auto* held = held_move_.heldItem()) {
+            return held->item_name;
+        }
+        return {};
+    }
     std::string debugGameSlotPokemonName(int slot_index) const {
         if (const PcSlotSpecies* slot = pokemonAt(transfer_system::PokemonMoveController::SlotRef{
                 transfer_system::PokemonMoveController::Panel::Game,
@@ -160,6 +168,7 @@ private:
     void advanceGameBox(int dir);
     void drawToolCarousel(SDL_Renderer* renderer) const;
     void drawPokemonActionMenu(SDL_Renderer* renderer) const;
+    void drawItemActionMenu(SDL_Renderer* renderer) const;
     void drawBottomBanner(SDL_Renderer* renderer) const;
     void drawGameBoxNameDropdownChrome(SDL_Renderer* renderer) const;
     void drawGameBoxNameDropdownList(SDL_Renderer* renderer) const;
@@ -183,6 +192,7 @@ private:
     std::string gameSlotHeldItemName(int slot_index) const;
     Color carouselFrameColorForIndex(int tool_index) const;
     int carouselScreenY() const;
+    int exitButtonScreenY() const;
 
     struct BackgroundAnimation {
         bool enabled = false;
@@ -202,6 +212,9 @@ private:
     std::unique_ptr<BoxViewport> game_save_box_viewport_;
     GameTransferPillToggleStyle pill_style_;
     GameTransferToolCarouselStyle carousel_style_;
+    bool exit_button_enabled_ = true;
+    int exit_button_gap_pixels_ = 0;
+    double exit_button_icon_scale_ = 1.0;
     GameTransferBoxNameDropdownStyle box_name_dropdown_style_;
     GameTransferSelectionCursorStyle selection_cursor_style_;
     GameTransferMiniPreviewStyle mini_preview_style_;
@@ -210,6 +223,7 @@ private:
     GameTransferBoxSpaceLongPressStyle box_space_long_press_style_;
     GameTransferInfoBannerStyle info_banner_style_;
     std::array<TextureHandle, 4> tool_icons_{};
+    TextureHandle exit_button_icon_{};
     FontHandle pill_font_;
     FontHandle dropdown_item_font_;
     FontHandle speech_bubble_font_;
@@ -263,12 +277,15 @@ private:
     int box_space_drag_last_y_ = 0;
     double box_space_drag_accum_ = 0.0;
     int box_space_pressed_cell_ = -1;
-    transfer_system::BoxSpaceBoxMoveController box_space_box_move_{};
     bool box_space_quick_drop_pending_ = false;
     double box_space_quick_drop_elapsed_seconds_ = 0.0;
     SDL_Point box_space_quick_drop_start_pointer_{0, 0};
     SDL_Rect box_space_quick_drop_start_cell_bounds_{0, 0, 0, 0};
     int box_space_quick_drop_target_box_index_ = -1;
+    transfer_system::move::HoldWithinRect box_space_box_move_hold_{};
+    int box_space_box_move_source_box_index_ = -1;
+
+    transfer_system::move::HeldMoveController held_move_{};
 
     FocusManager focus_;
     /// After a mouse hit on a focusable control, hide the controller selection ring until keyboard/gamepad input.
@@ -285,7 +302,15 @@ private:
     SDL_Rect pointer_drag_pickup_bounds_{0, 0, 0, 0};
     SDL_Point pointer_drag_pickup_start_{0, 0};
 
+    // --- Pointer drag-to-move (item tool, mouse mode) ---
+    bool pointer_drag_item_pickup_pending_ = false;
+    bool pointer_drag_item_pickup_from_game_ = true;
+    int pointer_drag_item_pickup_slot_index_ = -1;
+    SDL_Rect pointer_drag_item_pickup_bounds_{0, 0, 0, 0};
+    SDL_Point pointer_drag_item_pickup_start_{0, 0};
+
     transfer_system::PokemonActionMenuController pokemon_action_menu_;
+    transfer_system::ItemActionMenuController item_action_menu_;
     transfer_system::PokemonMoveController pokemon_move_;
     bool pickup_sfx_requested_ = false;
     bool putdown_sfx_requested_ = false;
@@ -303,7 +328,9 @@ private:
     void hoverPokemonActionMenuRow(int logical_x, int logical_y);
     bool activateFocusedPokemonSlotActionMenu();
     bool handlePokemonActionMenuPointerPressed(int logical_x, int logical_y);
+    bool handleItemActionMenuPointerPressed(int logical_x, int logical_y);
     bool handlePokemonSlotActionPointerPressed(int logical_x, int logical_y);
+    bool handleItemSlotActionPointerPressed(int logical_x, int logical_y);
     bool swapToolActive() const;
     bool pokemonMoveActive() const;
     void requestPickupSfx();
@@ -326,6 +353,7 @@ private:
     bool cancelHeldPokemonMove();
     void refreshHeldMoveSpriteTexture();
     void drawHeldPokemon(SDL_Renderer* renderer);
+    void drawHeldItem(SDL_Renderer* renderer);
     void drawHeldBoxSpaceBox(SDL_Renderer* renderer);
 
     /// Mouse: distinguish click (pick box) vs drag-to-scroll inside the dropdown list.

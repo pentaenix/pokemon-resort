@@ -225,6 +225,11 @@ transfer_system::TransferInfoBannerContext TransferSystemScreen::activeInfoBanne
         context.mode = "game_icon";
         return context;
     }
+    if (focus_id == 5000) {
+        // Exit button: show a tooltip in the info banner (not a speech bubble).
+        context.mode = "exit";
+        return context;
+    }
     if (focus_id == 3000) {
         context.mode = "tool";
         return context;

@@ -21,6 +21,6 @@ Start here:
 - [import_flow.md](import_flow.md) describes external save import and return import.
 - [export_flow.md](export_flow.md) describes projection, mirrors, and the guarded write-back boundary.
 - [frontend_integration.md](frontend_integration.md) tells UI agents what services and read models to use.
-- [testing_and_seed_data.md](testing_and_seed_data.md) documents test commands and seed workflows.
+- [testing_and_seed_data.md](testing_and_seed_data.md) documents backend-specific test commands and seed workflows. The repository-wide testing map remains [`/Users/vanta/Desktop/title_screen_demo/tests/README.md`](/Users/vanta/Desktop/title_screen_demo/tests/README.md).
 
 Do not build UI against transfer-ticket summaries or sprite slugs as durable Pokemon records. They are preview data only.

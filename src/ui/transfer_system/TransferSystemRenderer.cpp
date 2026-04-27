@@ -86,12 +86,35 @@ void getPillTrackBounds(const GameTransferPillToggleStyle& st, int screen_w, int
 } // namespace
 
 void TransferSystemScreen::drawToolCarousel(SDL_Renderer* renderer) const {
-    const int vx = carousel_style_.offset_from_left_wall;
+    const int vx = carousel_style_.offset_from_left_wall +
+        (exit_button_enabled_ ? (carousel_style_.viewport_height + exit_button_gap_pixels_) : 0);
     const int vy = carouselScreenY();
     const int vw = carousel_style_.viewport_width;
     const int vh = carousel_style_.viewport_height;
     if (vw <= 0 || vh <= 0) {
         return;
+    }
+
+    if (exit_button_enabled_) {
+        // Exit button: square, same height as tool belt, to the left of the carousel.
+        const int bx = carousel_style_.offset_from_left_wall;
+        const int by = exitButtonScreenY();
+        const int bs = vh;
+        const int radius = std::clamp(carousel_style_.viewport_corner_radius, 0, bs / 2);
+        fillRoundedRectScanlines(renderer, bx, by, bs, bs, radius, carousel_style_.viewport_color);
+
+        if (exit_button_icon_.texture) {
+            SDL_SetTextureColorMod(exit_button_icon_.texture.get(), 255, 255, 255);
+            SDL_SetTextureAlphaMod(exit_button_icon_.texture.get(), 255);
+            const int pad = std::max(6, bs / 6);
+            const int base = std::max(1, bs - 2 * pad);
+            const double s = std::clamp(exit_button_icon_scale_, 0.05, 4.0);
+            const int sz = std::clamp(static_cast<int>(std::lround(static_cast<double>(base) * s)), 1, base);
+            const int dx = bx + (bs - sz) / 2;
+            const int dy = by + (bs - sz) / 2;
+            SDL_Rect dst{dx, dy, sz, sz};
+            SDL_RenderCopy(renderer, exit_button_icon_.texture.get(), nullptr, &dst);
+        }
     }
 
     const int radius =
@@ -337,6 +360,85 @@ void TransferSystemScreen::drawPokemonActionMenu(SDL_Renderer* renderer) const {
     }
 }
 
+void TransferSystemScreen::drawItemActionMenu(SDL_Renderer* renderer) const {
+    if (!item_action_menu_.visible() || item_action_menu_.transitionT() <= 1e-3) {
+        return;
+    }
+
+    const auto& st = pokemon_action_menu_style_;
+    const SDL_Rect final = item_action_menu_.finalRect(
+        st,
+        window_config_.virtual_width,
+        pokemonActionMenuBottomLimitY());
+    const SDL_Rect& anchor = item_action_menu_.anchorRect();
+    const double t = std::clamp(item_action_menu_.transitionT(), 0.0, 1.0);
+    const double scale = 0.06 + 0.94 * t;
+    const int anchor_cx = anchor.x + anchor.w / 2;
+    const int anchor_cy = anchor.y + anchor.h / 2;
+    const int final_cx = final.x + final.w / 2;
+    const int final_cy = final.y + final.h / 2;
+    const int cx = static_cast<int>(std::lround(anchor_cx + (final_cx - anchor_cx) * t));
+    const int cy = static_cast<int>(std::lround(anchor_cy + (final_cy - anchor_cy) * t));
+    const int w = std::max(1, static_cast<int>(std::lround(final.w * scale)));
+    const int h = std::max(1, static_cast<int>(std::lround(final.h * scale)));
+    const SDL_Rect rect{cx - w / 2, cy - h / 2, w, h};
+
+    auto faded = [t](Color c) {
+        c.a = std::clamp(static_cast<int>(std::lround(static_cast<double>(c.a) * t)), 0, 255);
+        return c;
+    };
+
+    SDL_RenderSetClipRect(renderer, nullptr);
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+    const int radius = std::clamp(
+        static_cast<int>(std::lround(static_cast<double>(st.corner_radius) * scale)),
+        0,
+        std::min(rect.w, rect.h) / 2);
+    const int stroke = std::clamp(
+        static_cast<int>(std::lround(static_cast<double>(st.border_thickness) * scale)),
+        1,
+        std::max(1, std::min(rect.w, rect.h) / 2));
+    // Yellow border: reuse selection cursor color.
+    fillRoundedRingScanlines(
+        renderer,
+        rect.x,
+        rect.y,
+        rect.w,
+        rect.h,
+        radius,
+        stroke,
+        faded(selection_cursor_style_.color),
+        faded(st.background_color));
+
+    if (!pokemon_action_menu_font_.get() || t < 0.55) {
+        return;
+    }
+
+    const int text_alpha =
+        std::clamp(static_cast<int>(std::lround(255.0 * std::clamp((t - 0.55) / 0.45, 0.0, 1.0))), 0, 255);
+    Color text_color = st.text_color;
+    text_color.a = text_alpha;
+    const int row_h = std::max(1, st.row_height);
+    const int pad_y = std::max(0, st.padding_y);
+    for (int i = 0; i < item_action_menu_.rowCount(); ++i) {
+        const int row_y = final.y + pad_y + i * row_h;
+        if (i == item_action_menu_.selectedRow()) {
+            Color selected = st.selected_row_color;
+            selected.a = std::clamp(static_cast<int>(std::lround(static_cast<double>(selected.a) * t)), 0, 255);
+            const int rr = std::clamp(st.corner_radius / 2, 0, row_h / 2);
+            fillRoundedRectScanlines(renderer, final.x + 10, row_y + 3, final.w - 20, row_h - 6, rr, selected);
+        }
+        const std::string& row_label = item_action_menu_.labelAt(i);
+        TextureHandle label =
+            renderTextTexture(renderer, pokemon_action_menu_font_.get(), row_label, text_color);
+        if (!label.texture) {
+            continue;
+        }
+        SDL_Rect dst{final.x + 28, row_y + (row_h - label.height) / 2, label.width, label.height};
+        SDL_RenderCopy(renderer, label.texture.get(), nullptr, &dst);
+    }
+}
+
 void TransferSystemScreen::drawHeldPokemon(SDL_Renderer* renderer) {
     const auto* held = pokemon_move_.held();
     if (!held || !sprite_assets_) {
@@ -386,8 +488,49 @@ void TransferSystemScreen::drawHeldPokemon(SDL_Renderer* renderer) {
     SDL_RenderCopy(renderer, tex.texture.get(), nullptr, &dst);
 }
 
+void TransferSystemScreen::drawHeldItem(SDL_Renderer* renderer) {
+    const auto* held = held_move_.heldItem();
+    if (!held || !sprite_assets_) {
+        return;
+    }
+
+    int cx = held->pointer.x;
+    int cy = held->pointer.y;
+    if (held->input_mode == transfer_system::move::HeldMoveController::InputMode::Keyboard) {
+        if (const auto bounds = focus_.currentBounds()) {
+            cx = bounds->x + bounds->w / 2;
+            cy = bounds->y + bounds->h / 2 - 12;
+        }
+    }
+    cx = std::clamp(cx, 28, std::max(28, window_config_.virtual_width - 28));
+    cy = std::clamp(cy, 28, std::max(28, window_config_.virtual_height - 28));
+    cy += box_viewport_style_.sprite_offset_y;
+
+    TextureHandle tex = sprite_assets_->loadItemTexture(renderer, held->item_id, ItemIconUsage::Held);
+    if (!tex.texture || tex.width <= 0 || tex.height <= 0) {
+        return;
+    }
+
+    const int target_size = std::max(8, box_viewport_style_.item_tool_item_size);
+    const double scale = std::clamp(static_cast<double>(target_size) / std::max(1, tex.width), 0.05, 16.0);
+    const int w = std::max(1, static_cast<int>(std::lround(static_cast<double>(tex.width) * scale)));
+    const int h = std::max(1, static_cast<int>(std::lround(static_cast<double>(tex.height) * scale)));
+    const SDL_Rect dst{cx - w / 2, cy - h / 2, w, h};
+
+    // Silhouette shadow (tinted sprite copy), similar to held Pokemon.
+    const int shadow_y = dst.y + std::max(6, h / 2);
+    const SDL_Rect shadow_dst{dst.x + 2, shadow_y, dst.w, dst.h};
+    SDL_SetTextureColorMod(tex.texture.get(), 0, 0, 0);
+    SDL_SetTextureAlphaMod(tex.texture.get(), 110);
+    SDL_RenderCopy(renderer, tex.texture.get(), nullptr, &shadow_dst);
+    SDL_SetTextureAlphaMod(tex.texture.get(), 255);
+    SDL_SetTextureColorMod(tex.texture.get(), 255, 255, 255);
+
+    SDL_RenderCopy(renderer, tex.texture.get(), nullptr, &dst);
+}
+
 void TransferSystemScreen::drawHeldBoxSpaceBox(SDL_Renderer* renderer) {
-    const auto* m = box_space_box_move_.activeState();
+    const auto* m = held_move_.heldBox();
     if (!m || !game_save_box_viewport_) {
         return;
     }
@@ -401,7 +544,7 @@ void TransferSystemScreen::drawHeldBoxSpaceBox(SDL_Renderer* renderer) {
 
     int cx = m->pointer.x;
     int cy = m->pointer.y;
-    if (m->input_mode == transfer_system::BoxSpaceBoxMoveController::InputMode::Keyboard) {
+    if (m->input_mode == transfer_system::move::HeldMoveController::InputMode::Keyboard) {
         if (const auto bounds = focus_.currentBounds()) {
             cx = bounds->x + bounds->w / 2;
             cy = bounds->y + bounds->h / 2;
@@ -595,6 +738,8 @@ void TransferSystemScreen::render(SDL_Renderer* renderer) {
     drawSelectionCursor(renderer);
     drawHeldBoxSpaceBox(renderer);
     drawHeldPokemon(renderer);
+    drawHeldItem(renderer);
+    drawItemActionMenu(renderer);
     drawPokemonActionMenu(renderer);
 
     if (!ui_state_.exitInProgress() && ui_state_.fadeInSeconds() > 1e-6) {
