@@ -9,6 +9,7 @@ The current codebase is no longer just a title-screen demo. Treat this README as
 - [`docs/ARCHITECTURE.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/ARCHITECTURE.md) is the central architecture map.
 - [`../tests/README.md`](/Users/vanta/Desktop/title_screen_demo/tests/README.md) is the canonical testing map.
 - [`docs/config/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/config/README.md) explains which JSON files own which UI surfaces.
+- [`docs/transfer_system/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/transfer_system/README.md) is the practical field guide for transfer-system changes.
 - [`docs/PKHEX_BRIDGE.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/PKHEX_BRIDGE.md) is the canonical PKHeX bridge contract.
 - [`docs/assets/pokesprite_subsystem.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/assets/pokesprite_subsystem.md) documents Pokemon, item, and misc icon asset resolution.
 - [`docs/backend/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/backend/README.md) documents canonical Resort storage, import, export, and backend-facing services.
@@ -66,7 +67,7 @@ Use this map before changing code:
 - **Title/menu/options:** `src/ui/TitleScreen.cpp` owns title flow coordination. Extracted title collaborators live under `src/ui/title_screen/`.
 - **Transfer flow shell:** `src/ui/TransferFlowCoordinator.cpp` owns async save scanning/deep probing and concrete screen transitions. Pure flow decisions live under `src/ui/transfer_flow/`.
 - **Transfer ticket list:** `src/ui/TransferTicketScreen.cpp` renders tickets. List behavior lives in `src/ui/transfer_ticket/TransferTicketListController.cpp`.
-- **Transfer system screen:** `src/ui/TransferSystemScreen.cpp` adapts real SDL input/render state to smaller controllers. Pure controllers and render helpers live under `src/ui/transfer_system/`.
+- **Transfer system screen:** `src/ui/TransferSystemScreen.cpp` adapts real SDL input/render state to smaller controllers. Pure controllers and render helpers live under `src/ui/transfer_system/`; read [`docs/transfer_system/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/transfer_system/README.md) before changing this area.
 - **Input:** `src/core/InputRouter.cpp`, `src/core/InputBindings.cpp`, and `include/ui/ScreenInput.hpp` keep keyboard/controller/mouse routing centralized.
 - **Save scanning and bridge summaries:** `src/core/SaveLibrary.cpp` owns save discovery, bridge probing, cache behavior, and parsed transfer models.
 - **PKHeX bridge boundary:** `src/core/SaveBridgeClient.cpp` launches the .NET helper in `../tools/pkhex_bridge`; native C++ should not link `PKHeX.Core`.

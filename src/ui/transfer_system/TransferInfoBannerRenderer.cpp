@@ -180,6 +180,11 @@ transfer_system::TransferInfoBannerContext TransferSystemScreen::activeInfoBanne
         context.slot = &held->pokemon;
         return context;
     }
+    if (multi_pokemon_move_.active() && !multi_pokemon_move_.entries().empty()) {
+        context.mode = "pokemon";
+        context.slot = &multi_pokemon_move_.entries().front().pokemon;
+        return context;
+    }
 
     if (const PcSlotSpecies* modal_slot = pokemonActionMenuPokemon()) {
         context.mode = "pokemon";

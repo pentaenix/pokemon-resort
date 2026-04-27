@@ -127,7 +127,7 @@ Controls the tool carousel viewport, hidden/rest positions, icon sizes, selector
 
 Tool semantics live in transfer-system input/controller code:
 
-- Multiple/Drag Zone is currently descriptive
+- Multiple/Drag Zone uses drag selection plus layout-preserving multi-Pokemon movement
 - Basic Move uses normal Pokemon action-menu move behavior
 - Swap Pokemon uses held Pokemon move behavior
 - Held Items opens item action behavior
