@@ -14,11 +14,25 @@ public:
     void resetHold();
 
 private:
+    struct AdvanceHold {
+        bool active = false;
+        bool triggered = false;
+        double elapsed_seconds = 0.0;
+    };
+
     struct NavigationHold {
         int dx = 0;
         int dy = 0;
         double elapsed_seconds = 0.0;
         double repeat_elapsed_seconds = 0.0;
+    };
+
+    struct NavigationLongPressHold {
+        bool active = false;
+        bool triggered = false;
+        int dx = 0;
+        int dy = 0;
+        double elapsed_seconds = 0.0;
     };
 
     static constexpr double kNavigationRepeatDelaySeconds = 0.42;
@@ -32,7 +46,12 @@ private:
     bool releaseNavigationHold(const NavigationHold& nav);
     void startHold(const NavigationHold& nav);
 
+    void resetAdvanceHold();
+    void resetNavigationLongPressHold();
+
     NavigationHold navigation_hold_;
+    AdvanceHold advance_hold_{};
+    NavigationLongPressHold navigation_long_press_hold_{};
 };
 
 } // namespace pr

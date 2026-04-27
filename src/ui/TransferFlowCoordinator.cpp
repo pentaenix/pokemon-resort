@@ -107,6 +107,14 @@ bool TransferFlowCoordinator::consumeUiMoveSfxRequest() {
     return transfer_system_screen_ && transfer_system_screen_->consumeUiMoveSfxRequest();
 }
 
+bool TransferFlowCoordinator::consumePickupSfxRequest() {
+    return transfer_system_screen_ && transfer_system_screen_->consumePickupSfxRequest();
+}
+
+bool TransferFlowCoordinator::consumePutdownSfxRequest() {
+    return transfer_system_screen_ && transfer_system_screen_->consumePutdownSfxRequest();
+}
+
 void TransferFlowCoordinator::ensureLoadingScreen() {
     if (!loading_screen_) {
         loading_screen_ = std::make_unique<LoadingScreen>(

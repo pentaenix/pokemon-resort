@@ -224,6 +224,14 @@ int runApplication(const char* argv0, const char* config_path_override) {
     if (!audio.loadUiMoveSfx(ui_move_sfx_path.string())) {
         std::cerr << "Warning: could not load ui move sfx at " << ui_move_sfx_path << '\n';
     }
+    const fs::path pickup_sfx_path = fs::path(root) / config.audio.pickup_sfx;
+    if (!audio.loadPickupSfx(pickup_sfx_path.string())) {
+        std::cerr << "Warning: could not load pickup sfx at " << pickup_sfx_path << '\n';
+    }
+    const fs::path putdown_sfx_path = fs::path(root) / config.audio.putdown_sfx;
+    if (!audio.loadPutdownSfx(putdown_sfx_path.string())) {
+        std::cerr << "Warning: could not load putdown sfx at " << putdown_sfx_path << '\n';
+    }
 
     bool running = true;
     Uint64 last_counter = SDL_GetPerformanceCounter();
@@ -362,6 +370,12 @@ int runApplication(const char* argv0, const char* config_path_override) {
         }
         if (transfer_flow.consumeRipSfxRequest()) {
             audio.playRipSfx();
+        }
+        if (transfer_flow.consumePickupSfxRequest()) {
+            audio.playPickupSfx();
+        }
+        if (transfer_flow.consumePutdownSfxRequest()) {
+            audio.playPutdownSfx();
         }
         if (config.persistence.save_options && title_user_settings_save_requested) {
             SaveData save_data;

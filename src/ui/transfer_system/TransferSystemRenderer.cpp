@@ -262,6 +262,197 @@ void TransferSystemScreen::drawPillToggle(SDL_Renderer* renderer) const {
     }
 }
 
+void TransferSystemScreen::drawPokemonActionMenu(SDL_Renderer* renderer) const {
+    if (!pokemon_action_menu_.visible() || pokemon_action_menu_.transitionT() <= 1e-3) {
+        return;
+    }
+
+    const auto& labels = transfer_system::PokemonActionMenuController::labels();
+    const auto& st = pokemon_action_menu_style_;
+    const SDL_Rect final = pokemonActionMenuFinalRect();
+    const SDL_Rect& anchor = pokemon_action_menu_.anchorRect();
+    const double t = std::clamp(pokemon_action_menu_.transitionT(), 0.0, 1.0);
+    const double scale = 0.06 + 0.94 * t;
+    const int anchor_cx = anchor.x + anchor.w / 2;
+    const int anchor_cy = anchor.y + anchor.h / 2;
+    const int final_cx = final.x + final.w / 2;
+    const int final_cy = final.y + final.h / 2;
+    const int cx = static_cast<int>(std::lround(anchor_cx + (final_cx - anchor_cx) * t));
+    const int cy = static_cast<int>(std::lround(anchor_cy + (final_cy - anchor_cy) * t));
+    const int w = std::max(1, static_cast<int>(std::lround(final.w * scale)));
+    const int h = std::max(1, static_cast<int>(std::lround(final.h * scale)));
+    const SDL_Rect rect{cx - w / 2, cy - h / 2, w, h};
+
+    auto faded = [t](Color c) {
+        c.a = std::clamp(static_cast<int>(std::lround(static_cast<double>(c.a) * t)), 0, 255);
+        return c;
+    };
+
+    SDL_RenderSetClipRect(renderer, nullptr);
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+    const int radius = std::clamp(
+        static_cast<int>(std::lround(static_cast<double>(st.corner_radius) * scale)),
+        0,
+        std::min(rect.w, rect.h) / 2);
+    const int stroke = std::clamp(
+        static_cast<int>(std::lround(static_cast<double>(st.border_thickness) * scale)),
+        1,
+        std::max(1, std::min(rect.w, rect.h) / 2));
+    fillRoundedRingScanlines(
+        renderer,
+        rect.x,
+        rect.y,
+        rect.w,
+        rect.h,
+        radius,
+        stroke,
+        faded(st.border_color),
+        faded(st.background_color));
+
+    if (!pokemon_action_menu_font_.get() || t < 0.55) {
+        return;
+    }
+
+    const int text_alpha =
+        std::clamp(static_cast<int>(std::lround(255.0 * std::clamp((t - 0.55) / 0.45, 0.0, 1.0))), 0, 255);
+    Color text_color = st.text_color;
+    text_color.a = text_alpha;
+    const int row_h = std::max(1, st.row_height);
+    const int pad_y = std::max(0, st.padding_y);
+    for (int i = 0; i < static_cast<int>(labels.size()); ++i) {
+        const int row_y = final.y + pad_y + i * row_h;
+        if (i == pokemon_action_menu_.selectedRow()) {
+            Color selected = st.selected_row_color;
+            selected.a = std::clamp(static_cast<int>(std::lround(static_cast<double>(selected.a) * t)), 0, 255);
+            const int rr = std::clamp(st.corner_radius / 2, 0, row_h / 2);
+            fillRoundedRectScanlines(renderer, final.x + 10, row_y + 3, final.w - 20, row_h - 6, rr, selected);
+        }
+        TextureHandle label =
+            renderTextTexture(renderer, pokemon_action_menu_font_.get(), labels[static_cast<std::size_t>(i)], text_color);
+        if (!label.texture) {
+            continue;
+        }
+        SDL_Rect dst{final.x + 28, row_y + (row_h - label.height) / 2, label.width, label.height};
+        SDL_RenderCopy(renderer, label.texture.get(), nullptr, &dst);
+    }
+}
+
+void TransferSystemScreen::drawHeldPokemon(SDL_Renderer* renderer) {
+    const auto* held = pokemon_move_.held();
+    if (!held || !sprite_assets_) {
+        return;
+    }
+
+    int cx = held->pointer.x;
+    int cy = held->pointer.y;
+    if (held->input_mode == transfer_system::PokemonMoveController::InputMode::Keyboard) {
+        if (const auto bounds = focus_.currentBounds()) {
+            cx = bounds->x + bounds->w / 2;
+            cy = bounds->y + bounds->h / 2 - 12;
+        }
+    }
+    cx = std::clamp(cx, 28, std::max(28, window_config_.virtual_width - 28));
+    cy = std::clamp(cy, 28, std::max(28, window_config_.virtual_height - 28));
+    cy += box_viewport_style_.sprite_offset_y;
+
+    TextureHandle tex = held_move_sprite_tex_;
+    if (!tex.texture || tex.width <= 0 || tex.height <= 0) {
+        tex = sprite_assets_->loadPokemonTexture(renderer, held->pokemon);
+    }
+    if (!tex.texture || tex.width <= 0 || tex.height <= 0) {
+        return;
+    }
+    const double scale = std::clamp(
+        box_viewport_style_.sprite_scale * pokemon_action_menu_style_.held_sprite_scale_multiplier,
+        0.01,
+        32.0);
+    const int w = std::max(1, static_cast<int>(std::lround(static_cast<double>(tex.width) * scale)));
+    const int h = std::max(1, static_cast<int>(std::lround(static_cast<double>(tex.height) * scale)));
+    const int dx0 = cx - w / 2;
+    const int dy0 = cy - h / 2;
+
+    if (pokemon_action_menu_style_.held_sprite_shadow_enabled) {
+        const Color& sc = pokemon_action_menu_style_.held_sprite_shadow_color;
+        SDL_SetTextureColorMod(tex.texture.get(), sc.r, sc.g, sc.b);
+        SDL_SetTextureAlphaMod(tex.texture.get(), sc.a);
+        const int shy = pokemon_action_menu_style_.held_sprite_shadow_offset_y;
+        SDL_Rect shadow_dst{dx0, dy0 + shy, w, h};
+        SDL_RenderCopy(renderer, tex.texture.get(), nullptr, &shadow_dst);
+    }
+
+    SDL_SetTextureColorMod(tex.texture.get(), 255, 255, 255);
+    SDL_SetTextureAlphaMod(tex.texture.get(), 255);
+    SDL_Rect dst{dx0, dy0, w, h};
+    SDL_RenderCopy(renderer, tex.texture.get(), nullptr, &dst);
+}
+
+void TransferSystemScreen::drawHeldBoxSpaceBox(SDL_Renderer* renderer) {
+    const auto* m = box_space_box_move_.activeState();
+    if (!m || !game_save_box_viewport_) {
+        return;
+    }
+    if (!game_box_browser_.gameBoxSpaceMode() || pokemon_move_.active()) {
+        return;
+    }
+    const int src = m->source_box_index;
+    if (src < 0 || src >= static_cast<int>(game_pc_boxes_.size())) {
+        return;
+    }
+
+    int cx = m->pointer.x;
+    int cy = m->pointer.y;
+    if (m->input_mode == transfer_system::BoxSpaceBoxMoveController::InputMode::Keyboard) {
+        if (const auto bounds = focus_.currentBounds()) {
+            cx = bounds->x + bounds->w / 2;
+            cy = bounds->y + bounds->h / 2;
+        }
+    }
+    cx = std::clamp(cx, 28, std::max(28, window_config_.virtual_width - 28));
+    cy = std::clamp(cy, 28, std::max(28, window_config_.virtual_height - 28));
+
+    const auto& box = game_pc_boxes_[static_cast<std::size_t>(src)];
+    int occupied = 0;
+    int total = 0;
+    for (const auto& slot : box.slots) {
+        ++total;
+        if (slot.occupied()) ++occupied;
+    }
+    const TextureHandle* tex = nullptr;
+    if (total <= 0) {
+        return;
+    }
+    if (occupied == 0) {
+        tex = &box_space_empty_tex_;
+    } else if (occupied >= total) {
+        tex = &box_space_full_tex_;
+    } else {
+        tex = &box_space_noempty_tex_;
+    }
+    if (!tex || !tex->texture || tex->width <= 0 || tex->height <= 0) {
+        return;
+    }
+
+    const double scale = std::clamp(box_viewport_style_.box_space_sprite_scale, 0.01, 32.0);
+    const int w = std::max(1, static_cast<int>(std::lround(static_cast<double>(tex->width) * scale)));
+    const int h = std::max(1, static_cast<int>(std::lround(static_cast<double>(tex->height) * scale)));
+    const int dx0 = cx - w / 2;
+    const int dy0 = cy - h / 2;
+
+    if (pokemon_action_menu_style_.held_sprite_shadow_enabled) {
+        const Color& sc = pokemon_action_menu_style_.held_sprite_shadow_color;
+        SDL_SetTextureColorMod(tex->texture.get(), sc.r, sc.g, sc.b);
+        SDL_SetTextureAlphaMod(tex->texture.get(), sc.a);
+        const int shy = pokemon_action_menu_style_.held_sprite_shadow_offset_y;
+        SDL_Rect shadow_dst{dx0, dy0 + shy, w, h};
+        SDL_RenderCopy(renderer, tex->texture.get(), nullptr, &shadow_dst);
+        SDL_SetTextureColorMod(tex->texture.get(), 255, 255, 255);
+        SDL_SetTextureAlphaMod(tex->texture.get(), 255);
+    }
+
+    SDL_Rect dst{dx0, dy0, w, h};
+    SDL_RenderCopy(renderer, tex->texture.get(), nullptr, &dst);
+}
+
 void TransferSystemScreen::drawGameBoxNameDropdownChrome(SDL_Renderer* renderer) const {
     if (!box_name_dropdown_style_.enabled || game_pc_boxes_.empty() || game_box_browser_.dropdownExpandT() <= 1e-6) {
         return;
@@ -402,6 +593,9 @@ void TransferSystemScreen::render(SDL_Renderer* renderer) {
     drawPillToggle(renderer);
     drawBottomBanner(renderer);
     drawSelectionCursor(renderer);
+    drawHeldBoxSpaceBox(renderer);
+    drawHeldPokemon(renderer);
+    drawPokemonActionMenu(renderer);
 
     if (!ui_state_.exitInProgress() && ui_state_.fadeInSeconds() > 1e-6) {
         const double t = std::clamp(ui_state_.elapsedSeconds() / ui_state_.fadeInSeconds(), 0.0, 1.0);
