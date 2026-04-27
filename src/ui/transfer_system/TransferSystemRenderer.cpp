@@ -488,6 +488,73 @@ void TransferSystemScreen::drawHeldPokemon(SDL_Renderer* renderer) {
     SDL_RenderCopy(renderer, tex.texture.get(), nullptr, &dst);
 }
 
+void TransferSystemScreen::drawHeldMultiPokemon(SDL_Renderer* renderer) {
+    if (!multi_pokemon_move_.active() || !sprite_assets_) {
+        return;
+    }
+
+    const auto anchor = heldMultiPokemonAnchorSlot();
+    const auto target_slots = anchor ? multi_pokemon_move_.targetSlotsFor(*anchor) : std::nullopt;
+
+    constexpr int kFallbackSlotW = 76;
+    constexpr int kFallbackSlotH = 76;
+    constexpr int kFallbackGapX = 10;
+    constexpr int kFallbackGapY = 10;
+
+    const double scale = std::clamp(
+        box_viewport_style_.sprite_scale * pokemon_action_menu_style_.held_sprite_scale_multiplier,
+        0.01,
+        32.0);
+
+    for (std::size_t i = 0; i < multi_pokemon_move_.entries().size(); ++i) {
+        const auto& entry = multi_pokemon_move_.entries()[i];
+        int cx = multi_pokemon_move_.pointer().x + entry.col_offset * (kFallbackSlotW + kFallbackGapX);
+        int cy = multi_pokemon_move_.pointer().y + entry.row_offset * (kFallbackSlotH + kFallbackGapY);
+
+        if (target_slots && i < target_slots->size()) {
+            SDL_Rect bounds{};
+            const auto& ref = (*target_slots)[i];
+            const bool has_bounds = ref.panel == transfer_system::PokemonMoveController::Panel::Game
+                ? (game_save_box_viewport_ && game_save_box_viewport_->getSlotBounds(ref.slot_index, bounds))
+                : (resort_box_viewport_ && resort_box_viewport_->getSlotBounds(ref.slot_index, bounds));
+            if (has_bounds) {
+                cx = bounds.x + bounds.w / 2;
+                cy = bounds.y + bounds.h / 2 + box_viewport_style_.sprite_offset_y;
+            }
+        } else if (multi_pokemon_move_.inputMode() == transfer_system::MultiPokemonMoveController::InputMode::Keyboard) {
+            if (const auto bounds = focus_.currentBounds()) {
+                cx = bounds->x + bounds->w / 2 + entry.col_offset * (kFallbackSlotW + kFallbackGapX);
+                cy = bounds->y + bounds->h / 2 + entry.row_offset * (kFallbackSlotH + kFallbackGapY) + box_viewport_style_.sprite_offset_y;
+            }
+        } else {
+            cy += box_viewport_style_.sprite_offset_y;
+        }
+
+        TextureHandle tex = sprite_assets_->loadPokemonTexture(renderer, entry.pokemon);
+        if (!tex.texture || tex.width <= 0 || tex.height <= 0) {
+            continue;
+        }
+
+        const int w = std::max(1, static_cast<int>(std::lround(static_cast<double>(tex.width) * scale)));
+        const int h = std::max(1, static_cast<int>(std::lround(static_cast<double>(tex.height) * scale)));
+        const int dx0 = cx - w / 2;
+        const int dy0 = cy - h / 2;
+
+        if (pokemon_action_menu_style_.held_sprite_shadow_enabled) {
+            const Color& sc = pokemon_action_menu_style_.held_sprite_shadow_color;
+            SDL_SetTextureColorMod(tex.texture.get(), sc.r, sc.g, sc.b);
+            SDL_SetTextureAlphaMod(tex.texture.get(), sc.a);
+            SDL_Rect shadow_dst{dx0, dy0 + pokemon_action_menu_style_.held_sprite_shadow_offset_y, w, h};
+            SDL_RenderCopy(renderer, tex.texture.get(), nullptr, &shadow_dst);
+        }
+
+        SDL_SetTextureColorMod(tex.texture.get(), 255, 255, 255);
+        SDL_SetTextureAlphaMod(tex.texture.get(), 255);
+        SDL_Rect dst{dx0, dy0, w, h};
+        SDL_RenderCopy(renderer, tex.texture.get(), nullptr, &dst);
+    }
+}
+
 void TransferSystemScreen::drawHeldItem(SDL_Renderer* renderer) {
     const auto* held = held_move_.heldItem();
     if (!held || !sprite_assets_) {
@@ -527,6 +594,30 @@ void TransferSystemScreen::drawHeldItem(SDL_Renderer* renderer) {
     SDL_SetTextureColorMod(tex.texture.get(), 255, 255, 255);
 
     SDL_RenderCopy(renderer, tex.texture.get(), nullptr, &dst);
+}
+
+void TransferSystemScreen::drawMultiSelectionDrag(SDL_Renderer* renderer) const {
+    if (!multi_select_drag_active_ || multi_select_drag_rect_.w <= 0 || multi_select_drag_rect_.h <= 0) {
+        return;
+    }
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+    Color fill = carousel_style_.frame_multiple;
+    fill.a = 54;
+    Color border = carousel_style_.frame_multiple;
+    border.a = 220;
+    SDL_SetRenderDrawColor(renderer, fill.r, fill.g, fill.b, fill.a);
+    SDL_RenderFillRect(renderer, &multi_select_drag_rect_);
+    SDL_SetRenderDrawColor(renderer, border.r, border.g, border.b, border.a);
+    for (int i = 0; i < 3; ++i) {
+        SDL_Rect r{
+            multi_select_drag_rect_.x + i,
+            multi_select_drag_rect_.y + i,
+            std::max(0, multi_select_drag_rect_.w - i * 2),
+            std::max(0, multi_select_drag_rect_.h - i * 2)};
+        if (r.w > 0 && r.h > 0) {
+            SDL_RenderDrawRect(renderer, &r);
+        }
+    }
 }
 
 void TransferSystemScreen::drawHeldBoxSpaceBox(SDL_Renderer* renderer) {
@@ -736,8 +827,10 @@ void TransferSystemScreen::render(SDL_Renderer* renderer) {
     drawPillToggle(renderer);
     drawBottomBanner(renderer);
     drawSelectionCursor(renderer);
+    drawMultiSelectionDrag(renderer);
     drawHeldBoxSpaceBox(renderer);
     drawHeldPokemon(renderer);
+    drawHeldMultiPokemon(renderer);
     drawHeldItem(renderer);
     drawItemActionMenu(renderer);
     drawPokemonActionMenu(renderer);

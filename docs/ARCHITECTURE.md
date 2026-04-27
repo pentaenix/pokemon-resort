@@ -2,7 +2,7 @@
 
 This is the central architecture map for the SDL2 app in [`pokemon-resort`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort). It should stay accurate enough that a human or AI agent can decide where a change belongs before editing code.
 
-For test strategy, use [`tests/README.md`](/Users/vanta/Desktop/title_screen_demo/tests/README.md) as the canonical test map. For config ownership, use [`docs/config/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/config/README.md). For bridge work, use [`PKHEX_BRIDGE.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/PKHEX_BRIDGE.md).
+For test strategy, use [`tests/README.md`](/Users/vanta/Desktop/title_screen_demo/tests/README.md) as the canonical test map. For config ownership, use [`docs/config/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/config/README.md). For transfer-system work, read [`docs/transfer_system/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/transfer_system/README.md) before editing transfer screen code. For bridge work, use [`PKHEX_BRIDGE.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/PKHEX_BRIDGE.md).
 
 ## Current State
 
@@ -86,6 +86,8 @@ Ticket party sprites resolve through `PokeSpriteAssets` from parsed `party_slots
 
 ### Transfer System Screen
 
+Read [`docs/transfer_system/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/transfer_system/README.md) before making transfer-system changes. It is the practical ownership guide for deciding whether a change belongs in config, a controller, focus graph, movement helper, presenter, renderer, backend service, or `TransferSystemScreen.cpp`.
+
 [`TransferSystemScreen.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/TransferSystemScreen.cpp) is the SDL-heavy adapter for the post-ticket transfer UI. It still owns:
 
 - concrete SDL screen lifecycle and asset/font handles
@@ -107,6 +109,7 @@ New transfer-system behavior should first look for one of these smaller seams:
 - [`PokemonActionMenuController.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/transfer_system/PokemonActionMenuController.cpp) owns the normal-tool Pokemon action menu state, geometry, hit testing, and row selection.
 - [`ItemActionMenuController.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/transfer_system/ItemActionMenuController.cpp) owns the item-tool modal pages, labels, geometry, hit testing, and row selection.
 - [`PokemonMoveController.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/transfer_system/PokemonMoveController.cpp) owns temporary Pokemon-in-hand state for action-menu moves and swap-tool moves.
+- [`MultiPokemonMoveController.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/transfer_system/MultiPokemonMoveController.cpp) owns temporary multi-Pokemon group state, original return slots, layout offsets, pointer mode, and pattern placement checks for the green multi tool.
 - [`move/HeldMoveController.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/transfer_system/move/HeldMoveController.cpp) owns the generic held-object state for Pokemon, Box Space boxes, and held items.
 - [`TransferSystemFocusGraph.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/transfer_system/TransferSystemFocusGraph.cpp) builds the deterministic keyboard/controller navigation topology for transfer-system controls.
 - [`FocusManager.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/FocusManager.cpp) applies explicit directional edges, optional spatial fallback, activation callbacks, and current focus bounds.
@@ -127,6 +130,7 @@ Directional keyboard/controller navigation belongs in `TransferSystemFocusGraph`
 Temporary held-object behavior is split deliberately:
 
 - `PokemonMoveController` owns Pokemon move semantics for the normal action menu and swap tool.
+- `MultiPokemonMoveController` owns selected-group layout and target pattern calculation for the multi tool.
 - `HeldMoveController` owns generic held state for Pokemon, Box Space boxes, and held items.
 - `move/Gestures.hpp` provides reusable hold/drag gesture helpers for Box Space and quick-drop style behavior.
 - `TransferSystemScreen` applies accepted moves to current in-memory slots, refreshes viewport models, and requests pickup/putdown SFX.
@@ -276,6 +280,7 @@ Read task-specific files rather than always starting from `TitleScreen.cpp`:
 
 - Use `AGENTS.md` for the task-oriented first-read list.
 - Use this architecture doc for module boundaries.
+- Use `docs/transfer_system/README.md` before changing transfer-system behavior, layout, movement, focus, banner, or rendering code.
 - Use `docs/config/README.md` before adding JSON fields.
 - Use `tests/README.md` before deciding what to run.
 - Use `PKHEX_BRIDGE.md` before touching save probing, bridge JSON, import-grade reads, or write-back validation.

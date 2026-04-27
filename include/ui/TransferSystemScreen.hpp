@@ -9,6 +9,7 @@
 #include "ui/Screen.hpp"
 #include "ui/TransferSaveSelection.hpp"
 #include "ui/transfer_system/GameBoxBrowserController.hpp"
+#include "ui/transfer_system/MultiPokemonMoveController.hpp"
 #include "ui/transfer_system/PokemonActionMenuController.hpp"
 #include "ui/transfer_system/PokemonMoveController.hpp"
 #include "ui/transfer_system/ItemActionMenuController.hpp"
@@ -97,6 +98,8 @@ public:
     bool debugPokemonActionMenuFromGameBox() const { return pokemon_action_menu_.fromGameBox(); }
     int debugPokemonActionMenuSelectedRow() const { return pokemon_action_menu_.selectedRow(); }
     bool debugPokemonMoveActive() const { return pokemon_move_.active(); }
+    bool debugMultiPokemonMoveActive() const { return multi_pokemon_move_.active(); }
+    int debugHeldMultiPokemonCount() const { return multi_pokemon_move_.count(); }
     std::string debugHeldPokemonName() const {
         if (const auto* held = pokemon_move_.held()) {
             return !held->pokemon.nickname.empty() ? held->pokemon.nickname : held->pokemon.species_name;
@@ -137,6 +140,13 @@ public:
         SDL_Rect out{};
         return game_save_box_viewport_->getSlotBounds(slot_index, out) ? std::optional<SDL_Rect>(out) : std::nullopt;
     }
+    std::optional<SDL_Rect> debugResortSlotBounds(int slot_index) const {
+        if (!resort_box_viewport_) {
+            return std::nullopt;
+        }
+        SDL_Rect out{};
+        return resort_box_viewport_->getSlotBounds(slot_index, out) ? std::optional<SDL_Rect>(out) : std::nullopt;
+    }
     std::optional<SDL_Rect> debugGameNamePlateBounds() const {
         if (!game_save_box_viewport_) {
             return std::nullopt;
@@ -145,6 +155,7 @@ public:
         return game_save_box_viewport_->getNamePlateBounds(out) ? std::optional<SDL_Rect>(out) : std::nullopt;
     }
     std::optional<int> debugDropdownRowAtScreen(int logical_x, int logical_y) const;
+    std::optional<SDL_Rect> debugMultiSelectionRect() const { return multi_select_drag_active_ ? std::optional<SDL_Rect>(multi_select_drag_rect_) : std::nullopt; }
 #endif
 
 private:
@@ -188,6 +199,7 @@ private:
     bool carouselSlideAnimating() const;
     bool itemToolActive() const;
     bool normalPokemonToolActive() const;
+    bool multiPokemonToolActive() const;
     bool gameSlotHasHeldItem(int slot_index) const;
     std::string gameSlotHeldItemName(int slot_index) const;
     Color carouselFrameColorForIndex(int tool_index) const;
@@ -312,6 +324,7 @@ private:
     transfer_system::PokemonActionMenuController pokemon_action_menu_;
     transfer_system::ItemActionMenuController item_action_menu_;
     transfer_system::PokemonMoveController pokemon_move_;
+    transfer_system::MultiPokemonMoveController multi_pokemon_move_;
     bool pickup_sfx_requested_ = false;
     bool putdown_sfx_requested_ = false;
     /// Snapshot of the held Pokémon sprite at pickup / hand-swap so the in-hand texture does not change over time.
@@ -351,10 +364,30 @@ private:
         SDL_Point pointer);
     bool dropHeldPokemonAt(const transfer_system::PokemonMoveController::SlotRef& target);
     bool cancelHeldPokemonMove();
+    bool beginMultiPokemonMoveFromSlots(
+        const std::vector<transfer_system::PokemonMoveController::SlotRef>& refs,
+        transfer_system::MultiPokemonMoveController::InputMode input_mode,
+        SDL_Point pointer);
+    bool dropHeldMultiPokemonAt(const transfer_system::PokemonMoveController::SlotRef& target);
+    bool cancelHeldMultiPokemonMove();
+    bool dropHeldMultiPokemonIntoFirstEmptySlotsInBox(int box_index);
+    bool gameBoxHasEmptySlots(int box_index, int required_count) const;
+    void drawHeldMultiPokemon(SDL_Renderer* renderer);
+    std::optional<transfer_system::PokemonMoveController::SlotRef> multiPokemonAnchorSlotAtPointer(int logical_x, int logical_y) const;
+    std::optional<transfer_system::PokemonMoveController::SlotRef> heldMultiPokemonAnchorSlot() const;
+    void drawMultiSelectionDrag(SDL_Renderer* renderer) const;
     void refreshHeldMoveSpriteTexture();
     void drawHeldPokemon(SDL_Renderer* renderer);
     void drawHeldItem(SDL_Renderer* renderer);
     void drawHeldBoxSpaceBox(SDL_Renderer* renderer);
+
+    // --- Multi tool drag selection ---
+    bool multi_select_drag_active_ = false;
+    bool multi_select_from_game_ = true;
+    SDL_Point multi_select_drag_start_{0, 0};
+    SDL_Point multi_select_drag_current_{0, 0};
+    SDL_Rect multi_select_drag_rect_{0, 0, 0, 0};
+    std::vector<transfer_system::PokemonMoveController::SlotRef> multiSlotRefsIntersectingRect(bool from_game, const SDL_Rect& rect) const;
 
     /// Mouse: distinguish click (pick box) vs drag-to-scroll inside the dropdown list.
     bool dropdown_lmb_down_in_panel_ = false;
