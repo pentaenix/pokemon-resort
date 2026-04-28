@@ -4,10 +4,17 @@ This is the working guide for the post-ticket transfer system screen. Read it be
 
 The purpose of this guide is to keep [`TransferSystemScreen.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/TransferSystemScreen.cpp) from becoming the place where every new transfer idea lands. The screen is still important, but it should mostly adapt SDL input/render state to smaller config, controller, presenter, renderer, and movement seams.
 
+## Non-negotiable modularity rules
+
+- **No mega-files**: do not let transfer-system implementation files grow without bound.
+- **500-line budget (enforced)**: if any transfer-system `.cpp` file crosses **500 lines**, it must be split into smaller components/shards **in the same change**.
+  - Prefer extracting a cohesive slice (pointer glue, dropdown logic, Box Space logic, move application, renderer slice, etc.) into a new `TransferSystemScreen*.cpp` or `TransferSystemRenderer*.cpp` shard.
+  - Keep `TransferSystemScreen.cpp` as a thin entrypoint/orchestrator.
+
 ## Quick Ownership Map
 
 - [`TransferSystemScreen.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/TransferSystemScreen.cpp)
-  SDL-heavy adapter. Owns screen lifecycle, live asset/font handles, runtime geometry adaptation, in-memory prototype slot arrays, pointer hit testing, texture/model refresh, and applying temporary moves to current UI slots.
+  Thin entrypoint/orchestrator. Owns update orchestration plus the smallest remaining screen glue. Most transfer-system behavior is split into focused shards under `src/ui/transfer_system/`.
 - [`GameTransferConfig.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/transfer_system/GameTransferConfig.cpp)
   Parses [`game_transfer.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/game_transfer.json). New authored layout/style/timing fields belong here.
 - [`TransferSystemUiStateController.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/transfer_system/TransferSystemUiStateController.cpp)
@@ -32,10 +39,144 @@ The purpose of this guide is to keep [`TransferSystemScreen.cpp`](/Users/vanta/D
   Pure mapping from active context to lower-banner field values.
 - [`TransferInfoBannerRenderer.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/transfer_system/TransferInfoBannerRenderer.cpp)
   Lower-banner rendering, text fitting, generated symbols, PokeSprite item icons, and PokeSprite misc icons.
-- [`TransferSystemRenderer.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/transfer_system/TransferSystemRenderer.cpp)
-  High-level transfer-system draw order and chrome-heavy rendering: animated background, pill, carousel, dropdown, action menus, and held objects.
+- Transfer-system chrome/draw order lives in renderer shards:
+  - `TransferSystemRendererMain.cpp` (orchestration + background)
+  - `TransferSystemRendererTopBar.cpp` (pill + tool carousel)
+  - `TransferSystemRendererDropdowns.cpp` (dropdown chrome/list)
+  - `TransferSystemRendererMenus.cpp` (action menus)
+  - `TransferSystemRendererHeld.cpp` (held sprites + multi-drag visuals)
 - [`BoxViewport.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/BoxViewport.cpp)
   Reusable 6x5 box viewport widget. It renders a `BoxViewportModel`; it is not storage.
+
+## TransferSystemScreen shard layout (post-refactor)
+
+If you are looking for “where did that method go?”, start under `src/ui/transfer_system/` and search by prefix:
+
+- `TransferSystemScreen*Pointer*.cpp`: pointer press/move/release and panel-specific pointer logic.
+- `TransferSystemScreen*Dropdown*.cpp`: dropdown open/close/update and pointer handling.
+- `TransferSystemScreen*BoxSpace*.cpp`: Box Space mode, pointer, gestures, quick-drop, viewport models.
+- `TransferSystemScreen*PokemonMove*.cpp` / `*HeldMove*`: temporary move application and glue to move controllers.
+- `TransferSystemScreen*Focus*` / `*Navigate2d*`: screen glue around focus and directional navigation.
+- `TransferSystemScreen*Render*` / `TransferSystemRenderer*.cpp`: rendering and chrome draw order.
+- `TransferSystemScreen*UiHelpers*.cpp`: tool/pill flags and one-shot request plumbing.
+
+**Rule of thumb**: new code should go into an existing shard (or a new shard) under `src/ui/transfer_system/` unless it is truly entrypoint orchestration.
+
+## “Bug here → look here first” map
+
+Use this section when you have a symptom and want the fastest landing zone.
+
+### Box name dropdown
+
+- **Dropdown won’t open/close, opens at wrong time, highlight index feels wrong**
+  - Start in `src/ui/transfer_system/TransferSystemScreenDropdownGame.cpp` and `TransferSystemScreenDropdownResort.cpp` (state + animation + selection application).
+- **Pointer click/drag/scroll inside the expanded dropdown feels wrong**
+  - Start in `src/ui/transfer_system/TransferSystemScreenDropdownPointer.cpp` (pointer press routing + highlight stepping).
+  - If it’s drag scrolling, also check `TransferSystemScreenPointerMoved.cpp` / `TransferSystemScreenPointerReleased.cpp` (pointer drag lifecycle).
+- **Dropdown draws wrong colors/rows/clipping, or labels look stale**
+  - Start in `src/ui/transfer_system/TransferSystemRendererDropdowns.cpp` (dropdown chrome/list rendering + label texture rebuild rules).
+- **Dropdown “hot zone” overlaps other UI**
+  - Start in `src/ui/transfer_system/TransferSystemScreenPointerHitTest.cpp` (hit testing / focus picking), then `TransferSystemScreenDropdownPointer.cpp`.
+
+### Box navigation arrows / box switching
+
+- **Prev/next arrows click wrong, box jumps/advances unexpectedly**
+  - Start in `src/ui/transfer_system/TransferSystemScreenBoxNavigation.cpp` (pointer arrow handlers + advance/jump/row stepping glue).
+
+### Box Space quick-drop / long press
+
+- **Quick-drop charge timing, wiggle feedback, long-press behavior feels wrong**
+  - Start in `src/ui/transfer_system/TransferSystemScreenBoxSpaceQuickDrop.cpp` (long-press + visuals + complete/clear logic).
+
+### Box Space mode / box swapping / box viewport models
+
+- **Box Space toggle behaves oddly, row offset snaps wrong, “BOX SPACE” view doesn’t match expected boxes**
+  - Start in `src/ui/transfer_system/TransferSystemScreenBoxSpaceMode.cpp` and `TransferSystemScreenBoxNavigation.cpp`.
+- **Box Space tiles show the wrong full/empty state, wiggle offsets show on the wrong panel**
+  - Start in `src/ui/transfer_system/TransferSystemScreenViewportModels.cpp` (box-space `BoxViewportModel` construction).
+
+### Pointer press/move/release (general)
+
+- **Clicks go to the wrong panel, drag gestures stick, release doesn’t complete an action**
+  - Start in `src/ui/transfer_system/TransferSystemScreenPointerPressed.cpp`
+  - Then `TransferSystemScreenPointerMoved.cpp`
+  - Then `TransferSystemScreenPointerReleased.cpp`
+- **Focus picking at the pointer seems wrong**
+  - Start in `src/ui/transfer_system/TransferSystemScreenPointerHitTest.cpp`
+
+### Focus / controller navigation
+
+- **D-pad/arrow navigation moves to the wrong thing (topology bug)**
+  - Start in `src/ui/transfer_system/TransferSystemFocusGraph.cpp`
+  - Then check `src/ui/FocusManager.cpp` for edge semantics and fallback behavior.
+- **Navigation behaves correctly in theory but not in the live screen (geometry / node bounds)**
+  - Start in `src/ui/transfer_system/TransferSystemScreenFocusNav.cpp` and `TransferSystemScreenNavigate2d.cpp`.
+
+### Pokemon move (single + swap tool)
+
+- **Picking up / dropping a single Pokémon misbehaves (wrong source/target, cancel/return rules)**
+  - Start in `src/ui/transfer_system/TransferSystemScreenPokemonMoveSingle.cpp` (screen application glue)
+  - Then `src/ui/transfer_system/PokemonMoveController.cpp` (pure move state/semantics).
+
+### Multi-Pokémon tool (green)
+
+- **Multi-select marquee, anchor slot, or selected set is wrong**
+  - Start in `src/ui/transfer_system/TransferSystemScreenMultiMarquee.cpp`
+  - Then `src/ui/transfer_system/MultiPokemonMoveController.cpp`.
+- **Group placement layout/pattern checks are wrong**
+  - Start in `src/ui/transfer_system/MultiPokemonMoveController.cpp` first (pure rules), then the screen application shards.
+
+### Held objects (box drag / held items / generic held state)
+
+- **Held box / held item state gets “stuck” or clears unexpectedly**
+  - Start in `src/ui/transfer_system/move/HeldMoveController.cpp`
+  - Then check the relevant screen shards (`TransferSystemScreenBoxSpaceQuickDrop.cpp`, `TransferSystemScreenBoxSpaceMode.cpp`, item/pointer shards) for when we call `pickUp*` vs `clear()`.
+
+### Item tool (yellow)
+
+- **Item action menu opens wrong, wrong row actions, or put-away/back page logic is wrong**
+  - Start in `src/ui/transfer_system/ItemActionMenuController.cpp`
+  - Then `src/ui/transfer_system/TransferSystemScreenActionMenuPointer.cpp` for pointer activation wiring.
+- **Picking up / placing / swapping held items misbehaves**
+  - Start in `src/ui/transfer_system/TransferSystemScreenActionMenuPointer.cpp` (item pickup from action menu)
+  - Then `src/ui/transfer_system/TransferSystemScreenBoxSpaceQuickDrop.cpp` if the symptom is quick-drop related.
+
+### Action menus (Pokemon + item)
+
+- **Menu geometry/placement/hit testing feels wrong**
+  - Start in `src/ui/transfer_system/PokemonActionMenuController.cpp` or `ItemActionMenuController.cpp` (pure geometry + hit testing).
+- **Menu opens/closes but screen glue is wrong**
+  - Start in `src/ui/transfer_system/TransferSystemScreenActionMenuHelpers.cpp` (menu glue) and `TransferSystemScreenActionMenuPointer.cpp` (pointer glue).
+
+### Lower info banner
+
+- **Wrong text/fields for the current context (logic bug)**
+  - Start in `src/ui/transfer_system/TransferInfoBannerPresenter.cpp`
+- **Correct data but wrong visuals/fitting/icons (render bug)**
+  - Start in `src/ui/transfer_system/TransferInfoBannerRenderer.cpp`
+
+### Rendering / chrome
+
+- **Pill / tool carousel visuals**
+  - Start in `src/ui/transfer_system/TransferSystemRendererTopBar.cpp`
+- **Overall draw order / background / frame orchestration**
+  - Start in `src/ui/transfer_system/TransferSystemRendererMain.cpp`
+- **Held sprite drawing / multi-drag visuals**
+  - Start in `src/ui/transfer_system/TransferSystemRendererHeld.cpp`
+- **Action menu rendering**
+  - Start in `src/ui/transfer_system/TransferSystemRendererMenus.cpp`
+
+### “Screen is out of sync” (textures/models not updating when state changes)
+
+- **A move/rename/dropdown change applies but the viewport still shows old content**
+  - Start in `src/ui/transfer_system/TransferSystemScreenViewportRefresh.cpp` and `TransferSystemScreenViewportModels.cpp`.
+  - If it’s dropdown labels: `TransferSystemRendererDropdowns.cpp` (label texture rebuild).
+
+### Config-driven layout/style bugs
+
+- **A style value seems ignored**
+  - Start in `config/game_transfer.json` and `src/ui/transfer_system/GameTransferConfig.cpp` (parsing + defaults).
+  - If it’s render-only: jump to the relevant renderer shard that uses the style.
 
 ## Where To Put A Change
 

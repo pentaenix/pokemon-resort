@@ -88,7 +88,9 @@ Ticket party sprites resolve through `PokeSpriteAssets` from parsed `party_slots
 
 Read [`docs/transfer_system/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/transfer_system/README.md) before making transfer-system changes. It is the practical ownership guide for deciding whether a change belongs in config, a controller, focus graph, movement helper, presenter, renderer, backend service, or `TransferSystemScreen.cpp`.
 
-[`TransferSystemScreen.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/TransferSystemScreen.cpp) is the SDL-heavy adapter for the post-ticket transfer UI. It still owns:
+[`TransferSystemScreen.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/TransferSystemScreen.cpp) is intentionally a **thin entrypoint** now (update orchestration + the smallest remaining screen glue). Most transfer-system behavior lives in focused shards under [`src/ui/transfer_system`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/transfer_system).
+
+The transfer-system screen layer still owns:
 
 - concrete SDL screen lifecycle and asset/font handles
 - adaptation from keyboard/controller/pointer input into controllers
@@ -98,6 +100,8 @@ Read [`docs/transfer_system/README.md`](/Users/vanta/Desktop/title_screen_demo/p
 - application of temporary Pokemon/item moves to those in-memory slots
 - selected-save/game title context
 - some remaining cursor, speech-bubble, and mini-preview drawing helpers
+
+**Working rule**: treat `TransferSystemScreen.cpp` as an orchestrator. If you are about to add a “specific” helper, first place it in the closest existing shard (or create one) under `src/ui/transfer_system/TransferSystemScreen*.cpp`.
 
 New transfer-system behavior should first look for one of these smaller seams:
 
@@ -113,7 +117,12 @@ New transfer-system behavior should first look for one of these smaller seams:
 - [`move/HeldMoveController.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/transfer_system/move/HeldMoveController.cpp) owns the generic held-object state for Pokemon, Box Space boxes, and held items.
 - [`TransferSystemFocusGraph.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/transfer_system/TransferSystemFocusGraph.cpp) builds the deterministic keyboard/controller navigation topology for transfer-system controls.
 - [`FocusManager.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/FocusManager.cpp) applies explicit directional edges, optional spatial fallback, activation callbacks, and current focus bounds.
-- [`TransferSystemRenderer.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/transfer_system/TransferSystemRenderer.cpp) owns high-level transfer-system render orchestration and chrome-heavy drawing: animated background, pill toggle, tool carousel, dropdown chrome/list, action menus, held-object drawing, and draw order.
+- Transfer-system chrome and draw order are split into renderer shards under `src/ui/transfer_system/`:
+  - `TransferSystemRendererMain.cpp` (orchestration + background)
+  - `TransferSystemRendererTopBar.cpp` (pill + tool carousel)
+  - `TransferSystemRendererDropdowns.cpp` (dropdown chrome/list)
+  - `TransferSystemRendererMenus.cpp` (action menus)
+  - `TransferSystemRendererHeld.cpp` (held sprites + multi-drag visuals)
 - [`BoxViewport.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/BoxViewport.cpp) renders reusable 6x5 transfer box chrome from `BoxViewportModel`. It is not canonical Resort storage.
 
 #### Focus And Navigation Ownership
@@ -265,7 +274,8 @@ For cross-platform work, isolate OS-specific behavior behind small adapters. Avo
 
 ## Current Architectural Constraints
 
-- `TransferSystemScreen.cpp` is still large and owns too much geometry-dependent adaptation.
+- Some transfer-system code is still “too big” and should continue splitting when touched (for example: config parsing and banner rendering files that have grown past the preferred 500-line target).
+- Keep a hard modularity budget in the transfer system: if any transfer-system `.cpp` grows beyond **500 lines**, split it into smaller components/shards as part of the same change.
 - Transfer-system Pokemon/item movement is temporary and in-memory, not persisted to Resort storage or external saves.
 - Bridge write-projection validates inputs but intentionally refuses real save mutation.
 - Audio is still macOS-specific.
