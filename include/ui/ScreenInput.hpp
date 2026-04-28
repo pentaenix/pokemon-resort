@@ -1,5 +1,7 @@
 #pragma once
 
+#include <SDL.h>
+
 #include <optional>
 
 namespace pr {
@@ -7,6 +9,16 @@ namespace pr {
 class ScreenInput {
 public:
     virtual ~ScreenInput() = default;
+
+    /// Text input / IME (`SDL_TEXTINPUT`, `SDL_TEXTEDITING`) and keyboard entry while a text field is focused.
+    /// Return true to consume the event (InputRouter will not process navigation on the same frame).
+    virtual bool handleUnroutedSdlEvent(const SDL_Event& event) {
+        (void)event;
+        return false;
+    }
+
+    /// When true, `SDL_KEYDOWN` for typing keys is offered to `handleUnroutedSdlEvent` before navigation bindings.
+    virtual bool capturesUnroutedKeyboardFocus() const { return false; }
 
     virtual bool canNavigate() const { return false; }
     virtual void onNavigate(int delta) { (void)delta; }
@@ -30,8 +42,17 @@ public:
     virtual std::optional<double> advanceLongPressSeconds() const { return std::nullopt; }
     virtual void onAdvanceLongPress() {}
 
-    // If `captureNavigate2dForLongPress(dx, dy)` is true, InputRouter will defer `onNavigate2d(dx, dy)` until key-up
-    // (unless the long press triggers first).
+    /// Called each frame while advance is held and `captureAdvanceForLongPress()` is active.
+    virtual void onAdvanceLongPressCharge(double elapsed_seconds) { (void)elapsed_seconds; }
+
+    /// Called when advance is released after a captured hold. `long_press_action_fired` is true if
+    /// `onAdvanceLongPress()` already ran.
+    virtual void onAdvanceLongPressEnded(bool long_press_action_fired) {
+        (void)long_press_action_fired;
+    }
+
+    // If `captureNavigate2dForLongPress(dx, dy)` is true, InputRouter will defer `onNavigate2d(dx, dy)` until the
+    // matching key or D-pad button is released (unless the long press triggers first).
     virtual bool captureNavigate2dForLongPress(int dx, int dy) const {
         (void)dx;
         (void)dy;
@@ -45,6 +66,19 @@ public:
     virtual void onNavigate2dLongPress(int dx, int dy) {
         (void)dx;
         (void)dy;
+    }
+
+    /// Called each frame while a captured navigation key is held before the long-press action fires.
+    virtual void onNavigationLongPressCharge(double elapsed_seconds, int dx, int dy) {
+        (void)elapsed_seconds;
+        (void)dx;
+        (void)dy;
+    }
+
+    /// Called when the captured navigation key is released. `long_press_action_fired` is true if
+    /// `onNavigate2dLongPress` already ran for this hold.
+    virtual void onNavigationLongPressEnded(bool long_press_action_fired) {
+        (void)long_press_action_fired;
     }
 
     virtual void handlePointerMoved(int logical_x, int logical_y) {

@@ -76,6 +76,7 @@ void applyAudioConfig(AudioConfig& out, const JsonValue& obj) {
     if (auto v = child(obj, "ui_move_sfx")) out.ui_move_sfx = asString(*v);
     if (auto v = child(obj, "pickup_sfx")) out.pickup_sfx = asString(*v);
     if (auto v = child(obj, "putdown_sfx")) out.putdown_sfx = asString(*v);
+    if (auto v = child(obj, "error_sfx")) out.error_sfx = asString(*v);
     if (auto v = child(obj, "music_volume")) out.music_volume = asInt(*v);
     if (auto v = child(obj, "ui_volume")) out.sfx_volume = asInt(*v);
     if (auto v = child(obj, "sfx_volume")) out.sfx_volume = asInt(*v);
@@ -242,6 +243,9 @@ TitleScreenConfig loadConfigFromJson(const std::string& path) {
         if (auto v = child(*section, "application")) config.persistence.application = asString(*v);
         if (auto v = child(*section, "save_file_name")) config.persistence.save_file_name = asString(*v);
         if (auto v = child(*section, "backup_file_name")) config.persistence.backup_file_name = asString(*v);
+        if (auto v = child(*section, "resort_profile_file_name")) {
+            config.persistence.resort_profile_file_name = asString(*v);
+        }
     }
 
     if (auto section = child(root, "skip")) {

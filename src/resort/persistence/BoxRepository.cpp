@@ -1,7 +1,10 @@
 #include "resort/persistence/BoxRepository.hpp"
 
+#include <optional>
 #include <sstream>
 #include <stdexcept>
+#include <utility>
+#include <vector>
 
 namespace pr::resort {
 
@@ -31,6 +34,98 @@ void BoxRepository::ensureDefaultBoxes(const std::string& profile_id, int box_co
             slot_stmt.reset();
         }
     }
+}
+
+std::vector<std::pair<int, std::string>> BoxRepository::listBoxes(const std::string& profile_id) const {
+    auto stmt = connection_.prepare(
+        "SELECT box_id, name FROM boxes WHERE profile_id = ? ORDER BY sort_key ASC, box_id ASC");
+    stmt.bindText(1, profile_id);
+    std::vector<std::pair<int, std::string>> out;
+    while (stmt.stepRow()) {
+        out.emplace_back(stmt.columnInt(0), stmt.columnText(1));
+    }
+    return out;
+}
+
+void BoxRepository::swapBoxContents(const std::string& profile_id, int box_a, int box_b) {
+    if (box_a == box_b) {
+        return;
+    }
+    auto read_pkrid = [&](int box_id, int slot_index) -> std::optional<std::string> {
+        auto stmt = connection_.prepare(
+            "SELECT pkrid FROM box_slots WHERE profile_id = ? AND box_id = ? AND slot_index = ? LIMIT 1");
+        stmt.bindText(1, profile_id);
+        stmt.bindInt(2, box_id);
+        stmt.bindInt(3, slot_index);
+        if (!stmt.stepRow()) {
+            return std::nullopt;
+        }
+        if (stmt.columnIsNull(0)) {
+            return std::nullopt;
+        }
+        return stmt.columnText(0);
+    };
+    auto write_pkrid = [&](int box_id, int slot_index, const std::optional<std::string>& pkrid) {
+        auto stmt = connection_.prepare(
+            "UPDATE box_slots SET pkrid = ? WHERE profile_id = ? AND box_id = ? AND slot_index = ?");
+        if (pkrid.has_value()) {
+            stmt.bindText(1, *pkrid);
+        } else {
+            stmt.bindNull(1);
+        }
+        stmt.bindText(2, profile_id);
+        stmt.bindInt(3, box_id);
+        stmt.bindInt(4, slot_index);
+        stmt.stepDone();
+    };
+
+    for (int slot = 0; slot < 30; ++slot) {
+        std::optional<std::string> pa = read_pkrid(box_a, slot);
+        std::optional<std::string> pb = read_pkrid(box_b, slot);
+        write_pkrid(box_a, slot, pb);
+        write_pkrid(box_b, slot, pa);
+    }
+}
+
+void BoxRepository::swapSlotContents(const BoxLocation& a, const BoxLocation& b) {
+    if (a.profile_id != b.profile_id) {
+        throw std::runtime_error("swapSlotContents requires same profile_id");
+    }
+    if (a.box_id == b.box_id && a.slot_index == b.slot_index) {
+        return;
+    }
+    auto read_one = [&](const BoxLocation& loc) -> std::optional<std::string> {
+        auto stmt = connection_.prepare(
+            "SELECT pkrid FROM box_slots WHERE profile_id = ? AND box_id = ? AND slot_index = ? LIMIT 1");
+        stmt.bindText(1, loc.profile_id);
+        stmt.bindInt(2, loc.box_id);
+        stmt.bindInt(3, loc.slot_index);
+        if (!stmt.stepRow()) {
+            return std::nullopt;
+        }
+        if (stmt.columnIsNull(0)) {
+            return std::nullopt;
+        }
+        return stmt.columnText(0);
+    };
+    auto write_one = [&](const BoxLocation& loc, const std::optional<std::string>& pkrid) {
+        auto stmt = connection_.prepare(
+            "UPDATE box_slots SET pkrid = ? WHERE profile_id = ? AND box_id = ? AND slot_index = ?");
+        if (pkrid.has_value()) {
+            stmt.bindText(1, *pkrid);
+        } else {
+            stmt.bindNull(1);
+        }
+        stmt.bindText(2, loc.profile_id);
+        stmt.bindInt(3, loc.box_id);
+        stmt.bindInt(4, loc.slot_index);
+        stmt.stepDone();
+    };
+
+    std::optional<std::string> pa = read_one(a);
+    std::optional<std::string> pb = read_one(b);
+    write_one(a, pb);
+    write_one(b, pa);
 }
 
 void BoxRepository::placePokemon(

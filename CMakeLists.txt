@@ -283,6 +283,8 @@ add_executable(transfer_system_flow_harness_tests
     src/core/PokemonBall.cpp
     src/core/PokemonOrigin.cpp
     src/core/PokeSpriteAssets.cpp
+    src/core/SaveBridgeClient.cpp
+    ${RESORT_STORAGE_SOURCES}
     src/ui/TransferSystemScreen.cpp
     src/ui/transfer_system/GameTransferConfig.cpp
     src/ui/transfer_system/GameBoxBrowserController.cpp
@@ -302,6 +304,11 @@ add_executable(transfer_system_flow_harness_tests
 target_compile_definitions(transfer_system_flow_harness_tests PRIVATE PR_ENABLE_TEST_HOOKS)
 target_include_directories(transfer_system_flow_harness_tests PRIVATE include)
 target_link_libraries(transfer_system_flow_harness_tests PRIVATE SDL2::SDL2 SDL2_image::SDL2_image SDL2_ttf::SDL2_ttf)
+if(SQLite3_FOUND)
+    target_link_libraries(transfer_system_flow_harness_tests PRIVATE SQLite3::SQLite3)
+else()
+    target_link_libraries(transfer_system_flow_harness_tests PRIVATE sqlite3)
+endif()
 add_test(NAME transfer_system_flow_harness_tests COMMAND transfer_system_flow_harness_tests)
 
 add_executable(transfer_ticket_unicode_harness_tests

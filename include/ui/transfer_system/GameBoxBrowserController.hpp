@@ -6,6 +6,11 @@ namespace pr::transfer_system {
 
 class GameBoxBrowserController {
 public:
+    /// Rows in the title dropdown: optional leading "Rename box..." plus one row per PC box (`box_count >= 2`).
+    static int dropdownListRowCount(int box_count) {
+        return box_count >= 2 ? box_count + 1 : box_count;
+    }
+
     void enter(int box_count, int initial_game_box_index);
 
     int gameBoxIndex() const { return game_box_index_; }

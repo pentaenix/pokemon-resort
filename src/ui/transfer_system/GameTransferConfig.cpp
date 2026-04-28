@@ -135,6 +135,9 @@ LoadedGameTransfer loadGameTransfer(const std::string& project_root) {
         return out;
     }
 
+    out.resort_pc_box_count =
+        std::clamp(intFromObjectOrDefault(root, "resort_pc_box_count", out.resort_pc_box_count), 1, 512);
+
     // Optional exit button chrome (left of tool belt).
     out.exit_button_enabled = boolFromObjectOrDefault(root, "exit_button_enabled", out.exit_button_enabled);
     if (const JsonValue* exit_btn = root.get("exit_button")) {
@@ -275,6 +278,12 @@ LoadedGameTransfer loadGameTransfer(const std::string& project_root) {
             out.box_space_long_press.quick_drop_hold_seconds = std::max(
                 0.0,
                 doubleFromObjectOrDefault(o, "quick_drop_hold_seconds", out.box_space_long_press.quick_drop_hold_seconds));
+            out.box_space_long_press.long_press_feedback_seconds =
+                std::max(0.0,
+                         doubleFromObjectOrDefault(
+                             o,
+                             "long_press_feedback_seconds",
+                             out.box_space_long_press.long_press_feedback_seconds));
         }
     }
 

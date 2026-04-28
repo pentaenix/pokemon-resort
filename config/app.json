@@ -26,6 +26,7 @@
     "ui_move_sfx": "assets/sfx/ui_move.mp3",
     "pickup_sfx": "assets/sfx/pickup.mp3",
     "putdown_sfx": "assets/sfx/putdown.mp3",
+    "error_sfx": "assets/sfx/error.mp3",
     "music_volume": 3,
     "sfx_volume": 8
   }

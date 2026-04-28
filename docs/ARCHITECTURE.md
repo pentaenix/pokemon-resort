@@ -182,7 +182,7 @@ Do not build new UI directly against raw bridge JSON or legacy `box_1` strings. 
 
 The Resort backend is separate from the options save file and from transfer-ticket preview data.
 
-- `App.cpp` opens `PokemonResortService` under SDL's preference directory as `profile.resort.db`.
+- `App.cpp` resolves the same portable save directory as options (`title_screen.json` persistence: SDL pref path or project `save/` fallback), opens `PokemonResortService` at `save_directory / persistence.resort_profile_file_name` (default `profile.resort.db`), runs migrations, and calls `ensureProfile("default")` so default empty Resort boxes exist if missing (idempotent).
 - Repositories own SQL and migrations.
 - `BridgeImportAdapter` parses import-grade bridge JSON into `ImportedPokemon`.
 - `PokemonMatcher` owns identity lookup.
@@ -191,6 +191,19 @@ The Resort backend is separate from the options save file and from transfer-tick
 - `PokemonExportService` and `MirrorSessionService` own export projection snapshots and managed mirror sessions.
 
 The transfer screen still uses in-memory UI slot state. See [`docs/backend/frontend_integration.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/backend/frontend_integration.md) before replacing that with backend-backed storage.
+
+### Future: explicit player save bootstrap
+
+Not implemented yet; current builds still initialize Resort storage on startup for transfer MVP work.
+
+Planned direction:
+
+- Require an explicit **New Game** (or equivalent) action on the main menu before treating a player profile as created; until then, block **Transfer** and other flows that need durable Resort state.
+- That flow may temporarily hide or replace the normal main-menu buttons with a focused setup step.
+- Grow the JSON save (`SaveData` / primary `.sav`) beyond user options to carry game-level profile metadata (identity, progression flags, etc.) while keeping Resort canonical Pokemon in SQLite.
+- Optionally move first-time Resort DB creation and `ensureProfile` from implicit `App.cpp` startup into that explicit flow.
+
+When implementing this, keep [`title_screen.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/title_screen.json) `persistence` (save directory + `resort_profile_file_name`) as the single portable path contract so Resort files and the options save stay aligned.
 
 ## Configuration Surface
 

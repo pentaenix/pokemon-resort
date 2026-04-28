@@ -37,8 +37,9 @@ void HeldMoveController::swapHeldPokemonWith(const PcSlotSpecies& target, const 
     held_pokemon_->return_slot = next_return_slot;
 }
 
-void HeldMoveController::pickUpBox(int source_box_index, InputMode input_mode, SDL_Point pointer) {
+void HeldMoveController::pickUpBox(PokemonSlotRef::Panel source_panel, int source_box_index, InputMode input_mode, SDL_Point pointer) {
     HeldBoxSpaceBox held;
+    held.source_panel = source_panel;
     held.source_box_index = source_box_index;
     held.input_mode = input_mode;
     held.pointer = pointer;

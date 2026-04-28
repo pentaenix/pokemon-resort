@@ -1,6 +1,6 @@
 # Backend Storage Model
 
-Resort profile storage is SQLite-backed. The default runtime path is `profile.resort.db` under the app save directory, opened by `PokemonResortService`.
+Resort profile storage is SQLite-backed. The runtime path is `save_directory / persistence.resort_profile_file_name` from [`title_screen.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/title_screen.json) persistence (same `save_directory` as `pokemon_resort.sav`; default file name `profile.resort.db`), opened by `PokemonResortService`.
 
 ## Core Tables
 
@@ -30,7 +30,7 @@ Use `ResortPokemon` only when a full detail view needs canonical hot/warm/cold f
 
 Use `BoxLocation` from `PokemonResortService::getPokemonLocation(profile_id, pkrid)` when the UI needs to locate a canonical Pokemon inside Resort.
 
-Default Resort profile creation uses `BoxRepository::ensureDefaultBoxes(profile_id, 8, 30)`. External game saves have game-specific box counts and slot counts; do not project those assumptions back onto bridge preview UI.
+Default Resort profile creation uses `BoxRepository::ensureDefaultBoxes(profile_id)` (defaults: **60** boxes × 30 slots via `kDefaultResortPcBoxCount`, idempotent `INSERT OR IGNORE`). External game saves have game-specific box counts and slot counts; do not project those assumptions back onto bridge preview UI.
 
 ## Important Invariants
 

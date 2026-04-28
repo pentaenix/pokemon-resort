@@ -138,6 +138,7 @@ struct AudioConfig {
     std::string ui_move_sfx = "assets/sfx/ui_move.mp3";
     std::string pickup_sfx = "assets/sfx/pickup.mp3";
     std::string putdown_sfx = "assets/sfx/putdown.mp3";
+    std::string error_sfx = "assets/sfx/error.mp3";
     int music_volume = 7;
     int sfx_volume = 8;
 };
@@ -148,6 +149,8 @@ struct PersistenceConfig {
     std::string application = "PokemonResort";
     std::string save_file_name = "pokemon_resort.sav";
     std::string backup_file_name = "pokemon_resort.sav.bak";
+    /// SQLite Resort profile filename only; directory is the same portable save root as `save_file_name`.
+    std::string resort_profile_file_name = "profile.resort.db";
 };
 
 struct UserSettings {
@@ -242,9 +245,11 @@ struct GameTransferMiniPreviewStyle {
 /// Box Space-only long press interactions (`config/game_transfer.json` → `box_space_long_press`).
 struct GameTransferBoxSpaceLongPressStyle {
     /// Long press duration (seconds) to arm "swap PC boxes" while in Box Space mode and not holding a Pokémon.
-    double box_swap_hold_seconds = 3.0;
-    /// Long press duration (seconds) to drop held Pokémon into the first empty slot of the focused box while in Box Space mode.
-    double quick_drop_hold_seconds = 2.0;
+    double box_swap_hold_seconds = 1.0;
+    /// Long press duration (seconds) to drop held Pokémon/items into the first eligible slot(s) of the targeted box tile.
+    double quick_drop_hold_seconds = 1.0;
+    /// After this many seconds (while still holding), show Box Space feedback: target tile wiggle, multi-tool collapse-to-pointer, etc.
+    double long_press_feedback_seconds = 0.2;
 };
 
 struct GameTransferPokemonActionMenuStyle {

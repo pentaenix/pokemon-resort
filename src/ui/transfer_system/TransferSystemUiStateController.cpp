@@ -116,6 +116,12 @@ bool TransferSystemUiStateController::consumeUiMoveSfxRequest() {
     return requested;
 }
 
+bool TransferSystemUiStateController::consumeErrorSfxRequest() {
+    const bool requested = play_error_sfx_requested_;
+    play_error_sfx_requested_ = false;
+    return requested;
+}
+
 bool TransferSystemUiStateController::consumeReturnToTicketListRequest() {
     const bool requested = return_to_ticket_list_requested_;
     return_to_ticket_list_requested_ = false;
