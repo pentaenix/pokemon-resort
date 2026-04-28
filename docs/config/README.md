@@ -16,6 +16,8 @@ Runtime code owns state transitions, input semantics, parsing, persistence, brid
   Transfer-ticket screen header, list viewport, ticket art/text layout, rip animation, transfer lobby audio, background animation, and game color palette. See [`transfer_select_save.md`](transfer_select_save.md).
 - [`game_transfer.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/game_transfer.json)
   Post-ticket transfer system layout and tuning. See [`game_transfer.md`](game_transfer.md).
+- [`transfer_save.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/transfer_save.json)
+  Transfer system save/exit UX tuning (e.g. exit-save modal styling and animation).
 
 ## Adding Or Moving Config
 

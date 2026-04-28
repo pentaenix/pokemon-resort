@@ -187,6 +187,13 @@ transfer_system::TransferInfoBannerContext TransferSystemScreen::activeInfoBanne
     context.resort_storage_occupied_slots = resort_occ;
     context.resort_storage_total_slots = resort_cap;
 
+    if (exit_save_modal_open_) {
+        context.mode = "exit";
+        context.tooltip_copy.exit_tooltip_title.clear();
+        context.tooltip_copy.exit_tooltip_body =
+            "Would you like to save your current Box settings and all changes that you've made?";
+        return context;
+    }
     if (const auto* held = pokemon_move_.held()) {
         context.mode = "pokemon";
         context.slot = &held->pokemon;

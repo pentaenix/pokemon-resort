@@ -73,6 +73,7 @@ public:
     std::vector<SaveFileRecord> transferPageRecords() const;
     const SaveFileRecord* findRecordByPath(const std::string& path) const;
     const SaveFileRecord* findRecordByGameId(const std::string& game_id) const;
+    const std::string& cacheDirectory() const { return cache_directory_; }
 
 private:
     std::filesystem::path savesDirectory() const;

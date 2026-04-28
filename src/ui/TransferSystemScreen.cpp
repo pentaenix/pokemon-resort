@@ -21,6 +21,7 @@ void TransferSystemScreen::update(double dt) {
     updateAnimations(dt);
     updateEnterExit(dt);
     updateCarouselSlide(dt);
+    updateExitSaveModal(dt);
     if (box_rename_modal_open_) {
         box_rename_caret_blink_phase_ += dt;
         if (box_rename_caret_blink_phase_ > 640.0) {

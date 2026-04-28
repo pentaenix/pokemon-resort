@@ -105,7 +105,7 @@ Implemented in [`tools/pkhex_bridge`](/Users/vanta/Desktop/title_screen_demo/too
 - `PKHeXBridge import <save-path>`
   Import-grade read. Emits `bridge_import_schema: 1`, including exact per-Pokemon raw payload bytes and SHA-256 hashes.
 - `PKHeXBridge write-projection <save-path> <projection-json-path>`
-  Guarded write-back validation. It validates the save and projection schema, then returns `write_back_not_implemented`; it does not mutate saves yet.
+  Applies a projection JSON to the save (after writing `*.bak`). Supports `projection_schema` 1 (box names) and 2 (full PC snapshot + names). See [`PKHEX_BRIDGE.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/PKHEX_BRIDGE.md).
 
 Native process launcher methods are in [`include/core/SaveBridgeClient.hpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/core/SaveBridgeClient.hpp):
 

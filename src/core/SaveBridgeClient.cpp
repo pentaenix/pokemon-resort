@@ -1,5 +1,7 @@
 #include "core/SaveBridgeClient.hpp"
 
+#include "core/Json.hpp"
+
 #include <array>
 #include <cerrno>
 #include <cstdlib>
@@ -362,6 +364,99 @@ SaveBridgeProbeResult writeProjectionWithBridge(
     const std::string& save_path,
     const std::string& projection_json_path) {
     return runBridgeWithArgs(project_root, argv0, {"write-projection", save_path, projection_json_path});
+}
+
+namespace {
+
+std::string trimTrailingAsciiWs(std::string s) {
+    while (!s.empty()) {
+        const char c = s.back();
+        if (c == '\n' || c == '\r' || c == ' ' || c == '\t') {
+            s.pop_back();
+            continue;
+        }
+        break;
+    }
+    return s;
+}
+
+std::string extractJsonObject(const std::string& s) {
+    const std::size_t start = s.find('{');
+    const std::size_t end = s.rfind('}');
+    if (start == std::string::npos || end == std::string::npos || end <= start) {
+        return s;
+    }
+    return s.substr(start, end - start + 1);
+}
+
+std::string messageFromBridgeJsonRoot(const JsonValue& root) {
+    if (!root.isObject()) {
+        return {};
+    }
+    std::string msg;
+    if (const JsonValue* e = root.get("error")) {
+        if (e->isString()) {
+            msg = e->asString();
+        }
+    }
+    if (const JsonValue* d = root.get("details")) {
+        if (d->isString() && !d->asString().empty()) {
+            if (!msg.empty()) {
+                msg += ": ";
+            }
+            msg += d->asString();
+        }
+    }
+    if (msg.empty()) {
+        if (const JsonValue* st = root.get("status")) {
+            if (st->isString()) {
+                msg = st->asString();
+            }
+        }
+    }
+    return msg;
+}
+
+std::string summarizeBridgeStdoutJson(const std::string& text) {
+    if (text.empty()) {
+        return {};
+    }
+    const std::string trimmed = trimTrailingAsciiWs(text);
+    const std::string object_text = extractJsonObject(trimmed);
+    for (const std::string* candidate : {&trimmed, &object_text}) {
+        if (candidate->empty()) {
+            continue;
+        }
+        try {
+            const JsonValue root = parseJsonText(*candidate);
+            const std::string msg = messageFromBridgeJsonRoot(root);
+            if (!msg.empty()) {
+                return msg;
+            }
+        } catch (...) {
+            continue;
+        }
+    }
+    return {};
+}
+
+} // namespace
+
+std::string formatBridgeRunFailureMessage(const SaveBridgeProbeResult& r) {
+    if (!r.error_message.empty()) {
+        return r.error_message;
+    }
+    const std::string from_stdout = summarizeBridgeStdoutJson(r.stdout_text);
+    if (!from_stdout.empty()) {
+        return from_stdout;
+    }
+    if (!r.stderr_text.empty()) {
+        return std::string("stderr: ") + trimTrailingAsciiWs(r.stderr_text);
+    }
+    if (!r.stdout_text.empty()) {
+        return std::string("stdout: ") + trimTrailingAsciiWs(r.stdout_text);
+    }
+    return "bridge exited with code " + std::to_string(r.exit_code);
 }
 
 } // namespace pr

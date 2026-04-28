@@ -15,6 +15,7 @@
 #include "ui/transfer_system/ItemActionMenuController.hpp"
 #include "ui/transfer_system/move/Gestures.hpp"
 #include "ui/transfer_system/move/HeldMoveController.hpp"
+#include "ui/transfer_system/TransferSaveConfig.hpp"
 #include "ui/transfer_system/TransferInfoBannerPresenter.hpp"
 #include "ui/transfer_system/TransferSystemUiStateController.hpp"
 
@@ -43,6 +44,8 @@ public:
         const std::string& font_path,
         const std::string& project_root,
         std::shared_ptr<PokeSpriteAssets> sprite_assets,
+        std::string save_directory,
+        const char* bridge_argv0,
         resort::PokemonResortService* resort_service = nullptr);
 
     void enter(const TransferSaveSelection& selection, SDL_Renderer* renderer, int initial_game_box_index);
@@ -180,6 +183,27 @@ private:
     };
 
     void requestReturnToTicketList();
+
+    // --- Exit/save modal (external game save edits) ---
+    bool exit_save_modal_open_ = false;
+    bool exit_save_modal_target_open_ = false;
+    int exit_save_modal_selected_row_ = 0;
+    double exit_save_modal_reveal_ = 0.0; // 0..1 (animated)
+    SDL_Rect exit_save_modal_card_rect_virt_{0, 0, 0, 0};
+    std::array<SDL_Rect, 3> exit_save_modal_row_rects_virt_{};
+    void openExitSaveModal();
+    void closeExitSaveModal();
+    void updateExitSaveModal(double dt);
+    void syncExitSaveModalLayout();
+    void stepExitSaveModalSelection(int delta);
+    std::optional<int> exitSaveModalRowAtPoint(int logical_x, int logical_y) const;
+    void activateExitSaveModalRow(int row);
+    bool handleExitSaveModalPointerPressed(int logical_x, int logical_y);
+
+    // --- External game save edits (prototype overlay persistence) ---
+    bool game_boxes_dirty_ = false;
+    void markGameBoxesDirty();
+    bool saveGameBoxEditsOverlayAndClearDirty();
     void drawBackground(SDL_Renderer* renderer) const;
     void updateAnimations(double dt);
     void updateEnterExit(double dt);
@@ -231,6 +255,9 @@ private:
     WindowConfig window_config_;
     SDL_Renderer* renderer_ = nullptr;
     std::string project_root_;
+    std::string save_directory_;
+    /// Passed through for PKHeX bridge resolution (`SaveBridgeClient`); may be null (development fallback still works).
+    const char* bridge_argv0_ = nullptr;
     std::string font_path_;
     std::shared_ptr<PokeSpriteAssets> sprite_assets_;
     TextureHandle background_;
@@ -242,6 +269,7 @@ private:
     bool exit_button_enabled_ = true;
     int exit_button_gap_pixels_ = 0;
     double exit_button_icon_scale_ = 1.0;
+    Color exit_button_icon_mod_color_{255, 255, 255, 255};
     GameTransferBoxNameDropdownStyle box_name_dropdown_style_;
     GameTransferSelectionCursorStyle selection_cursor_style_;
     GameTransferMiniPreviewStyle mini_preview_style_;
@@ -249,6 +277,7 @@ private:
     GameTransferPokemonActionMenuStyle pokemon_action_menu_style_;
     GameTransferBoxSpaceLongPressStyle box_space_long_press_style_;
     GameTransferInfoBannerStyle info_banner_style_;
+    transfer_system::ExitSaveModalStyle exit_save_modal_style_;
     std::array<TextureHandle, 4> tool_icons_{};
     TextureHandle exit_button_icon_{};
     FontHandle pill_font_;
@@ -256,6 +285,7 @@ private:
     FontHandle box_rename_modal_body_font_;
     FontHandle speech_bubble_font_;
     FontHandle pokemon_action_menu_font_;
+    FontHandle exit_save_modal_font_;
     TextureHandle pill_label_pokemon_black_;
     TextureHandle pill_label_items_black_;
     TextureHandle pill_label_pokemon_white_;
@@ -581,6 +611,7 @@ private:
     void drawBoxRenameModal(SDL_Renderer* renderer);
     void drawBoxRenameFocusRing(SDL_Renderer* renderer) const;
     bool handleBoxRenameModalPointerPressed(int logical_x, int logical_y);
+    void drawExitSaveModal(SDL_Renderer* renderer) const;
 
     bool box_rename_modal_open_ = false;
     bool box_rename_editing_ = false;

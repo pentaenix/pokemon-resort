@@ -657,8 +657,36 @@ void BoxViewport::renderBelowNamePlate(SDL_Renderer* renderer) const {
     const int vx = viewport_x_;
     const int vy = viewport_y_;
 
-    fillRoundedRectScanlines(renderer, vx, vy, BoxViewport::kViewportWidth, BoxViewport::kViewportHeight, kViewportCornerRadius,
-        kViewportBg);
+    const Color viewport_bg = style_.viewport_background_color.a == 0 ? kViewportBg : style_.viewport_background_color;
+    const int border = std::clamp(style_.viewport_border_thickness, 0, 40);
+    if (border > 0) {
+        const Color border_color = style_.viewport_border_color.a == 0 ? Color{201, 190, 147, 255} : style_.viewport_border_color;
+        fillRoundedRectScanlines(
+            renderer,
+            vx,
+            vy,
+            BoxViewport::kViewportWidth,
+            BoxViewport::kViewportHeight,
+            kViewportCornerRadius,
+            border_color);
+        fillRoundedRectScanlines(
+            renderer,
+            vx + border,
+            vy + border,
+            BoxViewport::kViewportWidth - 2 * border,
+            BoxViewport::kViewportHeight - 2 * border,
+            std::max(0, kViewportCornerRadius - border),
+            viewport_bg);
+    } else {
+        fillRoundedRectScanlines(
+            renderer,
+            vx,
+            vy,
+            BoxViewport::kViewportWidth,
+            BoxViewport::kViewportHeight,
+            kViewportCornerRadius,
+            viewport_bg);
+    }
 
     const int pill_x = vx + (BoxViewport::kViewportWidth - kNamePillW) / 2;
     const int pill_y = vy + kNameTopPad;
@@ -684,7 +712,8 @@ void BoxViewport::renderBelowNamePlate(SDL_Renderer* renderer) const {
                     box_space_header && idx < m.slot_wiggle_dx.size() ? m.slot_wiggle_dx[idx] : 0;
                 const int sx = grid_x + col * (kSlotW + kSlotGapX) + dx + wdx;
                 const int sy = grid_y + row * (kSlotH + kSlotGapY);
-                fillRoundedRectScanlines(renderer, sx, sy, kSlotW, kSlotH, kSlotCornerRadius, kSlotBg);
+                const Color slot_bg = style_.slot_background_color.a == 0 ? kSlotBg : style_.slot_background_color;
+                fillRoundedRectScanlines(renderer, sx, sy, kSlotW, kSlotH, kSlotCornerRadius, slot_bg);
             }
         }
     };
@@ -761,26 +790,29 @@ void BoxViewport::renderBelowNamePlate(SDL_Renderer* renderer) const {
             SDL_Rect idst{icon_left_x, icon_y, kGameIconSize, kGameIconSize};
             SDL_RenderCopy(renderer, game_icon_tex_.texture.get(), nullptr, &idst);
         } else {
-            fillRoundedRectScanlines(renderer, icon_left_x, icon_y, kGameIconSize, kGameIconSize, 8, kSlotBg);
+            const Color slot_bg = style_.slot_background_color.a == 0 ? kSlotBg : style_.slot_background_color;
+            fillRoundedRectScanlines(renderer, icon_left_x, icon_y, kGameIconSize, kGameIconSize, 8, slot_bg);
         }
     };
 
     auto draw_box_space_button = [&](int btn_left_x) {
         const int btn_y = footer_row_y;
-        const Color active_fill{46, 176, 92, 255};
-        const Color active_underline{36, 150, 78, 255};
         const bool active = box_space_active_;
-        const Color fill = active ? active_fill : kButtonMain;
-        const Color underline = active ? active_underline : kButtonUnderline;
-        fillRoundedRectScanlines(renderer, btn_left_x, btn_y, kBoxSpaceBtnW, kBoxSpaceBtnH - kButtonStripH, 4, fill);
-        SDL_Rect under{btn_left_x, btn_y + kBoxSpaceBtnH - kButtonStripH, kBoxSpaceBtnW, kButtonStripH};
-        setDrawColor(renderer, underline);
-        SDL_RenderFillRect(renderer, &under);
+        const Color fill =
+            active
+                ? (style_.footer_button_active_fill_color.a == 0 ? Color{46, 176, 92, 255} : style_.footer_button_active_fill_color)
+                : (style_.footer_button_fill_color.a == 0 ? kButtonMain : style_.footer_button_fill_color);
+        const Color underline =
+            active
+                ? (style_.footer_button_active_underline_color.a == 0 ? Color{36, 150, 78, 255} : style_.footer_button_active_underline_color)
+                : (style_.footer_button_underline_color.a == 0 ? kButtonUnderline : style_.footer_button_underline_color);
+        (void)underline;
+        fillRoundedRectScanlines(renderer, btn_left_x, btn_y, kBoxSpaceBtnW, kBoxSpaceBtnH, 4, fill);
 
         const TextureHandle& label = active ? box_space_label_tex_white_ : box_space_label_tex_;
         if (label.texture) {
             const int bx = btn_left_x + kBoxSpaceBtnW / 2 - label.width / 2;
-            const int by = btn_y + (kBoxSpaceBtnH - kButtonStripH) / 2 - label.height / 2;
+            const int by = btn_y + kBoxSpaceBtnH / 2 - label.height / 2;
             SDL_Rect bd{bx, by, label.width, label.height};
             SDL_RenderCopy(renderer, label.texture.get(), nullptr, &bd);
         }
@@ -817,7 +849,8 @@ void BoxViewport::renderNamePlate(SDL_Renderer* renderer) const {
     const int pill_x = vx + (BoxViewport::kViewportWidth - kNamePillW) / 2;
     const int pill_y = vy + kNameTopPad;
 
-    fillRoundedRectScanlines(renderer, pill_x, pill_y, kNamePillW, kNamePillH, kPillCornerRadius, kPillBg);
+    const Color pill_bg = style_.name_plate_background_color.a == 0 ? kPillBg : style_.name_plate_background_color;
+    fillRoundedRectScanlines(renderer, pill_x, pill_y, kNamePillW, kNamePillH, kPillCornerRadius, pill_bg);
 
     if (cached_title_tex_.texture) {
         const int tcx = pill_x + kNamePillW / 2 - cached_title_tex_.width / 2;

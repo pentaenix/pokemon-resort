@@ -6,6 +6,11 @@ namespace pr {
 
 void TransferSystemScreen::onAdvancePressed() {
     selection_cursor_hidden_after_mouse_ = false;
+    if (exit_save_modal_open_) {
+        activateExitSaveModalRow(exit_save_modal_selected_row_);
+        ui_state_.requestButtonSfx();
+        return;
+    }
     if (box_rename_modal_open_) {
         syncBoxRenameModalLayout();
         if (box_rename_editing_) {
@@ -237,6 +242,9 @@ void TransferSystemScreen::onAdvancePressed() {
                     std::string next_item_name = dst->held_item_name;
                     dst->held_item_id = held->item_id;
                     dst->held_item_name = held->item_name;
+                    if (in_game) {
+                        markGameBoxesDirty();
+                    }
                     held_move_.swapHeldItemWith(
                         next_item_id,
                         std::move(next_item_name),
@@ -254,6 +262,9 @@ void TransferSystemScreen::onAdvancePressed() {
                     dst->held_item_id = held->item_id;
                     dst->held_item_name = held->item_name;
                     held_move_.clear();
+                    if (in_game) {
+                        markGameBoxesDirty();
+                    }
                     refreshResortBoxViewportModel();
                     refreshGameBoxViewportModel();
                     requestPutdownSfx();
@@ -338,6 +349,9 @@ void TransferSystemScreen::onAdvancePressed() {
                     last_pointer_position_);
                 src->held_item_id = -1;
                 src->held_item_name.clear();
+                if (item_action_menu_.fromGameBox()) {
+                    markGameBoxesDirty();
+                }
                 refreshResortBoxViewportModel();
                 refreshGameBoxViewportModel();
                 requestPickupSfx();

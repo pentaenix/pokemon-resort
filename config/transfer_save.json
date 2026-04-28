@@ -1,0 +1,37 @@
+{
+  "exit_save_modal": {
+    "enabled": true,
+    "enter_smoothing": 18.0,
+    "exit_smoothing": 18.0,
+    "offscreen_pad": 40,
+    "shown_x": 40,
+    "gap_above_info_banner": 18,
+    "width": 460,
+    "row_height": 52,
+    "row_gap": 10,
+    "padding_x": 18,
+    "padding_top": 18,
+    "padding_bottom": 18,
+    "corner_radius": 12,
+    "border_thickness": 3,
+    "dim_background": true,
+    "dim_color": "#000000",
+    "dim_alpha": 140,
+    "card_fill": "$paper_0",
+    "card_fill_alpha": 246,
+    "card_border": "$outline_0",
+    "card_border_alpha": 220,
+    "row_fill": "#FFFFFF",
+    "row_fill_alpha": 0,
+    "row_border": "#FFFFFF",
+    "row_border_alpha": 0,
+    "selected_row_fill": "$ui_yellow",
+    "selected_row_fill_alpha": 160,
+    "selected_row_border": "$ui_yellow",
+    "selected_row_border_alpha": 220,
+    "text_color": "$ink_0",
+    "text_alpha": 255,
+    "font_pt": 28
+  }
+}
+

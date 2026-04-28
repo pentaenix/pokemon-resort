@@ -92,6 +92,7 @@ void TransferSystemScreen::render(SDL_Renderer* renderer) {
     drawItemActionMenu(renderer);
     drawPokemonActionMenu(renderer);
     drawBoxRenameModal(renderer);
+    drawExitSaveModal(renderer);
 
     if (!ui_state_.exitInProgress() && ui_state_.fadeInSeconds() > 1e-6) {
         const double t = std::clamp(ui_state_.elapsedSeconds() / ui_state_.fadeInSeconds(), 0.0, 1.0);

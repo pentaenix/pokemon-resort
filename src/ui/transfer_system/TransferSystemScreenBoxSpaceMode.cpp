@@ -51,6 +51,7 @@ bool TransferSystemScreen::swapGamePcBoxes(int a, int b) {
         return true;
     }
     std::swap(game_pc_boxes_[static_cast<std::size_t>(a)], game_pc_boxes_[static_cast<std::size_t>(b)]);
+    markGameBoxesDirty();
     if (game_save_box_viewport_ && game_box_browser_.gameBoxSpaceMode()) {
         const bool show_down = gameBoxSpaceMaxRowOffset() > 0;
         game_save_box_viewport_->setHeaderMode(BoxViewport::HeaderMode::BoxSpace, show_down);

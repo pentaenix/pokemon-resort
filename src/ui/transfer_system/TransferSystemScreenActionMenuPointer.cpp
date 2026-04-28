@@ -81,6 +81,9 @@ bool TransferSystemScreen::handleItemActionMenuPointerPressed(int logical_x, int
                     last_pointer_position_);
                 src->held_item_id = -1;
                 src->held_item_name.clear();
+                if (item_action_menu_.fromGameBox()) {
+                    markGameBoxesDirty();
+                }
                 refreshResortBoxViewportModel();
                 refreshGameBoxViewportModel();
                 requestPickupSfx();

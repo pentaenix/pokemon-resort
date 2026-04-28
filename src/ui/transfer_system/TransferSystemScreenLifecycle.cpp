@@ -1,5 +1,8 @@
 #include "ui/TransferSystemScreen.hpp"
 
+#include "core/BridgeImportMerge.hpp"
+#include "core/SaveBridgeClient.hpp"
+#include "core/TransferBoxEditsStore.hpp"
 #include "core/PokeSpriteAssets.hpp"
 #include "resort/domain/ResortTypes.hpp"
 #include "resort/services/PokemonResortService.hpp"
@@ -31,12 +34,13 @@ void getPillTrackBounds(const GameTransferPillToggleStyle& st, int screen_w, int
 }
 
 void TransferSystemScreen::cachePillLabelTextures(SDL_Renderer* renderer) {
-    const Color black{0, 0, 0, 255};
-    const Color white{255, 255, 255, 255};
-    pill_label_pokemon_black_ = renderTextTexture(renderer, pill_font_.get(), "Pokemon", black);
-    pill_label_items_black_ = renderTextTexture(renderer, pill_font_.get(), "Items", black);
-    pill_label_pokemon_white_ = renderTextTexture(renderer, pill_font_.get(), "Pokemon", white);
-    pill_label_items_white_ = renderTextTexture(renderer, pill_font_.get(), "Items", white);
+    const Color selected = pill_style_.label_selected_color;
+    const Color unselected = pill_style_.label_unselected_color;
+    // Reuse the existing texture slots: "black" = selected, "white" = unselected.
+    pill_label_pokemon_black_ = renderTextTexture(renderer, pill_font_.get(), "Pokemon", selected);
+    pill_label_items_black_ = renderTextTexture(renderer, pill_font_.get(), "Items", selected);
+    pill_label_pokemon_white_ = renderTextTexture(renderer, pill_font_.get(), "Pokemon", unselected);
+    pill_label_items_white_ = renderTextTexture(renderer, pill_font_.get(), "Items", unselected);
 }
 
 void TransferSystemScreen::initializeResortPcBoxesFromStorage(SDL_Renderer* renderer) {
@@ -217,6 +221,34 @@ void TransferSystemScreen::enter(const TransferSaveSelection& selection, SDL_Ren
             b.slots.resize(30);
         }
         game_pc_boxes_.push_back(std::move(b));
+    }
+
+    // Import-grade encrypted PKM payloads (per PC slot) are required for safe real-save write-back.
+    // Must run while `game_pc_boxes_` still matches the on-disk layout from the last probe.
+    {
+        std::string import_merge_error;
+        const SaveBridgeProbeResult import_result =
+            importSaveWithBridge(project_root_, bridge_argv0_, transfer_selection_.source_path);
+        if (!import_result.launched || !import_result.success) {
+            std::cerr << "Warning: PKHeX import bridge did not return usable data; writing Pokémon moves to the real save "
+                         "will be disabled until import succeeds. exit_code="
+                      << import_result.exit_code << '\n';
+        } else if (!mergeBridgeImportIntoGamePcBoxes(import_result.stdout_text, game_pc_boxes_, &import_merge_error)) {
+            std::cerr << "Warning: could not merge import payloads into PC slots: " << import_merge_error << '\n';
+        }
+    }
+
+    // Apply persisted overlay edits (prototype external-save editing).
+    game_boxes_dirty_ = false;
+    {
+        std::string overlay_error;
+        if (const auto overlay = loadTransferBoxEditsOverlay(save_directory_, selection.source_path, selection.game_key, &overlay_error)) {
+            if (!overlay->pc_boxes.empty()) {
+                game_pc_boxes_ = overlay->pc_boxes;
+            }
+        } else if (!overlay_error.empty()) {
+            std::cerr << "Warning: could not load transfer box edits overlay: " << overlay_error << '\n';
+        }
     }
 
     game_box_browser_.enter(static_cast<int>(game_pc_boxes_.size()), initial_game_box_index);

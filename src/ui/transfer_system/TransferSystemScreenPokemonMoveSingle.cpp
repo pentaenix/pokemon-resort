@@ -36,6 +36,9 @@ const PcSlotSpecies* TransferSystemScreen::pokemonAt(const transfer_system::Poke
 void TransferSystemScreen::clearPokemonAt(const transfer_system::PokemonMoveController::SlotRef& ref) {
     if (PcSlotSpecies* slot = mutablePokemonAt(ref)) {
         *slot = PcSlotSpecies{};
+        if (ref.panel == transfer_system::PokemonMoveController::Panel::Game) {
+            markGameBoxesDirty();
+        }
     }
 }
 
@@ -46,6 +49,9 @@ void TransferSystemScreen::setPokemonAt(const transfer_system::PokemonMoveContro
         pokemon.box_index = ref.box_index;
         pokemon.area = ref.panel == transfer_system::PokemonMoveController::Panel::Resort ? "resort" : "box";
         *slot = std::move(pokemon);
+        if (ref.panel == transfer_system::PokemonMoveController::Panel::Game) {
+            markGameBoxesDirty();
+        }
     }
 }
 

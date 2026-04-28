@@ -153,6 +153,8 @@ void TransferFlowCoordinator::ensureTransferSystemScreen() {
             font_path_,
             project_root_,
             sprite_assets_,
+            save_library_.cacheDirectory(),
+            argv0_,
             resort_service_);
     }
 }
