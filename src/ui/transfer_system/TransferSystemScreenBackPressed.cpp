@@ -5,6 +5,12 @@
 namespace pr {
 
 void TransferSystemScreen::onBackPressed() {
+    if (exit_save_modal_open_) {
+        // Exit-save modal consumes Back: treat it as "continue box operations".
+        closeExitSaveModal();
+        ui_state_.requestButtonSfx();
+        return;
+    }
     if (box_rename_modal_open_) {
         if (box_rename_editing_) {
             box_rename_editing_ = false;
@@ -74,6 +80,10 @@ void TransferSystemScreen::onBackPressed() {
     }
     if (resort_box_browser_.dropdownOpenTarget()) {
         closeResortBoxDropdown();
+        return;
+    }
+    if (game_boxes_dirty_) {
+        openExitSaveModal();
         return;
     }
     // Pull UI away before returning.

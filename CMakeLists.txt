@@ -46,6 +46,8 @@ add_executable(title_screen_demo
     src/core/SaveBridgeClient.cpp
     src/core/SaveLibrary.cpp
     src/core/SaveDataStore.cpp
+    src/core/TransferBoxEditsStore.cpp
+    src/core/BridgeImportMerge.cpp
     ${RESORT_STORAGE_SOURCES}
     src/ui/LoadingScreen.cpp
     src/ui/TitleScreen.cpp
@@ -79,6 +81,8 @@ add_executable(title_screen_demo
     src/ui/transfer_system/TransferSystemScreenUnroutedEvents.cpp
     src/ui/transfer_system/TransferSystemScreenBoxRenameModal.cpp
     src/ui/transfer_system/TransferSystemScreenBoxRenameModalRender.cpp
+    src/ui/transfer_system/TransferSystemScreenExitSaveModal.cpp
+    src/ui/transfer_system/TransferSystemScreenExitSaveModalRender.cpp
     src/ui/transfer_system/TransferSystemScreenPointerPressed.cpp
     src/ui/transfer_system/TransferSystemScreenPointerMoved.cpp
     src/ui/transfer_system/TransferSystemScreenPointerReleased.cpp
@@ -95,6 +99,7 @@ add_executable(title_screen_demo
     src/ui/transfer_system/TransferSystemScreenSmallQueries.cpp
     src/ui/transfer_system/TransferSystemScreenUiHelpers.cpp
     src/ui/transfer_system/GameTransferConfig.cpp
+    src/ui/transfer_system/TransferSaveConfig.cpp
     src/ui/transfer_system/GameBoxBrowserController.cpp
     src/ui/transfer_system/MultiPokemonMoveController.cpp
     src/ui/transfer_system/move/HeldMoveController.cpp
@@ -264,6 +269,30 @@ add_executable(config_loader_tests
 target_include_directories(config_loader_tests PRIVATE include)
 add_test(NAME config_loader_tests COMMAND config_loader_tests)
 
+add_executable(transfer_box_edits_store_tests
+    ../tests/native/core/transfer_box_edits_store_tests.cpp
+    src/core/TransferBoxEditsStore.cpp
+    src/core/Json.cpp
+)
+target_include_directories(transfer_box_edits_store_tests PRIVATE include)
+add_test(NAME transfer_box_edits_store_tests COMMAND transfer_box_edits_store_tests)
+
+add_executable(bridge_import_merge_tests
+    ../tests/native/core/bridge_import_merge_tests.cpp
+    src/core/BridgeImportMerge.cpp
+    src/core/Json.cpp
+)
+target_include_directories(bridge_import_merge_tests PRIVATE include)
+add_test(NAME bridge_import_merge_tests COMMAND bridge_import_merge_tests)
+
+add_executable(save_bridge_client_tests
+    ../tests/native/core/save_bridge_client_tests.cpp
+    src/core/SaveBridgeClient.cpp
+    src/core/Json.cpp
+)
+target_include_directories(save_bridge_client_tests PRIVATE include)
+add_test(NAME save_bridge_client_tests COMMAND save_bridge_client_tests)
+
 add_executable(pokesprite_assets_tests
     ../tests/native/core/pokesprite_assets_tests.cpp
     src/core/Json.cpp
@@ -327,6 +356,8 @@ add_executable(transfer_system_flow_harness_tests
     src/core/PokemonOrigin.cpp
     src/core/PokeSpriteAssets.cpp
     src/core/SaveBridgeClient.cpp
+    src/core/TransferBoxEditsStore.cpp
+    src/core/BridgeImportMerge.cpp
     ${RESORT_STORAGE_SOURCES}
     src/ui/TransferSystemScreen.cpp
     src/ui/transfer_system/TransferSystemScreenLifecycle.cpp
@@ -349,6 +380,8 @@ add_executable(transfer_system_flow_harness_tests
     src/ui/transfer_system/TransferSystemScreenUnroutedEvents.cpp
     src/ui/transfer_system/TransferSystemScreenBoxRenameModal.cpp
     src/ui/transfer_system/TransferSystemScreenBoxRenameModalRender.cpp
+    src/ui/transfer_system/TransferSystemScreenExitSaveModal.cpp
+    src/ui/transfer_system/TransferSystemScreenExitSaveModalRender.cpp
     src/ui/transfer_system/TransferSystemScreenPointerPressed.cpp
     src/ui/transfer_system/TransferSystemScreenPointerMoved.cpp
     src/ui/transfer_system/TransferSystemScreenPointerReleased.cpp
@@ -365,6 +398,7 @@ add_executable(transfer_system_flow_harness_tests
     src/ui/transfer_system/TransferSystemScreenSmallQueries.cpp
     src/ui/transfer_system/TransferSystemScreenUiHelpers.cpp
     src/ui/transfer_system/GameTransferConfig.cpp
+    src/ui/transfer_system/TransferSaveConfig.cpp
     src/ui/transfer_system/GameBoxBrowserController.cpp
     src/ui/transfer_system/MultiPokemonMoveController.cpp
     src/ui/transfer_system/move/HeldMoveController.cpp

@@ -76,7 +76,8 @@ void TransferSystemScreen::drawBoxRenameModal(SDL_Renderer* renderer) {
 
     const int vw = window_config_.virtual_width;
     const int vh = window_config_.virtual_height;
-    setDrawColor(renderer, Color{0, 0, 0, 165});
+    // Match exit-save modal dim feel (tunable via transfer_save.json).
+    setDrawColor(renderer, Color{0, 0, 0, 140});
     SDL_Rect dim_rect{0, 0, vw, vh};
     SDL_RenderFillRect(renderer, &dim_rect);
 
@@ -92,8 +93,8 @@ void TransferSystemScreen::drawBoxRenameModal(SDL_Renderer* renderer) {
         card_h,
         18,
         2,
-        Color{72, 74, 88, 255},
-        Color{252, 252, 254, 255});
+        box_viewport_style_.viewport_border_color,
+        box_viewport_style_.slot_background_color);
 
     const int input_x = box_rename_text_field_rect_virt_.x;
     const int field_y = box_rename_text_field_rect_virt_.y;
@@ -108,11 +109,11 @@ void TransferSystemScreen::drawBoxRenameModal(SDL_Renderer* renderer) {
         row_h,
         12,
         2,
-        Color{168, 172, 188, 255},
-        Color{246, 247, 251, 255});
+        box_viewport_style_.viewport_border_color,
+        box_viewport_style_.name_plate_background_color);
 
-    const Color btn_border{156, 160, 174, 255};
-    const Color btn_fill{218, 220, 228, 255};
+    const Color btn_border = box_viewport_style_.viewport_border_color;
+    const Color btn_fill = box_viewport_style_.viewport_background_color;
     fillRoundedRingScanlines(
         renderer,
         box_rename_cancel_button_rect_virt_.x,
@@ -134,7 +135,7 @@ void TransferSystemScreen::drawBoxRenameModal(SDL_Renderer* renderer) {
         btn_border,
         btn_fill);
 
-    const Color icon_col{56, 58, 72, 255};
+    const Color icon_col = selection_cursor_style_.speech_bubble.text_color;
     TextureHandle x_tex = renderTextTexture(renderer, body_f, "\xc3\x97", icon_col);
     if (x_tex.texture) {
         const SDL_Rect& br = box_rename_cancel_button_rect_virt_;
@@ -157,7 +158,7 @@ void TransferSystemScreen::drawBoxRenameModal(SDL_Renderer* renderer) {
     }
 
     const std::string display = box_rename_text_utf8_ + box_rename_ime_utf8_;
-    const Color text_col = display.empty() ? Color{160, 164, 178, 255} : Color{34, 36, 48, 255};
+    const Color text_col = display.empty() ? box_name_dropdown_style_.panel_border_color : selection_cursor_style_.speech_bubble.text_color;
     TextureHandle value_tex =
         display.empty() ? renderTextTexture(renderer, body_f, "Enter name", text_col)
                           : renderTextTexture(renderer, body_f, display, text_col);
@@ -176,7 +177,7 @@ void TransferSystemScreen::drawBoxRenameModal(SDL_Renderer* renderer) {
                 int th = 0;
                 if (TTF_SizeUTF8(body_f, display.c_str(), &tw, &th) == 0) {
                     const int cx_caret = input_x + text_pad + std::min(tw, max_text_w);
-                    setDrawColor(renderer, Color{34, 36, 48, 255});
+                    setDrawColor(renderer, selection_cursor_style_.speech_bubble.text_color);
                     SDL_Rect caret{cx_caret, field_y + 12, 3, row_h - 24};
                     SDL_RenderFillRect(renderer, &caret);
                 }

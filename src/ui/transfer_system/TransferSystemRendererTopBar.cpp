@@ -49,8 +49,12 @@ void TransferSystemScreen::drawToolCarousel(SDL_Renderer* renderer) const {
         fillRoundedRectScanlines(renderer, bx, by, bs, bs, radius, carousel_style_.viewport_color);
 
         if (exit_button_icon_.texture) {
-            SDL_SetTextureColorMod(exit_button_icon_.texture.get(), 255, 255, 255);
-            SDL_SetTextureAlphaMod(exit_button_icon_.texture.get(), 255);
+            SDL_SetTextureColorMod(
+                exit_button_icon_.texture.get(),
+                static_cast<Uint8>(std::clamp(exit_button_icon_mod_color_.r, 0, 255)),
+                static_cast<Uint8>(std::clamp(exit_button_icon_mod_color_.g, 0, 255)),
+                static_cast<Uint8>(std::clamp(exit_button_icon_mod_color_.b, 0, 255)));
+            SDL_SetTextureAlphaMod(exit_button_icon_.texture.get(), static_cast<Uint8>(std::clamp(exit_button_icon_mod_color_.a, 0, 255)));
             const int pad = std::max(6, bs / 6);
             const int base = std::max(1, bs - 2 * pad);
             const double s = std::clamp(exit_button_icon_scale_, 0.05, 4.0);
@@ -117,8 +121,12 @@ void TransferSystemScreen::drawToolCarousel(SDL_Renderer* renderer) const {
         if (!tex.texture || tex.width <= 0) {
             return;
         }
-        SDL_SetTextureColorMod(tex.texture.get(), 255, 255, 255);
-        SDL_SetTextureAlphaMod(tex.texture.get(), 255);
+        SDL_SetTextureColorMod(
+            tex.texture.get(),
+            static_cast<Uint8>(std::clamp(carousel_style_.icon_mod_color.r, 0, 255)),
+            static_cast<Uint8>(std::clamp(carousel_style_.icon_mod_color.g, 0, 255)),
+            static_cast<Uint8>(std::clamp(carousel_style_.icon_mod_color.b, 0, 255)));
+        SDL_SetTextureAlphaMod(tex.texture.get(), static_cast<Uint8>(std::clamp(carousel_style_.icon_mod_color.a, 0, 255)));
         const int half = icon / 2;
         SDL_Rect dst{center_x - half, cy - half, icon, icon};
         SDL_RenderCopy(renderer, tex.texture.get(), nullptr, &dst);

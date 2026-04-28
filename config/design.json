@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "palette": [
+    "#FFFFF8",
+    "#F8F4E8",
+    "#ECE8CC",
+    "#FCEEA9",
+    "#70692B",
+    "#6F5D50",
+    "#877C69",
+    "#4FACA5"
+  ],
+  "tokens": {
+    "paper_0": "#FFFFF8",
+    "paper_1": "#F8F4E8",
+    "paper_2": "#ECE8CC",
+    "paper_3": "#E3DCB7",
+    "accent_0": "#FCEEA9",
+    "ink_0": "#70692B",
+    "ink_1": "#6F5D50",
+    "ink_2": "#837357",
+    "teal_0": "#4FACA5",
+    "teal_1": "#2F7F79",
+    "outline_0": "#C9BE93",
+    "ui_yellow": "#D4B04C",
+    "ui_green": "#6E9B6B",
+    "ui_blue": "#5F8FB8",
+    "ui_red": "#C96A5A"
+  }
+}

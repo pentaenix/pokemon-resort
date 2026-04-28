@@ -297,6 +297,7 @@ bool TransferSystemScreen::tryGiveHeldItemToFirstEligiblePokemonInGameBox(int bo
             slot.held_item_id = held->item_id;
             slot.held_item_name = held->item_name;
             held_move_.clear();
+            markGameBoxesDirty();
             refreshGameBoxViewportModel();
             refreshResortBoxViewportModel();
             requestPutdownSfx();

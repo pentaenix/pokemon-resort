@@ -241,8 +241,8 @@ void TransferSystemScreen::drawMiniPreview(SDL_Renderer* renderer) const {
     debug_mini_preview_cell_size_ = SDL_Point{0, 0};
 #endif
 
-    const Color kBorder{224, 224, 224, 255}; // same gray as box component background
-    const Color kFill{251, 251, 251, 255};   // same as slot fill
+    const Color kBorder = box_viewport_style_.viewport_border_color;
+    const Color kFill = box_viewport_style_.slot_background_color;
 
     const int w = std::max(1, mini_preview_style_.width);
     const int h = std::max(1, mini_preview_style_.height);

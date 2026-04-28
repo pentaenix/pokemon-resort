@@ -71,6 +71,7 @@ void TransferSystemScreen::closeBoxRenameModal(bool commit) {
         if (box_rename_modal_panel_ == BoxRenameModalPanel::Game && idx >= 0 &&
             idx < static_cast<int>(game_pc_boxes_.size())) {
             game_pc_boxes_[static_cast<std::size_t>(idx)].name = std::move(next);
+            markGameBoxesDirty();
             refreshGameBoxViewportModel();
             dropdown_labels_dirty_ = true;
         } else if (

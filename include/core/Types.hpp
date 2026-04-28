@@ -217,6 +217,18 @@ struct GameTransferBoxViewportStyle {
     /// Vertical offset applied to sprite center within each slot (positive moves down).
     int sprite_offset_y = 0;
 
+    // --- Chrome colors (BoxViewport.cpp defaults kept for backward compatibility) ---
+    Color viewport_background_color{224, 224, 224, 255};
+    /// Optional border around the whole viewport chrome.
+    Color viewport_border_color{201, 190, 147, 255};
+    int viewport_border_thickness = 0;
+    Color name_plate_background_color{251, 251, 251, 255};
+    Color slot_background_color{251, 251, 251, 255};
+    Color footer_button_fill_color{191, 191, 191, 255};
+    Color footer_button_underline_color{175, 175, 175, 255};
+    Color footer_button_active_fill_color{46, 176, 92, 255};
+    Color footer_button_active_underline_color{36, 150, 78, 255};
+
     // --- Item tool overlays ---
     int item_tool_item_size = 42;
     double item_tool_grow_smoothing = 18.0;
@@ -346,6 +358,10 @@ struct GameTransferPillToggleStyle {
     int gap_above_boxes = 10;
     Color track_color{224, 224, 224, 255};
     Color pill_color{251, 251, 251, 255};
+    /// Label color when NOT under the sliding pill (should contrast with `track_color`).
+    Color label_unselected_color{111, 93, 80, 255};
+    /// Label color when under the sliding pill (should contrast with `pill_color`).
+    Color label_selected_color{112, 105, 43, 255};
     int font_pt = 28;
     /// Exponential approach rate for the pill slider (higher = snappier; ~14–28 feels good).
     double toggle_smoothing = 22.0;
@@ -390,6 +406,8 @@ struct GameTransferToolCarouselStyle {
     std::string texture_basic = "assets/game_transfer/icon_basic.png";
     std::string texture_swap = "assets/game_transfer/icon_swap.png";
     std::string texture_items = "assets/game_transfer/icon_items.png";
+    /// Icon tint applied via `SDL_SetTextureColorMod` (icons should be authored as white for best results).
+    Color icon_mod_color{255, 255, 255, 255};
     Color frame_multiple{34, 177, 76, 255};
     Color frame_basic{220, 50, 47, 255};
     Color frame_swap{52, 120, 246, 255};

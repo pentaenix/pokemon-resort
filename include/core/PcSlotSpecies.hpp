@@ -67,6 +67,12 @@ struct PcSlotSpecies {
     /// Canonical Resort SQLite key (`pokemon.pkrid`) when this slot was loaded from `profile.resort.db`.
     std::string resort_pkrid;
 
+    /// Import-grade encrypted PC slot payload from `PKHeXBridge import` (`EncryptedBoxData`), base64-encoded.
+    /// Required for safe write-back when moving Pokémon between PC slots; copied whenever the slot is moved in UI.
+    std::string bridge_box_payload_base64;
+    /// Lowercase hex SHA-256 of decoded `bridge_box_payload_base64` bytes (matches bridge `raw_hash_sha256`).
+    std::string bridge_box_payload_hash_sha256;
+
     bool occupied() const { return present && (!slug.empty() || !resort_pkrid.empty()); }
 };
 

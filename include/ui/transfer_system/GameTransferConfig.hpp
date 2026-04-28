@@ -21,6 +21,7 @@ struct LoadedGameTransfer {
     bool exit_button_enabled = true;
     int exit_button_gap_pixels = 0;
     double exit_button_icon_scale = 1.0;
+    Color exit_button_icon_mod_color{255, 255, 255, 255};
     BackgroundAnimLoaded background_animation{};
     GameTransferBoxViewportStyle box_viewport{};
     GameTransferMiniPreviewStyle mini_preview{};

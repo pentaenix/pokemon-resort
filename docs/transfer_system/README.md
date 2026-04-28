@@ -225,7 +225,7 @@ The transfer system currently mixes real external-save data with prototype in-me
 - multi-Pokemon movement preserves layout for direct slot drops and uses first-empty order for Box Space quick drops
 - item put-away and durable bag/deposit semantics are not complete
 - canonical Resort storage exists, but the transfer screen does not yet render or mutate it as the source of truth
-- bridge write-projection validates input but intentionally does not mutate external saves
+- external PC **box names** and **PC box slot placement** can be written back through PKHeX bridge `write-projection` (`projection_schema` 2) after capturing import-grade encrypted PKM payloads; other regions (party, bag, etc.) are still out of scope until modeled in the projection
 
 Do not obscure these boundaries. If a change makes movement persistent, imports Pokemon into Resort storage, writes to external saves, or syncs bag/deposit state, document the new source of truth and update architecture/backend docs in the same change.
 

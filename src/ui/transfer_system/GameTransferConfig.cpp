@@ -5,12 +5,15 @@
 #include <algorithm>
 #include <cmath>
 #include <filesystem>
+#include <unordered_map>
 
 namespace fs = std::filesystem;
 
 namespace pr::transfer_system {
 
 namespace {
+
+using TokenMap = std::unordered_map<std::string, std::string>;
 
 Color parseHexColorString(const std::string& value, const Color& fallback) {
     if (value.size() != 7 || value[0] != '#') {
@@ -37,6 +40,44 @@ Color parseHexColorString(const std::string& value, const Color& fallback) {
         return fallback;
     }
     return Color{r, g, b, 255};
+}
+
+std::string resolveColorToken(const std::string& raw, const TokenMap& tokens) {
+    if (raw.size() >= 2 && raw[0] == '$') {
+        const std::string key = raw.substr(1);
+        const auto it = tokens.find(key);
+        if (it != tokens.end()) {
+            return it->second;
+        }
+    }
+    return raw;
+}
+
+Color parseColorString(const std::string& raw, const Color& fallback, const TokenMap& tokens) {
+    return parseHexColorString(resolveColorToken(raw, tokens), fallback);
+}
+
+TokenMap loadDesignTokens(const std::string& project_root) {
+    TokenMap out;
+    const fs::path path = fs::path(project_root) / "config" / "design.json";
+    if (!fs::exists(path)) {
+        return out;
+    }
+    JsonValue root = parseJsonFile(path.string());
+    if (!root.isObject()) {
+        return out;
+    }
+    const JsonValue* tokens = root.get("tokens");
+    if (!tokens || !tokens->isObject()) {
+        return out;
+    }
+    for (const auto& [key, value] : tokens->asObject()) {
+        if (!value.isString()) {
+            continue;
+        }
+        out.emplace(key, value.asString());
+    }
+    return out;
 }
 
 double doubleFromObjectOrDefault(const JsonValue& obj, const std::string& key, double fallback) {
@@ -125,6 +166,7 @@ void applyInfoBannerLayoutField(
 
 LoadedGameTransfer loadGameTransfer(const std::string& project_root) {
     LoadedGameTransfer out;
+    const TokenMap design_tokens = loadDesignTokens(project_root);
     const fs::path path = fs::path(project_root) / "config" / "game_transfer.json";
     if (!fs::exists(path)) {
         return out;
@@ -149,6 +191,12 @@ LoadedGameTransfer loadGameTransfer(const std::string& project_root) {
                 doubleFromObjectOrDefault(o, "icon_scale", out.exit_button_icon_scale),
                 0.05,
                 4.0);
+            if (const JsonValue* c = o.get("icon_mod_color")) {
+                if (c->isString()) {
+                    out.exit_button_icon_mod_color =
+                        parseColorString(c->asString(), out.exit_button_icon_mod_color, design_tokens);
+                }
+            }
         }
     }
 
@@ -190,14 +238,14 @@ LoadedGameTransfer loadGameTransfer(const std::string& project_root) {
             if (const JsonValue* c = o.get("arrow_mod_color")) {
                 if (c->isString()) {
                     out.box_viewport.arrow_mod_color =
-                        parseHexColorString(c->asString(), out.box_viewport.arrow_mod_color);
+                        parseColorString(c->asString(), out.box_viewport.arrow_mod_color, design_tokens);
                 }
             }
             out.box_viewport.box_name_font_pt = intFromObjectOrDefault(o, "box_name_font_pt", out.box_viewport.box_name_font_pt);
             if (const JsonValue* c = o.get("box_name_color")) {
                 if (c->isString()) {
                     out.box_viewport.box_name_color =
-                        parseHexColorString(c->asString(), out.box_viewport.box_name_color);
+                        parseColorString(c->asString(), out.box_viewport.box_name_color, design_tokens);
                 }
             }
             out.box_viewport.box_space_font_pt =
@@ -205,7 +253,7 @@ LoadedGameTransfer loadGameTransfer(const std::string& project_root) {
             if (const JsonValue* c = o.get("box_space_color")) {
                 if (c->isString()) {
                     out.box_viewport.box_space_color =
-                        parseHexColorString(c->asString(), out.box_viewport.box_space_color);
+                        parseColorString(c->asString(), out.box_viewport.box_space_color, design_tokens);
                 }
             }
             out.box_viewport.footer_scroll_arrow_offset_y =
@@ -214,6 +262,58 @@ LoadedGameTransfer loadGameTransfer(const std::string& project_root) {
                 doubleFromObjectOrDefault(o, "content_slide_smoothing", out.box_viewport.content_slide_smoothing);
             out.box_viewport.sprite_scale = doubleFromObjectOrDefault(o, "sprite_scale", out.box_viewport.sprite_scale);
             out.box_viewport.sprite_offset_y = intFromObjectOrDefault(o, "sprite_offset_y", out.box_viewport.sprite_offset_y);
+
+            if (const JsonValue* c = o.get("viewport_background_color")) {
+                if (c->isString()) {
+                    out.box_viewport.viewport_background_color =
+                        parseColorString(c->asString(), out.box_viewport.viewport_background_color, design_tokens);
+                }
+            }
+            if (const JsonValue* c = o.get("viewport_border_color")) {
+                if (c->isString()) {
+                    out.box_viewport.viewport_border_color =
+                        parseColorString(c->asString(), out.box_viewport.viewport_border_color, design_tokens);
+                }
+            }
+            out.box_viewport.viewport_border_thickness = std::max(
+                0,
+                intFromObjectOrDefault(o, "viewport_border_thickness", out.box_viewport.viewport_border_thickness));
+            if (const JsonValue* c = o.get("name_plate_background_color")) {
+                if (c->isString()) {
+                    out.box_viewport.name_plate_background_color =
+                        parseColorString(c->asString(), out.box_viewport.name_plate_background_color, design_tokens);
+                }
+            }
+            if (const JsonValue* c = o.get("slot_background_color")) {
+                if (c->isString()) {
+                    out.box_viewport.slot_background_color =
+                        parseColorString(c->asString(), out.box_viewport.slot_background_color, design_tokens);
+                }
+            }
+            if (const JsonValue* c = o.get("footer_button_fill_color")) {
+                if (c->isString()) {
+                    out.box_viewport.footer_button_fill_color =
+                        parseColorString(c->asString(), out.box_viewport.footer_button_fill_color, design_tokens);
+                }
+            }
+            if (const JsonValue* c = o.get("footer_button_underline_color")) {
+                if (c->isString()) {
+                    out.box_viewport.footer_button_underline_color =
+                        parseColorString(c->asString(), out.box_viewport.footer_button_underline_color, design_tokens);
+                }
+            }
+            if (const JsonValue* c = o.get("footer_button_active_fill_color")) {
+                if (c->isString()) {
+                    out.box_viewport.footer_button_active_fill_color =
+                        parseColorString(c->asString(), out.box_viewport.footer_button_active_fill_color, design_tokens);
+                }
+            }
+            if (const JsonValue* c = o.get("footer_button_active_underline_color")) {
+                if (c->isString()) {
+                    out.box_viewport.footer_button_active_underline_color =
+                        parseColorString(c->asString(), out.box_viewport.footer_button_active_underline_color, design_tokens);
+                }
+            }
 
             if (const JsonValue* item_tool = o.get("item_tool")) {
                 if (item_tool->isObject()) {
@@ -224,7 +324,10 @@ LoadedGameTransfer loadGameTransfer(const std::string& project_root) {
                     if (const JsonValue* sprite_mod = item_tool->get("sprite_mod_color")) {
                         if (sprite_mod->isString()) {
                             out.box_viewport.item_tool_sprite_mod_color =
-                                parseHexColorString(sprite_mod->asString(), out.box_viewport.item_tool_sprite_mod_color);
+                                parseColorString(
+                                    sprite_mod->asString(),
+                                    out.box_viewport.item_tool_sprite_mod_color,
+                                    design_tokens);
                         }
                     }
                     out.box_viewport.item_tool_sprite_mod_color.a =
@@ -308,7 +411,7 @@ LoadedGameTransfer loadGameTransfer(const std::string& project_root) {
                 if (c->isString()) {
                     const int alpha = out.pokemon_action_menu.background_color.a;
                     out.pokemon_action_menu.background_color =
-                        parseHexColorString(c->asString(), out.pokemon_action_menu.background_color);
+                        parseColorString(c->asString(), out.pokemon_action_menu.background_color, design_tokens);
                     out.pokemon_action_menu.background_color.a = alpha;
                 }
             }
@@ -317,14 +420,14 @@ LoadedGameTransfer loadGameTransfer(const std::string& project_root) {
             if (const JsonValue* c = o.get("border_color")) {
                 if (c->isString()) {
                     out.pokemon_action_menu.border_color =
-                        parseHexColorString(c->asString(), out.pokemon_action_menu.border_color);
+                        parseColorString(c->asString(), out.pokemon_action_menu.border_color, design_tokens);
                 }
             }
             if (const JsonValue* c = o.get("selected_row_color")) {
                 if (c->isString()) {
                     const int alpha = out.pokemon_action_menu.selected_row_color.a;
                     out.pokemon_action_menu.selected_row_color =
-                        parseHexColorString(c->asString(), out.pokemon_action_menu.selected_row_color);
+                        parseColorString(c->asString(), out.pokemon_action_menu.selected_row_color, design_tokens);
                     out.pokemon_action_menu.selected_row_color.a = alpha;
                 }
             }
@@ -339,7 +442,7 @@ LoadedGameTransfer loadGameTransfer(const std::string& project_root) {
             if (const JsonValue* c = o.get("text_color")) {
                 if (c->isString()) {
                     out.pokemon_action_menu.text_color =
-                        parseHexColorString(c->asString(), out.pokemon_action_menu.text_color);
+                        parseColorString(c->asString(), out.pokemon_action_menu.text_color, design_tokens);
                 }
             }
             out.pokemon_action_menu.dim_background_sprites =
@@ -348,7 +451,7 @@ LoadedGameTransfer loadGameTransfer(const std::string& project_root) {
                 if (c->isString()) {
                     const int alpha = out.pokemon_action_menu.dim_sprite_mod_color.a;
                     out.pokemon_action_menu.dim_sprite_mod_color =
-                        parseHexColorString(c->asString(), out.pokemon_action_menu.dim_sprite_mod_color);
+                        parseColorString(c->asString(), out.pokemon_action_menu.dim_sprite_mod_color, design_tokens);
                     out.pokemon_action_menu.dim_sprite_mod_color.a = alpha;
                 }
             }
@@ -370,7 +473,7 @@ LoadedGameTransfer loadGameTransfer(const std::string& project_root) {
                 if (c->isString()) {
                     const int alpha = out.pokemon_action_menu.held_sprite_shadow_color.a;
                     out.pokemon_action_menu.held_sprite_shadow_color =
-                        parseHexColorString(c->asString(), out.pokemon_action_menu.held_sprite_shadow_color);
+                        parseColorString(c->asString(), out.pokemon_action_menu.held_sprite_shadow_color, design_tokens);
                     out.pokemon_action_menu.held_sprite_shadow_color.a = alpha;
                 }
             }
@@ -447,13 +550,13 @@ LoadedGameTransfer loadGameTransfer(const std::string& project_root) {
             if (const JsonValue* c = o.get("separator_color")) {
                 if (c->isString()) {
                     out.info_banner.separator_color =
-                        parseHexColorString(c->asString(), out.info_banner.separator_color);
+                        parseColorString(c->asString(), out.info_banner.separator_color, design_tokens);
                 }
             }
             if (const JsonValue* c = o.get("info_background_color")) {
                 if (c->isString()) {
                     out.info_banner.info_background_color =
-                        parseHexColorString(c->asString(), out.info_banner.info_background_color);
+                        parseColorString(c->asString(), out.info_banner.info_background_color, design_tokens);
                 }
             }
             if (const JsonValue* text_defaults = objectChild(&o, "text_defaults")) {
@@ -463,12 +566,14 @@ LoadedGameTransfer loadGameTransfer(const std::string& project_root) {
                     intFromObjectOrDefault(*text_defaults, "label_font_pt", out.info_banner.label_font_pt);
                 if (const JsonValue* c = text_defaults->get("color")) {
                     if (c->isString()) {
-                        out.info_banner.text_color = parseHexColorString(c->asString(), out.info_banner.text_color);
+                        out.info_banner.text_color =
+                            parseColorString(c->asString(), out.info_banner.text_color, design_tokens);
                     }
                 }
                 if (const JsonValue* c = text_defaults->get("label_color")) {
                     if (c->isString()) {
-                        out.info_banner.label_color = parseHexColorString(c->asString(), out.info_banner.label_color);
+                        out.info_banner.label_color =
+                            parseColorString(c->asString(), out.info_banner.label_color, design_tokens);
                     }
                 }
             }
@@ -517,12 +622,12 @@ LoadedGameTransfer loadGameTransfer(const std::string& project_root) {
                     field.label_font_pt = intFromObjectOrDefault(field_value, "label_font_pt", field.label_font_pt);
                     if (const JsonValue* c = field_value.get("color")) {
                         if (c->isString()) {
-                            field.color = parseHexColorString(c->asString(), field.color);
+                            field.color = parseColorString(c->asString(), field.color, design_tokens);
                         }
                     }
                     if (const JsonValue* c = field_value.get("label_color")) {
                         if (c->isString()) {
-                            field.label_color = parseHexColorString(c->asString(), field.label_color);
+                            field.label_color = parseColorString(c->asString(), field.label_color, design_tokens);
                         }
                     }
                     field.contexts.clear();
@@ -564,12 +669,26 @@ LoadedGameTransfer loadGameTransfer(const std::string& project_root) {
             out.pill_toggle.font_pt = intFromObjectOrDefault(o, "font_pt", out.pill_toggle.font_pt);
             if (const JsonValue* c = o.get("track_color")) {
                 if (c->isString()) {
-                    out.pill_toggle.track_color = parseHexColorString(c->asString(), out.pill_toggle.track_color);
+                    out.pill_toggle.track_color =
+                        parseColorString(c->asString(), out.pill_toggle.track_color, design_tokens);
                 }
             }
             if (const JsonValue* c = o.get("pill_color")) {
                 if (c->isString()) {
-                    out.pill_toggle.pill_color = parseHexColorString(c->asString(), out.pill_toggle.pill_color);
+                    out.pill_toggle.pill_color =
+                        parseColorString(c->asString(), out.pill_toggle.pill_color, design_tokens);
+                }
+            }
+            if (const JsonValue* c = o.get("label_unselected_color")) {
+                if (c->isString()) {
+                    out.pill_toggle.label_unselected_color =
+                        parseColorString(c->asString(), out.pill_toggle.label_unselected_color, design_tokens);
+                }
+            }
+            if (const JsonValue* c = o.get("label_selected_color")) {
+                if (c->isString()) {
+                    out.pill_toggle.label_selected_color =
+                        parseColorString(c->asString(), out.pill_toggle.label_selected_color, design_tokens);
                 }
             }
             out.pill_toggle.toggle_smoothing =
@@ -609,7 +728,7 @@ LoadedGameTransfer loadGameTransfer(const std::string& project_root) {
             if (const JsonValue* c = o.get("viewport_color")) {
                 if (c->isString()) {
                     out.tool_carousel.viewport_color =
-                        parseHexColorString(c->asString(), out.tool_carousel.viewport_color);
+                        parseColorString(c->asString(), out.tool_carousel.viewport_color, design_tokens);
                 }
             }
             out.tool_carousel.icon_size = intFromObjectOrDefault(o, "icon_size", out.tool_carousel.icon_size);
@@ -649,25 +768,34 @@ LoadedGameTransfer loadGameTransfer(const std::string& project_root) {
                 stringFromObjectOrDefault(o, "texture_swap", out.tool_carousel.texture_swap);
             out.tool_carousel.texture_items =
                 stringFromObjectOrDefault(o, "texture_items", out.tool_carousel.texture_items);
+            if (const JsonValue* c = o.get("icon_mod_color")) {
+                if (c->isString()) {
+                    out.tool_carousel.icon_mod_color =
+                        parseColorString(c->asString(), out.tool_carousel.icon_mod_color, design_tokens);
+                }
+            }
             if (const JsonValue* c = o.get("frame_multiple")) {
                 if (c->isString()) {
                     out.tool_carousel.frame_multiple =
-                        parseHexColorString(c->asString(), out.tool_carousel.frame_multiple);
+                        parseColorString(c->asString(), out.tool_carousel.frame_multiple, design_tokens);
                 }
             }
             if (const JsonValue* c = o.get("frame_basic")) {
                 if (c->isString()) {
-                    out.tool_carousel.frame_basic = parseHexColorString(c->asString(), out.tool_carousel.frame_basic);
+                    out.tool_carousel.frame_basic =
+                        parseColorString(c->asString(), out.tool_carousel.frame_basic, design_tokens);
                 }
             }
             if (const JsonValue* c = o.get("frame_swap")) {
                 if (c->isString()) {
-                    out.tool_carousel.frame_swap = parseHexColorString(c->asString(), out.tool_carousel.frame_swap);
+                    out.tool_carousel.frame_swap =
+                        parseColorString(c->asString(), out.tool_carousel.frame_swap, design_tokens);
                 }
             }
             if (const JsonValue* c = o.get("frame_items")) {
                 if (c->isString()) {
-                    out.tool_carousel.frame_items = parseHexColorString(c->asString(), out.tool_carousel.frame_items);
+                    out.tool_carousel.frame_items =
+                        parseColorString(c->asString(), out.tool_carousel.frame_items, design_tokens);
                 }
             }
         }
@@ -698,25 +826,25 @@ LoadedGameTransfer loadGameTransfer(const std::string& project_root) {
             if (const JsonValue* c = o.get("panel_color")) {
                 if (c->isString()) {
                     out.box_name_dropdown.panel_color =
-                        parseHexColorString(c->asString(), out.box_name_dropdown.panel_color);
+                        parseColorString(c->asString(), out.box_name_dropdown.panel_color, design_tokens);
                 }
             }
             if (const JsonValue* c = o.get("panel_border_color")) {
                 if (c->isString()) {
                     out.box_name_dropdown.panel_border_color =
-                        parseHexColorString(c->asString(), out.box_name_dropdown.panel_border_color);
+                        parseColorString(c->asString(), out.box_name_dropdown.panel_border_color, design_tokens);
                 }
             }
             if (const JsonValue* c = o.get("item_text_color")) {
                 if (c->isString()) {
                     out.box_name_dropdown.item_text_color =
-                        parseHexColorString(c->asString(), out.box_name_dropdown.item_text_color);
+                        parseColorString(c->asString(), out.box_name_dropdown.item_text_color, design_tokens);
                 }
             }
             if (const JsonValue* c = o.get("selected_row_tint")) {
                 if (c->isString()) {
                     out.box_name_dropdown.selected_row_tint =
-                        parseHexColorString(c->asString(), out.box_name_dropdown.selected_row_tint);
+                        parseColorString(c->asString(), out.box_name_dropdown.selected_row_tint, design_tokens);
                 }
             }
             out.box_name_dropdown.selected_row_tint.a = std::clamp(
@@ -740,7 +868,7 @@ LoadedGameTransfer loadGameTransfer(const std::string& project_root) {
             out.selection_cursor.enabled = boolFromObjectOrDefault(o, "enabled", out.selection_cursor.enabled);
             if (const JsonValue* c = o.get("color")) {
                 if (c->isString()) {
-                    out.selection_cursor.color = parseHexColorString(c->asString(), out.selection_cursor.color);
+                    out.selection_cursor.color = parseColorString(c->asString(), out.selection_cursor.color, design_tokens);
                 }
             }
             out.selection_cursor.alpha = intFromObjectOrDefault(o, "alpha", out.selection_cursor.alpha);
@@ -765,13 +893,19 @@ LoadedGameTransfer loadGameTransfer(const std::string& project_root) {
                     if (const JsonValue* c = b.get("text_color")) {
                         if (c->isString()) {
                             out.selection_cursor.speech_bubble.text_color =
-                                parseHexColorString(c->asString(), out.selection_cursor.speech_bubble.text_color);
+                                parseColorString(
+                                    c->asString(),
+                                    out.selection_cursor.speech_bubble.text_color,
+                                    design_tokens);
                         }
                     }
                     if (const JsonValue* c = b.get("fill_color")) {
                         if (c->isString()) {
                             out.selection_cursor.speech_bubble.fill_color =
-                                parseHexColorString(c->asString(), out.selection_cursor.speech_bubble.fill_color);
+                                parseColorString(
+                                    c->asString(),
+                                    out.selection_cursor.speech_bubble.fill_color,
+                                    design_tokens);
                         }
                     }
                     out.selection_cursor.speech_bubble.border_thickness = intFromObjectOrDefault(

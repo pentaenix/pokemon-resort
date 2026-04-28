@@ -65,7 +65,13 @@ dotnet run --project /Users/vanta/Desktop/title_screen_demo/tools/pkhex_bridge/P
 On success, it exits with code `0` and writes one JSON object.
 On failure, it exits non-zero and still writes one JSON object with `success: false`, `error`, and `details`.
 
-`write-projection` currently validates the save and projection schema, then returns `write_back_not_implemented`. This is intentional: real save mutation requires target-format PKM conversion and per-save safe slot write rules.
+`write-projection` applies a JSON **projection** to a save file. It always creates a `*.bak` copy of the target save before mutating. Supported projection versions:
+
+- `projection_schema: 1` — `box_names` only (string array, one per box). Safe for renames; no PC slot data.
+- `projection_schema: 2` — full external PC snapshot for the transfer system:
+  - `box_names` (same as schema 1)
+  - `pc_boxes`: array length must equal `SaveFile.BoxCount`; each element has `slots` with length `SaveFile.BoxSlotCount`
+  - each slot is JSON `null` (empty) or an object with `raw_payload_base64` + `raw_hash_sha256` for the **encrypted box PKM bytes** (same as import `EncryptedBoxData`). The bridge verifies the SHA-256 after base64 decode, decodes with `EntityFormat.GetFromBytes`, and calls `SetBoxSlotAtIndex`. Locked or overwrite-protected slots cause a hard error.
 
 Write-projection output includes:
 
@@ -77,7 +83,7 @@ Write-projection output includes:
 - `backup_created`
 - `backup_path`
 
-The current expected status for valid-but-unimplemented mutation is `write_back_not_implemented`.
+On success, `status` is typically `ok`.
 
 The native launcher resolves bridge candidates in this order:
 

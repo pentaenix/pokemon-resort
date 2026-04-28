@@ -6,6 +6,13 @@ namespace pr {
 
 void TransferSystemScreen::onNavigate2d(int dx, int dy) {
     selection_cursor_hidden_after_mouse_ = false;
+    if (exit_save_modal_open_) {
+        if (dy != 0) {
+            stepExitSaveModalSelection(dy > 0 ? 1 : -1);
+        }
+        (void)dx;
+        return;
+    }
     if (box_rename_modal_open_ && !box_rename_editing_) {
         using S = BoxRenameFocusSlot;
         if (dx != 0 || dy != 0) {

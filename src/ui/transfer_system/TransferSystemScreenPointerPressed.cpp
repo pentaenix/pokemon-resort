@@ -9,6 +9,9 @@ bool TransferSystemScreen::handlePointerPressed(int logical_x, int logical_y) {
     pointer_drag_pickup_pending_ = false;
     pointer_drag_item_pickup_pending_ = false;
 
+    if (exit_save_modal_open_) {
+        return handleExitSaveModalPointerPressed(logical_x, logical_y);
+    }
     if (box_rename_modal_open_) {
         return handleBoxRenameModalPointerPressed(logical_x, logical_y);
     }
@@ -143,6 +146,9 @@ bool TransferSystemScreen::handlePointerPressed(int logical_x, int logical_y) {
                     std::string next_item_name = dst->held_item_name;
                     dst->held_item_id = held->item_id;
                     dst->held_item_name = held->item_name;
+                    if (target->panel == Move::Panel::Game) {
+                        markGameBoxesDirty();
+                    }
                     held_move_.swapHeldItemWith(
                         next_item_id,
                         std::move(next_item_name),
@@ -159,6 +165,9 @@ bool TransferSystemScreen::handlePointerPressed(int logical_x, int logical_y) {
                     dst->held_item_id = held->item_id;
                     dst->held_item_name = held->item_name;
                     held_move_.clear();
+                    if (target->panel == Move::Panel::Game) {
+                        markGameBoxesDirty();
+                    }
                     refreshResortBoxViewportModel();
                     refreshGameBoxViewportModel();
                     requestPutdownSfx();

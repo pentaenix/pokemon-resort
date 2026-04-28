@@ -276,8 +276,8 @@ For cross-platform work, isolate OS-specific behavior behind small adapters. Avo
 
 - Some transfer-system code is still “too big” and should continue splitting when touched (for example: config parsing and banner rendering files that have grown past the preferred 500-line target).
 - Keep a hard modularity budget in the transfer system: if any transfer-system `.cpp` grows beyond **500 lines**, split it into smaller components/shards as part of the same change.
-- Transfer-system Pokemon/item movement is temporary and in-memory, not persisted to Resort storage or external saves.
-- Bridge write-projection validates inputs but intentionally refuses real save mutation.
+- Transfer-system Pokemon/item movement uses in-memory UI models; Resort persistence goes through `PokemonResortService`. External game saves can persist **PC box names and PC box slot layout** via PKHeX bridge `write-projection` (`projection_schema` 2) using import-grade encrypted PKM payloads captured at transfer-system entry.
+- Bridge `write-projection` performs optional real save mutation only through validated projections (backup copy first); unsupported edits remain out of scope until modeled in the projection.
 - Audio is still macOS-specific.
 - Some render responsibilities remain split between screen methods and renderer helpers.
 
@@ -292,8 +292,8 @@ Near-term:
 
 Mid-term:
 
-- Replace transfer-system in-memory slot state with canonical Resort storage read models and explicit persistence/write-back flows.
-- Complete safe bridge write-back only through the existing `write-projection` operation.
+- Replace transfer-system in-memory slot state with canonical Resort storage read models and explicit persistence/write-back flows for Resort-bound Pokémon.
+- Extend external-save editing only through `write-projection` and import-grade payloads (no ad hoc PKM guessing in native code).
 - Add platform-specific build/package notes when Windows, Linux, or Android become active targets.
 - Consider a broader screen/router abstraction only when gameplay requirements justify it; do not introduce one just to hide current flow complexity.
 
