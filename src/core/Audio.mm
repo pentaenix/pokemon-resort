@@ -40,6 +40,11 @@ public:
             [putdown_player_ release];
             putdown_player_ = nil;
         }
+        if (error_player_ != nil) {
+            [error_player_ stop];
+            [error_player_ release];
+            error_player_ = nil;
+        }
     }
 
     bool loadMusic(const std::string& path) {
@@ -143,6 +148,10 @@ public:
         return loadSfx(path, putdown_player_);
     }
 
+    bool loadErrorSfx(const std::string& path) {
+        return loadSfx(path, error_player_);
+    }
+
     void playMusicLoop() {
         if (player_ != nil && !player_.playing) {
             [player_ play];
@@ -176,6 +185,10 @@ public:
 
     void playPutdownSfx() {
         playSfx(putdown_player_);
+    }
+
+    void playErrorSfx() {
+        playSfx(error_player_);
     }
 
     void stopMusic() {
@@ -212,6 +225,10 @@ public:
         if (putdown_player_ != nil) {
             const float clamped = volume_01 < 0.0f ? 0.0f : (volume_01 > 1.0f ? 1.0f : volume_01);
             putdown_player_.volume = clamped;
+        }
+        if (error_player_ != nil) {
+            const float clamped = volume_01 < 0.0f ? 0.0f : (volume_01 > 1.0f ? 1.0f : volume_01);
+            error_player_.volume = clamped;
         }
     }
 
@@ -261,6 +278,7 @@ private:
     AVAudioPlayer* ui_move_player_ = nil;
     AVAudioPlayer* pickup_player_ = nil;
     AVAudioPlayer* putdown_player_ = nil;
+    AVAudioPlayer* error_player_ = nil;
 };
 
 AudioController::AudioController()
@@ -310,6 +328,10 @@ bool AudioController::loadPutdownSfx(const std::string& path) {
     return impl_ != nullptr && impl_->loadPutdownSfx(path);
 }
 
+bool AudioController::loadErrorSfx(const std::string& path) {
+    return impl_ != nullptr && impl_->loadErrorSfx(path);
+}
+
 void AudioController::playMusicLoop() {
     if (impl_ != nullptr) {
         impl_->playMusicLoop();
@@ -343,6 +365,12 @@ void AudioController::playPickupSfx() {
 void AudioController::playPutdownSfx() {
     if (impl_ != nullptr) {
         impl_->playPutdownSfx();
+    }
+}
+
+void AudioController::playErrorSfx() {
+    if (impl_ != nullptr) {
+        impl_->playErrorSfx();
     }
 }
 
@@ -408,12 +436,14 @@ bool AudioController::loadRipSfx(const std::string&) { return false; }
 bool AudioController::loadUiMoveSfx(const std::string&) { return false; }
 bool AudioController::loadPickupSfx(const std::string&) { return false; }
 bool AudioController::loadPutdownSfx(const std::string&) { return false; }
+bool AudioController::loadErrorSfx(const std::string&) { return false; }
 void AudioController::playMusicLoop() {}
 void AudioController::playButtonSfx() {}
 void AudioController::playRipSfx() {}
 void AudioController::playUiMoveSfx() {}
 void AudioController::playPickupSfx() {}
 void AudioController::playPutdownSfx() {}
+void AudioController::playErrorSfx() {}
 void AudioController::stopMusic() {}
 void AudioController::setMusicVolume(float) {}
 void AudioController::setSfxVolume(float) {}

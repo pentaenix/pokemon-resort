@@ -16,6 +16,10 @@
 #include <optional>
 #include <string>
 
+namespace pr::resort {
+class PokemonResortService;
+}
+
 namespace pr {
 
 class TransferFlowCoordinator {
@@ -29,7 +33,8 @@ public:
         std::string project_root,
         std::shared_ptr<PokeSpriteAssets> sprite_assets,
         SaveLibrary& save_library,
-        const char* argv0);
+        const char* argv0,
+        resort::PokemonResortService* resort_service = nullptr);
 
     void beginTicketScan();
     void update(double dt);
@@ -50,6 +55,7 @@ public:
     bool consumeUiMoveSfxRequest();
     bool consumePickupSfxRequest();
     bool consumePutdownSfxRequest();
+    bool consumeErrorSfxRequest();
 
 private:
     void ensureLoadingScreen();
@@ -67,6 +73,7 @@ private:
     std::shared_ptr<PokeSpriteAssets> sprite_assets_;
     SaveLibrary& save_library_;
     const char* argv0_ = nullptr;
+    resort::PokemonResortService* resort_service_{nullptr};
 
     transfer_flow::TransferFlowController flow_controller_;
     std::future<void> transfer_load_future_;

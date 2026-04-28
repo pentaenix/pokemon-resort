@@ -1,4 +1,5 @@
 #include "ui/TransferSystemScreen.hpp"
+#include "ui/transfer_system/GameBoxBrowserController.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -457,6 +458,8 @@ void TransferSystemScreen::drawHeldPokemon(SDL_Renderer* renderer) {
     cy = std::clamp(cy, 28, std::max(28, window_config_.virtual_height - 28));
     cy += box_viewport_style_.sprite_offset_y;
 
+    cx += held_sprite_shake_offset_px_;
+
     TextureHandle tex = held_move_sprite_tex_;
     if (!tex.texture || tex.width <= 0 || tex.height <= 0) {
         tex = sprite_assets_->loadPokemonTexture(renderer, held->pokemon);
@@ -530,6 +533,29 @@ void TransferSystemScreen::drawHeldMultiPokemon(SDL_Renderer* renderer) {
             cy += box_viewport_style_.sprite_offset_y;
         }
 
+        const float collapse = box_space_multi_collapse_t_;
+        if (collapse > 0.002f && ui_state_.selectedToolIndex() == 0 && !target_slots.has_value()) {
+            int ax = multi_pokemon_move_.pointer().x;
+            int ay = multi_pokemon_move_.pointer().y;
+            if (multi_pokemon_move_.inputMode() == transfer_system::MultiPokemonMoveController::InputMode::Keyboard) {
+                if (const auto bounds = focus_.currentBounds()) {
+                    ax = bounds->x + bounds->w / 2;
+                    ay = bounds->y + bounds->h / 2 + box_viewport_style_.sprite_offset_y;
+                }
+            }
+            cx = static_cast<int>(
+                std::lround(static_cast<double>(cx) * static_cast<double>(1.f - collapse) +
+                            static_cast<double>(ax) * static_cast<double>(collapse)));
+            cy = static_cast<int>(
+                std::lround(static_cast<double>(cy) * static_cast<double>(1.f - collapse) +
+                            static_cast<double>(ay) * static_cast<double>(collapse)));
+        }
+
+        if (held_sprite_shake_timer_ > 0.0) {
+            cx += static_cast<int>(
+                std::lround(std::sin(held_sprite_shake_phase_ + static_cast<double>(i) * 1.85) * 7.0));
+        }
+
         TextureHandle tex = sprite_assets_->loadPokemonTexture(renderer, entry.pokemon);
         if (!tex.texture || tex.width <= 0 || tex.height <= 0) {
             continue;
@@ -572,6 +598,8 @@ void TransferSystemScreen::drawHeldItem(SDL_Renderer* renderer) {
     cx = std::clamp(cx, 28, std::max(28, window_config_.virtual_width - 28));
     cy = std::clamp(cy, 28, std::max(28, window_config_.virtual_height - 28));
     cy += box_viewport_style_.sprite_offset_y;
+
+    cx += held_sprite_shake_offset_px_;
 
     TextureHandle tex = sprite_assets_->loadItemTexture(renderer, held->item_id, ItemIconUsage::Held);
     if (!tex.texture || tex.width <= 0 || tex.height <= 0) {
@@ -620,16 +648,49 @@ void TransferSystemScreen::drawMultiSelectionDrag(SDL_Renderer* renderer) const 
     }
 }
 
+void TransferSystemScreen::drawKeyboardMultiMarquee(SDL_Renderer* renderer) const {
+    if (!keyboard_multi_marquee_active_) {
+        return;
+    }
+    const SDL_Rect box = keyboardMultiMarqueeScreenRect();
+    if (box.w <= 0 || box.h <= 0) {
+        return;
+    }
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+    Color fill = carousel_style_.frame_multiple;
+    fill.a = 54;
+    Color border = carousel_style_.frame_multiple;
+    border.a = 220;
+    SDL_SetRenderDrawColor(renderer, fill.r, fill.g, fill.b, fill.a);
+    SDL_RenderFillRect(renderer, &box);
+    SDL_SetRenderDrawColor(renderer, border.r, border.g, border.b, border.a);
+    for (int i = 0; i < 3; ++i) {
+        SDL_Rect r{box.x + i, box.y + i, std::max(0, box.w - i * 2), std::max(0, box.h - i * 2)};
+        if (r.w > 0 && r.h > 0) {
+            SDL_RenderDrawRect(renderer, &r);
+        }
+    }
+}
+
 void TransferSystemScreen::drawHeldBoxSpaceBox(SDL_Renderer* renderer) {
     const auto* m = held_move_.heldBox();
-    if (!m || !game_save_box_viewport_) {
+    if (!m || pokemon_move_.active()) {
         return;
     }
-    if (!game_box_browser_.gameBoxSpaceMode() || pokemon_move_.active()) {
-        return;
+    const bool from_game = m->source_panel == transfer_system::move::HeldMoveController::PokemonSlotRef::Panel::Game;
+    if (from_game) {
+        if (!game_save_box_viewport_ || !game_box_browser_.gameBoxSpaceMode()) {
+            return;
+        }
+    } else {
+        if (!resort_box_viewport_ || !resort_box_browser_.gameBoxSpaceMode()) {
+            return;
+        }
     }
     const int src = m->source_box_index;
-    if (src < 0 || src >= static_cast<int>(game_pc_boxes_.size())) {
+    if (src < 0 ||
+        (from_game ? src >= static_cast<int>(game_pc_boxes_.size())
+                   : src >= static_cast<int>(resort_pc_boxes_.size()))) {
         return;
     }
 
@@ -644,7 +705,8 @@ void TransferSystemScreen::drawHeldBoxSpaceBox(SDL_Renderer* renderer) {
     cx = std::clamp(cx, 28, std::max(28, window_config_.virtual_width - 28));
     cy = std::clamp(cy, 28, std::max(28, window_config_.virtual_height - 28));
 
-    const auto& box = game_pc_boxes_[static_cast<std::size_t>(src)];
+    const auto& box = from_game ? game_pc_boxes_[static_cast<std::size_t>(src)]
+                                : resort_pc_boxes_[static_cast<std::size_t>(src)];
     int occupied = 0;
     int total = 0;
     for (const auto& slot : box.slots) {
@@ -722,7 +784,9 @@ void TransferSystemScreen::drawGameBoxNameDropdownList(SDL_Renderer* renderer) c
     if (dropdown_labels_dirty_) {
         const_cast<TransferSystemScreen*>(this)->rebuildDropdownItemTextures(renderer);
     }
-    if (static_cast<int>(dropdown_item_textures_.size()) != static_cast<int>(game_pc_boxes_.size())) {
+    const int n = transfer_system::GameBoxBrowserController::dropdownListRowCount(
+        static_cast<int>(game_pc_boxes_.size()));
+    if (static_cast<int>(dropdown_item_textures_.size()) != n) {
         return;
     }
 
@@ -737,7 +801,6 @@ void TransferSystemScreen::drawGameBoxNameDropdownList(SDL_Renderer* renderer) c
     const int inner_x = outer.x + stroke;
     const int inner_w = outer.w - stroke * 2;
     const int rh = std::max(1, game_box_browser_.dropdownRowHeightPx());
-    const int n = static_cast<int>(game_pc_boxes_.size());
 
     SDL_Rect clip{inner_x, list_clip_y, inner_w, list_h};
     SDL_RenderSetClipRect(renderer, &clip);
@@ -754,6 +817,84 @@ void TransferSystemScreen::drawGameBoxNameDropdownList(SDL_Renderer* renderer) c
         }
         if (i < static_cast<int>(dropdown_item_textures_.size()) && dropdown_item_textures_[i].texture) {
             const TextureHandle& tex = dropdown_item_textures_[i];
+            const int tcx = inner_x + inner_w / 2 - tex.width / 2;
+            const int tcy = row_top + (rh - tex.height) / 2;
+            SDL_Rect dst{tcx, tcy, tex.width, tex.height};
+            SDL_RenderCopy(renderer, tex.texture.get(), nullptr, &dst);
+        }
+    }
+
+    SDL_RenderSetClipRect(renderer, nullptr);
+}
+
+void TransferSystemScreen::drawResortBoxNameDropdownChrome(SDL_Renderer* renderer) const {
+    if (!box_name_dropdown_style_.enabled || resort_pc_boxes_.empty() || resort_box_browser_.dropdownExpandT() <= 1e-6) {
+        return;
+    }
+
+    SDL_Rect outer{};
+    int list_h = 0;
+    int list_clip_y = 0;
+    if (!computeResortBoxDropdownOuterRect(outer, static_cast<float>(resort_box_browser_.dropdownExpandT()), list_h, list_clip_y)) {
+        return;
+    }
+
+    const int stroke = std::max(1, box_name_dropdown_style_.panel_border_thickness);
+    const int rad =
+        std::clamp(box_name_dropdown_style_.panel_corner_radius, 0, std::min(outer.w, outer.h) / 2);
+
+    fillRoundedRingScanlines(
+        renderer,
+        outer.x,
+        outer.y,
+        outer.w,
+        outer.h,
+        rad,
+        stroke,
+        box_name_dropdown_style_.panel_border_color,
+        box_name_dropdown_style_.panel_color);
+}
+
+void TransferSystemScreen::drawResortBoxNameDropdownList(SDL_Renderer* renderer) const {
+    if (!box_name_dropdown_style_.enabled || resort_pc_boxes_.empty() || resort_box_browser_.dropdownExpandT() <= 1e-6) {
+        return;
+    }
+    if (resort_dropdown_labels_dirty_) {
+        const_cast<TransferSystemScreen*>(this)->rebuildResortDropdownItemTextures(renderer);
+    }
+    const int n = transfer_system::GameBoxBrowserController::dropdownListRowCount(
+        static_cast<int>(resort_pc_boxes_.size()));
+    if (static_cast<int>(resort_dropdown_item_textures_.size()) != n) {
+        return;
+    }
+
+    SDL_Rect outer{};
+    int list_h = 0;
+    int list_clip_y = 0;
+    if (!computeResortBoxDropdownOuterRect(outer, static_cast<float>(resort_box_browser_.dropdownExpandT()), list_h, list_clip_y)) {
+        return;
+    }
+
+    const int stroke = std::max(1, box_name_dropdown_style_.panel_border_thickness);
+    const int inner_x = outer.x + stroke;
+    const int inner_w = outer.w - stroke * 2;
+    const int rh = std::max(1, resort_box_browser_.dropdownRowHeightPx());
+
+    SDL_Rect clip{inner_x, list_clip_y, inner_w, list_h};
+    SDL_RenderSetClipRect(renderer, &clip);
+
+    const Color tint = box_name_dropdown_style_.selected_row_tint;
+    for (int i = 0; i < n; ++i) {
+        const int row_top = list_clip_y + i * rh - static_cast<int>(std::lround(resort_box_browser_.dropdownScrollPx()));
+        if (row_top + rh < list_clip_y || row_top > list_clip_y + list_h) {
+            continue;
+        }
+        if (i == resort_box_browser_.dropdownHighlightIndex()) {
+            const int rr = std::max(0, std::min(8, rh / 4));
+            fillRoundedRectScanlines(renderer, inner_x, row_top, inner_w, rh, rr, tint);
+        }
+        if (i < static_cast<int>(resort_dropdown_item_textures_.size()) && resort_dropdown_item_textures_[i].texture) {
+            const TextureHandle& tex = resort_dropdown_item_textures_[i];
             const int tcx = inner_x + inner_w / 2 - tex.width / 2;
             const int tcy = row_top + (rh - tex.height) / 2;
             SDL_Rect dst{tcx, tcy, tex.width, tex.height};
@@ -808,7 +949,16 @@ void TransferSystemScreen::render(SDL_Renderer* renderer) {
     SDL_RenderClear(renderer);
     drawBackground(renderer);
     if (resort_box_viewport_) {
-        resort_box_viewport_->render(renderer);
+        const bool resort_dropdown_visible = box_name_dropdown_style_.enabled && !resort_pc_boxes_.empty() &&
+            resort_box_browser_.dropdownExpandT() > 1e-6;
+        if (resort_dropdown_visible) {
+            resort_box_viewport_->renderBelowNamePlate(renderer);
+            drawResortBoxNameDropdownChrome(renderer);
+            resort_box_viewport_->renderNamePlate(renderer);
+            drawResortBoxNameDropdownList(renderer);
+        } else {
+            resort_box_viewport_->render(renderer);
+        }
     }
     if (game_save_box_viewport_) {
         const bool game_dropdown_visible = box_name_dropdown_style_.enabled && !game_pc_boxes_.empty() &&
@@ -828,12 +978,14 @@ void TransferSystemScreen::render(SDL_Renderer* renderer) {
     drawBottomBanner(renderer);
     drawSelectionCursor(renderer);
     drawMultiSelectionDrag(renderer);
+    drawKeyboardMultiMarquee(renderer);
     drawHeldBoxSpaceBox(renderer);
     drawHeldPokemon(renderer);
     drawHeldMultiPokemon(renderer);
     drawHeldItem(renderer);
     drawItemActionMenu(renderer);
     drawPokemonActionMenu(renderer);
+    drawBoxRenameModal(renderer);
 
     if (!ui_state_.exitInProgress() && ui_state_.fadeInSeconds() > 1e-6) {
         const double t = std::clamp(ui_state_.elapsedSeconds() / ui_state_.fadeInSeconds(), 0.0, 1.0);

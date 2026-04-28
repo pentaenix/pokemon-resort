@@ -674,10 +674,15 @@ void BoxViewport::renderBelowNamePlate(SDL_Renderer* renderer) const {
     SDL_RenderSetClipRect(renderer, &grid_clip);
 
     // Two passes so overflow sprites paint above every slot’s chrome (neighbors’ rounded rects included).
-    auto draw_slot_backgrounds_only = [&](int dx) {
+    const bool box_space_header = (header_mode_ == HeaderMode::BoxSpace);
+
+    auto draw_slot_backgrounds_only = [&](const BoxViewportModel& m, int dx) {
         for (int row = 0; row < kRows; ++row) {
             for (int col = 0; col < kCols; ++col) {
-                const int sx = grid_x + col * (kSlotW + kSlotGapX) + dx;
+                const std::size_t idx = static_cast<std::size_t>(row * kCols + col);
+                const int wdx =
+                    box_space_header && idx < m.slot_wiggle_dx.size() ? m.slot_wiggle_dx[idx] : 0;
+                const int sx = grid_x + col * (kSlotW + kSlotGapX) + dx + wdx;
                 const int sy = grid_y + row * (kSlotH + kSlotGapY);
                 fillRoundedRectScanlines(renderer, sx, sy, kSlotW, kSlotH, kSlotCornerRadius, kSlotBg);
             }
@@ -694,9 +699,11 @@ void BoxViewport::renderBelowNamePlate(SDL_Renderer* renderer) const {
         const bool dim_for_focus = !box_space_grid && focus_dimming_active_;
         for (int row = 0; row < kRows; ++row) {
             for (int col = 0; col < kCols; ++col) {
-                const int sx = grid_x + col * (kSlotW + kSlotGapX) + dx;
-                const int sy = grid_y + row * (kSlotH + kSlotGapY);
                 const std::size_t idx = static_cast<std::size_t>(row * kCols + col);
+                const int wdx =
+                    box_space_grid && idx < m.slot_wiggle_dx.size() ? m.slot_wiggle_dx[idx] : 0;
+                const int sx = grid_x + col * (kSlotW + kSlotGapX) + dx + wdx;
+                const int sy = grid_y + row * (kSlotH + kSlotGapY);
                 if (idx < m.slot_sprites.size()) {
                     const auto& slot = m.slot_sprites[idx];
                     if (slot.has_value() && slot->texture) {
@@ -732,12 +739,12 @@ void BoxViewport::renderBelowNamePlate(SDL_Renderer* renderer) const {
 
     const int base_dx = static_cast<int>(std::lround(content_slide_offset_x_));
     if (!content_slide_active_) {
-        draw_slot_backgrounds_only(0);
+        draw_slot_backgrounds_only(model_, 0);
         draw_slot_sprites_only(model_, 0);
     } else {
         const int incoming_dx = content_slide_dir_ * BoxViewport::kViewportWidth;
-        draw_slot_backgrounds_only(base_dx);
-        draw_slot_backgrounds_only(base_dx + incoming_dx);
+        draw_slot_backgrounds_only(model_, base_dx);
+        draw_slot_backgrounds_only(incoming_model_, base_dx + incoming_dx);
         draw_slot_sprites_only(model_, base_dx);
         draw_slot_sprites_only(incoming_model_, base_dx + incoming_dx);
     }

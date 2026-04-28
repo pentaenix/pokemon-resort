@@ -16,14 +16,16 @@ TransferFlowCoordinator::TransferFlowCoordinator(
     std::string project_root,
     std::shared_ptr<PokeSpriteAssets> sprite_assets,
     SaveLibrary& save_library,
-    const char* argv0)
+    const char* argv0,
+    resort::PokemonResortService* resort_service)
     : renderer_(renderer),
       window_config_(std::move(window_config)),
       font_path_(std::move(font_path)),
       project_root_(std::move(project_root)),
       sprite_assets_(std::move(sprite_assets)),
       save_library_(save_library),
-      argv0_(argv0) {}
+      argv0_(argv0),
+      resort_service_(resort_service) {}
 
 void TransferFlowCoordinator::beginTicketScan() {
     ensureLoadingScreen();
@@ -92,6 +94,9 @@ double TransferFlowCoordinator::musicFadeInSeconds() const {
 }
 
 bool TransferFlowCoordinator::consumeButtonSfxRequest() {
+    if (flow_controller_.activeScreenKind() == ScreenKind::TransferSystem) {
+        return transfer_system_screen_ && transfer_system_screen_->consumeButtonSfxRequest();
+    }
     const bool ticket_requested =
         transfer_ticket_ && transfer_ticket_->consumeButtonSfxRequest();
     const bool system_requested =
@@ -113,6 +118,10 @@ bool TransferFlowCoordinator::consumePickupSfxRequest() {
 
 bool TransferFlowCoordinator::consumePutdownSfxRequest() {
     return transfer_system_screen_ && transfer_system_screen_->consumePutdownSfxRequest();
+}
+
+bool TransferFlowCoordinator::consumeErrorSfxRequest() {
+    return transfer_system_screen_ && transfer_system_screen_->consumeErrorSfxRequest();
 }
 
 void TransferFlowCoordinator::ensureLoadingScreen() {
@@ -143,7 +152,8 @@ void TransferFlowCoordinator::ensureTransferSystemScreen() {
             window_config_,
             font_path_,
             project_root_,
-            sprite_assets_);
+            sprite_assets_,
+            resort_service_);
     }
 }
 

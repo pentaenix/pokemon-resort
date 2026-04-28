@@ -19,9 +19,11 @@ public:
 
     void requestButtonSfx() { play_button_sfx_requested_ = true; }
     void requestUiMoveSfx() { play_ui_move_sfx_requested_ = true; }
+    void requestErrorSfx() { play_error_sfx_requested_ = true; }
 
     bool consumeButtonSfxRequest();
     bool consumeUiMoveSfxRequest();
+    bool consumeErrorSfxRequest();
     bool consumeReturnToTicketListRequest();
 
     int selectedToolIndex() const { return selected_tool_index_; }
@@ -59,6 +61,7 @@ private:
     bool exit_in_progress_ = false;
     bool play_button_sfx_requested_ = false;
     bool play_ui_move_sfx_requested_ = false;
+    bool play_error_sfx_requested_ = false;
     bool return_to_ticket_list_requested_ = false;
 };
 

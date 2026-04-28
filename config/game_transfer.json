@@ -1,4 +1,5 @@
 {
+  "resort_pc_box_count": 60,
   "exit_button": {
     "enabled": true,
     "gap_pixels": 16,
@@ -50,7 +51,8 @@
   },
   "box_space_long_press": {
     "box_swap_hold_seconds": 1.0,
-    "quick_drop_hold_seconds": 2.0
+    "quick_drop_hold_seconds": 1.0,
+    "long_press_feedback_seconds": 0.2
   },
   "pokemon_action_menu": {
     "width": 270,
@@ -189,8 +191,8 @@
       { "field": "badges", "kind": "text", "contexts": ["game_icon"], "label": "Badges", "row": "bottom", "column": "summary_mid" },
       { "field": "pokedex_seen", "kind": "text", "contexts": ["game_icon"], "label": "Dex Seen", "row": "top", "column": "summary_right" },
       { "field": "pokedex_caught", "kind": "text", "contexts": ["game_icon"], "label": "Dex Caught", "row": "bottom", "column": "summary_right" },
-      { "field": "tooltip_title", "kind": "text", "contexts": ["tool", "pill", "box_space", "exit"], "layout": "game_icon", "label": "Mode", "row": "top", "column": "summary_left" },
-      { "field": "tooltip_body", "kind": "text", "contexts": ["tool", "pill", "box_space", "exit"], "layout": "game_icon", "row": "bottom", "column": "summary_left", "font_pt": 24 }
+      { "field": "tooltip_title", "kind": "text", "contexts": ["tool", "pill", "box_space", "exit", "resort_icon"], "layout": "game_icon", "label": "Mode", "row": "top", "column": "summary_left" },
+      { "field": "tooltip_body", "kind": "text", "contexts": ["tool", "pill", "box_space", "exit", "resort_icon"], "layout": "game_icon", "row": "bottom", "column": "summary_left", "font_pt": 24 }
     ]
   },
   "pill_toggle": {

@@ -8,7 +8,16 @@ bool InputRouter::handleEvent(
     const SDL_Event& event,
     const InputConfig& config,
     ScreenInput* input) {
+    if (event.type == SDL_TEXTINPUT || event.type == SDL_TEXTEDITING) {
+        if (input && input->handleUnroutedSdlEvent(event)) {
+            return true;
+        }
+        return false;
+    }
     if (event.type == SDL_KEYDOWN && !event.key.repeat) {
+        if (input && input->capturesUnroutedKeyboardFocus() && input->handleUnroutedSdlEvent(event)) {
+            return true;
+        }
         const SDL_Keycode key = event.key.keysym.sym;
         const NavigationHold nav = navigationDeltaForKey(key, config);
         if (nav.dx != 0 || nav.dy != 0) {
@@ -51,6 +60,9 @@ bool InputRouter::handleEvent(
             const SDL_Keycode key = event.key.keysym.sym;
             if (matchesBinding(key, config.forward_keys) && input && advance_hold_.active) {
                 const bool triggered = advance_hold_.triggered;
+                if (input) {
+                    input->onAdvanceLongPressEnded(triggered);
+                }
                 resetAdvanceHold();
                 if (!triggered && input->acceptsAdvanceInput()) {
                     input->onAdvancePressed();
@@ -64,6 +76,9 @@ bool InputRouter::handleEvent(
                 const bool triggered = navigation_long_press_hold_.triggered;
                 const int dx = navigation_long_press_hold_.dx;
                 const int dy = navigation_long_press_hold_.dy;
+                if (input) {
+                    input->onNavigationLongPressEnded(triggered);
+                }
                 resetNavigationLongPressHold();
                 if (!triggered) {
                     (void)dispatchNavigation(NavigationHold{dx, dy, 0.0, 0.0}, input);
@@ -98,9 +113,19 @@ bool InputRouter::handleEvent(
 
     if (event.type == SDL_CONTROLLERBUTTONDOWN && config.accept_controller) {
         const NavigationHold nav = navigationDeltaForControllerButton(event.cbutton.button);
-        if ((nav.dx != 0 || nav.dy != 0) && dispatchNavigation(nav, input)) {
-            startHold(nav);
-            return true;
+        if (nav.dx != 0 || nav.dy != 0) {
+            if (input && input->captureNavigate2dForLongPress(nav.dx, nav.dy)) {
+                navigation_long_press_hold_.active = true;
+                navigation_long_press_hold_.triggered = false;
+                navigation_long_press_hold_.dx = nav.dx;
+                navigation_long_press_hold_.dy = nav.dy;
+                navigation_long_press_hold_.elapsed_seconds = 0.0;
+                return true;
+            }
+            if (dispatchNavigation(nav, input)) {
+                startHold(nav);
+                return true;
+            }
         }
 
         switch (event.cbutton.button) {
@@ -126,11 +151,29 @@ bool InputRouter::handleEvent(
     }
 
     if (event.type == SDL_CONTROLLERBUTTONUP && config.accept_controller) {
+        const NavigationHold released_nav = navigationDeltaForControllerButton(event.cbutton.button);
+        if (navigation_long_press_hold_.active &&
+            released_nav.dx == navigation_long_press_hold_.dx &&
+            released_nav.dy == navigation_long_press_hold_.dy &&
+            (released_nav.dx != 0 || released_nav.dy != 0)) {
+            const bool triggered = navigation_long_press_hold_.triggered;
+            const int dx = navigation_long_press_hold_.dx;
+            const int dy = navigation_long_press_hold_.dy;
+            if (input) {
+                input->onNavigationLongPressEnded(triggered);
+            }
+            resetNavigationLongPressHold();
+            if (!triggered) {
+                (void)dispatchNavigation(NavigationHold{dx, dy, 0.0, 0.0}, input);
+            }
+            return true;
+        }
         if (isControllerNavigationButton(event.cbutton.button)) {
             releaseNavigationHold(navigationDeltaForControllerButton(event.cbutton.button));
         }
         if (event.cbutton.button == SDL_CONTROLLER_BUTTON_A && input && advance_hold_.active) {
             const bool triggered = advance_hold_.triggered;
+            input->onAdvanceLongPressEnded(triggered);
             resetAdvanceHold();
             if (!triggered && input->acceptsAdvanceInput()) {
                 input->onAdvancePressed();
@@ -145,6 +188,7 @@ bool InputRouter::handleEvent(
 void InputRouter::update(double dt, ScreenInput* input) {
     if (advance_hold_.active && input && !advance_hold_.triggered) {
         advance_hold_.elapsed_seconds += dt;
+        input->onAdvanceLongPressCharge(advance_hold_.elapsed_seconds);
         if (const auto threshold = input->advanceLongPressSeconds()) {
             if (advance_hold_.elapsed_seconds >= *threshold) {
                 input->onAdvanceLongPress();
@@ -155,6 +199,10 @@ void InputRouter::update(double dt, ScreenInput* input) {
 
     if (navigation_long_press_hold_.active && input && !navigation_long_press_hold_.triggered) {
         navigation_long_press_hold_.elapsed_seconds += dt;
+        input->onNavigationLongPressCharge(
+            navigation_long_press_hold_.elapsed_seconds,
+            navigation_long_press_hold_.dx,
+            navigation_long_press_hold_.dy);
         if (const auto threshold = input->navigate2dLongPressSeconds(navigation_long_press_hold_.dx, navigation_long_press_hold_.dy)) {
             if (navigation_long_press_hold_.elapsed_seconds >= *threshold) {
                 input->onNavigate2dLongPress(navigation_long_press_hold_.dx, navigation_long_press_hold_.dy);

@@ -174,6 +174,18 @@ transfer_system::TransferInfoBannerContext TransferSystemScreen::activeInfoBanne
     context.selected_tool_index = ui_state_.selectedToolIndex();
     context.items_mode = ui_state_.sliderT() >= 0.5;
     context.tooltip_copy = info_banner_style_;
+    int resort_occ = 0;
+    int resort_cap = 0;
+    for (const auto& box : resort_pc_boxes_) {
+        resort_cap += static_cast<int>(box.slots.size());
+        for (const auto& s : box.slots) {
+            if (s.occupied()) {
+                ++resort_occ;
+            }
+        }
+    }
+    context.resort_storage_occupied_slots = resort_occ;
+    context.resort_storage_total_slots = resort_cap;
 
     if (const auto* held = pokemon_move_.held()) {
         context.mode = "pokemon";
@@ -201,11 +213,24 @@ transfer_system::TransferInfoBannerContext TransferSystemScreen::activeInfoBanne
             return context;
         }
     }
+    if (focus_id == 1110) {
+        context.mode = "box_space";
+        return context;
+    }
     if (focus_id == 2110) {
         context.mode = "box_space";
         return context;
     }
-    if (game_box_browser_.gameBoxSpaceMode() || game_box_browser_.dropdownOpenTarget()) {
+    if (focus_id == 1111) {
+        context.mode = "resort_icon";
+        return context;
+    }
+    if (focus_id == 2111) {
+        context.mode = "game_icon";
+        return context;
+    }
+    if (game_box_browser_.gameBoxSpaceMode() || game_box_browser_.dropdownOpenTarget() ||
+        resort_box_browser_.gameBoxSpaceMode() || resort_box_browser_.dropdownOpenTarget()) {
         context.mode = "empty";
         return context;
     }
@@ -224,10 +249,6 @@ transfer_system::TransferInfoBannerContext TransferSystemScreen::activeInfoBanne
             }
         }
         context.mode = "empty";
-        return context;
-    }
-    if (focus_id == 2111) {
-        context.mode = "game_icon";
         return context;
     }
     if (focus_id == 5000) {

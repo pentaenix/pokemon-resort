@@ -24,3 +24,5 @@ Start here:
 - [testing_and_seed_data.md](testing_and_seed_data.md) documents backend-specific test commands and seed workflows. The repository-wide testing map remains [`/Users/vanta/Desktop/title_screen_demo/tests/README.md`](/Users/vanta/Desktop/title_screen_demo/tests/README.md).
 
 Do not build UI against transfer-ticket summaries or sprite slugs as durable Pokemon records. They are preview data only.
+
+Roadmap note: implicit Resort initialization on app startup is documented as transitional in [`docs/ARCHITECTURE.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/ARCHITECTURE.md) under **Future: explicit player save bootstrap** (main-menu **New Game**, expanded JSON save metadata, optional gating of Transfer until a profile exists).

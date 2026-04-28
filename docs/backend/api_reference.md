@@ -8,10 +8,9 @@ Header: [`include/resort/services/PokemonResortService.hpp`](/Users/vanta/Deskto
 
 - `PokemonResortService(profile_path)`
   Opens a SQLite Resort profile, runs migrations, constructs repositories/services, and keeps UI code away from SQL.
-- `defaultResortProfilePath(app_save_directory)`
-  Returns `app_save_directory / "profile.resort.db"`.
+- Path helpers live in [`include/core/SavePaths.hpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/core/SavePaths.hpp): `resortProfileDatabasePath(save_directory, persistence)` / `(save_directory, file_name)` and `defaultResortProfilePath(save_directory)`. The player build uses `persistence` from [`title_screen.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/title_screen.json) so the Resort DB sits next to `pokemon_resort.sav`.
 - `ensureProfile(profile_id)`
-  Creates default Resort boxes and empty slots for a profile. Current defaults are 8 boxes x 30 slots.
+  Idempotently ensures default Resort boxes and empty slots exist for a profile (`INSERT OR IGNORE`). Current defaults are 60 boxes × 30 slots (`BoxRepository::kDefaultResortPcBoxCount`), aligned with transfer UI `game_transfer.json` `resort_pc_box_count`.
 - `importParsedPokemon(imported, context)`
   Imports one already parsed import-grade Pokemon. Validates raw bytes/hash, matches active mirrors first, then stable identifiers, writes an imported snapshot, creates or merges canonical state, writes history, optionally places in a slot, and commits atomically.
 - `exportPokemon(pkrid, context)`

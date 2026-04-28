@@ -9,7 +9,7 @@ Runtime code owns state transitions, input semantics, parsing, persistence, brid
 - [`app.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/app.json)
   Shared app config: desktop window size, logical/design resolution, app title, input bindings, audio assets, and default audio volumes. Parsed by `ConfigLoader.cpp` into `AppConfig`.
 - [`title_screen.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/title_screen.json)
-  Title/menu/options authoring: intro timings, logo/background assets, prompt/menu/options text, skip flags, save identity, and title-specific visual tuning. Parsed by `ConfigLoader.cpp` into `TitleScreenConfig`.
+  Title/menu/options authoring: intro timings, logo/background assets, prompt/menu/options text, skip flags, save identity (`persistence`: SDL organization/application, primary/backup JSON save file names, and **`resort_profile_file_name`** for the SQLite Resort DB next to those files), and title-specific visual tuning. Parsed by `ConfigLoader.cpp` into `TitleScreenConfig`.
 - [`loading_screen.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/loading_screen.json)
   Transfer loading screen ball directory, position, scale, text, and spin timing. Read by `LoadingScreen`.
 - [`transfer_select_save.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/transfer_select_save.json)

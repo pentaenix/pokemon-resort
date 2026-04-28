@@ -100,6 +100,11 @@ std::pair<std::string, std::string> tooltipCopyForContext(const TransferInfoBann
     if (context.mode == "box_space") {
         return {context.tooltip_copy.box_space_title, context.tooltip_copy.box_space_body};
     }
+    if (context.mode == "resort_icon") {
+        std::string body = std::to_string(context.resort_storage_occupied_slots) + " / " +
+                           std::to_string(std::max(0, context.resort_storage_total_slots)) + " spots taken";
+        return {"Resort storage", std::move(body)};
+    }
     return {};
 }
 

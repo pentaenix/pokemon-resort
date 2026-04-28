@@ -70,7 +70,8 @@
     "organization": "VantaStudio",
     "application": "PokemonResort",
     "save_file_name": "pokemon_resort.sav",
-    "backup_file_name": "pokemon_resort.sav.bak"
+    "backup_file_name": "pokemon_resort.sav.bak",
+    "resort_profile_file_name": "profile.resort.db"
   },
   "skip": {
     "splash_fade_in": true,

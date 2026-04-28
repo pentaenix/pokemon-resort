@@ -16,7 +16,8 @@ void GameBoxBrowserController::enter(int box_count, int initial_game_box_index) 
 
     if (box_count > 0) {
         game_box_index_ = ((initial_game_box_index % box_count) + box_count) % box_count;
-        dropdown_highlight_index_ = game_box_index_;
+        dropdown_highlight_index_ =
+            box_count >= 2 ? game_box_index_ + 1 : game_box_index_;
     }
 }
 
@@ -45,8 +46,13 @@ bool GameBoxBrowserController::stepGameBoxSpaceRowDown(int box_count) {
         return false;
     }
     const int max_row = gameBoxSpaceMaxRowOffset(box_count);
-    if (game_box_space_row_offset_ >= max_row) {
+    if (max_row <= 0) {
         return false;
+    }
+    // At the last row, wrap back to the first row (same as wrapping the carousel).
+    if (game_box_space_row_offset_ >= max_row) {
+        game_box_space_row_offset_ = 0;
+        return true;
     }
     ++game_box_space_row_offset_;
     return true;
@@ -101,14 +107,17 @@ void GameBoxBrowserController::clampDropdownScroll(int box_count, int inner_draw
         dropdown_scroll_px_ = 0.0;
         return;
     }
-    const int content_h = box_count * dropdown_row_height_px_;
+    const int rows = dropdownListRowCount(box_count);
+    const int content_h = rows * dropdown_row_height_px_;
     const int max_scroll = std::max(0, content_h - inner_draw_h);
     dropdown_scroll_px_ = std::clamp(dropdown_scroll_px_, 0.0, static_cast<double>(max_scroll));
 }
 
 void GameBoxBrowserController::syncDropdownScrollToHighlight(int box_count, int inner_draw_h) {
     const int rh = std::max(1, dropdown_row_height_px_);
-    const int top = dropdown_highlight_index_ * rh;
+    const int rows = dropdownListRowCount(box_count);
+    const int clamped_highlight = std::clamp(dropdown_highlight_index_, 0, std::max(0, rows - 1));
+    const int top = clamped_highlight * rh;
     const int bottom = top + rh;
     if (top < static_cast<int>(dropdown_scroll_px_)) {
         dropdown_scroll_px_ = static_cast<double>(top);
@@ -123,7 +132,11 @@ bool GameBoxBrowserController::stepDropdownHighlight(int delta, int box_count, i
     if (box_count <= 0 || delta == 0) {
         return false;
     }
-    dropdown_highlight_index_ = ((dropdown_highlight_index_ + delta) % box_count + box_count) % box_count;
+    const int row_count = dropdownListRowCount(box_count);
+    if (row_count <= 0) {
+        return false;
+    }
+    dropdown_highlight_index_ = ((dropdown_highlight_index_ + delta) % row_count + row_count) % row_count;
     syncDropdownScrollToHighlight(box_count, inner_draw_h);
     return true;
 }
@@ -141,7 +154,7 @@ bool GameBoxBrowserController::toggleGameBoxDropdown(
         return true;
     }
     game_box_dropdown_open_target_ = true;
-    dropdown_highlight_index_ = game_box_index_;
+    dropdown_highlight_index_ = game_box_index_ + 1;
     syncDropdownScrollToHighlight(box_count, inner_draw_h);
     return true;
 }
@@ -151,7 +164,10 @@ void GameBoxBrowserController::closeGameBoxDropdown() {
 }
 
 bool GameBoxBrowserController::applyDropdownSelection(int box_count, bool panels_ready) {
-    return jumpGameBoxToIndex(dropdown_highlight_index_, box_count, panels_ready);
+    if (dropdown_highlight_index_ <= 0) {
+        return false;
+    }
+    return jumpGameBoxToIndex(dropdown_highlight_index_ - 1, box_count, panels_ready);
 }
 
 void GameBoxBrowserController::approachExponential(double& value, double target, double dt, double lambda) {

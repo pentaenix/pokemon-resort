@@ -14,6 +14,8 @@ struct BackgroundAnimLoaded {
 };
 
 struct LoadedGameTransfer {
+    /// In-memory Resort panel PC box count (UI prototype). Default names RESORT 1…N.
+    int resort_pc_box_count = 60;
     double fade_in_seconds = 0;
     double fade_out_seconds = 0.12;
     bool exit_button_enabled = true;

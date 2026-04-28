@@ -2,12 +2,9 @@
 
 #include "resort/domain/Ids.hpp"
 #include "resort/persistence/Migrations.hpp"
+#include "resort/persistence/SqliteConnection.hpp"
 
 namespace pr::resort {
-
-std::filesystem::path defaultResortProfilePath(const std::filesystem::path& app_save_directory) {
-    return app_save_directory / "profile.resort.db";
-}
 
 PokemonResortService::PokemonResortService(const std::filesystem::path& profile_path)
     : connection_(std::make_unique<SqliteConnection>(profile_path)) {
@@ -81,6 +78,31 @@ std::optional<BoxLocation> PokemonResortService::getPokemonLocation(
     const std::string& profile_id,
     const std::string& pkrid) const {
     return boxes_->findPokemonLocation(profile_id, pkrid);
+}
+
+std::vector<std::pair<int, std::string>> PokemonResortService::listProfileBoxes(const std::string& profile_id) const {
+    return boxes_->listBoxes(profile_id);
+}
+
+void PokemonResortService::movePokemonToSlot(
+    const BoxLocation& destination,
+    const std::string& pkrid,
+    BoxPlacementPolicy policy) {
+    SqliteTransaction tx(*connection_);
+    boxes_->placePokemon(destination, pkrid, policy);
+    tx.commit();
+}
+
+void PokemonResortService::swapResortBoxContents(const std::string& profile_id, int box_a, int box_b) {
+    SqliteTransaction tx(*connection_);
+    boxes_->swapBoxContents(profile_id, box_a, box_b);
+    tx.commit();
+}
+
+void PokemonResortService::swapResortSlotContents(const BoxLocation& a, const BoxLocation& b) {
+    SqliteTransaction tx(*connection_);
+    boxes_->swapSlotContents(a, b);
+    tx.commit();
 }
 
 MirrorSession PokemonResortService::openMirrorSession(

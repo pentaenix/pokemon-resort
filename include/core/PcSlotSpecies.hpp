@@ -64,7 +64,10 @@ struct PcSlotSpecies {
 
     bool checksum_valid = false;
 
-    bool occupied() const { return present && !slug.empty(); }
+    /// Canonical Resort SQLite key (`pokemon.pkrid`) when this slot was loaded from `profile.resort.db`.
+    std::string resort_pkrid;
+
+    bool occupied() const { return present && (!slug.empty() || !resort_pkrid.empty()); }
 };
 
 } // namespace pr

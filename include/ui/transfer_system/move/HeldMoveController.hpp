@@ -52,6 +52,7 @@ public:
     };
 
     struct HeldBoxSpaceBox {
+        PokemonSlotRef::Panel source_panel = PokemonSlotRef::Panel::Game;
         int source_box_index = -1;
         InputMode input_mode = InputMode::Pointer;
         SDL_Point pointer{0, 0};
@@ -85,7 +86,7 @@ public:
     void swapHeldPokemonWith(const PcSlotSpecies& target, const PokemonSlotRef& next_return_slot);
 
     // Box Space
-    void pickUpBox(int source_box_index, InputMode input_mode, SDL_Point pointer);
+    void pickUpBox(PokemonSlotRef::Panel source_panel, int source_box_index, InputMode input_mode, SDL_Point pointer);
     void pickUpItem(int item_id, std::string item_name, const PokemonSlotRef& from, InputMode input_mode, SDL_Point pointer);
     void swapHeldItemWith(int item_id, std::string item_name, const PokemonSlotRef& next_return_slot);
 

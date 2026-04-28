@@ -20,6 +20,10 @@ struct TransferInfoBannerContext {
     int selected_tool_index = 0;
     bool items_mode = false;
     GameTransferInfoBannerStyle tooltip_copy{};
+    /// Occupied Pokémon slots across all Resort PC boxes (for resort footer icon tooltip).
+    int resort_storage_occupied_slots = 0;
+    /// Total Pokémon slot capacity across Resort PC boxes (usually boxes × 30).
+    int resort_storage_total_slots = 0;
 };
 
 struct TransferInfoBannerFieldValue {

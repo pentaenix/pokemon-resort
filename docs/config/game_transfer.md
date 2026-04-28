@@ -63,6 +63,7 @@ Controls hold durations for Box Space interactions:
 
 - `box_swap_hold_seconds`
 - `quick_drop_hold_seconds`
+- `long_press_feedback_seconds` — after this delay (while still holding), the targeted Box Space tile begins its “armed” feedback (wiggle; green multi-tool collapse-to-pointer).
 
 Gesture state and cancellation thresholds live in transfer-system move/gesture code and `TransferSystemScreen` adaptation.
 

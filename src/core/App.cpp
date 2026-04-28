@@ -4,6 +4,7 @@
 #include "core/ConfigLoader.hpp"
 #include "core/InputRouter.hpp"
 #include "core/PokeSpriteAssets.hpp"
+#include "core/SavePaths.hpp"
 #include "core/SaveDataStore.hpp"
 #include "core/SaveLibrary.hpp"
 #include "resort/services/PokemonResortService.hpp"
@@ -170,7 +171,7 @@ int runApplication(const char* argv0, const char* config_path_override) {
     std::unique_ptr<resort::PokemonResortService> pokemon_resort_service;
     try {
         pokemon_resort_service = std::make_unique<resort::PokemonResortService>(
-            resort::defaultResortProfilePath(save_directory));
+            resortProfileDatabasePath(save_directory, config.persistence));
         pokemon_resort_service->ensureProfile("default");
     } catch (const std::exception& ex) {
         std::cerr << "Warning: could not initialize Pokemon Resort profile storage: "
@@ -183,7 +184,8 @@ int runApplication(const char* argv0, const char* config_path_override) {
         root,
         poke_sprite_assets,
         save_library,
-        argv0);
+        argv0,
+        pokemon_resort_service ? pokemon_resort_service.get() : nullptr);
     if (config.persistence.save_options) {
         std::string load_error;
         std::string loaded_from_path;
@@ -231,6 +233,10 @@ int runApplication(const char* argv0, const char* config_path_override) {
     const fs::path putdown_sfx_path = fs::path(root) / config.audio.putdown_sfx;
     if (!audio.loadPutdownSfx(putdown_sfx_path.string())) {
         std::cerr << "Warning: could not load putdown sfx at " << putdown_sfx_path << '\n';
+    }
+    const fs::path error_sfx_path = fs::path(root) / config.audio.error_sfx;
+    if (!audio.loadErrorSfx(error_sfx_path.string())) {
+        std::cerr << "Warning: could not load error sfx at " << error_sfx_path << '\n';
     }
 
     bool running = true;
@@ -376,6 +382,9 @@ int runApplication(const char* argv0, const char* config_path_override) {
         }
         if (transfer_flow.consumePutdownSfxRequest()) {
             audio.playPutdownSfx();
+        }
+        if (transfer_flow.consumeErrorSfxRequest()) {
+            audio.playErrorSfx();
         }
         if (config.persistence.save_options && title_user_settings_save_requested) {
             SaveData save_data;

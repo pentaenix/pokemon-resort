@@ -25,6 +25,8 @@ struct BoxViewportModel {
     std::array<std::optional<TextureHandle>, 30> slot_sprites{};
     /// Per-slot held-item sprite used by the item tool overlay.
     std::array<std::optional<TextureHandle>, 30> held_item_sprites{};
+    /// Pixel nudge for Box Space long-press feedback (horizontal shake); visual only.
+    std::array<int, 30> slot_wiggle_dx{};
 };
 
 class BoxViewport {

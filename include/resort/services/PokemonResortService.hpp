@@ -24,8 +24,6 @@
 
 namespace pr::resort {
 
-std::filesystem::path defaultResortProfilePath(const std::filesystem::path& app_save_directory);
-
 class PokemonResortService {
 public:
     explicit PokemonResortService(const std::filesystem::path& profile_path);
@@ -34,6 +32,7 @@ public:
     PokemonResortService(const PokemonResortService&) = delete;
     PokemonResortService& operator=(const PokemonResortService&) = delete;
 
+    /// Idempotently inserts default empty box/slot rows if missing (`INSERT OR IGNORE`). Schema creation runs in the constructor via migrations.
     void ensureProfile(const std::string& profile_id);
 
     ImportResult importParsedPokemon(const ImportedPokemon& imported, const ImportContext& context);
@@ -43,6 +42,16 @@ public:
     bool pokemonExists(const std::string& pkrid) const;
     std::vector<PokemonSlotView> getBoxSlotViews(const std::string& profile_id, int box_id) const;
     std::optional<BoxLocation> getPokemonLocation(const std::string& profile_id, const std::string& pkrid) const;
+
+    std::vector<std::pair<int, std::string>> listProfileBoxes(const std::string& profile_id) const;
+
+    /// Updates `box_slots` for one Pokémon (clears prior slot rows via `BoxRepository::placePokemon`).
+    void movePokemonToSlot(const BoxLocation& destination, const std::string& pkrid, BoxPlacementPolicy policy);
+
+    /// Swaps all slot occupants between two Resort PC boxes (same profile).
+    void swapResortBoxContents(const std::string& profile_id, int box_a, int box_b);
+
+    void swapResortSlotContents(const BoxLocation& a, const BoxLocation& b);
     MirrorSession openMirrorSession(
         const std::string& pkrid,
         std::uint16_t target_game,
