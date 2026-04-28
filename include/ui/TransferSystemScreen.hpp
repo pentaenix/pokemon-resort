@@ -552,6 +552,9 @@ private:
     bool handleResortBoxNavigationPointerPressed(int logical_x, int logical_y);
     bool handleResortDropdownPointerPressed(int logical_x, int logical_y);
 
+    void updateActionMenus(double dt);
+    void updateBoxSpaceLongPressGestures(double dt);
+    void updateBoxViewportsAndFocusDimming(double dt);
     void initializeResortPcBoxesFromStorage(SDL_Renderer* renderer);
     PcSlotSpecies pcSlotFromResortSlotView(const resort::PokemonSlotView& view, int box_id, int slot_index) const;
     void persistResortPokemonDropToStorage(

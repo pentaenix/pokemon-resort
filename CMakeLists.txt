@@ -59,6 +59,41 @@ add_executable(title_screen_demo
     src/ui/title_screen/TitleScreenRender.cpp
     src/ui/TransferTicketScreen.cpp
     src/ui/TransferSystemScreen.cpp
+    src/ui/transfer_system/TransferSystemScreenLifecycle.cpp
+    src/ui/transfer_system/TransferSystemScreenCtor.cpp
+    src/ui/transfer_system/TransferSystemScreenFocusNav.cpp
+    src/ui/transfer_system/TransferSystemScreenNavigate2d.cpp
+    src/ui/transfer_system/TransferSystemScreenUpdateSync.cpp
+    src/ui/transfer_system/TransferSystemScreenViewportRefresh.cpp
+    src/ui/transfer_system/TransferSystemScreenDropdownGame.cpp
+    src/ui/transfer_system/TransferSystemScreenDropdownResort.cpp
+    src/ui/transfer_system/TransferSystemScreenMiniPreview.cpp
+    src/ui/transfer_system/TransferSystemScreenMenusUpdate.cpp
+    src/ui/transfer_system/TransferSystemScreenBoxSpaceGestures.cpp
+    src/ui/transfer_system/TransferSystemScreenBoxViewports.cpp
+    src/ui/transfer_system/TransferSystemScreenPokemonMoveSingle.cpp
+    src/ui/transfer_system/TransferSystemScreenPokemonMoveMulti.cpp
+    src/ui/transfer_system/TransferSystemScreenPointerHitTest.cpp
+    src/ui/transfer_system/TransferSystemScreenAdvancePressed.cpp
+    src/ui/transfer_system/TransferSystemScreenBackPressed.cpp
+    src/ui/transfer_system/TransferSystemScreenUnroutedEvents.cpp
+    src/ui/transfer_system/TransferSystemScreenBoxRenameModal.cpp
+    src/ui/transfer_system/TransferSystemScreenBoxRenameModalRender.cpp
+    src/ui/transfer_system/TransferSystemScreenPointerPressed.cpp
+    src/ui/transfer_system/TransferSystemScreenPointerMoved.cpp
+    src/ui/transfer_system/TransferSystemScreenPointerReleased.cpp
+    src/ui/transfer_system/TransferSystemScreenBoxSpacePointer.cpp
+    src/ui/transfer_system/TransferSystemScreenActionMenuPointer.cpp
+    src/ui/transfer_system/TransferSystemScreenBoxSpaceQuickDrop.cpp
+    src/ui/transfer_system/TransferSystemScreenViewportModels.cpp
+    src/ui/transfer_system/TransferSystemScreenBoxSpaceMode.cpp
+    src/ui/transfer_system/TransferSystemScreenMultiMarquee.cpp
+    src/ui/transfer_system/TransferSystemScreenDebugHooks.cpp
+    src/ui/transfer_system/TransferSystemScreenBoxNavigation.cpp
+    src/ui/transfer_system/TransferSystemScreenDropdownPointer.cpp
+    src/ui/transfer_system/TransferSystemScreenActionMenuHelpers.cpp
+    src/ui/transfer_system/TransferSystemScreenSmallQueries.cpp
+    src/ui/transfer_system/TransferSystemScreenUiHelpers.cpp
     src/ui/transfer_system/GameTransferConfig.cpp
     src/ui/transfer_system/GameBoxBrowserController.cpp
     src/ui/transfer_system/MultiPokemonMoveController.cpp
@@ -69,8 +104,16 @@ add_executable(title_screen_demo
     src/ui/transfer_system/TransferSystemFocusGraph.cpp
     src/ui/transfer_system/TransferInfoBannerPresenter.cpp
     src/ui/transfer_system/TransferInfoBannerRenderer.cpp
-    src/ui/transfer_system/TransferSystemRenderer.cpp
+    src/ui/transfer_system/TransferSystemRendererMain.cpp
+    src/ui/transfer_system/TransferSystemRendererTopBar.cpp
+    src/ui/transfer_system/TransferSystemRendererMenus.cpp
+    src/ui/transfer_system/TransferSystemRendererHeld.cpp
+    src/ui/transfer_system/TransferSystemRendererDropdowns.cpp
     src/ui/transfer_system/TransferSystemUiStateController.cpp
+    src/ui/transfer_system/detail/SdlScanlineDraw.cpp
+    src/ui/transfer_system/detail/StringUtil.cpp
+    src/ui/transfer_system/detail/SpriteSlugCandidates.cpp
+    src/ui/transfer_system/detail/TextureLoad.cpp
     src/ui/BoxViewport.cpp
     src/ui/FocusManager.cpp
 )
@@ -286,6 +329,41 @@ add_executable(transfer_system_flow_harness_tests
     src/core/SaveBridgeClient.cpp
     ${RESORT_STORAGE_SOURCES}
     src/ui/TransferSystemScreen.cpp
+    src/ui/transfer_system/TransferSystemScreenLifecycle.cpp
+    src/ui/transfer_system/TransferSystemScreenCtor.cpp
+    src/ui/transfer_system/TransferSystemScreenFocusNav.cpp
+    src/ui/transfer_system/TransferSystemScreenNavigate2d.cpp
+    src/ui/transfer_system/TransferSystemScreenUpdateSync.cpp
+    src/ui/transfer_system/TransferSystemScreenViewportRefresh.cpp
+    src/ui/transfer_system/TransferSystemScreenDropdownGame.cpp
+    src/ui/transfer_system/TransferSystemScreenDropdownResort.cpp
+    src/ui/transfer_system/TransferSystemScreenMiniPreview.cpp
+    src/ui/transfer_system/TransferSystemScreenMenusUpdate.cpp
+    src/ui/transfer_system/TransferSystemScreenBoxSpaceGestures.cpp
+    src/ui/transfer_system/TransferSystemScreenBoxViewports.cpp
+    src/ui/transfer_system/TransferSystemScreenPokemonMoveSingle.cpp
+    src/ui/transfer_system/TransferSystemScreenPokemonMoveMulti.cpp
+    src/ui/transfer_system/TransferSystemScreenPointerHitTest.cpp
+    src/ui/transfer_system/TransferSystemScreenAdvancePressed.cpp
+    src/ui/transfer_system/TransferSystemScreenBackPressed.cpp
+    src/ui/transfer_system/TransferSystemScreenUnroutedEvents.cpp
+    src/ui/transfer_system/TransferSystemScreenBoxRenameModal.cpp
+    src/ui/transfer_system/TransferSystemScreenBoxRenameModalRender.cpp
+    src/ui/transfer_system/TransferSystemScreenPointerPressed.cpp
+    src/ui/transfer_system/TransferSystemScreenPointerMoved.cpp
+    src/ui/transfer_system/TransferSystemScreenPointerReleased.cpp
+    src/ui/transfer_system/TransferSystemScreenBoxSpacePointer.cpp
+    src/ui/transfer_system/TransferSystemScreenActionMenuPointer.cpp
+    src/ui/transfer_system/TransferSystemScreenBoxSpaceQuickDrop.cpp
+    src/ui/transfer_system/TransferSystemScreenViewportModels.cpp
+    src/ui/transfer_system/TransferSystemScreenBoxSpaceMode.cpp
+    src/ui/transfer_system/TransferSystemScreenMultiMarquee.cpp
+    src/ui/transfer_system/TransferSystemScreenDebugHooks.cpp
+    src/ui/transfer_system/TransferSystemScreenBoxNavigation.cpp
+    src/ui/transfer_system/TransferSystemScreenDropdownPointer.cpp
+    src/ui/transfer_system/TransferSystemScreenActionMenuHelpers.cpp
+    src/ui/transfer_system/TransferSystemScreenSmallQueries.cpp
+    src/ui/transfer_system/TransferSystemScreenUiHelpers.cpp
     src/ui/transfer_system/GameTransferConfig.cpp
     src/ui/transfer_system/GameBoxBrowserController.cpp
     src/ui/transfer_system/MultiPokemonMoveController.cpp
@@ -296,8 +374,16 @@ add_executable(transfer_system_flow_harness_tests
     src/ui/transfer_system/TransferSystemFocusGraph.cpp
     src/ui/transfer_system/TransferInfoBannerPresenter.cpp
     src/ui/transfer_system/TransferInfoBannerRenderer.cpp
-    src/ui/transfer_system/TransferSystemRenderer.cpp
+    src/ui/transfer_system/TransferSystemRendererMain.cpp
+    src/ui/transfer_system/TransferSystemRendererTopBar.cpp
+    src/ui/transfer_system/TransferSystemRendererMenus.cpp
+    src/ui/transfer_system/TransferSystemRendererHeld.cpp
+    src/ui/transfer_system/TransferSystemRendererDropdowns.cpp
     src/ui/transfer_system/TransferSystemUiStateController.cpp
+    src/ui/transfer_system/detail/SdlScanlineDraw.cpp
+    src/ui/transfer_system/detail/StringUtil.cpp
+    src/ui/transfer_system/detail/SpriteSlugCandidates.cpp
+    src/ui/transfer_system/detail/TextureLoad.cpp
     src/ui/BoxViewport.cpp
     src/ui/FocusManager.cpp
 )
