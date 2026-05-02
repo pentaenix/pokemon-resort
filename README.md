@@ -63,16 +63,16 @@ Clear the transfer save-probe cache and exit:
 
 Use this map before changing code:
 
-- **App orchestration:** `src/core/App.cpp` owns SDL setup, app loop, active flow selection, persistence wiring, audio wiring, and high-level transfer lifecycle.
+- **App orchestration:** `src/core/App.cpp` owns SDL setup, composition, the app loop, and final rendering. App-level routing, loading, audio direction, transitions, frame requests, and user-settings persistence live under `src/core/app`.
 - **Title/menu/options:** `src/ui/TitleScreen.cpp` owns title flow coordination. Extracted title collaborators live under `src/ui/title_screen/`.
 - **Loading screens:** `src/ui/loading/` owns reusable loading screens, including the black Pokeball loader and the Resort transfer boat loader. See `docs/loading/README.md` for call patterns and message keys.
 - **Transfer flow shell:** `src/ui/TransferFlowCoordinator.cpp` owns async save scanning/deep probing and concrete screen transitions. Pure flow decisions live under `src/ui/transfer_flow/`.
 - **Transfer ticket list:** `src/ui/TransferTicketScreen.cpp` renders tickets. List behavior lives in `src/ui/transfer_ticket/TransferTicketListController.cpp`.
 - **Transfer system screen:** `src/ui/TransferSystemScreen.cpp` adapts real SDL input/render state to smaller controllers. Pure controllers and render helpers live under `src/ui/transfer_system/`; read [`docs/transfer_system/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/transfer_system/README.md) before changing this area.
-- **Input:** `src/core/InputRouter.cpp`, `src/core/InputBindings.cpp`, and `include/ui/ScreenInput.hpp` keep keyboard/controller/mouse routing centralized.
-- **Save scanning and bridge summaries:** `src/core/SaveLibrary.cpp` owns save discovery, bridge probing, cache behavior, and parsed transfer models.
-- **PKHeX bridge boundary:** `src/core/SaveBridgeClient.cpp` launches the .NET helper in `../tools/pkhex_bridge`; native C++ should not link `PKHeX.Core`.
-- **PokeSprite assets:** `src/core/PokeSpriteAssets.cpp` owns Pokemon, item, and misc icon path resolution plus texture caching.
+- **Input:** `src/core/input/InputRouter.cpp`, `src/core/input/InputBindings.cpp`, and `include/ui/ScreenInput.hpp` keep keyboard/controller/mouse routing centralized.
+- **Save scanning and bridge summaries:** `src/core/save/SaveLibrary.cpp` owns save discovery, bridge probing, cache behavior, and parsed transfer models.
+- **PKHeX bridge boundary:** `src/core/bridge/SaveBridgeClient.cpp` launches the .NET helper in `../tools/pkhex_bridge`; native C++ should not link `PKHeX.Core`.
+- **PokeSprite assets:** `src/core/assets/PokeSpriteAssets.cpp` owns Pokemon, item, and misc icon path resolution plus texture caching.
 - **Resort backend:** `src/resort/` and `include/resort/` own canonical Pokemon storage, import/export services, repositories, and SQLite persistence.
 
 ## Config Sources Of Truth

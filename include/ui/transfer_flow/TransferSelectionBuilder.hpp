@@ -1,6 +1,6 @@
 #pragma once
 
-#include "core/SaveLibrary.hpp"
+#include "core/save/SaveLibrary.hpp"
 #include "ui/TransferSaveSelection.hpp"
 
 #include <optional>

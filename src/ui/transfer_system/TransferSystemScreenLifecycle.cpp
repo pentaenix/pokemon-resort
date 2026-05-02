@@ -1,9 +1,9 @@
 #include "ui/TransferSystemScreen.hpp"
 
-#include "core/BridgeImportMerge.hpp"
-#include "core/SaveBridgeClient.hpp"
-#include "core/TransferBoxEditsStore.hpp"
-#include "core/PokeSpriteAssets.hpp"
+#include "core/bridge/BridgeImportMerge.hpp"
+#include "core/bridge/SaveBridgeClient.hpp"
+#include "core/save/TransferBoxEditsStore.hpp"
+#include "core/assets/PokeSpriteAssets.hpp"
 #include "resort/domain/ImportedPokemon.hpp"
 #include "resort/domain/ExportedPokemon.hpp"
 #include "resort/domain/ResortTypes.hpp"

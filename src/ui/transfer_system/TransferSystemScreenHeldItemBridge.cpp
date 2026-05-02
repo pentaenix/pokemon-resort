@@ -1,7 +1,7 @@
 #include "ui/TransferSystemScreen.hpp"
 
-#include "core/PcSlotSpecies.hpp"
-#include "core/SaveBridgeClient.hpp"
+#include "core/domain/PcSlotSpecies.hpp"
+#include "core/bridge/SaveBridgeClient.hpp"
 
 #include <chrono>
 #include <filesystem>

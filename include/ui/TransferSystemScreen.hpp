@@ -1,9 +1,9 @@
 #pragma once
 
-#include "core/Assets.hpp"
+#include "core/assets/Assets.hpp"
 #include "core/Types.hpp"
-#include "core/Font.hpp"
-#include "core/PokeSpriteAssets.hpp"
+#include "core/assets/Font.hpp"
+#include "core/assets/PokeSpriteAssets.hpp"
 #include "ui/BoxViewport.hpp"
 #include "ui/FocusManager.hpp"
 #include "ui/Screen.hpp"

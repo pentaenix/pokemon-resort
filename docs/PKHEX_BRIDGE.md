@@ -9,8 +9,8 @@ Pokemon Resort does not link `PKHeX.Core` into the native C++ executable.
 The integration is intentionally process-based:
 
 1. Native C++ scans likely save files in [`saves`](/Users/vanta/Desktop/title_screen_demo/saves).
-2. [`SaveLibrary.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/SaveLibrary.cpp) hashes candidates and checks the transfer probe cache.
-3. [`SaveBridgeClient.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/SaveBridgeClient.cpp) launches the .NET helper under [`tools/pkhex_bridge`](/Users/vanta/Desktop/title_screen_demo/tools/pkhex_bridge).
+2. [`SaveLibrary.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/save/SaveLibrary.cpp) hashes candidates and checks the transfer probe cache.
+3. [`SaveBridgeClient.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/bridge/SaveBridgeClient.cpp) launches the .NET helper under [`tools/pkhex_bridge`](/Users/vanta/Desktop/title_screen_demo/tools/pkhex_bridge).
 4. The helper loads the save with `PKHeX.Core`.
 5. The helper writes one JSON object to stdout.
 6. Native C++ parses the subset it needs today and can be expanded to consume the richer model fields.
@@ -33,9 +33,9 @@ This keeps `PKHeX.Core` behind a small CLI boundary and prevents the native app 
   owns guarded projection write-back validation. It does not mutate saves yet.
 - [`tools/pkhex_bridge/PkmHeldItemPatch.cs`](/Users/vanta/Desktop/title_screen_demo/tools/pkhex_bridge/PkmHeldItemPatch.cs)
   decodes import-grade `EncryptedBoxData`, sets `HeldItem`, and re-exports bytes for write-back when only the held item changes on a PC slot.
-- [`pokemon-resort/src/core/SaveBridgeClient.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/SaveBridgeClient.cpp)
+- [`pokemon-resort/src/core/bridge/SaveBridgeClient.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/bridge/SaveBridgeClient.cpp)
   resolves and launches the helper process for probe, import, write-projection validation, and held-item patch requests.
-- [`pokemon-resort/src/core/SaveLibrary.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/SaveLibrary.cpp)
+- [`pokemon-resort/src/core/save/SaveLibrary.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/save/SaveLibrary.cpp)
   scans, probes, caches, parses the light ticket summary, and parses the deeper per-slot transfer box model used by `TransferSystemScreen`.
 - [`pokemon-resort/src/resort/integration/BridgeImportAdapter.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/resort/integration/BridgeImportAdapter.cpp)
   parses import-grade bridge output into native `ImportedPokemon`.
@@ -295,9 +295,9 @@ When completing write/edit support:
 
 Native C++ consumes the bridge in three places:
 
-- [`SaveLibrary.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/SaveLibrary.cpp) consumes the ticket summary fields and the current transfer-slot read model used by the transfer box UI.
+- [`SaveLibrary.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/save/SaveLibrary.cpp) consumes the ticket summary fields and the current transfer-slot read model used by the transfer box UI.
 - [`BridgeImportAdapter.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/resort/integration/BridgeImportAdapter.cpp) parses `bridge_import_schema: 1` import-grade Pokemon output.
-- [`SaveBridgeClient.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/SaveBridgeClient.cpp) exposes `writeProjectionWithBridge` for guarded write-back validation.
+- [`SaveBridgeClient.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/bridge/SaveBridgeClient.cpp) exposes `writeProjectionWithBridge` for guarded write-back validation.
 
 The current transfer ticket UI summary path parses:
 

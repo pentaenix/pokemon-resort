@@ -33,22 +33,23 @@ When changing behavior, name which source of truth you are changing before you e
 ### Entry And App Orchestration
 
 - [`src/main.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/main.cpp) forwards an optional title config path into `pr::runApplication` and supports `--clear-save-cache`.
-- [`src/core/App.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/App.cpp) owns SDL initialization, root discovery, config loading, window/renderer setup, shared assets/fonts, persisted options restore, Resort service startup, input dispatch, active screen/flow selection, audio decisions, and the main loop.
+- [`src/core/App.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/App.cpp) owns SDL initialization, config/root bootstrap, window/renderer setup, composition of app-level services/screens, the main loop, input polling, active-screen rendering, and overlay presentation.
+- [`src/core/app`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/app) owns app orchestration helpers: screen routing (`screen/`), loading-screen selection (`loading/`), transition timing (`transition/`), audio direction (`audio/`), one-frame requests (`frame/`), user-settings persistence (`persistence/`), and app path helpers.
 - Keep `App.cpp` orchestration-focused. New screen-specific state should live in a screen, coordinator, controller, service, or config parser.
 
 ### Core Modules
 
-- [`ConfigLoader.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/ConfigLoader.cpp) parses app/title config into types from [`Types.hpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/core/Types.hpp).
+- [`ConfigLoader.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/config/ConfigLoader.cpp) parses app/title config into types from [`Types.hpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/core/Types.hpp).
 - [`Types.hpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/core/Types.hpp) is the app/title config and persisted settings contract.
-- [`Assets.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/Assets.cpp) resolves project-root asset paths, loads textures, renders text, and builds title logo masks.
-- [`PokeSpriteAssets.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/PokeSpriteAssets.cpp) owns Pokemon sprite, item icon, misc icon, and SDL texture-cache resolution for transfer UI. Its contract is documented in [`docs/assets/pokesprite_subsystem.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/assets/pokesprite_subsystem.md).
-- [`InputBindings.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/InputBindings.cpp) maps human-readable key names from JSON to SDL keycodes.
-- [`InputRouter.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/InputRouter.cpp) translates SDL keyboard, mouse, and controller events into the active [`ScreenInput`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/ui/ScreenInput.hpp).
-- [`SaveDataStore.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/SaveDataStore.cpp) loads primary/backup user settings and writes atomically.
-- [`SaveBridgeClient.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/SaveBridgeClient.cpp) resolves and launches the external .NET bridge process.
-- [`SaveLibrary.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/SaveLibrary.cpp) scans the top-level [`saves`](/Users/vanta/Desktop/title_screen_demo/saves) folder, hashes candidates, probes through the bridge, caches summaries, and parses native transfer models for ticket and box UI.
+- [`Assets.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/assets/Assets.cpp) resolves project-root asset paths, loads textures, renders text, and builds title logo masks.
+- [`PokeSpriteAssets.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/assets/PokeSpriteAssets.cpp) owns Pokemon sprite, item icon, misc icon, and SDL texture-cache resolution for transfer UI. Its contract is documented in [`docs/assets/pokesprite_subsystem.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/assets/pokesprite_subsystem.md).
+- [`InputBindings.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/input/InputBindings.cpp) maps human-readable key names from JSON to SDL keycodes.
+- [`InputRouter.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/input/InputRouter.cpp) translates SDL keyboard, mouse, and controller events into the active [`ScreenInput`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/ui/ScreenInput.hpp).
+- [`SaveDataStore.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/save/SaveDataStore.cpp) loads primary/backup user settings and writes atomically.
+- [`SaveBridgeClient.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/bridge/SaveBridgeClient.cpp) resolves and launches the external .NET bridge process.
+- [`SaveLibrary.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/save/SaveLibrary.cpp) scans the top-level [`saves`](/Users/vanta/Desktop/title_screen_demo/saves) folder, hashes candidates, probes through the bridge, caches summaries, and parses native transfer models for ticket and box UI.
 - [`src/resort`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/resort) and [`include/resort`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/resort) own canonical Resort storage, repositories, matching, merge policy, import/export services, mirror sessions, and backend read models.
-- [`Audio.mm`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/Audio.mm) is the current macOS audio backend used by `App.cpp`.
+- [`Audio.mm`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/audio/Audio.mm) is the current macOS audio backend used by the app audio director.
 
 ## UI Layer
 

@@ -1,7 +1,7 @@
 #pragma once
 
-#include "core/PokeSpriteAssets.hpp"
-#include "core/SaveLibrary.hpp"
+#include "core/assets/PokeSpriteAssets.hpp"
+#include "core/save/SaveLibrary.hpp"
 #include "core/Types.hpp"
 #include "ui/Screen.hpp"
 #include "ui/TransferSaveSelection.hpp"

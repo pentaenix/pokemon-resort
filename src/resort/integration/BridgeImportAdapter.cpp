@@ -1,7 +1,7 @@
 #include "resort/integration/BridgeImportAdapter.hpp"
 
-#include "core/Json.hpp"
-#include "core/PcSlotSpecies.hpp"
+#include "core/config/Json.hpp"
+#include "core/domain/PcSlotSpecies.hpp"
 
 #include <array>
 #include <algorithm>

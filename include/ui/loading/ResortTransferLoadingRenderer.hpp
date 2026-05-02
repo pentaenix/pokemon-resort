@@ -1,6 +1,6 @@
 #pragma once
 
-#include "core/Assets.hpp"
+#include "core/assets/Assets.hpp"
 #include "ui/loading/ResortTransferLoadingConfig.hpp"
 
 #include <SDL.h>

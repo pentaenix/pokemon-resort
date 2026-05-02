@@ -1,6 +1,6 @@
 #include "resort/services/BridgeImportService.hpp"
 
-#include "core/SaveBridgeClient.hpp"
+#include "core/bridge/SaveBridgeClient.hpp"
 #include "resort/integration/BridgeImportAdapter.hpp"
 
 #include <utility>

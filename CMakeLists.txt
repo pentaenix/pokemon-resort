@@ -11,7 +11,7 @@ find_package(SDL2_ttf REQUIRED)
 find_package(SQLite3)
 
 set(RESORT_STORAGE_SOURCES
-    src/core/Sha256.cpp
+    src/core/crypto/Sha256.cpp
     src/resort/domain/Ids.cpp
     src/resort/persistence/SqliteConnection.cpp
     src/resort/persistence/Migrations.cpp
@@ -35,21 +35,31 @@ set(RESORT_STORAGE_SOURCES
 add_executable(title_screen_demo
     src/main.cpp
     src/core/App.cpp
-    src/core/Audio.mm
-    src/core/Assets.cpp
-    src/core/Font.cpp
-    src/core/InputBindings.cpp
-    src/core/InputRouter.cpp
-    src/core/Json.cpp
-    src/core/PokemonBall.cpp
-    src/core/PokemonOrigin.cpp
-    src/core/PokeSpriteAssets.cpp
-    src/core/ConfigLoader.cpp
-    src/core/SaveBridgeClient.cpp
-    src/core/SaveLibrary.cpp
-    src/core/SaveDataStore.cpp
-    src/core/TransferBoxEditsStore.cpp
-    src/core/BridgeImportMerge.cpp
+    src/core/app/audio/AppAudioDirector.cpp
+    src/core/app/frame/AppFrameRequests.cpp
+    src/core/app/loading/AppLoadingCoordinator.cpp
+    src/core/app/AppPaths.cpp
+    src/core/app/screen/AppScreenCoordinator.cpp
+    src/core/app/screen/AppScreenCoordinatorLoading.cpp
+    src/core/app/screen/AppScreenCoordinatorTitle.cpp
+    src/core/app/screen/AppScreenCoordinatorTransfer.cpp
+    src/core/app/transition/AppTransitionController.cpp
+    src/core/audio/Audio.mm
+    src/core/assets/Assets.cpp
+    src/core/assets/Font.cpp
+    src/core/input/InputBindings.cpp
+    src/core/input/InputRouter.cpp
+    src/core/config/Json.cpp
+    src/core/domain/PokemonBall.cpp
+    src/core/domain/PokemonOrigin.cpp
+    src/core/assets/PokeSpriteAssets.cpp
+    src/core/config/ConfigLoader.cpp
+    src/core/bridge/SaveBridgeClient.cpp
+    src/core/save/SaveLibrary.cpp
+    src/core/save/SaveDataStore.cpp
+    src/core/app/persistence/UserSettingsPersistence.cpp
+    src/core/save/TransferBoxEditsStore.cpp
+    src/core/bridge/BridgeImportMerge.cpp
     ${RESORT_STORAGE_SOURCES}
     src/ui/loading/PokeballLoadingScreen.cpp
     src/ui/loading/LoadingScreenFactory.cpp
@@ -148,8 +158,8 @@ enable_testing()
 
 add_executable(resort_storage_tests
     ../tests/native/resort/storage_import_tests.cpp
-    src/core/Json.cpp
-    src/core/SaveBridgeClient.cpp
+    src/core/config/Json.cpp
+    src/core/bridge/SaveBridgeClient.cpp
     ${RESORT_STORAGE_SOURCES}
 )
 target_include_directories(resort_storage_tests PRIVATE include)
@@ -159,6 +169,20 @@ else()
     target_link_libraries(resort_storage_tests PRIVATE sqlite3)
 endif()
 add_test(NAME resort_storage_tests COMMAND resort_storage_tests)
+
+add_executable(app_transition_controller_tests
+    ../tests/native/core/app_transition_controller_tests.cpp
+    src/core/app/transition/AppTransitionController.cpp
+)
+target_include_directories(app_transition_controller_tests PRIVATE include)
+add_test(NAME app_transition_controller_tests COMMAND app_transition_controller_tests)
+
+add_executable(app_frame_requests_tests
+    ../tests/native/core/app_frame_requests_tests.cpp
+    src/core/app/frame/AppFrameRequests.cpp
+)
+target_include_directories(app_frame_requests_tests PRIVATE include)
+add_test(NAME app_frame_requests_tests COMMAND app_frame_requests_tests)
 
 add_executable(title_screen_menu_tests
     ../tests/native/title_screen/main_menu_controller_tests.cpp
@@ -183,9 +207,9 @@ add_test(NAME title_screen_section_tests COMMAND title_screen_section_tests)
 
 add_executable(resort_loading_transition_screen_tests
     ../tests/native/resort_loading/resort_loading_transition_screen_tests.cpp
-    src/core/Assets.cpp
-    src/core/Font.cpp
-    src/core/Json.cpp
+    src/core/assets/Assets.cpp
+    src/core/assets/Font.cpp
+    src/core/config/Json.cpp
     src/ui/loading/PokeballLoadingScreen.cpp
     src/ui/loading/LoadingScreenFactory.cpp
     src/ui/loading/ResortTransferLoadingConfig.cpp
@@ -208,7 +232,7 @@ add_test(NAME transfer_ticket_list_tests COMMAND transfer_ticket_list_tests)
 
 add_executable(transfer_selection_builder_tests
     ../tests/native/transfer_flow/transfer_selection_builder_tests.cpp
-    src/core/PokemonOrigin.cpp
+    src/core/domain/PokemonOrigin.cpp
     src/ui/transfer_flow/TransferSelectionBuilder.cpp
 )
 target_include_directories(transfer_selection_builder_tests PRIVATE include)
@@ -223,7 +247,7 @@ add_test(NAME transfer_flow_controller_tests COMMAND transfer_flow_controller_te
 
 add_executable(game_transfer_config_tests
     ../tests/native/transfer_system/game_transfer_config_tests.cpp
-    src/core/Json.cpp
+    src/core/config/Json.cpp
     src/ui/transfer_system/GameTransferConfig.cpp
 )
 target_include_directories(game_transfer_config_tests PRIVATE include)
@@ -231,8 +255,8 @@ add_test(NAME game_transfer_config_tests COMMAND game_transfer_config_tests)
 
 add_executable(transfer_info_banner_presenter_tests
     ../tests/native/transfer_system/transfer_info_banner_presenter_tests.cpp
-    src/core/PokemonBall.cpp
-    src/core/PokemonOrigin.cpp
+    src/core/domain/PokemonBall.cpp
+    src/core/domain/PokemonOrigin.cpp
     src/ui/transfer_system/TransferInfoBannerPresenter.cpp
 )
 target_include_directories(transfer_info_banner_presenter_tests PRIVATE include)
@@ -278,8 +302,8 @@ add_test(NAME transfer_system_focus_graph_tests COMMAND transfer_system_focus_gr
 
 add_executable(input_router_tests
     ../tests/native/core/input_router_tests.cpp
-    src/core/InputBindings.cpp
-    src/core/InputRouter.cpp
+    src/core/input/InputBindings.cpp
+    src/core/input/InputRouter.cpp
 )
 target_include_directories(input_router_tests PRIVATE include)
 target_link_libraries(input_router_tests PRIVATE SDL2::SDL2)
@@ -287,24 +311,24 @@ add_test(NAME input_router_tests COMMAND input_router_tests)
 
 add_executable(config_loader_tests
     ../tests/native/core/config_loader_tests.cpp
-    src/core/ConfigLoader.cpp
-    src/core/Json.cpp
+    src/core/config/ConfigLoader.cpp
+    src/core/config/Json.cpp
 )
 target_include_directories(config_loader_tests PRIVATE include)
 add_test(NAME config_loader_tests COMMAND config_loader_tests)
 
 add_executable(transfer_box_edits_store_tests
     ../tests/native/core/transfer_box_edits_store_tests.cpp
-    src/core/TransferBoxEditsStore.cpp
-    src/core/Json.cpp
+    src/core/save/TransferBoxEditsStore.cpp
+    src/core/config/Json.cpp
 )
 target_include_directories(transfer_box_edits_store_tests PRIVATE include)
 add_test(NAME transfer_box_edits_store_tests COMMAND transfer_box_edits_store_tests)
 
 add_executable(bridge_import_merge_tests
     ../tests/native/core/bridge_import_merge_tests.cpp
-    src/core/BridgeImportMerge.cpp
-    src/core/Json.cpp
+    src/core/bridge/BridgeImportMerge.cpp
+    src/core/config/Json.cpp
 )
 target_include_directories(bridge_import_merge_tests PRIVATE include)
 add_test(NAME bridge_import_merge_tests COMMAND bridge_import_merge_tests)
@@ -312,23 +336,23 @@ add_test(NAME bridge_import_merge_tests COMMAND bridge_import_merge_tests)
 add_executable(pcslot_imported_pokemon_builder_tests
     ../tests/native/resort/pcslot_imported_pokemon_builder_tests.cpp
     src/resort/integration/BridgeImportAdapter.cpp
-    src/core/Json.cpp
+    src/core/config/Json.cpp
 )
 target_include_directories(pcslot_imported_pokemon_builder_tests PRIVATE include)
 add_test(NAME pcslot_imported_pokemon_builder_tests COMMAND pcslot_imported_pokemon_builder_tests)
 
 add_executable(save_bridge_client_tests
     ../tests/native/core/save_bridge_client_tests.cpp
-    src/core/SaveBridgeClient.cpp
-    src/core/Json.cpp
+    src/core/bridge/SaveBridgeClient.cpp
+    src/core/config/Json.cpp
 )
 target_include_directories(save_bridge_client_tests PRIVATE include)
 add_test(NAME save_bridge_client_tests COMMAND save_bridge_client_tests)
 
 add_executable(pokesprite_assets_tests
     ../tests/native/core/pokesprite_assets_tests.cpp
-    src/core/Json.cpp
-    src/core/PokeSpriteAssets.cpp
+    src/core/config/Json.cpp
+    src/core/assets/PokeSpriteAssets.cpp
 )
 target_include_directories(pokesprite_assets_tests PRIVATE include)
 target_link_libraries(pokesprite_assets_tests PRIVATE SDL2::SDL2 SDL2_image::SDL2_image SDL2_ttf::SDL2_ttf)
@@ -336,19 +360,19 @@ add_test(NAME pokesprite_assets_tests COMMAND pokesprite_assets_tests)
 
 add_executable(save_library_cache_tests
     ../tests/native/core/save_library_cache_tests.cpp
-    src/core/Json.cpp
-    src/core/SaveBridgeClient.cpp
-    src/core/SaveLibrary.cpp
+    src/core/config/Json.cpp
+    src/core/bridge/SaveBridgeClient.cpp
+    src/core/save/SaveLibrary.cpp
 )
 target_include_directories(save_library_cache_tests PRIVATE include)
 add_test(NAME save_library_cache_tests COMMAND save_library_cache_tests)
 
 add_executable(input_config_integration_tests
     ../tests/native/core/input_config_integration_tests.cpp
-    src/core/ConfigLoader.cpp
-    src/core/InputBindings.cpp
-    src/core/InputRouter.cpp
-    src/core/Json.cpp
+    src/core/config/ConfigLoader.cpp
+    src/core/input/InputBindings.cpp
+    src/core/input/InputRouter.cpp
+    src/core/config/Json.cpp
 )
 target_include_directories(input_config_integration_tests PRIVATE include)
 target_link_libraries(input_config_integration_tests PRIVATE SDL2::SDL2)
@@ -361,12 +385,12 @@ add_test(
 
 add_executable(title_screen_flow_harness_tests
     ../tests/e2e/native/title_screen_flow_harness_tests.cpp
-    src/core/Assets.cpp
-    src/core/ConfigLoader.cpp
-    src/core/Font.cpp
-    src/core/InputBindings.cpp
-    src/core/InputRouter.cpp
-    src/core/Json.cpp
+    src/core/assets/Assets.cpp
+    src/core/config/ConfigLoader.cpp
+    src/core/assets/Font.cpp
+    src/core/input/InputBindings.cpp
+    src/core/input/InputRouter.cpp
+    src/core/config/Json.cpp
     src/ui/TitleScreen.cpp
     src/ui/title_screen/MainMenuController.cpp
     src/ui/title_screen/OptionsMenuController.cpp
@@ -380,16 +404,16 @@ add_test(NAME title_screen_flow_harness_tests COMMAND title_screen_flow_harness_
 
 add_executable(transfer_system_flow_harness_tests
     ../tests/e2e/native/transfer_system_flow_harness_tests.cpp
-    src/core/Assets.cpp
-    src/core/ConfigLoader.cpp
-    src/core/Font.cpp
-    src/core/Json.cpp
-    src/core/PokemonBall.cpp
-    src/core/PokemonOrigin.cpp
-    src/core/PokeSpriteAssets.cpp
-    src/core/SaveBridgeClient.cpp
-    src/core/TransferBoxEditsStore.cpp
-    src/core/BridgeImportMerge.cpp
+    src/core/assets/Assets.cpp
+    src/core/config/ConfigLoader.cpp
+    src/core/assets/Font.cpp
+    src/core/config/Json.cpp
+    src/core/domain/PokemonBall.cpp
+    src/core/domain/PokemonOrigin.cpp
+    src/core/assets/PokeSpriteAssets.cpp
+    src/core/bridge/SaveBridgeClient.cpp
+    src/core/save/TransferBoxEditsStore.cpp
+    src/core/bridge/BridgeImportMerge.cpp
     ${RESORT_STORAGE_SOURCES}
     src/ui/TransferSystemScreen.cpp
     src/ui/transfer_system/TransferSystemScreenLifecycle.cpp
@@ -466,11 +490,11 @@ add_test(NAME transfer_system_flow_harness_tests COMMAND transfer_system_flow_ha
 
 add_executable(transfer_ticket_unicode_harness_tests
     ../tests/e2e/native/transfer_ticket_unicode_harness_tests.cpp
-    src/core/Assets.cpp
-    src/core/ConfigLoader.cpp
-    src/core/Font.cpp
-    src/core/Json.cpp
-    src/core/PokeSpriteAssets.cpp
+    src/core/assets/Assets.cpp
+    src/core/config/ConfigLoader.cpp
+    src/core/assets/Font.cpp
+    src/core/config/Json.cpp
+    src/core/assets/PokeSpriteAssets.cpp
     src/ui/TransferTicketScreen.cpp
     src/ui/transfer_ticket/TransferTicketListController.cpp
 )
@@ -481,8 +505,8 @@ add_test(NAME transfer_ticket_unicode_harness_tests COMMAND transfer_ticket_unic
 
 add_executable(resort_backend_tool
     tools/resort_backend_tool.cpp
-    src/core/Json.cpp
-    src/core/SaveBridgeClient.cpp
+    src/core/config/Json.cpp
+    src/core/bridge/SaveBridgeClient.cpp
     ${RESORT_STORAGE_SOURCES}
 )
 target_include_directories(resort_backend_tool PRIVATE include)

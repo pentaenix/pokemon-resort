@@ -1,6 +1,6 @@
 #include "ui/transfer_flow/TransferSelectionBuilder.hpp"
 
-#include "core/PokemonOrigin.hpp"
+#include "core/domain/PokemonOrigin.hpp"
 
 #include <utility>
 

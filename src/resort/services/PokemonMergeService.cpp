@@ -1,6 +1,6 @@
 #include "resort/services/PokemonMergeService.hpp"
 
-#include "core/Json.hpp"
+#include "core/config/Json.hpp"
 #include "resort/integration/Gen12DvBytes.hpp"
 
 #include <iomanip>

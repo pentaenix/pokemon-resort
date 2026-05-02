@@ -1,6 +1,6 @@
 #include "ui/TransferSystemScreen.hpp"
 
-#include "core/Assets.hpp"
+#include "core/assets/Assets.hpp"
 #include "ui/transfer_system/TransferInfoBannerPresenter.hpp"
 
 #include <SDL_image.h>

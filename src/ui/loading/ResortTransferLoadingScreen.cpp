@@ -1,6 +1,6 @@
 #include "ui/loading/ResortTransferLoadingScreen.hpp"
 
-#include "core/Font.hpp"
+#include "core/assets/Font.hpp"
 
 #include <SDL_image.h>
 #include <SDL_ttf.h>
