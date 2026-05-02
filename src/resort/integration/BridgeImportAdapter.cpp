@@ -1,9 +1,12 @@
 #include "resort/integration/BridgeImportAdapter.hpp"
 
 #include "core/Json.hpp"
+#include "core/PcSlotSpecies.hpp"
 
 #include <array>
+#include <algorithm>
 #include <cctype>
+#include <optional>
 #include <stdexcept>
 
 namespace pr::resort {
@@ -199,6 +202,7 @@ ImportedPokemon parseOnePokemon(const pr::JsonValue& item) {
     if (const std::string tracker = optionalString(*hot, "home_tracker"); !tracker.empty()) {
         h.home_tracker = tracker;
     }
+    h.dv16 = optionalU16(*hot, "dv16");
     h.lineage_root_species = static_cast<unsigned short>(optionalInt(*hot, "lineage_root_species", h.species_id));
     h.identity_strength = static_cast<unsigned char>(optionalInt(*hot, "identity_strength"));
 
@@ -207,10 +211,125 @@ ImportedPokemon parseOnePokemon(const pr::JsonValue& item) {
     imported.identity.pid = h.pid;
     imported.identity.encryption_constant = h.encryption_constant;
     imported.identity.home_tracker = h.home_tracker;
+    imported.identity.dv16 = h.dv16;
     imported.identity.tid16 = h.tid16;
     imported.identity.sid16 = h.sid16;
     imported.identity.ot_name = h.ot_name;
     imported.identity.lineage_root_species = h.lineage_root_species;
+    return imported;
+}
+
+std::optional<ImportedPokemon> tryBuildImportedFromGamePcSlot(const pr::PcSlotSpecies& slot, std::uint16_t source_game) {
+    if (source_game == 0) {
+        return std::nullopt;
+    }
+    if (slot.species_id <= 0) {
+        return std::nullopt;
+    }
+    if (slot.format.empty() || slot.bridge_box_payload_base64.empty() || !looksLikeSha256(slot.bridge_box_payload_hash_sha256)) {
+        return std::nullopt;
+    }
+    std::vector<unsigned char> raw;
+    try {
+        raw = decodeBase64(slot.bridge_box_payload_base64);
+    } catch (const std::exception&) {
+        return std::nullopt;
+    }
+    if (raw.empty()) {
+        return std::nullopt;
+    }
+
+    ImportedPokemon imported;
+    imported.source_game = source_game;
+    imported.format_name = slot.format;
+    imported.raw_bytes = std::move(raw);
+    imported.raw_hash_sha256 = slot.bridge_box_payload_hash_sha256;
+    imported.warm_json = "{\"schema_version\":1}";
+    imported.suspended_json = "{\"schema_version\":1}";
+
+    PokemonHot& h = imported.hot;
+    h.species_id = static_cast<unsigned short>(slot.species_id);
+    h.form_id = slot.form >= 0 ? static_cast<unsigned short>(slot.form) : 0;
+    h.nickname = slot.nickname;
+    h.is_nicknamed = !slot.nickname.empty();
+    h.level = slot.level >= 0 ? static_cast<unsigned char>(slot.level) : 1;
+    h.exp = slot.exp >= 0 ? static_cast<unsigned int>(slot.exp) : 0;
+    h.gender = slot.gender >= 0 ? static_cast<unsigned char>(slot.gender) : 0;
+    h.shiny = slot.is_shiny;
+    if (slot.ability_id >= 0) {
+        h.ability_id = static_cast<unsigned short>(slot.ability_id);
+    }
+    if (slot.ability_slot >= 0) {
+        h.ability_slot = static_cast<unsigned char>(std::min(slot.ability_slot, 255));
+    }
+    if (slot.held_item_id >= 0) {
+        h.held_item_id = static_cast<unsigned short>(slot.held_item_id);
+    }
+    for (std::size_t i = 0; i < slot.moves.size(); ++i) {
+        const auto& m = slot.moves[i];
+        if (m.move_id > 0) {
+            h.move_ids[i] = static_cast<unsigned short>(m.move_id);
+            if (m.current_pp >= 0) {
+                h.move_pp[i] = static_cast<unsigned char>(std::min(m.current_pp, 255));
+            }
+            if (m.pp_ups >= 0) {
+                h.move_pp_ups[i] = static_cast<unsigned char>(std::min(m.pp_ups, 255));
+            }
+        }
+    }
+    h.hp_current = slot.hp_current >= 0 ? static_cast<unsigned short>(slot.hp_current) : 0;
+    h.hp_max = slot.hp_max >= 0 ? static_cast<unsigned short>(slot.hp_max) : 0;
+    h.status_flags = slot.status_flags >= 0 ? static_cast<unsigned int>(slot.status_flags) : 0;
+    h.ot_name = slot.ot_name.empty() ? std::string("?") : slot.ot_name;
+    if (slot.tid16 >= 0) {
+        h.tid16 = static_cast<unsigned short>(slot.tid16);
+    }
+    if (slot.sid16 >= 0) {
+        h.sid16 = static_cast<unsigned short>(slot.sid16);
+    }
+    if (slot.tid32.has_value()) {
+        h.tid32 = *slot.tid32;
+    }
+    h.origin_game = slot.origin_game_id >= 0 ? static_cast<unsigned short>(slot.origin_game_id) : source_game;
+    if (slot.language >= 0) {
+        h.language = static_cast<unsigned char>(std::min(slot.language, 255));
+    }
+    if (slot.met_location_id >= 0) {
+        h.met_location_id = static_cast<unsigned short>(slot.met_location_id);
+    }
+    if (slot.met_level >= 0) {
+        h.met_level = static_cast<unsigned char>(std::min(slot.met_level, 255));
+    }
+    if (slot.met_date_unix.has_value()) {
+        h.met_date_unix = *slot.met_date_unix;
+    }
+    if (slot.ball_id >= 0) {
+        h.ball_id = static_cast<unsigned short>(slot.ball_id);
+    }
+    if (slot.pid.has_value()) {
+        h.pid = *slot.pid;
+    }
+    if (slot.encryption_constant.has_value()) {
+        h.encryption_constant = *slot.encryption_constant;
+    }
+    if (!slot.home_tracker.empty()) {
+        h.home_tracker = slot.home_tracker;
+    }
+    h.dv16 = slot.dv16;
+    if (slot.lineage_root_species > 0) {
+        h.lineage_root_species = static_cast<unsigned short>(slot.lineage_root_species);
+    } else {
+        h.lineage_root_species = h.species_id;
+    }
+
+    imported.identity.tid16 = h.tid16;
+    imported.identity.sid16 = h.sid16;
+    imported.identity.ot_name = h.ot_name;
+    imported.identity.lineage_root_species = h.lineage_root_species;
+    imported.identity.pid = h.pid;
+    imported.identity.encryption_constant = h.encryption_constant;
+    imported.identity.home_tracker = h.home_tracker;
+    imported.identity.dv16 = h.dv16;
     return imported;
 }
 
@@ -244,6 +363,10 @@ BridgeImportParseResult parseBridgeImportPayload(const std::string& json_text) {
         result.pokemon.clear();
         return result;
     }
+}
+
+std::optional<ImportedPokemon> importedPokemonFromGamePcSlot(const pr::PcSlotSpecies& slot, std::uint16_t source_game) {
+    return tryBuildImportedFromGamePcSlot(slot, source_game);
 }
 
 } // namespace pr::resort

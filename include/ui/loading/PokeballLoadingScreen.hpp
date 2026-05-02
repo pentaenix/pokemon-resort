@@ -3,7 +3,7 @@
 #include "core/Assets.hpp"
 #include "core/Font.hpp"
 #include "core/Types.hpp"
-#include "ui/Screen.hpp"
+#include "ui/loading/LoadingScreenBase.hpp"
 
 #include <SDL.h>
 #include <random>
@@ -12,17 +12,21 @@
 
 namespace pr {
 
-class LoadingScreen : public Screen {
+class PokeballLoadingScreen : public LoadingScreenBase {
 public:
-    LoadingScreen(
+    PokeballLoadingScreen(
         SDL_Renderer* renderer,
         const WindowConfig& window_config,
         const std::string& fallback_font_path,
         const std::string& project_root);
 
-    void enter();
+    LoadingScreenType loadingScreenType() const override { return LoadingScreenType::Pokeball; }
+    void setMinimumLoopSeconds(double minimum_loop_seconds) override;
+    void enter() override;
     void update(double dt) override;
     void render(SDL_Renderer* renderer) override;
+    void markLoadingComplete() override;
+    bool isLoadingAnimationComplete() const override;
 
 private:
     struct LoadingConfig {
@@ -58,6 +62,10 @@ private:
     std::mt19937 rng_;
     int current_ball_index_ = -1;
     double lap_elapsed_seconds_ = 0.0;
+    double display_elapsed_seconds_ = 0.0;
+    double minimum_loop_seconds_ = 0.0;
+    bool loading_complete_requested_ = false;
+    bool loading_animation_complete_ = false;
 };
 
 } // namespace pr

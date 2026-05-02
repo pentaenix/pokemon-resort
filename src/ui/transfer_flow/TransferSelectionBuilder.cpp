@@ -29,6 +29,7 @@ TransferSaveSelection selectionFromRecord(const SaveFileRecord& record) {
     for (const auto& box : summary.pc_boxes) {
         TransferSaveSelection::PcBox out_box;
         out_box.name = box.name;
+        out_box.native_slot_count = box.native_slot_count;
         out_box.slots = box.slots;
         selection.pc_boxes.push_back(std::move(out_box));
     }
@@ -67,6 +68,7 @@ TransferSaveSelection mergeFreshSummary(
     for (const auto& box : fresh_summary.pc_boxes) {
         TransferSaveSelection::PcBox out_box;
         out_box.name = box.name;
+        out_box.native_slot_count = box.native_slot_count;
         out_box.slots = box.slots;
         merged.pc_boxes.push_back(std::move(out_box));
     }

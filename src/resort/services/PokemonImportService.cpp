@@ -1,7 +1,10 @@
 #include "resort/services/PokemonImportService.hpp"
 
 #include "resort/domain/Ids.hpp"
+#include "resort/integration/Gen12DvBytes.hpp"
 
+#include <iostream>
+#include <random>
 #include <sstream>
 #include <stdexcept>
 
@@ -10,6 +13,9 @@ namespace pr::resort {
 namespace {
 
 constexpr const char* kDefaultJsonPayload = "{\"schema_version\":1}";
+constexpr const char* kTempTransferLog = "[TEMP_TRANSFER_LOG_DELETE]";
+
+thread_local std::mt19937 kGen12DvRng{std::random_device{}()};
 
 std::string escapeJson(const std::string& value) {
     std::string out;
@@ -45,6 +51,23 @@ std::string snapshotNotesJson(const PokemonMatchResult& match) {
         << "\"match_reason\":\"" << escapeJson(match.reason) << "\","
         << "\"matched\":" << (match.matched ? "true" : "false")
         << "}";
+    return out.str();
+}
+
+std::string optionalU16ForLog(const std::optional<std::uint16_t>& value) {
+    return value ? std::to_string(*value) : std::string("none");
+}
+
+std::string movesForLog(const PokemonHot& hot) {
+    std::ostringstream out;
+    out << "[";
+    for (std::size_t i = 0; i < hot.move_ids.size(); ++i) {
+        if (i > 0) {
+            out << ",";
+        }
+        out << (hot.move_ids[i] ? std::to_string(*hot.move_ids[i]) : std::string("none"));
+    }
+    out << "]";
     return out.str();
 }
 
@@ -116,9 +139,29 @@ PokemonImportService::PokemonImportService(
       mirror_sessions_(mirror_sessions) {}
 
 ImportResult PokemonImportService::importParsedPokemon(
-    const ImportedPokemon& imported,
+    const ImportedPokemon& imported_in,
     const ImportContext& context) {
+    ImportedPokemon imported = imported_in;
     ImportResult result;
+    std::cerr << kTempTransferLog
+              << " Backend import start source_game=" << imported.source_game
+              << " format=" << imported.format_name
+              << " species=" << imported.hot.species_id
+              << " level=" << static_cast<int>(imported.hot.level)
+              << " exp=" << imported.hot.exp
+              << " held_item=" << optionalU16ForLog(imported.hot.held_item_id)
+              << " dv16=" << optionalU16ForLog(imported.hot.dv16)
+              << " moves=" << movesForLog(imported.hot)
+              << " hp=" << imported.hot.hp_current << "/" << imported.hot.hp_max
+              << " status_flags=" << imported.hot.status_flags
+              << " lineage_root=" << imported.hot.lineage_root_species
+              << " raw_bytes=" << imported.raw_bytes.size()
+              << " hash=" << imported.raw_hash_sha256
+              << " target_location="
+              << (context.target_location ? (std::to_string(context.target_location->box_id) + ":" +
+                                             std::to_string(context.target_location->slot_index))
+                                          : std::string("none"))
+              << '\n';
     if (imported.raw_bytes.empty()) {
         result.error = "ImportedPokemon.raw_bytes is required for no-loss snapshot preservation";
         return result;
@@ -143,8 +186,18 @@ ImportResult PokemonImportService::importParsedPokemon(
         SqliteTransaction tx(connection_);
         const PokemonMatchResult match = matcher_.findBestMatch(imported);
         const std::string pkrid = match.matched ? match.pkrid : generateId("pkr");
+        std::optional<ResortPokemon> existing_canonical;
+        if (match.matched) {
+            existing_canonical = pokemon_.findById(pkrid);
+        }
+        resolveGen12ZeroDvForResortImport(existing_canonical, imported, kGen12DvRng);
         final_pkrid = pkrid;
         final_match_reason = match.reason;
+        std::cerr << kTempTransferLog
+                  << " Backend import match pkrid=" << pkrid
+                  << " matched=" << (match.matched ? "true" : "false")
+                  << " reason=" << match.reason
+                  << " mirror_session_id=" << match.mirror_session_id << '\n';
 
         PokemonSnapshot snapshot;
         snapshot.snapshot_id = snapshot_id;
@@ -161,12 +214,17 @@ ImportResult PokemonImportService::importParsedPokemon(
         // The snapshot row is written first. Its FK is deferred until commit so canonical insert
         // can follow while preserving the no-loss ordering inside the transaction.
         snapshots_.insert(snapshot);
+        std::cerr << kTempTransferLog
+                  << " Backend import snapshot inserted snapshot_id=" << snapshot.snapshot_id
+                  << " pkrid=" << pkrid
+                  << " kind=ImportedRaw\n";
 
         if (match.matched) {
             auto canonical = pokemon_.findById(pkrid);
             if (!canonical) {
                 throw std::runtime_error("Matched Pokemon no longer exists: " + pkrid);
             }
+            const PokemonHot before_hot = canonical->hot;
             const PokemonMergeResult merged = merge_.mergeImported(*canonical, imported, now);
             pokemon_.updateAfterMerge(*canonical);
 
@@ -180,8 +238,35 @@ ImportResult PokemonImportService::importParsedPokemon(
             history_.insert(event);
             if (!match.mirror_session_id.empty()) {
                 mirror_sessions_.closeReturned(match.mirror_session_id, now);
+                std::cerr << kTempTransferLog
+                          << " Backend import closed returned mirror_session_id="
+                          << match.mirror_session_id << '\n';
             }
             merged_canonical = true;
+            std::cerr << kTempTransferLog
+                      << " Backend import merged canonical pkrid=" << pkrid
+                      << " level=" << static_cast<int>(canonical->hot.level)
+                      << " exp=" << canonical->hot.exp << '\n';
+            std::cerr << kTempTransferLog
+                      << " Backend import merge hot fields pkrid=" << pkrid
+                      << " before_species=" << before_hot.species_id
+                      << " after_species=" << canonical->hot.species_id
+                      << " before_level=" << static_cast<int>(before_hot.level)
+                      << " after_level=" << static_cast<int>(canonical->hot.level)
+                      << " before_exp=" << before_hot.exp
+                      << " after_exp=" << canonical->hot.exp
+                      << " before_held_item=" << optionalU16ForLog(before_hot.held_item_id)
+                      << " after_held_item=" << optionalU16ForLog(canonical->hot.held_item_id)
+                      << " before_dv16=" << optionalU16ForLog(before_hot.dv16)
+                      << " after_dv16=" << optionalU16ForLog(canonical->hot.dv16)
+                      << " before_moves=" << movesForLog(before_hot)
+                      << " after_moves=" << movesForLog(canonical->hot)
+                      << " before_hp=" << before_hot.hp_current << "/" << before_hot.hp_max
+                      << " after_hp=" << canonical->hot.hp_current << "/" << canonical->hot.hp_max
+                      << " before_status_flags=" << before_hot.status_flags
+                      << " after_status_flags=" << canonical->hot.status_flags
+                      << " before_lineage_root=" << before_hot.lineage_root_species
+                      << " after_lineage_root=" << canonical->hot.lineage_root_species << '\n';
         } else {
             ResortPokemon canonical = canonicalFromImport(imported, pkrid, now);
             pokemon_.insert(canonical);
@@ -195,10 +280,16 @@ ImportResult PokemonImportService::importParsedPokemon(
             event.diff_json = createdDiffJson(imported, context);
             history_.insert(event);
             created_canonical = true;
+            std::cerr << kTempTransferLog
+                      << " Backend import created canonical pkrid=" << pkrid << '\n';
         }
 
         if (context.target_location) {
             boxes_.placePokemon(*context.target_location, pkrid, context.placement_policy);
+            std::cerr << kTempTransferLog
+                      << " Backend import placed pkrid=" << pkrid
+                      << " box=" << context.target_location->box_id
+                      << " slot=" << context.target_location->slot_index << '\n';
             PokemonHistoryEvent moved;
             moved.event_id = generateId("hist");
             moved.pkrid = pkrid;
@@ -208,7 +299,14 @@ ImportResult PokemonImportService::importParsedPokemon(
             history_.insert(moved);
         }
         tx.commit();
+        std::cerr << kTempTransferLog
+                  << " Backend import commit success pkrid=" << final_pkrid
+                  << " snapshot_id=" << snapshot_id
+                  << " created=" << (created_canonical ? "true" : "false")
+                  << " merged=" << (merged_canonical ? "true" : "false") << '\n';
     } catch (const std::exception& ex) {
+        std::cerr << kTempTransferLog
+                  << " Backend import rollback error=" << ex.what() << '\n';
         result.error = ex.what();
         return result;
     }

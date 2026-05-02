@@ -31,8 +31,10 @@ This keeps `PKHeX.Core` behind a small CLI boundary and prevents the native app 
   owns import-grade per-Pokemon reads, including raw payload bytes and hashes.
 - [`tools/pkhex_bridge/BridgeWriteBack.cs`](/Users/vanta/Desktop/title_screen_demo/tools/pkhex_bridge/BridgeWriteBack.cs)
   owns guarded projection write-back validation. It does not mutate saves yet.
+- [`tools/pkhex_bridge/PkmHeldItemPatch.cs`](/Users/vanta/Desktop/title_screen_demo/tools/pkhex_bridge/PkmHeldItemPatch.cs)
+  decodes import-grade `EncryptedBoxData`, sets `HeldItem`, and re-exports bytes for write-back when only the held item changes on a PC slot.
 - [`pokemon-resort/src/core/SaveBridgeClient.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/SaveBridgeClient.cpp)
-  resolves and launches the helper process for probe, import, and write-projection validation.
+  resolves and launches the helper process for probe, import, write-projection validation, and held-item patch requests.
 - [`pokemon-resort/src/core/SaveLibrary.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/SaveLibrary.cpp)
   scans, probes, caches, parses the light ticket summary, and parses the deeper per-slot transfer box model used by `TransferSystemScreen`.
 - [`pokemon-resort/src/resort/integration/BridgeImportAdapter.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/resort/integration/BridgeImportAdapter.cpp)
@@ -62,10 +64,18 @@ Guarded projection write-back validation:
 dotnet run --project /Users/vanta/Desktop/title_screen_demo/tools/pkhex_bridge/PKHeXBridge.csproj -- write-projection "/absolute/path/to/save.sav" "/absolute/path/to/projection.json"
 ```
 
+Patch held item on one import-grade PC slot (JSON request file; avoids huge CLI arguments):
+
+```bash
+dotnet run --project /Users/vanta/Desktop/title_screen_demo/tools/pkhex_bridge/PKHeXBridge.csproj -- pkm-patch-held-item "/absolute/path/to/request.json"
+```
+
+Request body: `{"raw_payload_base64":"<EncryptedBoxData base64>","held_item_id":<int>}` — use `held_item_id` `0` to clear. Response (`bridge_held_item_patch_schema: 1`): `success`, `raw_payload_base64`, `raw_hash_sha256`, `error`, `details`.
+
 On success, it exits with code `0` and writes one JSON object.
 On failure, it exits non-zero and still writes one JSON object with `success: false`, `error`, and `details`.
 
-`write-projection` applies a JSON **projection** to a save file. It always creates a `*.bak` copy of the target save before mutating. Supported projection versions:
+`write-projection` applies a JSON **projection** to a save file. **Backups are not written next to the external `.sav`.** It places them under `<directory of projection JSON>/transfer_write_backups/`, which matches the app’s persistent storage when the game writes `transfer_write_projection.json` there. Filenames are `<sha256_of_full_save_path>.initbak` (first snapshot, never overwritten) and the same stem with `.bak` (overwritten on every write so you always have the state immediately before that run). Supported projection versions:
 
 - `projection_schema: 1` — `box_names` only (string array, one per box). Safe for renames; no PC slot data.
 - `projection_schema: 2` — full external PC snapshot for the transfer system:
@@ -80,8 +90,12 @@ Write-projection output includes:
 - `status`
 - `error`
 - `details`
-- `backup_created`
-- `backup_path`
+- `init_backup_created`
+- `init_backup_path`
+- `rolling_backup_path`
+- `restored_from_rolling_backup` — `true` if a failed final replace re-copied the rolling `.bak` onto the live save path (avoids leaving a torn/partial `.sav` when possible)
+
+**Safety:** Empty or null-embedded paths are rejected. Projection JSON size is capped (64 MiB) before parse. Serialized save size is capped before writing. Bytes are written to a same-folder temp file with OS-level durable flush where supported (`WriteThrough` on Windows), then the file is read back and compared byte-for-byte to the expected buffer before the live save is replaced. Stale `*.prtmp*` partials are removed before the next attempt. If the final replace throws, the bridge copies the rolling backup (exact pre-attempt copy of the save) back onto the external save path. A force-quit during the replace can still leave ambiguity at the OS level; the rolling backup under `transfer_write_backups/` remains the recovery source. Write-back code is split under `tools/pkhex_bridge/WriteBack/` so new projection sections (items, etc.) add new applier types instead of growing one monolith.
 
 On success, `status` is typically `ok`.
 
@@ -193,6 +207,7 @@ The model intentionally avoids inventing data if `PKHeX.Core` does not expose Po
 - PKM format class
 - species ID, species name, and sprite slug
 - nickname, form, gender, level
+- Gen 1/2 packed `dv16` identity evidence when available
 - egg and shiny state
 - held item ID/name
 - nature, ability ID

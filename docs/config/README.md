@@ -11,7 +11,7 @@ Runtime code owns state transitions, input semantics, parsing, persistence, brid
 - [`title_screen.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/title_screen.json)
   Title/menu/options authoring: intro timings, logo/background assets, prompt/menu/options text, skip flags, save identity (`persistence`: SDL organization/application, primary/backup JSON save file names, and **`resort_profile_file_name`** for the SQLite Resort DB next to those files), and title-specific visual tuning. Parsed by `ConfigLoader.cpp` into `TitleScreenConfig`.
 - [`loading_screen.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/loading_screen.json)
-  Transfer loading screen ball directory, position, scale, text, and spin timing. Read by `LoadingScreen`.
+  Transfer loading screen ball directory, position, scale, text, spin timing, and the Resort transfer loading animation/message catalog. Read by `PokeballLoadingScreen` and `ResortTransferLoadingScreen`; see [`docs/loading/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/loading/README.md) for call patterns.
 - [`transfer_select_save.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/transfer_select_save.json)
   Transfer-ticket screen header, list viewport, ticket art/text layout, rip animation, transfer lobby audio, background animation, and game color palette. See [`transfer_select_save.md`](transfer_select_save.md).
 - [`game_transfer.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/game_transfer.json)

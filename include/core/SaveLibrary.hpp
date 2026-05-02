@@ -36,7 +36,9 @@ struct TransferSaveSummary {
     std::vector<PcSlotSpecies> box_1_slots;
     struct PcBox {
         std::string name;
-        /// Transfer-ready slot payloads in bridge order. Current transfer UI normalizes to 30 visible cells.
+        /// Actual external save slots before UI padding (20 for Gen 1/2, normally 30 otherwise).
+        int native_slot_count = 0;
+        /// Transfer-ready slot payloads in bridge order. Current transfer UI pads to 30 cells for editing.
         std::vector<PcSlotSpecies> slots;
     };
     /// Full PC box list when available (preferred over `box_1_slots`).

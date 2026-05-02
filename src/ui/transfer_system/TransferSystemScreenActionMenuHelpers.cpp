@@ -50,7 +50,8 @@ const PcSlotSpecies* TransferSystemScreen::pokemonActionMenuPokemon() const {
         return slot.occupied() ? &slot : nullptr;
     }
     const int box_index = game_box_browser_.gameBoxIndex();
-    if (box_index < 0 || box_index >= static_cast<int>(game_pc_boxes_.size()) || slot_index < 0) {
+    if (box_index < 0 || box_index >= static_cast<int>(game_pc_boxes_.size()) ||
+        !gameSaveSlotAccessible(slot_index)) {
         return nullptr;
     }
     const auto& slots = game_pc_boxes_[static_cast<std::size_t>(box_index)].slots;

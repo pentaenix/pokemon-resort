@@ -12,11 +12,14 @@
 #include "ui/ScreenInput.hpp"
 #include "ui/TransferFlowCoordinator.hpp"
 #include "ui/TitleScreen.hpp"
+#include "ui/loading/LoadingScreenFactory.hpp"
+#include "ui/loading/ResortTransferLoadingConfig.hpp"
 
 #include <SDL.h>
 #include <SDL_image.h>
 #include <SDL_ttf.h>
 #include <algorithm>
+#include <cmath>
 #include <filesystem>
 #include <iostream>
 #include <memory>
@@ -39,19 +42,41 @@ struct RendererDestroy { void operator()(SDL_Renderer* p) const { if (p) SDL_Des
 using WindowPtr = std::unique_ptr<SDL_Window, WindowDestroy>;
 using RendererPtr = std::unique_ptr<SDL_Renderer, RendererDestroy>;
 
-enum class ActiveScreen {
-    Title,
-    TransferFlow
+enum class ActiveScreen { Title, ResortLoading, TransferFlow };
+enum class LoadingReturnTarget { ResortTitle, TradeTitle, TransferTickets };
+enum class ActiveMusicTrack { None, Menu, Transfer };
+enum class AppTransitionPhase {
+    None,
+    SaveSoundDelay,
+    FadeOutToLoading,
+    FadeInLoading,
+    LoadingActive,
+    FadeOutToDestination,
+    FadeInDestination
 };
 
-enum class ActiveMusicTrack {
-    None,
-    Menu,
-    Transfer
-};
+constexpr double kSaveSoundPreTransitionDelaySeconds = 0.5;
+constexpr double kQuickTransitionFadeSeconds = 0.25;
 
 double clamp01(double value) {
     return std::max(0.0, std::min(1.0, value));
+}
+
+double phaseProgress(double elapsed_seconds, double duration_seconds) {
+    if (duration_seconds <= 1e-6) {
+        return 1.0;
+    }
+    return clamp01(elapsed_seconds / duration_seconds);
+}
+
+void renderBlackOverlay(SDL_Renderer* renderer, const WindowConfig& window, double alpha01) {
+    if (!renderer || alpha01 <= 0.0) {
+        return;
+    }
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, static_cast<Uint8>(std::round(clamp01(alpha01) * 255.0)));
+    const SDL_Rect full{0, 0, window.virtual_width, window.virtual_height};
+    SDL_RenderFillRect(renderer, &full);
 }
 
 std::string findProjectRoot() {
@@ -157,15 +182,20 @@ int runApplication(const char* argv0, const char* config_path_override) {
     RendererPtr renderer(SDL_CreateRenderer(window.get(), -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC));
     if (!renderer) throw std::runtime_error(std::string("Failed to create renderer: ") + SDL_GetError());
 
-    if (SDL_RenderSetLogicalSize(
-            renderer.get(),
-            config.window.virtual_width,
-            config.window.virtual_height) != 0) {
+    if (SDL_RenderSetLogicalSize(renderer.get(), config.window.virtual_width, config.window.virtual_height) != 0) {
         throw std::runtime_error(std::string("Failed to set renderer logical size: ") + SDL_GetError());
     }
 
     Assets assets = loadAssets(renderer.get(), config, root);
     TitleScreen title_screen(config, std::move(assets));
+    std::unique_ptr<LoadingScreenBase> resort_loading_screen = createLoadingScreen(
+        LoadingScreenType::ResortTransfer, renderer.get(), config.window, config.assets.font, root);
+    std::unique_ptr<LoadingScreenBase> pokeball_menu_loading_screen = createLoadingScreen(
+        LoadingScreenType::Pokeball, renderer.get(), config.window, config.assets.font, root);
+    std::unique_ptr<LoadingScreenBase> quick_boat_pass_screen = createLoadingScreen(
+        LoadingScreenType::QuickBoatPass, renderer.get(), config.window, config.assets.font, root);
+    LoadingScreenBase* active_loading_screen = resort_loading_screen.get();
+    const ResortTransferLoadingConfig resort_loading_config = loadResortTransferLoadingConfig(root);
     SaveLibrary save_library(root, save_directory.string(), argv0);
     std::shared_ptr<PokeSpriteAssets> poke_sprite_assets = PokeSpriteAssets::create(root);
     std::unique_ptr<resort::PokemonResortService> pokemon_resort_service;
@@ -238,26 +268,63 @@ int runApplication(const char* argv0, const char* config_path_override) {
     if (!audio.loadErrorSfx(error_sfx_path.string())) {
         std::cerr << "Warning: could not load error sfx at " << error_sfx_path << '\n';
     }
+    const fs::path save_sfx_path = fs::path(root) / config.audio.save_sfx;
+    if (!audio.loadSaveSfx(save_sfx_path.string())) {
+        std::cerr << "Warning: could not load save sfx at " << save_sfx_path << '\n';
+    }
 
     bool running = true;
     Uint64 last_counter = SDL_GetPerformanceCounter();
     bool music_playing = false;
     double transfer_music_elapsed_seconds = 0.0;
     ActiveScreen active_screen = ActiveScreen::Title;
+    LoadingReturnTarget loading_return_target = LoadingReturnTarget::ResortTitle;
+    TemporalLoadingDemoType temporal_loading_type = TemporalLoadingDemoType::QuickBoatPass;
+    double temporal_simulated_load_duration_seconds = 0.0;
+    double temporal_loading_elapsed_seconds = 0.0;
+    bool temporal_loading_completion_sent = false;
     InputRouter input_router;
     bool title_button_sfx_requested = false;
     bool title_user_settings_save_requested = false;
+    bool transfer_save_sfx_requested = false;
+    AppTransitionPhase transition_phase = AppTransitionPhase::None;
+    double transition_elapsed_seconds = 0.0;
+    double transition_overlay_alpha = 0.0;
     const auto active_screen_instance = [&]() -> Screen* {
         switch (active_screen) {
             case ActiveScreen::Title:
                 return &title_screen;
+            case ActiveScreen::ResortLoading:
+                return active_loading_screen;
             case ActiveScreen::TransferFlow:
                 return transfer_flow.activeScreen();
         }
         return nullptr;
     };
     const auto active_input = [&]() -> ScreenInput* {
+        if (transition_phase != AppTransitionPhase::None) {
+            return nullptr;
+        }
         return active_screen_instance();
+    };
+    const auto start_successful_save_quick_transition = [&]() {
+        transfer_save_sfx_requested = true;
+        loading_return_target = LoadingReturnTarget::TransferTickets;
+        transition_phase = AppTransitionPhase::SaveSoundDelay;
+        transition_elapsed_seconds = 0.0;
+        transition_overlay_alpha = 0.0;
+    };
+    const auto finish_loading_transition = [&]() {
+        if (loading_return_target == LoadingReturnTarget::TransferTickets) {
+            transfer_flow.completeSuccessfulSaveReturnToTickets();
+            active_screen = ActiveScreen::TransferFlow;
+        } else if (loading_return_target == LoadingReturnTarget::TradeTitle) {
+            title_screen.returnToMainMenuFromTradeLoading();
+            active_screen = ActiveScreen::Title;
+        } else {
+            title_screen.returnToMainMenuFromResort();
+            active_screen = ActiveScreen::Title;
+        }
     };
 
     while (running) {
@@ -287,23 +354,161 @@ int runApplication(const char* argv0, const char* config_path_override) {
                     case TitleScreenEvent::UserSettingsSaveRequested:
                         title_user_settings_save_requested = true;
                         break;
+                    case TitleScreenEvent::OpenResortLoadingRequested:
+                        loading_return_target = LoadingReturnTarget::ResortTitle;
+                        active_loading_screen = resort_loading_screen.get();
+                        resort_loading_screen->enterWithMessageKey("message_transport_pokemon");
+                        active_screen = ActiveScreen::ResortLoading;
+                        break;
+                    case TitleScreenEvent::OpenTradeLoadingRequested:
+                        loading_return_target = LoadingReturnTarget::TradeTitle;
+                        temporal_loading_elapsed_seconds = 0.0;
+                        temporal_loading_completion_sent = false;
+                        if (auto it = resort_loading_config.temporal.find("trade_button"); it != resort_loading_config.temporal.end()) {
+                            temporal_loading_type = it->second.loading_type;
+                            temporal_simulated_load_duration_seconds = it->second.simulated_load_duration_seconds;
+                            if (temporal_loading_type == TemporalLoadingDemoType::Pokeball) {
+                                active_loading_screen = pokeball_menu_loading_screen.get();
+                                active_loading_screen->enter();
+                            } else if (temporal_loading_type == TemporalLoadingDemoType::QuickBoatPass) {
+                                active_loading_screen = quick_boat_pass_screen.get();
+                                active_loading_screen->beginQuickPass(temporal_simulated_load_duration_seconds > 0.0);
+                            } else {
+                                active_loading_screen = resort_loading_screen.get();
+                                active_loading_screen->beginLoadingWithMessageKey(it->second.message_key);
+                            }
+                        } else {
+                            temporal_loading_type = TemporalLoadingDemoType::QuickBoatPass;
+                            temporal_simulated_load_duration_seconds = 0.0;
+                            active_loading_screen = quick_boat_pass_screen.get();
+                            active_loading_screen->beginQuickPass();
+                        }
+                        if (temporal_simulated_load_duration_seconds <= 0.0 &&
+                            temporal_loading_type != TemporalLoadingDemoType::QuickBoatPass) {
+                            active_loading_screen->markLoadingComplete();
+                            temporal_loading_completion_sent = true;
+                        } else if (temporal_simulated_load_duration_seconds <= 0.0) {
+                            temporal_loading_completion_sent = true;
+                        }
+                        active_screen = ActiveScreen::ResortLoading;
+                        break;
                     case TitleScreenEvent::OpenTransferRequested:
                         transfer_flow.beginTicketScan();
                         active_screen = ActiveScreen::TransferFlow;
                         break;
                 }
             }
+        } else if (active_screen == ActiveScreen::ResortLoading) {
+            active_loading_screen->update(dt);
+            if (loading_return_target == LoadingReturnTarget::TradeTitle && !temporal_loading_completion_sent) {
+                temporal_loading_elapsed_seconds += dt;
+                if (temporal_loading_elapsed_seconds >= temporal_simulated_load_duration_seconds) {
+                    active_loading_screen->markLoadingComplete();
+                    temporal_loading_completion_sent = true;
+                }
+            }
+            if (transition_phase == AppTransitionPhase::None && active_loading_screen->consumeReturnToMenuRequest()) {
+                if (loading_return_target == LoadingReturnTarget::TradeTitle) {
+                    title_screen.returnToMainMenuFromTradeLoading();
+                    active_screen = ActiveScreen::Title;
+                } else if (loading_return_target == LoadingReturnTarget::TransferTickets) {
+                    active_screen = ActiveScreen::TransferFlow;
+                } else {
+                    title_screen.returnToMainMenuFromResort();
+                    active_screen = ActiveScreen::Title;
+                }
+            } else if (transition_phase == AppTransitionPhase::None &&
+                       loading_return_target == LoadingReturnTarget::TradeTitle &&
+                       active_loading_screen->isLoadingAnimationComplete()) {
+                title_screen.returnToMainMenuFromTradeLoading();
+                active_screen = ActiveScreen::Title;
+            } else if (transition_phase == AppTransitionPhase::None &&
+                       loading_return_target == LoadingReturnTarget::TransferTickets &&
+                       active_loading_screen->isLoadingAnimationComplete()) {
+                active_screen = ActiveScreen::TransferFlow;
+            }
         } else if (active_screen == ActiveScreen::TransferFlow) {
             transfer_flow.update(dt);
-            if (transfer_flow.consumeReturnToTitleRequest()) {
+            if (transfer_flow.consumeSuccessfulSaveReturnToTicketsRequest()) {
+                start_successful_save_quick_transition();
+            } else if (transfer_flow.consumeReturnToTitleRequest()) {
                 title_screen.returnToMainMenuFromTransfer();
                 active_screen = ActiveScreen::Title;
             }
         }
 
+        if (transition_phase != AppTransitionPhase::None) {
+            transition_elapsed_seconds += dt;
+            switch (transition_phase) {
+                case AppTransitionPhase::SaveSoundDelay:
+                    transition_overlay_alpha = 0.0;
+                    if (transition_elapsed_seconds >= kSaveSoundPreTransitionDelaySeconds) {
+                        transition_phase = AppTransitionPhase::FadeOutToLoading;
+                        transition_elapsed_seconds = 0.0;
+                    }
+                    break;
+                case AppTransitionPhase::FadeOutToLoading: {
+                    const double t = phaseProgress(transition_elapsed_seconds, kQuickTransitionFadeSeconds);
+                    transition_overlay_alpha = t;
+                    if (t >= 1.0) {
+                        active_loading_screen = quick_boat_pass_screen.get();
+                        active_loading_screen->beginQuickPass();
+                        active_screen = ActiveScreen::ResortLoading;
+                        transition_phase = AppTransitionPhase::FadeInLoading;
+                        transition_elapsed_seconds = 0.0;
+                        transition_overlay_alpha = 1.0;
+                    }
+                    break;
+                }
+                case AppTransitionPhase::FadeInLoading: {
+                    const double t = phaseProgress(transition_elapsed_seconds, kQuickTransitionFadeSeconds);
+                    transition_overlay_alpha = 1.0 - t;
+                    if (t >= 1.0) {
+                        transition_phase = AppTransitionPhase::LoadingActive;
+                        transition_elapsed_seconds = 0.0;
+                        transition_overlay_alpha = 0.0;
+                    }
+                    break;
+                }
+                case AppTransitionPhase::LoadingActive:
+                    transition_overlay_alpha = 0.0;
+                    if (active_loading_screen && active_loading_screen->isLoadingAnimationComplete()) {
+                        transition_phase = AppTransitionPhase::FadeOutToDestination;
+                        transition_elapsed_seconds = 0.0;
+                    }
+                    break;
+                case AppTransitionPhase::FadeOutToDestination: {
+                    const double t = phaseProgress(transition_elapsed_seconds, kQuickTransitionFadeSeconds);
+                    transition_overlay_alpha = t;
+                    if (t >= 1.0) {
+                        finish_loading_transition();
+                        transition_phase = AppTransitionPhase::FadeInDestination;
+                        transition_elapsed_seconds = 0.0;
+                        transition_overlay_alpha = 1.0;
+                    }
+                    break;
+                }
+                case AppTransitionPhase::FadeInDestination: {
+                    const double t = phaseProgress(transition_elapsed_seconds, kQuickTransitionFadeSeconds);
+                    transition_overlay_alpha = 1.0 - t;
+                    if (t >= 1.0) {
+                        transition_phase = AppTransitionPhase::None;
+                        transition_elapsed_seconds = 0.0;
+                        transition_overlay_alpha = 0.0;
+                    }
+                    break;
+                }
+                case AppTransitionPhase::None:
+                    break;
+            }
+        }
+
         const bool wants_menu_music = active_screen == ActiveScreen::Title && title_screen.wantsMenuMusic();
+        const bool transition_returns_to_transfer =
+            transition_phase != AppTransitionPhase::None &&
+            loading_return_target == LoadingReturnTarget::TransferTickets;
         const bool wants_transfer_music =
-            active_screen == ActiveScreen::TransferFlow &&
+            (active_screen == ActiveScreen::TransferFlow || transition_returns_to_transfer) &&
             transfer_flow.hasTransferMusic();
         const ActiveMusicTrack desired_music_track =
             wants_menu_music
@@ -386,6 +591,10 @@ int runApplication(const char* argv0, const char* config_path_override) {
         if (transfer_flow.consumeErrorSfxRequest()) {
             audio.playErrorSfx();
         }
+        if (transfer_save_sfx_requested) {
+            audio.playSaveSfx();
+        }
+        transfer_save_sfx_requested = false;
         if (config.persistence.save_options && title_user_settings_save_requested) {
             SaveData save_data;
             save_data.options = title_screen.currentUserSettings();
@@ -405,6 +614,7 @@ int runApplication(const char* argv0, const char* config_path_override) {
         if (Screen* screen = active_screen_instance()) {
             screen->render(renderer.get());
         }
+        renderBlackOverlay(renderer.get(), config.window, transition_overlay_alpha);
         SDL_RenderPresent(renderer.get());
     }
 

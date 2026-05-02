@@ -98,6 +98,9 @@ std::optional<FocusNodeId> TransferSystemScreen::focusNodeAtPointer(int logical_
             return 2102;
         }
         for (int i = 0; i < 30; ++i) {
+            if (!game_box_browser_.gameBoxSpaceMode() && !gameSaveSlotAccessible(i)) {
+                continue;
+            }
             if (game_save_box_viewport_->getSlotBounds(i, r) && in(logical_x, logical_y, r)) {
                 return 2000 + i;
             }
@@ -143,7 +146,7 @@ std::optional<FocusNodeId> TransferSystemScreen::focusNodeAtPointer(int logical_
 }
 
 bool TransferSystemScreen::gameSaveSlotHasSpecies(int slot_index) const {
-    if (!game_save_box_viewport_ || slot_index < 0 || slot_index >= 30) {
+    if (!game_save_box_viewport_ || !gameSaveSlotAccessible(slot_index)) {
         return false;
     }
     const int game_box_index = game_box_browser_.gameBoxIndex();
@@ -182,6 +185,9 @@ std::optional<std::pair<FocusNodeId, SDL_Rect>> TransferSystemScreen::speechBubb
 
     if (game_save_box_viewport_) {
         for (int i = 0; i < 30; ++i) {
+            if (!game_box_browser_.gameBoxSpaceMode() && !gameSaveSlotAccessible(i)) {
+                continue;
+            }
             if (game_save_box_viewport_->getSlotBounds(i, r) && in(logical_x, logical_y, r)) {
                 if (game_box_browser_.gameBoxSpaceMode()) {
                     const int box_index = game_box_browser_.gameBoxSpaceRowOffset() * 6 + i;

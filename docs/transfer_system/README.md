@@ -4,6 +4,8 @@ This is the working guide for the post-ticket transfer system screen. Read it be
 
 The purpose of this guide is to keep [`TransferSystemScreen.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/TransferSystemScreen.cpp) from becoming the place where every new transfer idea lands. The screen is still important, but it should mostly adapt SDL input/render state to smaller config, controller, presenter, renderer, and movement seams.
 
+For durable mirror/projection work (Resort as source of truth, lossy generation projections, mirror return matching, and mutable-field merge policy), read [`MIRROR_PROJECTION_ARCHITECTURE.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/transfer_system/MIRROR_PROJECTION_ARCHITECTURE.md) before changing bridge, backend, or transfer UI behavior.
+
 ## Non-negotiable modularity rules
 
 - **No mega-files**: do not let transfer-system implementation files grow without bound.
@@ -199,6 +201,7 @@ Use this section as the first decision point.
 | Change box grid chrome or slot rendering model | `BoxViewport.cpp` / `BoxViewportModel` | focused widget/model tests if added; harness if visible |
 | Change save-derived Pokemon/box data | `SaveLibrary.cpp`, `TransferSelectionBuilder.cpp`, `PcSlotSpecies` | `save_library_cache_tests`, `transfer_selection_builder_tests`, bridge tests if output changes |
 | Add durable Resort storage behavior | backend services under `src/resort`, not UI arrays | backend tests first; integration plan before UI mutation |
+| Add mirror/projection, return matching, or mutable-field cross-generation merge behavior | `docs/transfer_system/MIRROR_PROJECTION_ARCHITECTURE.md`, then backend services + bridge command | bridge tests, backend tests, merge-policy tests, then harness only for UI |
 
 ## Anti-Sprawl Checklist
 

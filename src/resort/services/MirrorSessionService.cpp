@@ -45,6 +45,7 @@ MirrorSession MirrorSessionService::openMirrorSession(
     session.original_tid16 = pokemon->hot.tid16;
     session.original_sid16 = pokemon->hot.sid16;
     session.original_game = pokemon->hot.origin_game;
+    session.sent_dv16 = pokemon->hot.dv16;
     session.projection_json = context.projection_metadata_json;
 
     mirrors_.insert(session);
@@ -74,6 +75,13 @@ std::optional<MirrorSession> MirrorSessionService::findActiveByBeacon(
     std::uint16_t beacon_tid16,
     const std::string& beacon_ot_name) const {
     return mirrors_.findActiveByBeacon(target_game, beacon_tid16, beacon_ot_name);
+}
+
+std::vector<MirrorSession> MirrorSessionService::findActiveCandidatesByBeacon(
+    std::uint16_t target_game,
+    std::uint16_t beacon_tid16,
+    const std::string& beacon_ot_name) const {
+    return mirrors_.findActiveCandidatesByBeacon(target_game, beacon_tid16, beacon_ot_name);
 }
 
 void MirrorSessionService::closeReturned(

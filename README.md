@@ -16,7 +16,7 @@ The current codebase is no longer just a title-screen demo. Treat this README as
 
 ## Current Runtime Flows
 
-- title intro, title hold, main menu, options menu, and placeholder Resort/Trade section flow
+- title intro, title hold, main menu, options menu, and Resort/Trade loading-transition test flows
 - transfer entry from the main menu
 - loading screen while save files are scanned and probed
 - transfer-ticket list built from `SaveLibrary` summaries
@@ -65,6 +65,7 @@ Use this map before changing code:
 
 - **App orchestration:** `src/core/App.cpp` owns SDL setup, app loop, active flow selection, persistence wiring, audio wiring, and high-level transfer lifecycle.
 - **Title/menu/options:** `src/ui/TitleScreen.cpp` owns title flow coordination. Extracted title collaborators live under `src/ui/title_screen/`.
+- **Loading screens:** `src/ui/loading/` owns reusable loading screens, including the black Pokeball loader and the Resort transfer boat loader. See `docs/loading/README.md` for call patterns and message keys.
 - **Transfer flow shell:** `src/ui/TransferFlowCoordinator.cpp` owns async save scanning/deep probing and concrete screen transitions. Pure flow decisions live under `src/ui/transfer_flow/`.
 - **Transfer ticket list:** `src/ui/TransferTicketScreen.cpp` renders tickets. List behavior lives in `src/ui/transfer_ticket/TransferTicketListController.cpp`.
 - **Transfer system screen:** `src/ui/TransferSystemScreen.cpp` adapts real SDL input/render state to smaller controllers. Pure controllers and render helpers live under `src/ui/transfer_system/`; read [`docs/transfer_system/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/transfer_system/README.md) before changing this area.

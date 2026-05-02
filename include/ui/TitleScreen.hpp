@@ -36,6 +36,8 @@ enum class TitleState {
 enum class TitleScreenEvent {
     ButtonSfxRequested,
     UserSettingsSaveRequested,
+    OpenResortLoadingRequested,
+    OpenTradeLoadingRequested,
     OpenTransferRequested
 };
 
@@ -59,6 +61,8 @@ public:
     std::vector<TitleScreenEvent> consumeEvents();
     UserSettings currentUserSettings() const;
     void applyUserSettings(const UserSettings& settings);
+    void returnToMainMenuFromResort();
+    void returnToMainMenuFromTradeLoading();
     void returnToMainMenuFromTransfer();
     void restartFromExternalScreen();
 
@@ -137,6 +141,8 @@ private:
     double state_time_ = 0.0;
     double title_scene_elapsed_ = 0.0;
     bool pending_transfer_after_fade_ = false;
+    bool pending_resort_after_fade_ = false;
+    bool pending_trade_after_fade_ = false;
     std::vector<TitleScreenEvent> pending_events_;
 
     mutable bool option_textures_dirty_ = true;

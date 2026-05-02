@@ -14,6 +14,9 @@ bool TransferSystemScreen::dropHeldPokemonIntoFirstEmptySlotInBox(int box_index)
     }
     auto& slots = game_pc_boxes_[static_cast<std::size_t>(box_index)].slots;
     for (int i = 0; i < static_cast<int>(slots.size()); ++i) {
+        if (!gameSaveSlotAccessible(i)) {
+            continue;
+        }
         if (!slots[static_cast<std::size_t>(i)].occupied()) {
             return dropHeldPokemonAt(Move::SlotRef{Move::Panel::Game, box_index, i});
         }
@@ -43,7 +46,12 @@ bool TransferSystemScreen::gameBoxHasEmptySlot(int box_index) const {
         return false;
     }
     const auto& slots = game_pc_boxes_[static_cast<std::size_t>(box_index)].slots;
-    return std::any_of(slots.begin(), slots.end(), [](const PcSlotSpecies& s) { return !s.occupied(); });
+    for (int i = 0; i < static_cast<int>(slots.size()); ++i) {
+        if (gameSaveSlotAccessible(i) && !slots[static_cast<std::size_t>(i)].occupied()) {
+            return true;
+        }
+    }
+    return false;
 }
 
 bool TransferSystemScreen::gameBoxHasPreviewContent(int box_index) const {
@@ -51,9 +59,13 @@ bool TransferSystemScreen::gameBoxHasPreviewContent(int box_index) const {
         return false;
     }
     const auto& slots = game_pc_boxes_[static_cast<std::size_t>(box_index)].slots;
-    return std::any_of(slots.begin(), slots.end(), [](const PcSlotSpecies& slot) {
-        return slot.occupied();
-    });
+    const int visible_slots = gameSaveSlotsPerBox();
+    for (int i = 0; i < visible_slots && i < static_cast<int>(slots.size()); ++i) {
+        if (slots[static_cast<std::size_t>(i)].occupied()) {
+            return true;
+        }
+    }
+    return false;
 }
 
 bool TransferSystemScreen::resortBoxHasPreviewContent(int box_index) const {
@@ -66,8 +78,21 @@ bool TransferSystemScreen::resortBoxHasPreviewContent(int box_index) const {
     });
 }
 
+bool TransferSystemScreen::boxFitsInGameSaveSlots(const TransferSaveSelection::PcBox& box) const {
+    const int capacity = gameSaveSlotsPerBox();
+    if (capacity >= 30) {
+        return true;
+    }
+    for (int i = capacity; i < static_cast<int>(box.slots.size()); ++i) {
+        if (box.slots[static_cast<std::size_t>(i)].occupied()) {
+            return false;
+        }
+    }
+    return true;
+}
+
 bool TransferSystemScreen::gameSlotHasHeldItem(int slot_index) const {
-    if (slot_index < 0 || slot_index >= 30) {
+    if (!gameSaveSlotAccessible(slot_index)) {
         return false;
     }
     const int game_box_index = game_box_browser_.gameBoxIndex();
@@ -78,6 +103,27 @@ bool TransferSystemScreen::gameSlotHasHeldItem(int slot_index) const {
     return slot_index < static_cast<int>(slots.size()) &&
            slots[static_cast<std::size_t>(slot_index)].occupied() &&
            slots[static_cast<std::size_t>(slot_index)].held_item_id > 0;
+}
+
+int TransferSystemScreen::gameSaveSlotsPerBox() const {
+    if (!transfer_selection_.pc_boxes.empty()) {
+        for (const auto& box : transfer_selection_.pc_boxes) {
+            if (box.native_slot_count > 0) {
+                return std::clamp(box.native_slot_count, 1, 30);
+            }
+            if (!box.slots.empty()) {
+                return static_cast<int>(std::min<std::size_t>(30, box.slots.size()));
+            }
+        }
+    }
+    if (!transfer_selection_.box1_slots.empty()) {
+        return static_cast<int>(std::min<std::size_t>(30, transfer_selection_.box1_slots.size()));
+    }
+    return 30;
+}
+
+bool TransferSystemScreen::gameSaveSlotAccessible(int slot_index) const {
+    return slot_index >= 0 && slot_index < gameSaveSlotsPerBox();
 }
 
 bool TransferSystemScreen::resortSlotHasHeldItem(int slot_index) const {
@@ -121,6 +167,9 @@ std::optional<transfer_system::PokemonMoveController::SlotRef> TransferSystemScr
         return Move::SlotRef{Move::Panel::Resort, resort_box_browser_.gameBoxIndex(), focus_id - 1000};
     }
     if (focus_id >= 2000 && focus_id <= 2029 && !game_box_browser_.gameBoxSpaceMode()) {
+        if (!gameSaveSlotAccessible(focus_id - 2000)) {
+            return std::nullopt;
+        }
         return Move::SlotRef{Move::Panel::Game, game_box_browser_.gameBoxIndex(), focus_id - 2000};
     }
     return std::nullopt;

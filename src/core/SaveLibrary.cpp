@@ -20,7 +20,7 @@ namespace pr {
 namespace {
 
 /// Must match `bridge_probe_schema` in `tools/pkhex_bridge/BridgeConsole.cs`.
-constexpr int kBridgeProbeSchemaRequired = 4;
+constexpr int kBridgeProbeSchemaRequired = 5;
 
 struct CachedSaveRecord {
     std::string path;
@@ -357,6 +357,10 @@ void fillSlotFromPokemonObject(PcSlotSpecies& out, const JsonValue& pokemon) {
     out.is_gigantamax =
         asBoolOrDefault(childAny(pokemon, {"IsGigantamax", "isGigantamax", "is_gigantamax"}), out.is_gigantamax);
     out.markings = asIntOrDefault(childAny(pokemon, {"Markings", "markings"}), out.markings);
+    const int dv16 = asIntOrDefault(childAny(pokemon, {"Dv16", "dv16"}), -1);
+    if (dv16 >= 0 && dv16 <= 0xffff) {
+        out.dv16 = static_cast<std::uint16_t>(dv16);
+    }
     out.checksum_valid =
         asBoolOrDefault(childAny(pokemon, {"ChecksumValid", "checksumValid", "checksum_valid"}), out.checksum_valid);
 
@@ -619,6 +623,7 @@ std::vector<TransferSaveSummary::PcBox> extractPcBoxes(const JsonValue& root) {
         if (slots.empty()) {
             continue;
         }
+        const int native_slot_count = static_cast<int>(std::min<std::size_t>(30, slots.size()));
         // Normalize to 30 slots (pad/truncate).
         if (slots.size() < 30) {
             slots.resize(30);
@@ -628,6 +633,7 @@ std::vector<TransferSaveSummary::PcBox> extractPcBoxes(const JsonValue& root) {
         IndexedBox ib;
         ib.index = idx;
         ib.box.name = boxNameFromBoxObject(box_el, idx >= 0 ? idx : seq_index);
+        ib.box.native_slot_count = native_slot_count;
         ib.box.slots = std::move(slots);
         parsed.push_back(std::move(ib));
         ++seq_index;
@@ -714,6 +720,10 @@ std::vector<PcSlotSpecies> parseBoxOneSlotsArrayField(const JsonValue* value) {
             s.is_alpha = asBoolOrDefault(child(item, "is_alpha"), s.is_alpha);
             s.is_gigantamax = asBoolOrDefault(child(item, "is_gigantamax"), s.is_gigantamax);
             s.markings = asIntOrDefault(child(item, "markings"), s.markings);
+            const int dv16 = asIntOrDefault(childAny(item, {"dv16", "Dv16"}), -1);
+            if (dv16 >= 0 && dv16 <= 0xffff) {
+                s.dv16 = static_cast<std::uint16_t>(dv16);
+            }
             s.checksum_valid = asBoolOrDefault(child(item, "checksum_valid"), s.checksum_valid);
             s.present = asBoolOrDefault(
                 present_value,
@@ -907,6 +917,7 @@ std::string serializePcSlotArray(const std::vector<PcSlotSpecies>& slots, const 
             << child_padding << "    \"is_alpha\": " << (s.is_alpha ? "true" : "false") << ",\n"
             << child_padding << "    \"is_gigantamax\": " << (s.is_gigantamax ? "true" : "false") << ",\n"
             << child_padding << "    \"markings\": " << s.markings << ",\n"
+            << child_padding << "    \"dv16\": " << (s.dv16 ? static_cast<int>(*s.dv16) : -1) << ",\n"
             << child_padding << "    \"checksum_valid\": " << (s.checksum_valid ? "true" : "false") << ",\n"
             << child_padding << "    \"moves\": [";
         for (int move_index = 0; move_index < s.move_count; ++move_index) {

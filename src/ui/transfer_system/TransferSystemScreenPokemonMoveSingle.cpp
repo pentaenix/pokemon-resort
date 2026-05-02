@@ -22,6 +22,9 @@ PcSlotSpecies* TransferSystemScreen::mutablePokemonAt(const transfer_system::Pok
     if (ref.box_index < 0 || ref.box_index >= static_cast<int>(game_pc_boxes_.size())) {
         return nullptr;
     }
+    if (!gameSaveSlotAccessible(ref.slot_index)) {
+        return nullptr;
+    }
     auto& slots = game_pc_boxes_[static_cast<std::size_t>(ref.box_index)].slots;
     if (ref.slot_index >= static_cast<int>(slots.size())) {
         return nullptr;
@@ -38,6 +41,8 @@ void TransferSystemScreen::clearPokemonAt(const transfer_system::PokemonMoveCont
         *slot = PcSlotSpecies{};
         if (ref.panel == transfer_system::PokemonMoveController::Panel::Game) {
             markGameBoxesDirty();
+        } else {
+            markResortBoxesDirty();
         }
     }
 }
@@ -51,6 +56,8 @@ void TransferSystemScreen::setPokemonAt(const transfer_system::PokemonMoveContro
         *slot = std::move(pokemon);
         if (ref.panel == transfer_system::PokemonMoveController::Panel::Game) {
             markGameBoxesDirty();
+        } else {
+            markResortBoxesDirty();
         }
     }
 }
@@ -139,13 +146,38 @@ bool TransferSystemScreen::dropHeldPokemonAt(const transfer_system::PokemonMoveC
         requestPutdownSfx();
     }
 
-    persistResortPokemonDropToStorage(
+    const bool persist_ok = persistResortPokemonDropToStorage(
         target,
         return_slot,
         target_occupied,
         swap_into_hand,
         held_pkrid_snapshot,
         target_pkrid_before);
+    // Only revert for external-save → Resort import failures (return slot was cleared at pickup).
+    const bool revert_game_to_resort = !persist_ok && target.panel == Move::Panel::Resort &&
+        return_slot.panel == Move::Panel::Game && !swap_into_hand;
+    if (revert_game_to_resort) {
+        PcSlotSpecies* target_slot = mutablePokemonAt(target);
+        PcSlotSpecies* return_ptr = mutablePokemonAt(return_slot);
+        if (target_slot && return_ptr) {
+            PcSlotSpecies back = *target_slot;
+            clearPokemonAt(target);
+            setPokemonAt(return_slot, std::move(back));
+        }
+        ui_state_.requestErrorSfx();
+    }
+    const bool revert_resort_to_game = !persist_ok && target.panel == Move::Panel::Game &&
+        return_slot.panel == Move::Panel::Resort && !swap_into_hand;
+    if (revert_resort_to_game) {
+        PcSlotSpecies* target_slot = mutablePokemonAt(target);
+        PcSlotSpecies* return_ptr = mutablePokemonAt(return_slot);
+        if (target_slot && return_ptr) {
+            PcSlotSpecies back = *target_slot;
+            setPokemonAt(target, *return_ptr);
+            setPokemonAt(return_slot, std::move(back));
+        }
+        ui_state_.requestErrorSfx();
+    }
 
     refreshResortBoxViewportModel();
     refreshGameBoxViewportModel();

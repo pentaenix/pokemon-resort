@@ -58,8 +58,14 @@ void TransferSystemScreen::onAdvancePressed() {
                 return;
             }
             if (resort_tgt.has_value()) {
+                if (!swapGameAndResortPcBoxes(from, *resort_tgt)) {
+                    held_move_.clear();
+                    refreshGameBoxViewportModel();
+                    refreshResortBoxViewportModel();
+                    triggerHeldSpriteRejectFeedback();
+                    return;
+                }
                 held_move_.clear();
-                (void)swapGameAndResortPcBoxes(from, *resort_tgt);
                 refreshGameBoxViewportModel();
                 refreshResortBoxViewportModel();
                 requestPutdownSfx();
@@ -75,8 +81,14 @@ void TransferSystemScreen::onAdvancePressed() {
                 return;
             }
             if (game_tgt.has_value()) {
+                if (!swapGameAndResortPcBoxes(*game_tgt, from)) {
+                    held_move_.clear();
+                    refreshGameBoxViewportModel();
+                    refreshResortBoxViewportModel();
+                    triggerHeldSpriteRejectFeedback();
+                    return;
+                }
                 held_move_.clear();
-                (void)swapGameAndResortPcBoxes(*game_tgt, from);
                 refreshGameBoxViewportModel();
                 refreshResortBoxViewportModel();
                 requestPutdownSfx();
@@ -240,10 +252,16 @@ void TransferSystemScreen::onAdvancePressed() {
                     // Swap: target item becomes the new held item and returns to this slot on cancel.
                     const int next_item_id = dst->held_item_id;
                     std::string next_item_name = dst->held_item_name;
-                    dst->held_item_id = held->item_id;
-                    dst->held_item_name = held->item_name;
                     if (in_game) {
+                        if (!syncGamePcSlotHeldItemPayload(*dst, held->item_id, held->item_name)) {
+                            ui_state_.requestErrorSfx();
+                            return;
+                        }
                         markGameBoxesDirty();
+                    } else {
+                        dst->held_item_id = held->item_id;
+                        dst->held_item_name = held->item_name;
+                        markResortBoxesDirty();
                     }
                     held_move_.swapHeldItemWith(
                         next_item_id,
@@ -259,12 +277,18 @@ void TransferSystemScreen::onAdvancePressed() {
                     return;
                 }
                 if (dst->held_item_id <= 0) {
-                    dst->held_item_id = held->item_id;
-                    dst->held_item_name = held->item_name;
-                    held_move_.clear();
                     if (in_game) {
+                        if (!syncGamePcSlotHeldItemPayload(*dst, held->item_id, held->item_name)) {
+                            ui_state_.requestErrorSfx();
+                            return;
+                        }
                         markGameBoxesDirty();
+                    } else {
+                        dst->held_item_id = held->item_id;
+                        dst->held_item_name = held->item_name;
+                        markResortBoxesDirty();
                     }
+                    held_move_.clear();
                     refreshResortBoxViewportModel();
                     refreshGameBoxViewportModel();
                     requestPutdownSfx();
@@ -347,10 +371,18 @@ void TransferSystemScreen::onAdvancePressed() {
                         item_action_menu_.slotIndex()},
                     transfer_system::move::HeldMoveController::InputMode::Keyboard,
                     last_pointer_position_);
-                src->held_item_id = -1;
-                src->held_item_name.clear();
                 if (item_action_menu_.fromGameBox()) {
+                    if (!syncGamePcSlotHeldItemPayload(*src, -1, std::string{})) {
+                        ui_state_.requestErrorSfx();
+                        held_move_.clear();
+                        item_action_menu_.close();
+                        return;
+                    }
                     markGameBoxesDirty();
+                } else {
+                    src->held_item_id = -1;
+                    src->held_item_name.clear();
+                    markResortBoxesDirty();
                 }
                 refreshResortBoxViewportModel();
                 refreshGameBoxViewportModel();

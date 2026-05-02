@@ -24,6 +24,20 @@
 
 namespace pr::resort {
 
+struct RecoveryResult {
+    bool success = false;
+    std::string error;
+    BoxLocation location;
+    bool already_boxed = false;
+    bool closed_active_mirror = false;
+};
+
+struct ResetProfileResult {
+    bool success = false;
+    std::string error;
+    std::string backup_path;
+};
+
 class PokemonResortService {
 public:
     explicit PokemonResortService(const std::filesystem::path& profile_path);
@@ -40,6 +54,14 @@ public:
 
     std::optional<ResortPokemon> getPokemonById(const std::string& pkrid) const;
     bool pokemonExists(const std::string& pkrid) const;
+    std::optional<PokemonSnapshot> getLatestRawSnapshotForPokemon(
+        const std::string& pkrid,
+        std::optional<std::uint16_t> game_id = std::nullopt,
+        const std::string& format_name = {}) const;
+    std::optional<PokemonSnapshot> prepareLatestRawSnapshotForGameWrite(
+        const std::string& pkrid,
+        std::optional<std::uint16_t> game_id = std::nullopt,
+        const std::string& format_name = {});
     std::vector<PokemonSlotView> getBoxSlotViews(const std::string& profile_id, int box_id) const;
     std::optional<BoxLocation> getPokemonLocation(const std::string& profile_id, const std::string& pkrid) const;
 
@@ -48,8 +70,23 @@ public:
     /// Updates `box_slots` for one Pokémon (clears prior slot rows via `BoxRepository::placePokemon`).
     void movePokemonToSlot(const BoxLocation& destination, const std::string& pkrid, BoxPlacementPolicy policy);
 
+    /// Emergency recovery: places an existing canonical Pokemon in the first empty Resort slot.
+    /// Never overwrites another slot occupant.
+    RecoveryResult recoverPokemonToFirstAvailableSlot(
+        const std::string& profile_id,
+        const std::string& pkrid);
+
+    /// DANGEROUS: wipes all Resort canonical Pokemon, snapshots, history, mirrors, and slot placements.
+    /// Keeps the box headers for the profile and leaves the profile in a "fresh" state (empty slots).
+    /// If `backup_path` is non-empty, copies the SQLite file before modifying it.
+    ResetProfileResult resetProfileToEmpty(
+        const std::string& profile_id,
+        const std::string& backup_path = {});
+
     /// Swaps all slot occupants between two Resort PC boxes (same profile).
     void swapResortBoxContents(const std::string& profile_id, int box_a, int box_b);
+
+    void renameResortBox(const std::string& profile_id, int box_id, const std::string& name);
 
     void swapResortSlotContents(const BoxLocation& a, const BoxLocation& b);
     MirrorSession openMirrorSession(
@@ -61,6 +98,7 @@ public:
     void closeMirrorSessionReturned(const std::string& mirror_session_id);
 
 private:
+    std::filesystem::path profile_path_;
     std::unique_ptr<SqliteConnection> connection_;
     std::unique_ptr<PokemonRepository> pokemon_;
     std::unique_ptr<BoxRepository> boxes_;

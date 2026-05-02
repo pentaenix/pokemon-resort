@@ -144,10 +144,16 @@ bool TransferSystemScreen::handlePointerPressed(int logical_x, int logical_y) {
                 if (dst->held_item_id > 0) {
                     const int next_item_id = dst->held_item_id;
                     std::string next_item_name = dst->held_item_name;
-                    dst->held_item_id = held->item_id;
-                    dst->held_item_name = held->item_name;
                     if (target->panel == Move::Panel::Game) {
+                        if (!syncGamePcSlotHeldItemPayload(*dst, held->item_id, held->item_name)) {
+                            ui_state_.requestErrorSfx();
+                            return true;
+                        }
                         markGameBoxesDirty();
+                    } else {
+                        dst->held_item_id = held->item_id;
+                        dst->held_item_name = held->item_name;
+                        markResortBoxesDirty();
                     }
                     held_move_.swapHeldItemWith(
                         next_item_id,
@@ -162,12 +168,18 @@ bool TransferSystemScreen::handlePointerPressed(int logical_x, int logical_y) {
                     refreshGameBoxViewportModel();
                     requestPickupSfx();
                 } else {
-                    dst->held_item_id = held->item_id;
-                    dst->held_item_name = held->item_name;
-                    held_move_.clear();
                     if (target->panel == Move::Panel::Game) {
+                        if (!syncGamePcSlotHeldItemPayload(*dst, held->item_id, held->item_name)) {
+                            ui_state_.requestErrorSfx();
+                            return true;
+                        }
                         markGameBoxesDirty();
+                    } else {
+                        dst->held_item_id = held->item_id;
+                        dst->held_item_name = held->item_name;
+                        markResortBoxesDirty();
                     }
+                    held_move_.clear();
                     refreshResortBoxViewportModel();
                     refreshGameBoxViewportModel();
                     requestPutdownSfx();

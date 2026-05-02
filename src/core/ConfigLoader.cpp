@@ -77,6 +77,7 @@ void applyAudioConfig(AudioConfig& out, const JsonValue& obj) {
     if (auto v = child(obj, "pickup_sfx")) out.pickup_sfx = asString(*v);
     if (auto v = child(obj, "putdown_sfx")) out.putdown_sfx = asString(*v);
     if (auto v = child(obj, "error_sfx")) out.error_sfx = asString(*v);
+    if (auto v = child(obj, "save_sfx")) out.save_sfx = asString(*v);
     if (auto v = child(obj, "music_volume")) out.music_volume = asInt(*v);
     if (auto v = child(obj, "ui_volume")) out.sfx_volume = asInt(*v);
     if (auto v = child(obj, "sfx_volume")) out.sfx_volume = asInt(*v);

@@ -156,11 +156,51 @@ int exportCommand(const std::map<std::string, std::string>& options) {
     return 0;
 }
 
+int recoverCommand(const std::map<std::string, std::string>& options) {
+    pr::resort::PokemonResortService service(require(options, "db"));
+    const std::string profile = options.count("profile") ? options.at("profile") : "default";
+    const auto result = service.recoverPokemonToFirstAvailableSlot(profile, require(options, "pkrid"));
+    if (!result.success) {
+        std::cerr << result.error << '\n';
+        return 1;
+    }
+
+    std::cout << "{\"success\":true,\"pkrid\":\"" << require(options, "pkrid")
+              << "\",\"profile_id\":\"" << result.location.profile_id
+              << "\",\"box_id\":" << result.location.box_id
+              << ",\"slot_index\":" << result.location.slot_index
+              << ",\"already_boxed\":" << (result.already_boxed ? "true" : "false")
+              << ",\"closed_active_mirror\":" << (result.closed_active_mirror ? "true" : "false")
+              << "}\n";
+    return 0;
+}
+
+int resetCommand(const std::map<std::string, std::string>& options) {
+    pr::resort::PokemonResortService service(require(options, "db"));
+    const std::string profile = options.count("profile") ? options.at("profile") : "default";
+    const std::string confirm = options.count("confirm") ? options.at("confirm") : "";
+    if (confirm != "RESET") {
+        std::cerr << "Refusing to reset Resort profile without --confirm RESET\n";
+        return 2;
+    }
+
+    const std::string backup = options.count("backup") ? options.at("backup") : "";
+    const auto result = service.resetProfileToEmpty(profile, backup);
+    if (!result.success) {
+        std::cerr << result.error << '\n';
+        return 1;
+    }
+    std::cout << "{\"success\":true,\"profile_id\":\"" << profile
+              << "\",\"backup_path\":\"" << result.backup_path
+              << "\"}\n";
+    return 0;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
     if (argc < 2) {
-        std::cerr << "Usage: resort_backend_tool seed|export --db <profile.resort.db> ...\n";
+        std::cerr << "Usage: resort_backend_tool seed|export|recover|reset --db <profile.resort.db> ...\n";
         return 2;
     }
 
@@ -172,6 +212,12 @@ int main(int argc, char** argv) {
         }
         if (command == "export") {
             return exportCommand(options);
+        }
+        if (command == "recover") {
+            return recoverCommand(options);
+        }
+        if (command == "reset") {
+            return resetCommand(options);
         }
         std::cerr << "Unknown command: " << command << '\n';
         return 2;

@@ -1,6 +1,7 @@
 #include "resort/services/PokemonMergeService.hpp"
 
 #include "core/Json.hpp"
+#include "resort/integration/Gen12DvBytes.hpp"
 
 #include <iomanip>
 #include <sstream>
@@ -206,6 +207,13 @@ PokemonMergeResult PokemonMergeService::mergeImported(
     replaceIfPresent(next.pid, incoming.pid);
     replaceIfPresent(next.encryption_constant, incoming.encryption_constant);
     replaceIfPresent(next.home_tracker, incoming.home_tracker);
+    if (isGen12StorageFormat(imported.format_name)) {
+        if (incoming.dv16 && *incoming.dv16 != 0) {
+            next.dv16 = incoming.dv16;
+        }
+    } else {
+        replaceIfPresent(next.dv16, incoming.dv16);
+    }
 
     if (!incoming.ot_name.empty()) {
         next.ot_name = incoming.ot_name;
@@ -215,7 +223,7 @@ PokemonMergeResult PokemonMergeService::mergeImported(
     } else if (next.origin_game == 0) {
         next.origin_game = imported.source_game;
     }
-    if (incoming.lineage_root_species != 0) {
+    if (next.lineage_root_species == 0 && incoming.lineage_root_species != 0) {
         next.lineage_root_species = incoming.lineage_root_species;
     } else if (next.lineage_root_species == 0) {
         next.lineage_root_species = incoming.species_id;

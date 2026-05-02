@@ -4,7 +4,10 @@
 #include "core/SaveBridgeClient.hpp"
 #include "core/TransferBoxEditsStore.hpp"
 #include "core/PokeSpriteAssets.hpp"
+#include "resort/domain/ImportedPokemon.hpp"
+#include "resort/domain/ExportedPokemon.hpp"
 #include "resort/domain/ResortTypes.hpp"
+#include "resort/integration/BridgeImportAdapter.hpp"
 #include "resort/services/PokemonResortService.hpp"
 #include "ui/transfer_system/TransferSystemFocusGraph.hpp"
 
@@ -23,6 +26,34 @@ namespace pr {
 namespace {
 constexpr const char* kDefaultResortProfileId = "default";
 constexpr int kBoxViewportY = 100;
+constexpr char kBase64Alphabet[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+constexpr const char* kTempTransferLog = "[TEMP_TRANSFER_LOG_DELETE]";
+
+std::string encodeBase64(const std::vector<unsigned char>& bytes) {
+    std::string out;
+    out.reserve(((bytes.size() + 2) / 3) * 4);
+    for (std::size_t i = 0; i < bytes.size(); i += 3) {
+        const unsigned int b0 = bytes[i];
+        const unsigned int b1 = (i + 1) < bytes.size() ? bytes[i + 1] : 0;
+        const unsigned int b2 = (i + 2) < bytes.size() ? bytes[i + 2] : 0;
+        out.push_back(kBase64Alphabet[(b0 >> 2) & 0x3f]);
+        out.push_back(kBase64Alphabet[((b0 & 0x03) << 4) | ((b1 >> 4) & 0x0f)]);
+        out.push_back((i + 1) < bytes.size() ? kBase64Alphabet[((b1 & 0x0f) << 2) | ((b2 >> 6) & 0x03)] : '=');
+        out.push_back((i + 2) < bytes.size() ? kBase64Alphabet[b2 & 0x3f] : '=');
+    }
+    return out;
+}
+
+std::string firstNonEmptyGameSlotFormat(const std::vector<TransferSaveSelection::PcBox>& boxes) {
+    for (const auto& box : boxes) {
+        for (const auto& slot : box.slots) {
+            if (slot.occupied() && !slot.format.empty()) {
+                return slot.format;
+            }
+        }
+    }
+    return {};
+}
 
 void getPillTrackBounds(const GameTransferPillToggleStyle& st, int screen_w, int& tx, int& ty, int& tw, int& th) {
     const int right_col_x = screen_w - 40 - BoxViewport::kViewportWidth;
@@ -73,7 +104,7 @@ void TransferSystemScreen::initializeResortPcBoxesFromStorage(SDL_Renderer* rend
     for (const auto& header : headers) {
         const int box_id = header.first;
         TransferSaveSelection::PcBox box;
-        box.name = "RESORT " + std::to_string(box_id + 1);
+        box.name = header.second.empty() ? "RESORT " + std::to_string(box_id + 1) : header.second;
         box.slots.assign(30, PcSlotSpecies{});
         const std::vector<resort::PokemonSlotView> views =
             resort_service_->getBoxSlotViews(kDefaultResortProfileId, box_id);
@@ -130,7 +161,7 @@ PcSlotSpecies TransferSystemScreen::pcSlotFromResortSlotView(
     return s;
 }
 
-void TransferSystemScreen::persistResortPokemonDropToStorage(
+bool TransferSystemScreen::persistResortPokemonDropToStorage(
     const transfer_system::PokemonMoveController::SlotRef& target,
     const transfer_system::PokemonMoveController::SlotRef& return_slot,
     const bool target_was_occupied,
@@ -138,32 +169,49 @@ void TransferSystemScreen::persistResortPokemonDropToStorage(
     const std::string& held_pkrid,
     const std::string& target_pkrid_before) {
     using Move = transfer_system::PokemonMoveController;
-    if (!resort_service_ || swap_into_hand) {
-        return;
+    if (!resort_service_) {
+        return true;
     }
-    if (target.panel != Move::Panel::Resort || return_slot.panel != Move::Panel::Resort) {
-        return;
+    if (target.panel == Move::Panel::Resort && return_slot.panel == Move::Panel::Game) {
+        std::cerr << kTempTransferLog
+                  << " UI Game->Resort drop deferred until Save+Exit source_box=" << return_slot.box_index
+                  << " source_slot=" << return_slot.slot_index
+                  << " target_box=" << target.box_index
+                  << " target_slot=" << target.slot_index
+                  << " target_was_occupied=" << (target_was_occupied ? "true" : "false")
+                  << " target_pkrid_before=" << target_pkrid_before << '\n';
+        markResortBoxesDirty();
+        std::cerr << kTempTransferLog << " UI storage untouched; Game->Resort commit pending Save+Exit\n";
+        return true;
     }
-    try {
-        if (!target_was_occupied && !held_pkrid.empty()) {
-            resort_service_->movePokemonToSlot(
-                resort::BoxLocation{kDefaultResortProfileId, target.box_index, target.slot_index},
-                held_pkrid,
-                resort::BoxPlacementPolicy::RejectIfOccupied);
-        } else if (target_was_occupied && !held_pkrid.empty() && !target_pkrid_before.empty()) {
-            resort_service_->swapResortSlotContents(
-                resort::BoxLocation{kDefaultResortProfileId, return_slot.box_index, return_slot.slot_index},
-                resort::BoxLocation{kDefaultResortProfileId, target.box_index, target.slot_index});
-        }
-    } catch (const std::exception& ex) {
-        std::cerr << "Warning: could not persist Resort box move to profile.resort.db: " << ex.what() << '\n';
+    if (target.panel == Move::Panel::Game && return_slot.panel == Move::Panel::Resort && !held_pkrid.empty()) {
+        std::cerr << kTempTransferLog
+                  << " UI Resort->Game mirror send deferred until Save+Exit pkrid=" << held_pkrid
+                  << " resort_box=" << return_slot.box_index
+                  << " resort_slot=" << return_slot.slot_index
+                  << " game_box=" << target.box_index
+                  << " game_slot=" << target.slot_index
+                  << " target_was_occupied=" << (target_was_occupied ? "true" : "false")
+                  << " game_target_pkrid_before=" << target_pkrid_before << '\n';
+        markGameBoxesDirty();
+        markResortBoxesDirty();
+        std::cerr << kTempTransferLog << " UI storage untouched; Resort->Game commit pending Save+Exit\n";
+        return true;
     }
+    if (target.panel == Move::Panel::Resort || return_slot.panel == Move::Panel::Resort) {
+        markResortBoxesDirty();
+        std::cerr << kTempTransferLog
+                  << " UI Resort box mutation deferred until Save+Exit held_pkrid=" << held_pkrid
+                  << " swap_into_hand=" << (swap_into_hand ? "true" : "false") << '\n';
+    }
+    return true;
 }
 
 void TransferSystemScreen::enter(const TransferSaveSelection& selection, SDL_Renderer* renderer, int initial_game_box_index) {
     closeBoxRenameModal(false);
     ui_state_.enter();
     transfer_selection_ = selection;
+    bridge_import_source_game_.reset();
     initializeResortPcBoxesFromStorage(renderer);
     resort_box_browser_.enter(static_cast<int>(resort_pc_boxes_.size()), 0);
     pokemon_move_.clear();
@@ -171,6 +219,7 @@ void TransferSystemScreen::enter(const TransferSaveSelection& selection, SDL_Ren
     held_move_sprite_tex_ = {};
     pickup_sfx_requested_ = false;
     putdown_sfx_requested_ = false;
+    successful_save_exit_requested_ = false;
     selection_cursor_hidden_after_mouse_ = false;
     speech_hover_active_ = false;
     dropdown_lmb_down_in_panel_ = false;
@@ -211,10 +260,21 @@ void TransferSystemScreen::enter(const TransferSaveSelection& selection, SDL_Ren
     game_pc_boxes_.clear();
     if (!selection.pc_boxes.empty()) {
         game_pc_boxes_ = selection.pc_boxes;
+        for (auto& b : game_pc_boxes_) {
+            if (b.native_slot_count <= 0) {
+                b.native_slot_count = static_cast<int>(std::min<std::size_t>(30, b.slots.size()));
+            }
+            if (b.slots.size() < 30) {
+                b.slots.resize(30);
+            } else if (b.slots.size() > 30) {
+                b.slots.resize(30);
+            }
+        }
     } else if (!selection.box1_slots.empty()) {
         TransferSaveSelection::PcBox b;
         b.name = "BOX 1";
         b.slots = selection.box1_slots;
+        b.native_slot_count = static_cast<int>(std::min<std::size_t>(30, b.slots.size()));
         if (b.slots.size() < 30) {
             b.slots.resize(30);
         } else if (b.slots.size() > 30) {
@@ -223,8 +283,42 @@ void TransferSystemScreen::enter(const TransferSaveSelection& selection, SDL_Ren
         game_pc_boxes_.push_back(std::move(b));
     }
 
-    // Import-grade encrypted PKM payloads (per PC slot) are required for safe real-save write-back.
-    // Must run while `game_pc_boxes_` still matches the on-disk layout from the last probe.
+    // Apply persisted overlay edits (prototype external-save editing). Must run **before** the bridge import merge:
+    // otherwise replacing `game_pc_boxes_` here would wipe import-grade payloads and stable identity fields
+    // (`pid`, `encryption_constant`, etc.) that `mergeBridgeImportIntoGamePcBoxes` attaches for matching on return.
+    game_boxes_dirty_ = false;
+    {
+        std::string overlay_error;
+        if (const auto overlay = loadTransferBoxEditsOverlay(save_directory_, selection.source_path, selection.game_key, &overlay_error)) {
+            if (!overlay->pc_boxes.empty()) {
+                std::vector<int> native_slot_counts;
+                native_slot_counts.reserve(game_pc_boxes_.size());
+                for (const auto& box : game_pc_boxes_) {
+                    native_slot_counts.push_back(box.native_slot_count);
+                }
+                game_pc_boxes_ = overlay->pc_boxes;
+                for (std::size_t i = 0; i < game_pc_boxes_.size(); ++i) {
+                    auto& box = game_pc_boxes_[i];
+                    if (box.native_slot_count <= 0 && i < native_slot_counts.size()) {
+                        box.native_slot_count = native_slot_counts[i];
+                    }
+                    if (box.native_slot_count <= 0) {
+                        box.native_slot_count = static_cast<int>(std::min<std::size_t>(30, box.slots.size()));
+                    }
+                    if (box.slots.size() < 30) {
+                        box.slots.resize(30);
+                    } else if (box.slots.size() > 30) {
+                        box.slots.resize(30);
+                    }
+                }
+            }
+        } else if (!overlay_error.empty()) {
+            std::cerr << "Warning: could not load transfer box edits overlay: " << overlay_error << '\n';
+        }
+    }
+
+    // Import-grade encrypted PKM payloads (per PC slot) + hot identity for Resort matching. Merge onto the current
+    // in-memory box layout (probe + optional overlay) so slot indices line up with what the player edits.
     {
         std::string import_merge_error;
         const SaveBridgeProbeResult import_result =
@@ -235,19 +329,14 @@ void TransferSystemScreen::enter(const TransferSaveSelection& selection, SDL_Ren
                       << import_result.exit_code << '\n';
         } else if (!mergeBridgeImportIntoGamePcBoxes(import_result.stdout_text, game_pc_boxes_, &import_merge_error)) {
             std::cerr << "Warning: could not merge import payloads into PC slots: " << import_merge_error << '\n';
-        }
-    }
-
-    // Apply persisted overlay edits (prototype external-save editing).
-    game_boxes_dirty_ = false;
-    {
-        std::string overlay_error;
-        if (const auto overlay = loadTransferBoxEditsOverlay(save_directory_, selection.source_path, selection.game_key, &overlay_error)) {
-            if (!overlay->pc_boxes.empty()) {
-                game_pc_boxes_ = overlay->pc_boxes;
+        } else {
+            std::uint16_t sg = 0;
+            std::string sg_err;
+            if (parseBridgeImportFirstPokemonSourceGame(import_result.stdout_text, &sg, &sg_err)) {
+                bridge_import_source_game_ = sg;
+            } else {
+                std::cerr << "Warning: could not read source_game from bridge import: " << sg_err << '\n';
             }
-        } else if (!overlay_error.empty()) {
-            std::cerr << "Warning: could not load transfer box edits overlay: " << overlay_error << '\n';
         }
     }
 
@@ -277,7 +366,14 @@ void TransferSystemScreen::enter(const TransferSaveSelection& selection, SDL_Ren
         if (box_index >= 0 && static_cast<std::size_t>(box_index) < game_pc_boxes_.size()) {
             const auto& b = game_pc_boxes_[static_cast<std::size_t>(box_index)];
             m.box_name = b.name;
+            const int accessible_slots = gameSaveSlotsPerBox();
+            m.visible_slot_count = accessible_slots;
+            m.slot_columns = accessible_slots <= 20 ? 5 : 6;
             for (std::size_t i = 0; i < m.slot_sprites.size() && i < b.slots.size(); ++i) {
+                if (static_cast<int>(i) >= accessible_slots) {
+                    m.disabled_slots[i] = true;
+                    continue;
+                }
                 const auto& slot = b.slots[i];
                 m.slot_sprites[i] = sprite_for(slot);
                 if (slot.occupied() && slot.held_item_id > 0 && sprite_assets_ && renderer_) {
@@ -285,6 +381,11 @@ void TransferSystemScreen::enter(const TransferSaveSelection& selection, SDL_Ren
                     m.held_item_sprites[i] =
                         item.texture ? std::optional<TextureHandle>(std::move(item)) : std::nullopt;
                 }
+            }
+            for (std::size_t i = static_cast<std::size_t>(std::max(0, accessible_slots));
+                 i < m.disabled_slots.size();
+                 ++i) {
+                m.disabled_slots[i] = true;
             }
         }
         return m;

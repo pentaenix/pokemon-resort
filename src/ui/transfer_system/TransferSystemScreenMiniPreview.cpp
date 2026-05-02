@@ -277,8 +277,9 @@ void TransferSystemScreen::drawMiniPreview(SDL_Renderer* renderer) const {
     const int inner_w = std::max(1, w - 2 * stroke - 20);
     const int inner_h = std::max(1, h - 2 * stroke - 20);
 
-    constexpr int cols = 6;
-    constexpr int rows = 5;
+    const int visible_slots = std::clamp(mini_preview_model_.visible_slot_count, 0, 30);
+    const int cols = std::clamp(mini_preview_model_.slot_columns, 1, 6);
+    const int rows = std::max(1, (std::max(1, visible_slots) + cols - 1) / cols);
     const int gap = 3;
     const int cell_w = std::max(6, (inner_w - (cols - 1) * gap) / cols);
     const int cell_h = std::max(6, (inner_h - (rows - 1) * gap) / rows);
@@ -298,6 +299,9 @@ void TransferSystemScreen::drawMiniPreview(SDL_Renderer* renderer) const {
             fillRoundedRectScanlines(renderer, sx, sy, cell_w, cell_h, 4, kFill);
 
             const std::size_t idx = static_cast<std::size_t>(row * cols + col);
+            if (static_cast<int>(idx) >= visible_slots) {
+                continue;
+            }
             if (idx < mini_preview_model_.slot_sprites.size()) {
                 const auto& slot = mini_preview_model_.slot_sprites[idx];
                 if (slot.has_value() && slot->texture) {

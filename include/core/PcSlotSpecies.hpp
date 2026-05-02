@@ -1,6 +1,8 @@
 #pragma once
 
 #include <array>
+#include <cstdint>
+#include <optional>
 #include <string>
 
 namespace pr {
@@ -34,6 +36,7 @@ struct PcSlotSpecies {
     std::string form_key;
     int gender = -1;
     int level = -1;
+    int exp = -1;
     bool is_egg = false;
     bool is_shiny = false;
     int ball_id = -1;
@@ -41,14 +44,20 @@ struct PcSlotSpecies {
     std::string ot_name;
     int tid16 = -1;
     int sid16 = -1;
+    std::optional<std::uint32_t> tid32;
     std::string origin_game;
+    int origin_game_id = -1;
+    int language = -1;
     int met_location_id = -1;
     std::string met_location_name;
+    int met_level = -1;
+    std::optional<std::int64_t> met_date_unix;
 
     int held_item_id = -1;
     std::string held_item_name;
     std::string nature;
     int ability_id = -1;
+    int ability_slot = -1;
     std::string ability_name;
     std::string primary_type;
     std::string secondary_type;
@@ -58,11 +67,22 @@ struct PcSlotSpecies {
     bool is_alpha = false;
     bool is_gigantamax = false;
     int markings = 0;
+    int hp_current = -1;
+    int hp_max = -1;
+    int status_flags = 0;
 
     std::array<PcSlotMoveSummary, 4> moves{};
     int move_count = 0;
 
     bool checksum_valid = false;
+
+    // Stable identity evidence (Gen 3+): used to match returns to existing Resort canonicals.
+    // Populated via bridge import merge when available.
+    std::optional<std::uint32_t> pid;
+    std::optional<std::uint32_t> encryption_constant;
+    std::string home_tracker;
+    std::optional<std::uint16_t> dv16;
+    int lineage_root_species = -1;
 
     /// Canonical Resort SQLite key (`pokemon.pkrid`) when this slot was loaded from `profile.resort.db`.
     std::string resort_pkrid;

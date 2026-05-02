@@ -8,6 +8,7 @@
 
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace pr::resort {
 
@@ -33,6 +34,10 @@ public:
     std::optional<MirrorSession> getById(const std::string& mirror_session_id) const;
     std::optional<MirrorSession> getActiveForPokemon(const std::string& pkrid) const;
     std::optional<MirrorSession> findActiveByBeacon(
+        std::uint16_t target_game,
+        std::uint16_t beacon_tid16,
+        const std::string& beacon_ot_name) const;
+    std::vector<MirrorSession> findActiveCandidatesByBeacon(
         std::uint16_t target_game,
         std::uint16_t beacon_tid16,
         const std::string& beacon_ot_name) const;

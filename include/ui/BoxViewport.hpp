@@ -25,6 +25,12 @@ struct BoxViewportModel {
     std::array<std::optional<TextureHandle>, 30> slot_sprites{};
     /// Per-slot held-item sprite used by the item tool overlay.
     std::array<std::optional<TextureHandle>, 30> held_item_sprites{};
+    /// Number of rendered/interactable slots in this viewport model.
+    int visible_slot_count = 30;
+    /// Slot columns for the rendered grid (6 for normal boxes, 5 for Gen 1/2 game boxes).
+    int slot_columns = 6;
+    /// Slots that exist in the 30-cell UI model but are not legal for the current external save.
+    std::array<bool, 30> disabled_slots{};
     /// Pixel nudge for Box Space long-press feedback (horizontal shake); visual only.
     std::array<int, 30> slot_wiggle_dx{};
 };

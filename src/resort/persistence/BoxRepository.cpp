@@ -87,6 +87,14 @@ void BoxRepository::swapBoxContents(const std::string& profile_id, int box_a, in
     }
 }
 
+void BoxRepository::renameBox(const std::string& profile_id, int box_id, const std::string& name) {
+    auto stmt = connection_.prepare("UPDATE boxes SET name = ? WHERE profile_id = ? AND box_id = ?");
+    stmt.bindText(1, name);
+    stmt.bindText(2, profile_id);
+    stmt.bindInt(3, box_id);
+    stmt.stepDone();
+}
+
 void BoxRepository::swapSlotContents(const BoxLocation& a, const BoxLocation& b) {
     if (a.profile_id != b.profile_id) {
         throw std::runtime_error("swapSlotContents requires same profile_id");
@@ -164,6 +172,22 @@ void BoxRepository::removePokemon(const std::string& profile_id, const std::stri
     stmt.bindText(1, profile_id);
     stmt.bindText(2, pkrid);
     stmt.stepDone();
+}
+
+std::optional<BoxLocation> BoxRepository::findFirstEmptySlot(const std::string& profile_id) const {
+    auto stmt = connection_.prepare(R"sql(
+SELECT s.box_id, s.slot_index
+FROM box_slots s
+JOIN boxes b ON b.profile_id = s.profile_id AND b.box_id = s.box_id
+WHERE s.profile_id = ? AND s.pkrid IS NULL
+ORDER BY b.sort_key ASC, s.box_id ASC, s.slot_index ASC
+LIMIT 1
+)sql");
+    stmt.bindText(1, profile_id);
+    if (!stmt.stepRow()) {
+        return std::nullopt;
+    }
+    return BoxLocation{profile_id, stmt.columnInt(0), stmt.columnInt(1)};
 }
 
 std::optional<BoxLocation> BoxRepository::findPokemonLocation(

@@ -11,6 +11,7 @@ find_package(SDL2_ttf REQUIRED)
 find_package(SQLite3)
 
 set(RESORT_STORAGE_SOURCES
+    src/core/Sha256.cpp
     src/resort/domain/Ids.cpp
     src/resort/persistence/SqliteConnection.cpp
     src/resort/persistence/Migrations.cpp
@@ -28,6 +29,7 @@ set(RESORT_STORAGE_SOURCES
     src/resort/services/PokemonResortService.cpp
     src/resort/services/BridgeImportService.cpp
     src/resort/integration/BridgeImportAdapter.cpp
+    src/resort/integration/Gen12DvBytes.cpp
 )
 
 add_executable(title_screen_demo
@@ -49,7 +51,12 @@ add_executable(title_screen_demo
     src/core/TransferBoxEditsStore.cpp
     src/core/BridgeImportMerge.cpp
     ${RESORT_STORAGE_SOURCES}
-    src/ui/LoadingScreen.cpp
+    src/ui/loading/PokeballLoadingScreen.cpp
+    src/ui/loading/LoadingScreenFactory.cpp
+    src/ui/loading/ResortTransferLoadingConfig.cpp
+    src/ui/loading/ResortTransferLoadingRenderer.cpp
+    src/ui/loading/ResortTransferLoadingScreen.cpp
+    src/ui/loading/ResortTransferLoadingScreenMotion.cpp
     src/ui/TitleScreen.cpp
     src/ui/TransferFlowCoordinator.cpp
     src/ui/title_screen/MainMenuController.cpp
@@ -96,6 +103,7 @@ add_executable(title_screen_demo
     src/ui/transfer_system/TransferSystemScreenBoxNavigation.cpp
     src/ui/transfer_system/TransferSystemScreenDropdownPointer.cpp
     src/ui/transfer_system/TransferSystemScreenActionMenuHelpers.cpp
+    src/ui/transfer_system/TransferSystemScreenHeldItemBridge.cpp
     src/ui/transfer_system/TransferSystemScreenSmallQueries.cpp
     src/ui/transfer_system/TransferSystemScreenUiHelpers.cpp
     src/ui/transfer_system/GameTransferConfig.cpp
@@ -126,7 +134,6 @@ add_executable(title_screen_demo
 target_include_directories(title_screen_demo PRIVATE include)
 
 target_link_libraries(title_screen_demo PRIVATE SDL2::SDL2 SDL2::SDL2main SDL2_image::SDL2_image SDL2_ttf::SDL2_ttf)
-
 if(SQLite3_FOUND)
     target_link_libraries(title_screen_demo PRIVATE SQLite3::SQLite3)
 else()
@@ -173,6 +180,23 @@ add_executable(title_screen_section_tests
 )
 target_include_directories(title_screen_section_tests PRIVATE include)
 add_test(NAME title_screen_section_tests COMMAND title_screen_section_tests)
+
+add_executable(resort_loading_transition_screen_tests
+    ../tests/native/resort_loading/resort_loading_transition_screen_tests.cpp
+    src/core/Assets.cpp
+    src/core/Font.cpp
+    src/core/Json.cpp
+    src/ui/loading/PokeballLoadingScreen.cpp
+    src/ui/loading/LoadingScreenFactory.cpp
+    src/ui/loading/ResortTransferLoadingConfig.cpp
+    src/ui/loading/ResortTransferLoadingRenderer.cpp
+    src/ui/loading/ResortTransferLoadingScreen.cpp
+    src/ui/loading/ResortTransferLoadingScreenMotion.cpp
+)
+target_compile_definitions(resort_loading_transition_screen_tests PRIVATE PR_ENABLE_TEST_HOOKS)
+target_include_directories(resort_loading_transition_screen_tests PRIVATE include)
+target_link_libraries(resort_loading_transition_screen_tests PRIVATE SDL2::SDL2 SDL2_image::SDL2_image SDL2_ttf::SDL2_ttf)
+add_test(NAME resort_loading_transition_screen_tests COMMAND resort_loading_transition_screen_tests)
 
 add_executable(transfer_ticket_list_tests
     ../tests/native/transfer_ticket/transfer_ticket_list_controller_tests.cpp
@@ -285,6 +309,14 @@ add_executable(bridge_import_merge_tests
 target_include_directories(bridge_import_merge_tests PRIVATE include)
 add_test(NAME bridge_import_merge_tests COMMAND bridge_import_merge_tests)
 
+add_executable(pcslot_imported_pokemon_builder_tests
+    ../tests/native/resort/pcslot_imported_pokemon_builder_tests.cpp
+    src/resort/integration/BridgeImportAdapter.cpp
+    src/core/Json.cpp
+)
+target_include_directories(pcslot_imported_pokemon_builder_tests PRIVATE include)
+add_test(NAME pcslot_imported_pokemon_builder_tests COMMAND pcslot_imported_pokemon_builder_tests)
+
 add_executable(save_bridge_client_tests
     ../tests/native/core/save_bridge_client_tests.cpp
     src/core/SaveBridgeClient.cpp
@@ -395,6 +427,7 @@ add_executable(transfer_system_flow_harness_tests
     src/ui/transfer_system/TransferSystemScreenBoxNavigation.cpp
     src/ui/transfer_system/TransferSystemScreenDropdownPointer.cpp
     src/ui/transfer_system/TransferSystemScreenActionMenuHelpers.cpp
+    src/ui/transfer_system/TransferSystemScreenHeldItemBridge.cpp
     src/ui/transfer_system/TransferSystemScreenSmallQueries.cpp
     src/ui/transfer_system/TransferSystemScreenUiHelpers.cpp
     src/ui/transfer_system/GameTransferConfig.cpp

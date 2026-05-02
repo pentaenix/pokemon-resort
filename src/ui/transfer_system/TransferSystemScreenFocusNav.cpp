@@ -175,6 +175,9 @@ std::string TransferSystemScreen::speechBubbleLineForFocus(FocusNodeId focus_id)
         if (game_box_index < 0 || game_box_index >= static_cast<int>(game_pc_boxes_.size())) {
             return sb.empty_slot_label;
         }
+        if (!gameSaveSlotAccessible(slot)) {
+            return "";
+        }
         const auto& slots = game_pc_boxes_[static_cast<std::size_t>(game_box_index)].slots;
         if (slot >= static_cast<int>(slots.size())) {
             return sb.empty_slot_label;

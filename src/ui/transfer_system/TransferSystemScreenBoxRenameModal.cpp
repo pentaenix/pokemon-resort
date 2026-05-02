@@ -78,6 +78,7 @@ void TransferSystemScreen::closeBoxRenameModal(bool commit) {
             box_rename_modal_panel_ == BoxRenameModalPanel::Resort && idx >= 0 &&
             idx < static_cast<int>(resort_pc_boxes_.size())) {
             resort_pc_boxes_[static_cast<std::size_t>(idx)].name = std::move(next);
+            markResortBoxesDirty();
             refreshResortBoxViewportModel();
             resort_dropdown_labels_dirty_ = true;
         }

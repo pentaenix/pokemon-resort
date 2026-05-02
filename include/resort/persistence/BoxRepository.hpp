@@ -27,6 +27,8 @@ public:
     /// Pairwise swap of `pkrid` occupancy for each slot index (used when the UI swaps two Resort boxes).
     void swapBoxContents(const std::string& profile_id, int box_a, int box_b);
 
+    void renameBox(const std::string& profile_id, int box_id, const std::string& name);
+
     /// Swap two slot occupants (used when swapping two Pokémon within Resort storage).
     void swapSlotContents(const BoxLocation& a, const BoxLocation& b);
 
@@ -35,6 +37,7 @@ public:
         const std::string& pkrid,
         BoxPlacementPolicy policy = BoxPlacementPolicy::RejectIfOccupied);
     void removePokemon(const std::string& profile_id, const std::string& pkrid);
+    std::optional<BoxLocation> findFirstEmptySlot(const std::string& profile_id) const;
     std::optional<BoxLocation> findPokemonLocation(const std::string& profile_id, const std::string& pkrid) const;
     std::vector<PokemonSlotView> getBoxSlotViews(const std::string& profile_id, int box_id) const;
 

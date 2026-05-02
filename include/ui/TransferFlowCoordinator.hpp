@@ -3,11 +3,11 @@
 #include "core/PokeSpriteAssets.hpp"
 #include "core/SaveLibrary.hpp"
 #include "core/Types.hpp"
-#include "ui/LoadingScreen.hpp"
 #include "ui/Screen.hpp"
 #include "ui/TransferSaveSelection.hpp"
 #include "ui/TransferSystemScreen.hpp"
 #include "ui/TransferTicketScreen.hpp"
+#include "ui/loading/LoadingScreenBase.hpp"
 #include "ui/transfer_flow/TransferFlowController.hpp"
 
 #include <SDL.h>
@@ -44,6 +44,8 @@ public:
     bool isActive() const { return flow_controller_.isActive(); }
 
     bool consumeReturnToTitleRequest();
+    bool consumeSuccessfulSaveReturnToTicketsRequest();
+    void completeSuccessfulSaveReturnToTickets();
 
     bool hasTransferMusic() const;
     const std::string& musicPath() const;
@@ -79,9 +81,10 @@ private:
     std::future<void> transfer_load_future_;
     std::future<std::optional<TransferSaveSummary>> transfer_detail_future_;
 
-    std::unique_ptr<LoadingScreen> loading_screen_;
+    std::unique_ptr<LoadingScreenBase> loading_screen_;
     std::unique_ptr<TransferTicketScreen> transfer_ticket_;
     std::unique_ptr<TransferSystemScreen> transfer_system_screen_;
+    bool successful_save_return_to_tickets_requested_ = false;
 };
 
 } // namespace pr

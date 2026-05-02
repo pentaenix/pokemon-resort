@@ -3,6 +3,7 @@
 #include "core/Json.hpp"
 
 #include <array>
+#include <cmath>
 #include <cerrno>
 #include <cstdlib>
 #include <cstring>
@@ -417,6 +418,32 @@ std::string messageFromBridgeJsonRoot(const JsonValue& root) {
     return msg;
 }
 
+std::vector<std::string> stringArrayOrEmpty(const JsonValue* value) {
+    std::vector<std::string> out;
+    if (!value || !value->isArray()) {
+        return out;
+    }
+    for (const JsonValue& item : value->asArray()) {
+        if (item.isString()) {
+            out.push_back(item.asString());
+        }
+    }
+    return out;
+}
+
+bool boolFieldOr(const JsonValue* object, const std::string& key, bool fallback) {
+    if (!object || !object->isObject()) {
+        return fallback;
+    }
+    const JsonValue* value = object->get(key);
+    return value && value->isBool() ? value->asBool() : fallback;
+}
+
+std::string stringFieldOrEmpty(const JsonValue& object, const std::string& key) {
+    const JsonValue* value = object.get(key);
+    return value && value->isString() ? value->asString() : std::string{};
+}
+
 std::string summarizeBridgeStdoutJson(const std::string& text) {
     if (text.empty()) {
         return {};
@@ -457,6 +484,168 @@ std::string formatBridgeRunFailureMessage(const SaveBridgeProbeResult& r) {
         return std::string("stdout: ") + trimTrailingAsciiWs(r.stdout_text);
     }
     return "bridge exited with code " + std::to_string(r.exit_code);
+}
+
+SaveBridgeProjectResult parseBridgeProjectResultJson(const std::string& stdout_text) {
+    SaveBridgeProjectResult out;
+    out.stdout_text = stdout_text;
+    try {
+        const std::string trimmed = trimTrailingAsciiWs(stdout_text);
+        const std::string object_text = extractJsonObject(trimmed);
+        const std::string& parse_src = object_text.empty() ? trimmed : object_text;
+        const JsonValue root = parseJsonText(parse_src);
+        if (!root.isObject()) {
+            out.error_message = "bridge project JSON root must be an object";
+            return out;
+        }
+
+        const JsonValue* schema = root.get("bridge_project_schema");
+        if (!schema || !schema->isNumber() || static_cast<int>(std::lround(schema->asNumber())) != 1) {
+            out.error_message = "bridge project schema mismatch";
+            return out;
+        }
+
+        bool json_success = false;
+        if (const JsonValue* success = root.get("success")) {
+            json_success = success->isBool() && success->asBool();
+        }
+        if (!json_success) {
+            out.error_message = messageFromBridgeJsonRoot(root);
+            if (out.error_message.empty()) {
+                out.error_message = "bridge project failed";
+            }
+            return out;
+        }
+
+        out.target_format_name = stringFieldOrEmpty(root, "target_format_name");
+        out.target_raw_payload_base64 = stringFieldOrEmpty(root, "target_raw_payload_base64");
+        out.target_raw_hash_sha256 = stringFieldOrEmpty(root, "target_raw_hash_sha256");
+
+        const JsonValue* legality = root.get("legality");
+        out.legality_valid = boolFieldOr(legality, "valid", false);
+        if (legality && legality->isObject()) {
+            out.legality_warnings = stringArrayOrEmpty(legality->get("warnings"));
+        }
+
+        const JsonValue* manifest = root.get("loss_manifest");
+        out.loss_manifest_lossy = boolFieldOr(manifest, "lossy", false);
+        if (manifest && manifest->isObject()) {
+            out.lost_categories = stringArrayOrEmpty(manifest->get("lost_categories"));
+            out.projected_categories = stringArrayOrEmpty(manifest->get("projected_categories"));
+            out.loss_notes = stringArrayOrEmpty(manifest->get("notes"));
+        }
+
+        if (out.target_format_name.empty() ||
+            out.target_raw_payload_base64.empty() ||
+            out.target_raw_hash_sha256.empty()) {
+            out.error_message = "bridge project missing projected payload fields";
+            return out;
+        }
+
+        out.success = true;
+        return out;
+    } catch (...) {
+        out.error_message = "failed to parse bridge project JSON";
+        return out;
+    }
+}
+
+SaveBridgeProjectResult projectPokemonWithBridge(
+    const std::string& project_root,
+    const char* argv0,
+    const std::string& request_json_path) {
+    SaveBridgeProbeResult probe = runBridgeWithArgs(project_root, argv0, {"project", request_json_path});
+    SaveBridgeProjectResult out = parseBridgeProjectResultJson(probe.stdout_text);
+    out.launched = probe.launched;
+    out.exit_code = probe.exit_code;
+    out.stdout_text = probe.stdout_text;
+    out.stderr_text = probe.stderr_text;
+    if (!probe.launched) {
+        out.error_message = probe.error_message;
+        return out;
+    }
+    out.success = out.success && probe.exit_code == 0;
+    if (!out.success && out.error_message.empty()) {
+        out.error_message = formatBridgeRunFailureMessage(probe);
+    }
+    return out;
+}
+
+SaveBridgeHeldItemPatchResult patchHeldItemPayloadWithBridge(
+    const std::string& project_root,
+    const char* argv0,
+    const std::string& request_json_path) {
+    SaveBridgeHeldItemPatchResult out;
+    SaveBridgeProbeResult probe =
+        runBridgeWithArgs(project_root, argv0, {"pkm-patch-held-item", request_json_path});
+    out.launched = probe.launched;
+    out.exit_code = probe.exit_code;
+    out.stdout_text = probe.stdout_text;
+    out.stderr_text = probe.stderr_text;
+    out.error_message = probe.error_message;
+
+    if (!probe.launched) {
+        return out;
+    }
+
+    try {
+        const std::string trimmed = trimTrailingAsciiWs(probe.stdout_text);
+        const std::string object_text = extractJsonObject(trimmed);
+        const std::string& parse_src = object_text.empty() ? trimmed : object_text;
+        const JsonValue root = parseJsonText(parse_src);
+
+        if (const JsonValue* sch = root.get("bridge_held_item_patch_schema")) {
+            if (!sch->isNumber() || static_cast<int>(std::lround(sch->asNumber())) != 1) {
+                out.error_message = "bridge held-item patch schema mismatch";
+                return out;
+            }
+        } else {
+            out.error_message = "missing bridge_held_item_patch_schema";
+            return out;
+        }
+
+        bool json_success = false;
+        if (const JsonValue* s = root.get("success")) {
+            if (s->isBool()) {
+                json_success = s->asBool();
+            }
+        }
+        if (!json_success) {
+            out.success = false;
+            const std::string msg = messageFromBridgeJsonRoot(root);
+            out.error_message = msg.empty() ? "held item patch failed" : msg;
+            return out;
+        }
+
+        if (const JsonValue* b64 = root.get("raw_payload_base64")) {
+            if (b64->isString()) {
+                out.raw_payload_base64 = b64->asString();
+            }
+        }
+        if (const JsonValue* h = root.get("raw_hash_sha256")) {
+            if (h->isString()) {
+                out.raw_hash_sha256 = h->asString();
+            }
+        }
+
+        if (out.raw_payload_base64.empty() || out.raw_hash_sha256.empty()) {
+            out.success = false;
+            out.error_message = "held item patch missing payload fields";
+            return out;
+        }
+
+        out.success = true;
+    } catch (...) {
+        out.success = false;
+        out.error_message = "failed to parse held item patch JSON";
+    }
+
+    out.success = out.success && probe.exit_code == 0;
+    if (!out.success && out.error_message.empty()) {
+        out.error_message = formatBridgeRunFailureMessage(probe);
+    }
+
+    return out;
 }
 
 } // namespace pr

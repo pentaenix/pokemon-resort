@@ -57,10 +57,12 @@ std::vector<transfer_system::PokemonMoveController::SlotRef> TransferSystemScree
     }
     const int a = keyboard_multi_marquee_anchor_slot_;
     const int c = keyboard_multi_marquee_corner_slot_;
-    const int r0 = std::min(a / 6, c / 6);
-    const int r1 = std::max(a / 6, c / 6);
-    const int col0 = std::min(a % 6, c % 6);
-    const int col1 = std::max(a % 6, c % 6);
+    const int cols = keyboard_multi_marquee_from_game_ && gameSaveSlotsPerBox() <= 20 ? 5 : 6;
+    const int visible_slots = keyboard_multi_marquee_from_game_ ? gameSaveSlotsPerBox() : 30;
+    const int r0 = std::min(a / cols, c / cols);
+    const int r1 = std::max(a / cols, c / cols);
+    const int col0 = std::min(a % cols, c % cols);
+    const int col1 = std::max(a % cols, c % cols);
 
     if (keyboard_multi_marquee_from_game_) {
         const int box_index = game_box_browser_.gameBoxIndex();
@@ -69,8 +71,8 @@ std::vector<transfer_system::PokemonMoveController::SlotRef> TransferSystemScree
         }
         for (int r = r0; r <= r1; ++r) {
             for (int col = col0; col <= col1; ++col) {
-                const int idx = r * 6 + col;
-                if (idx >= 0 && idx < 30 && gameSaveSlotHasSpecies(idx)) {
+                const int idx = r * cols + col;
+                if (idx >= 0 && idx < visible_slots && gameSaveSlotHasSpecies(idx)) {
                     refs.push_back(Move::SlotRef{Move::Panel::Game, box_index, idx});
                 }
             }
@@ -79,7 +81,7 @@ std::vector<transfer_system::PokemonMoveController::SlotRef> TransferSystemScree
         const int resort_box_index = resort_box_browser_.gameBoxIndex();
         for (int r = r0; r <= r1; ++r) {
             for (int col = col0; col <= col1; ++col) {
-                const int idx = r * 6 + col;
+                const int idx = r * cols + col;
                 if (idx >= 0 && idx < 30 && resortSlotHasSpecies(idx)) {
                     refs.push_back(Move::SlotRef{Move::Panel::Resort, resort_box_index, idx});
                 }
@@ -96,10 +98,12 @@ SDL_Rect TransferSystemScreen::keyboardMultiMarqueeScreenRect() const {
     }
     const int a = keyboard_multi_marquee_anchor_slot_;
     const int c = keyboard_multi_marquee_corner_slot_;
-    const int r0 = std::min(a / 6, c / 6);
-    const int r1 = std::max(a / 6, c / 6);
-    const int col0 = std::min(a % 6, c % 6);
-    const int col1 = std::max(a % 6, c % 6);
+    const int cols = keyboard_multi_marquee_from_game_ && gameSaveSlotsPerBox() <= 20 ? 5 : 6;
+    const int visible_slots = keyboard_multi_marquee_from_game_ ? gameSaveSlotsPerBox() : 30;
+    const int r0 = std::min(a / cols, c / cols);
+    const int r1 = std::max(a / cols, c / cols);
+    const int col0 = std::min(a % cols, c % cols);
+    const int col1 = std::max(a % cols, c % cols);
 
     bool any = false;
     int min_x = 0;
@@ -108,7 +112,10 @@ SDL_Rect TransferSystemScreen::keyboardMultiMarqueeScreenRect() const {
     int max_y = 0;
     for (int r = r0; r <= r1; ++r) {
         for (int col = col0; col <= col1; ++col) {
-            const int idx = r * 6 + col;
+            const int idx = r * cols + col;
+            if (idx < 0 || idx >= visible_slots) {
+                continue;
+            }
             SDL_Rect b{};
             const bool ok = keyboard_multi_marquee_from_game_
                 ? (game_save_box_viewport_ && game_save_box_viewport_->getSlotBounds(idx, b))
