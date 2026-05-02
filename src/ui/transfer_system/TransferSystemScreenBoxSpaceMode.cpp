@@ -8,7 +8,17 @@ namespace pr {
 
 namespace {
 constexpr const char* kDefaultResortProfileId = "default";
+
+int countOccupiedSlots(const TransferSaveSelection::PcBox& box) {
+    int n = 0;
+    for (const auto& slot : box.slots) {
+        if (slot.occupied()) {
+            ++n;
+        }
+    }
+    return n;
 }
+} // namespace
 
 bool TransferSystemScreen::openResortBoxFromBoxSpaceSelection(int box_index) {
     if (box_index < 0 || box_index >= static_cast<int>(resort_pc_boxes_.size())) {
@@ -72,8 +82,12 @@ bool TransferSystemScreen::swapGameAndResortPcBoxes(int game_box_index, int reso
     if (!boxFitsInGameSaveSlots(resort_pc_boxes_[static_cast<std::size_t>(resort_box_index)])) {
         return false;
     }
+    const int game_occ = countOccupiedSlots(game_pc_boxes_[static_cast<std::size_t>(game_box_index)]);
+    const int resort_occ = countOccupiedSlots(resort_pc_boxes_[static_cast<std::size_t>(resort_box_index)]);
     std::swap(game_pc_boxes_[static_cast<std::size_t>(game_box_index)],
               resort_pc_boxes_[static_cast<std::size_t>(resort_box_index)]);
+    noteCrossPanelGameToResortMoves(game_occ);
+    noteCrossPanelResortToGameMoves(resort_occ);
     markGameBoxesDirty();
     markResortBoxesDirty();
     mini_preview_box_index_ = -1;

@@ -189,6 +189,7 @@ bool mergeBridgeImportIntoGamePcBoxes(
             if (!format_name.empty()) {
                 slot.format = format_name;
             }
+            slot.source_game_id = asIntOrDefault(child(item, "source_game"), slot.source_game_id);
             if (hot && hot->isObject()) {
                 slot.species_id = asIntOrDefault(child(*hot, "species_id"), slot.species_id);
                 slot.form = asIntOrDefault(child(*hot, "form_id"), slot.form);

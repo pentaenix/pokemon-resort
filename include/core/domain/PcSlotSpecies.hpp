@@ -47,6 +47,17 @@ struct PcSlotSpecies {
     std::optional<std::uint32_t> tid32;
     std::string origin_game;
     int origin_game_id = -1;
+    /// Numeric game version this slot was imported from. This is distinct from the
+    /// Pokemon's own origin game and should travel with Resort slots across active saves.
+    int source_game_id = -1;
+    /// Concrete app game key for the save this slot came from (for example `pokemon_heartgold`).
+    /// Prefer this over aggregate bridge version ids such as HGSS when present.
+    std::string source_game_key;
+    /// Save-level context captured when this Pokemon first enters Resort. This is intentionally lightweight
+    /// provenance for future history features, while the concrete source game key drives current UI.
+    std::string source_save_trainer_name;
+    std::string source_save_play_time;
+    std::string source_save_badges;
     int language = -1;
     int met_location_id = -1;
     std::string met_location_name;

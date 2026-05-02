@@ -45,7 +45,7 @@ void AppScreenCoordinator::startSuccessfulSaveQuickTransition() {
 }
 
 void AppScreenCoordinator::beginSuccessfulSaveLoadingScreen() {
-    loading_.beginSuccessfulSaveQuickPass();
+    loading_.beginSuccessfulSaveQuickPass(transfer_flow_.takeSuccessfulSaveQuickPassMessageKey());
     active_screen_ = ActiveScreen::ResortLoading;
 }
 

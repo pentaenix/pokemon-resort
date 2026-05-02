@@ -81,6 +81,8 @@ public:
     bool consumeErrorSfxRequest();
     bool consumeReturnToTicketListRequest();
     bool consumeSuccessfulSaveExitRequest();
+    /// Chooses `resort_transfer.message.texts` key for the post-save quick boat transition from this session's moves.
+    std::string successfulSaveQuickPassMessageKey() const;
 
     bool canNavigate2d() const override { return true; }
     void onNavigate2d(int dx, int dy) override;
@@ -112,6 +114,9 @@ public:
         return {};
     }
     std::string debugInfoBannerMode() const;
+    std::string debugInfoBannerFieldText(const std::string& field_name) const {
+        return transfer_system::resolveTransferInfoBannerField(field_name, activeInfoBannerContext()).text;
+    }
     bool debugPokemonActionMenuVisible() const { return pokemon_action_menu_.visible() && !pokemon_action_menu_.closing(); }
     bool debugPokemonActionMenuFromGameBox() const { return pokemon_action_menu_.fromGameBox(); }
     int debugPokemonActionMenuSelectedRow() const { return pokemon_action_menu_.selectedRow(); }
@@ -205,6 +210,10 @@ private:
     bool game_boxes_dirty_ = false;
     bool resort_boxes_dirty_ = false;
     bool successful_save_exit_requested_ = false;
+    int cross_panel_game_to_resort_moves_ = 0;
+    int cross_panel_resort_to_game_moves_ = 0;
+    void noteCrossPanelGameToResortMoves(int count);
+    void noteCrossPanelResortToGameMoves(int count);
     void markGameBoxesDirty();
     void markResortBoxesDirty();
     bool preparePendingResortMirrorPayloadsForSave();

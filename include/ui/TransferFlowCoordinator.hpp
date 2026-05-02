@@ -46,6 +46,7 @@ public:
     bool consumeReturnToTitleRequest();
     bool consumeSuccessfulSaveReturnToTicketsRequest();
     void completeSuccessfulSaveReturnToTickets();
+    std::string takeSuccessfulSaveQuickPassMessageKey();
 
     bool hasTransferMusic() const;
     const std::string& musicPath() const;
@@ -85,6 +86,7 @@ private:
     std::unique_ptr<TransferTicketScreen> transfer_ticket_;
     std::unique_ptr<TransferSystemScreen> transfer_system_screen_;
     bool successful_save_return_to_tickets_requested_ = false;
+    std::string pending_successful_save_quick_pass_message_key_;
 };
 
 } // namespace pr

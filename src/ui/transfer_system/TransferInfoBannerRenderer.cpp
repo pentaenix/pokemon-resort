@@ -258,6 +258,23 @@ transfer_system::TransferInfoBannerContext TransferSystemScreen::activeInfoBanne
         context.mode = "empty";
         return context;
     }
+    if (focus_id >= 1000 && focus_id <= 1029) {
+        const int slot_index = focus_id - 1000;
+        const int box_index = resort_box_browser_.gameBoxIndex();
+        if (box_index >= 0 && box_index < static_cast<int>(resort_pc_boxes_.size())) {
+            const auto& slots = resort_pc_boxes_[static_cast<std::size_t>(box_index)].slots;
+            if (slot_index >= 0 && slot_index < static_cast<int>(slots.size())) {
+                const PcSlotSpecies& slot = slots[static_cast<std::size_t>(slot_index)];
+                if (slot.occupied()) {
+                    context.mode = "pokemon";
+                    context.slot = &slot;
+                    return context;
+                }
+            }
+        }
+        context.mode = "empty";
+        return context;
+    }
     if (focus_id == 5000) {
         // Exit button: show a tooltip in the info banner (not a speech bubble).
         context.mode = "exit";

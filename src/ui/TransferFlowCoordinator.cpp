@@ -85,6 +85,12 @@ bool TransferFlowCoordinator::consumeSuccessfulSaveReturnToTicketsRequest() {
     return true;
 }
 
+std::string TransferFlowCoordinator::takeSuccessfulSaveQuickPassMessageKey() {
+    std::string out;
+    out.swap(pending_successful_save_quick_pass_message_key_);
+    return out;
+}
+
 void TransferFlowCoordinator::completeSuccessfulSaveReturnToTickets() {
     if (!transfer_system_screen_) {
         return;
@@ -271,6 +277,8 @@ void TransferFlowCoordinator::updateTransferSystem(double dt) {
 
     transfer_system_screen_->update(dt);
     if (transfer_system_screen_->consumeSuccessfulSaveExitRequest()) {
+        pending_successful_save_quick_pass_message_key_ =
+            transfer_system_screen_->successfulSaveQuickPassMessageKey();
         successful_save_return_to_tickets_requested_ = true;
         return;
     }

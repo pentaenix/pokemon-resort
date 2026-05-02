@@ -9,6 +9,7 @@
 #include <cmath>
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <sstream>
 #include <utility>
@@ -137,6 +138,138 @@ TextureHandle renderMultilineTextTexture(
     handle.texture.reset(raw_texture, SDL_DestroyTexture);
     handle.width = width;
     handle.height = height;
+    SDL_SetTextureBlendMode(handle.texture.get(), SDL_BLENDMODE_BLEND);
+    return handle;
+}
+
+int alignLineX(int inner_width, int line_width, LoadingMessageHorizontalAlign align) {
+    switch (align) {
+        case LoadingMessageHorizontalAlign::Left:
+            return 0;
+        case LoadingMessageHorizontalAlign::Center:
+            return (inner_width - line_width) / 2;
+        case LoadingMessageHorizontalAlign::Right:
+            return inner_width - line_width;
+    }
+    return 0;
+}
+
+TextureHandle renderQuickPassMessageTexture(
+    SDL_Renderer* renderer,
+    TTF_Font* font,
+    const std::string& text,
+    const Color& color,
+    int line_spacing,
+    const std::optional<Color>& shadow_color,
+    double shadow_offset_x,
+    double shadow_offset_y,
+    LoadingMessageHorizontalAlign align) {
+    TextureHandle handle;
+    if (!renderer || !font || text.empty()) {
+        return handle;
+    }
+
+    struct SurfaceDeleter {
+        void operator()(SDL_Surface* value) const {
+            if (value) SDL_FreeSurface(value);
+        }
+    };
+
+    const SDL_Color sdl_color{
+        static_cast<Uint8>(color.r),
+        static_cast<Uint8>(color.g),
+        static_cast<Uint8>(color.b),
+        static_cast<Uint8>(color.a)
+    };
+    const int font_line_height = std::max(1, TTF_FontLineSkip(font));
+    const std::vector<std::string> lines = splitLines(text);
+    std::vector<std::unique_ptr<SDL_Surface, SurfaceDeleter>> line_surfaces_main;
+    std::vector<std::unique_ptr<SDL_Surface, SurfaceDeleter>> line_surfaces_shadow;
+    line_surfaces_main.reserve(lines.size());
+    line_surfaces_shadow.reserve(lines.size());
+
+    int inner_width = 1;
+    int height = 0;
+    for (const std::string& line : lines) {
+        int line_width = 1;
+        int line_height = font_line_height;
+        std::unique_ptr<SDL_Surface, SurfaceDeleter> surface_main;
+        std::unique_ptr<SDL_Surface, SurfaceDeleter> surface_shadow;
+        if (!line.empty()) {
+            SDL_Surface* raw = TTF_RenderUTF8_Blended(font, line.c_str(), sdl_color);
+            if (!raw) {
+                throw std::runtime_error(std::string("Failed to render resort loading message text: ") + TTF_GetError());
+            }
+            surface_main.reset(raw);
+            SDL_SetSurfaceBlendMode(surface_main.get(), SDL_BLENDMODE_BLEND);
+            line_width = surface_main->w;
+            line_height = surface_main->h;
+            if (shadow_color.has_value()) {
+                const SDL_Color sdl_shadow{
+                    static_cast<Uint8>(shadow_color->r),
+                    static_cast<Uint8>(shadow_color->g),
+                    static_cast<Uint8>(shadow_color->b),
+                    static_cast<Uint8>(shadow_color->a)
+                };
+                SDL_Surface* raw_sh = TTF_RenderUTF8_Blended(font, line.c_str(), sdl_shadow);
+                if (!raw_sh) {
+                    throw std::runtime_error(std::string("Failed to render resort loading shadow text: ") + TTF_GetError());
+                }
+                surface_shadow.reset(raw_sh);
+                SDL_SetSurfaceBlendMode(surface_shadow.get(), SDL_BLENDMODE_BLEND);
+            }
+        }
+        inner_width = std::max(inner_width, line_width);
+        height += line_height;
+        line_surfaces_main.push_back(std::move(surface_main));
+        line_surfaces_shadow.push_back(std::move(surface_shadow));
+    }
+    height += std::max(0, static_cast<int>(lines.size()) - 1) * line_spacing;
+    height = std::max(1, height);
+
+    const bool has_shadow = shadow_color.has_value();
+    const int pad_l = has_shadow ? static_cast<int>(std::ceil(std::max(0.0, -shadow_offset_x))) : 0;
+    const int pad_t = has_shadow ? static_cast<int>(std::ceil(std::max(0.0, -shadow_offset_y))) : 0;
+    const int pad_r = has_shadow ? static_cast<int>(std::ceil(std::max(0.0, shadow_offset_x))) : 0;
+    const int pad_b = has_shadow ? static_cast<int>(std::ceil(std::max(0.0, shadow_offset_y))) : 0;
+
+    const int full_width = inner_width + pad_l + pad_r;
+    const int full_height = height + pad_t + pad_b;
+
+    std::unique_ptr<SDL_Surface, SurfaceDeleter> combined(
+        SDL_CreateRGBSurfaceWithFormat(0, full_width, full_height, 32, SDL_PIXELFORMAT_RGBA32));
+    if (!combined) {
+        throw std::runtime_error(std::string("Failed to create resort loading quick message surface: ") + SDL_GetError());
+    }
+    SDL_FillRect(combined.get(), nullptr, SDL_MapRGBA(combined->format, 0, 0, 0, 0));
+
+    int y = 0;
+    for (std::size_t i = 0; i < lines.size(); ++i) {
+        const int line_height = line_surfaces_main[i] ? line_surfaces_main[i]->h : font_line_height;
+        const int line_w = line_surfaces_main[i] ? line_surfaces_main[i]->w : 1;
+        const int x_inner = alignLineX(inner_width, line_w, align);
+        if (has_shadow && line_surfaces_shadow[i]) {
+            SDL_Rect dst_shadow{
+                pad_l + x_inner + static_cast<int>(std::lround(shadow_offset_x)),
+                pad_t + y + static_cast<int>(std::lround(shadow_offset_y)),
+                line_surfaces_shadow[i]->w,
+                line_surfaces_shadow[i]->h};
+            SDL_BlitSurface(line_surfaces_shadow[i].get(), nullptr, combined.get(), &dst_shadow);
+        }
+        if (line_surfaces_main[i]) {
+            SDL_Rect dst_main{pad_l + x_inner, pad_t + y, line_surfaces_main[i]->w, line_surfaces_main[i]->h};
+            SDL_BlitSurface(line_surfaces_main[i].get(), nullptr, combined.get(), &dst_main);
+        }
+        y += line_height + line_spacing;
+    }
+
+    SDL_Texture* raw_texture = SDL_CreateTextureFromSurface(renderer, combined.get());
+    if (!raw_texture) {
+        throw std::runtime_error(std::string("Failed to create resort loading quick message texture: ") + SDL_GetError());
+    }
+    handle.texture.reset(raw_texture, SDL_DestroyTexture);
+    handle.width = full_width;
+    handle.height = full_height;
     SDL_SetTextureBlendMode(handle.texture.get(), SDL_BLENDMODE_BLEND);
     return handle;
 }
@@ -398,6 +531,7 @@ void ResortTransferLoadingScreen::refreshMessageTexture() {
     const std::string text = messageTextForKey(config_, message_key_);
     if (text.empty()) {
         textures_.message = TextureHandle{};
+        textures_.message_quick = TextureHandle{};
         return;
     }
     FontHandle font = loadFont(config_.message.font, config_.message.font_size, project_root_);
@@ -407,6 +541,23 @@ void ResortTransferLoadingScreen::refreshMessageTexture() {
         text,
         config_.message.color,
         config_.message.line_spacing);
+    if (config_.quick_pass.message.show_text) {
+        const auto& qm = config_.quick_pass.message;
+        const std::string quick_font_path = qm.font.empty() ? config_.message.font : qm.font;
+        FontHandle quick_font = loadFont(quick_font_path, config_.message.font_size, project_root_);
+        textures_.message_quick = renderQuickPassMessageTexture(
+            sdl_renderer_,
+            quick_font.get(),
+            text,
+            qm.color,
+            qm.line_spacing,
+            qm.shadow_color,
+            qm.shadow_offset_x,
+            qm.shadow_offset_y,
+            qm.align);
+    } else {
+        textures_.message_quick = TextureHandle{};
+    }
 }
 
 ResortTransferLoadingFrame ResortTransferLoadingScreen::buildFrame(SDL_Renderer* renderer) const {
@@ -434,7 +585,16 @@ ResortTransferLoadingFrame ResortTransferLoadingScreen::buildFrame(SDL_Renderer*
         frame.use_boat_center_x = true;
         frame.boat_center_x = quickPassBoatCenterX(progress, frame.viewport_w);
         frame.boat_velocity_x = boat_velocity_x_;
-        frame.message_alpha = 0.0;
+        if (config_.quick_pass.message.show_text &&
+            textures_.message_quick.texture &&
+            textures_.message_quick.width > 0 &&
+            textures_.message_quick.height > 0) {
+            frame.message_alpha = 1.0;
+            frame.use_quick_pass_message_layout = true;
+        } else {
+            frame.message_alpha = 0.0;
+            frame.use_quick_pass_message_layout = false;
+        }
     } else if (state_ == ResortTransferLoadingState::Intro) {
         const double message_progress = loadingStageProgress(config_.message.intro, state_time_);
         frame.water_sun = loadingStageProgress(config_.timing.intro_water_sun, state_time_);
@@ -445,6 +605,7 @@ ResortTransferLoadingFrame ResortTransferLoadingScreen::buildFrame(SDL_Renderer*
             ? 0.0
             : message_progress;
         frame.message_y_offset = (1.0 - message_progress) * config_.message.enter_y_offset;
+        frame.use_quick_pass_message_layout = false;
     } else if (state_ == ResortTransferLoadingState::LoadingLoop) {
         const double message_progress = auto_flow_ && minimum_loop_seconds_ <= 0.0
             ? loadingStageProgress(config_.message.intro, state_time_)
@@ -455,6 +616,7 @@ ResortTransferLoadingFrame ResortTransferLoadingScreen::buildFrame(SDL_Renderer*
         frame.boat_velocity_x = boat_velocity_x_;
         frame.message_alpha = suppress_message_ ? 0.0 : message_progress;
         frame.message_y_offset = (1.0 - message_progress) * config_.message.enter_y_offset;
+        frame.use_quick_pass_message_layout = false;
     } else if (state_ == ResortTransferLoadingState::Outro) {
         const double message_out = loadingStageProgress(config_.message.outro, state_time_);
         frame.water_sun = 1.0 - loadingStageProgress(config_.timing.outro_water_sun, state_time_);
@@ -466,6 +628,7 @@ ResortTransferLoadingFrame ResortTransferLoadingScreen::buildFrame(SDL_Renderer*
         frame.boat_velocity_x = boat_velocity_x_;
         frame.message_alpha = suppress_message_ ? 0.0 : 1.0 - message_out;
         frame.message_y_offset = -message_out * config_.message.enter_y_offset * 0.5;
+        frame.use_quick_pass_message_layout = false;
     }
     return frame;
 }

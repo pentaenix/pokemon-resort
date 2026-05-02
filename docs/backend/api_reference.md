@@ -104,6 +104,8 @@ Implemented in [`tools/pkhex_bridge`](/Users/vanta/Desktop/title_screen_demo/too
   Probe/preview command. Emits `bridge_probe_schema: 5` plus legacy ticket fields.
 - `PKHeXBridge import <save-path>`
   Import-grade read. Emits `bridge_import_schema: 1`, including exact per-Pokemon raw payload bytes and SHA-256 hashes.
+- `PKHeXBridge pkm-inspect <pkm-path> [source-game]`
+  Import-grade single-PKM inspection. Emits `bridge_pkm_inspect_schema: 1` and a compatible `bridge_import_schema: 1` Pokemon array for backend repair tools. Used to rebuild warm display metadata from stored raw snapshots.
 - `PKHeXBridge write-projection <save-path> <projection-json-path>`
   Applies a projection JSON to the save (after snapshots under `<projection-dir>/transfer_write_backups/`). Supports `projection_schema` 1 (box names) and 2 (full PC snapshot + names). See [`PKHEX_BRIDGE.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/PKHEX_BRIDGE.md).
 
@@ -125,6 +127,8 @@ Source: [`tools/resort_backend_tool.cpp`](/Users/vanta/Desktop/title_screen_demo
   Runs normal export projection and can write projection bytes to `--out`.
 - `resort_backend_tool recover --db <profile.resort.db> --pkrid <pkrid> [--profile default]`
   Emergency recovery for an existing canonical Pokemon. Places it in the first available Resort slot using reject-if-occupied placement and closes any stale active mirror.
+- `resort_backend_tool backfill-warm-metadata --db <profile.resort.db> [--project-root <pokemon-resort>] [--dry-run true] [--backup <path>] [--no-backup true]`
+  Repairs existing canonical Pokemon whose warm display metadata predates the richer Resort info banner. For each Pokemon, it reads the latest raw PK snapshot, runs `PKHeXBridge pkm-inspect`, merges species/type/nature/ability/icon/history-ready metadata into `pokemon.warm_json`, and refreshes hot fields such as ball, ability, HP, status, OT, and origin data. By default it writes `<db>.bak.backfill-warm-metadata` before modifying the DB. Use `--dry-run true` first to verify all snapshots can be inspected.
 - `resort_backend_tool reset --db <profile.resort.db> [--profile default] [--backup <path>] --confirm RESET`
   **DANGEROUS**: wipes the Resort profile to an empty state. Deletes all canonical Pokémon (cascading snapshots/history/mirrors) and clears `box_slots`. Requires explicit `--confirm RESET`. Use `--backup` to copy the DB file before modifying it.
 

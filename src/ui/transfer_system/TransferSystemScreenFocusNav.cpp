@@ -329,6 +329,9 @@ void TransferSystemScreen::drawSelectionCursor(SDL_Renderer* renderer) const {
     if (box_rename_modal_open_) {
         return;
     }
+    if (exit_save_modal_open_) {
+        return;
+    }
     if (game_box_browser_.dropdownOpenTarget() && game_box_browser_.dropdownExpandT() > 0.04) {
         return;
     }
@@ -381,7 +384,7 @@ bool TransferSystemScreen::currentFocusWantsSpeechBubble() const {
         return false;
     }
     if (pokemon_move_.active() || multi_pokemon_move_.active() || pokemon_action_menu_.visible() ||
-        game_box_browser_.dropdownOpenTarget() || resort_box_browser_.dropdownOpenTarget()) {
+        exit_save_modal_open_ || game_box_browser_.dropdownOpenTarget() || resort_box_browser_.dropdownOpenTarget()) {
         return false;
     }
 
@@ -422,4 +425,3 @@ bool TransferSystemScreen::currentFocusWantsSpeechBubble() const {
 }
 
 } // namespace pr
-

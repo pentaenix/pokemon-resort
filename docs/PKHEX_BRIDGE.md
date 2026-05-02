@@ -58,6 +58,14 @@ Import-grade read:
 dotnet run --project /Users/vanta/Desktop/title_screen_demo/tools/pkhex_bridge/PKHeXBridge.csproj -- import "/absolute/path/to/save.sav"
 ```
 
+Single PKM inspection, used by Resort metadata repair:
+
+```bash
+dotnet run --project /Users/vanta/Desktop/title_screen_demo/tools/pkhex_bridge/PKHeXBridge.csproj -- pkm-inspect "/absolute/path/to/pokemon.pk4" 64
+```
+
+Output includes `bridge_pkm_inspect_schema: 1` and a compatible `bridge_import_schema: 1` Pokemon array. The optional numeric source game is copied into the import-style payload when known.
+
 Guarded projection write-back validation:
 
 ```bash

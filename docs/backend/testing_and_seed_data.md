@@ -88,6 +88,19 @@ Export a projection:
 
 The export command writes an export snapshot, opens a mirror session, and optionally writes the synthetic projection payload to a file.
 
+Repair existing Resort Pokemon metadata:
+
+```bash
+/Users/vanta/Desktop/title_screen_demo/pokemon-resort/build/resort_backend_tool backfill-warm-metadata \
+  --db "/Users/vanta/Library/Application Support/VantaStudio/PokemonResort/profile.resort.db" \
+  --project-root /Users/vanta/Desktop/title_screen_demo/pokemon-resort \
+  --dry-run true
+```
+
+If the dry run reports `failed:0`, run the same command without `--dry-run true`. The command creates
+`profile.resort.db.bak.backfill-warm-metadata` by default, then rebuilds warm info-banner metadata from each
+Pokemon's latest raw PK snapshot.
+
 ## Bridge Commands
 
 For bridge contract details, launch resolution, and JSON examples, use [`../PKHEX_BRIDGE.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/PKHEX_BRIDGE.md) as the canonical guide.
