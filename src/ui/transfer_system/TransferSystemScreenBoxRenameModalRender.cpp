@@ -1,6 +1,6 @@
 #include "ui/TransferSystemScreen.hpp"
 
-#include "core/Assets.hpp"
+#include "core/assets/Assets.hpp"
 #include "ui/transfer_system/detail/SdlScanlineDraw.hpp"
 
 #include <SDL.h>

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "core/PcSlotSpecies.hpp"
+#include "core/domain/PcSlotSpecies.hpp"
 
 #include <SDL.h>
 

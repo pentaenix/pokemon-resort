@@ -1,7 +1,7 @@
 #include "ui/loading/PokeballLoadingScreen.hpp"
 
-#include "core/Font.hpp"
-#include "core/Json.hpp"
+#include "core/assets/Font.hpp"
+#include "core/config/Json.hpp"
 
 #include <SDL_image.h>
 

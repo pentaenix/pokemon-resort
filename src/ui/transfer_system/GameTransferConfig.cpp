@@ -1,6 +1,6 @@
 #include "ui/transfer_system/GameTransferConfig.hpp"
 
-#include "core/Json.hpp"
+#include "core/config/Json.hpp"
 
 #include <algorithm>
 #include <cmath>

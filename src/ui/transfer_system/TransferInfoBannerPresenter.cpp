@@ -1,7 +1,7 @@
 #include "ui/transfer_system/TransferInfoBannerPresenter.hpp"
 
-#include "core/PokemonBall.hpp"
-#include "core/PokemonOrigin.hpp"
+#include "core/domain/PokemonBall.hpp"
+#include "core/domain/PokemonOrigin.hpp"
 
 #include <algorithm>
 #include <cctype>

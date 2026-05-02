@@ -1,7 +1,7 @@
 #pragma once
 
-#include "core/Assets.hpp"
-#include "core/Font.hpp"
+#include "core/assets/Assets.hpp"
+#include "core/assets/Font.hpp"
 #include "core/Types.hpp"
 #include "ui/loading/LoadingScreenBase.hpp"
 

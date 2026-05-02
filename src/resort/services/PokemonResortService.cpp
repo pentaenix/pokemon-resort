@@ -1,6 +1,6 @@
 #include "resort/services/PokemonResortService.hpp"
 
-#include "core/Sha256.hpp"
+#include "core/crypto/Sha256.hpp"
 #include "resort/domain/Ids.hpp"
 #include "resort/integration/Gen12DvBytes.hpp"
 #include "resort/persistence/Migrations.hpp"

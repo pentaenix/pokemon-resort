@@ -1,6 +1,6 @@
 #pragma once
 
-#include "core/Assets.hpp"
+#include "core/assets/Assets.hpp"
 #include "core/Types.hpp"
 #include "ui/Screen.hpp"
 #include "ui/title_screen/MainMenuController.hpp"

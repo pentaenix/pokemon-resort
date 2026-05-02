@@ -1,6 +1,6 @@
 #include "resort/integration/Gen12DvBytes.hpp"
 
-#include "core/Sha256.hpp"
+#include "core/crypto/Sha256.hpp"
 
 #include <cctype>
 #include <iomanip>

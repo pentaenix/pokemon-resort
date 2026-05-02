@@ -4,10 +4,10 @@
 
 ## Owning Files
 
-- [`include/core/PokeSpriteAssets.hpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/core/PokeSpriteAssets.hpp)
-- [`src/core/PokeSpriteAssets.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/PokeSpriteAssets.cpp)
-- [`include/core/PcSlotSpecies.hpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/core/PcSlotSpecies.hpp)
-- [`src/core/SaveLibrary.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/SaveLibrary.cpp)
+- [`include/core/assets/PokeSpriteAssets.hpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/core/assets/PokeSpriteAssets.hpp)
+- [`src/core/assets/PokeSpriteAssets.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/assets/PokeSpriteAssets.cpp)
+- [`include/core/domain/PcSlotSpecies.hpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/core/domain/PcSlotSpecies.hpp)
+- [`src/core/save/SaveLibrary.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/save/SaveLibrary.cpp)
 
 Current UI consumers:
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "core/PcSlotSpecies.hpp"
+#include "core/domain/PcSlotSpecies.hpp"
 #include "ui/transfer_system/PokemonMoveController.hpp"
 
 #include <SDL.h>

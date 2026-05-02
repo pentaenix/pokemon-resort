@@ -1,6 +1,6 @@
 #include "ui/TransferSystemScreen.hpp"
 
-#include "core/SaveBridgeClient.hpp"
+#include "core/bridge/SaveBridgeClient.hpp"
 #include "resort/domain/ExportedPokemon.hpp"
 #include "resort/domain/ImportedPokemon.hpp"
 #include "resort/integration/BridgeImportAdapter.hpp"
