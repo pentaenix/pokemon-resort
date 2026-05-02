@@ -78,3 +78,17 @@ Existing method to reuse:
 See [api_reference.md](api_reference.md) for the current method list before adding another frontend-facing backend wrapper.
 
 Deferred UI-facing work includes richer conflict prompts, native Gen 1/2 ambiguous matching UX, real write-back completion, and advanced warm/cold detail rendering.
+
+## Transition plan: transfer screen as Resort source of truth
+
+The transfer system still mixes **bridge preview models** with **in-memory** game/resort slot arrays. Cross-generational travel requires the architecture in [`../transfer_system/MIRROR_PROJECTION_ARCHITECTURE.md`](../transfer_system/MIRROR_PROJECTION_ARCHITECTURE.md): Resort holds canonical state; the bridge `project` command produces target-generation PC payloads; write-back uses import-grade encrypted slots.
+
+Concrete integration order:
+
+1. **Read path** — Render Resort boxes from `PokemonResortService::getBoxSlotViews` / `getPokemonById` only; stop treating UI slot vectors as durable for the Resort column.
+2. **Import path** — Route “drop into Resort” through `PokemonResortService::importParsedPokemon` (already the law for real imports); keep `BridgeImportService` for batch save imports.
+3. **Export / send** — For a target game, load the latest checkpoint snapshot, call `MirrorProjectionService::projectLatestSnapshotToTarget` (wraps `projectPokemonWithBridge`), then stage `ExportResult.raw_payload` for `write-projection` or an explicit “send to game” handoff. Do not cache a static `.pk` file across trips; always re-project from the current checkpoint.
+4. **Return** — On import, `ReturnRaw` + `CanonicalCheckpoint` rows and `MirrorReturnAnalysis` (pre-merge flags) feed future conflict UI; surface `SaveBridgeProjectResult` loss fields when sending (loss manifest from bridge `project` JSON).
+5. **Player prompts** — Add lossy-projection and quarantine-review modals driven by bridge metadata, not hardcoded generation lists.
+
+Until those steps land, the lower banner and box UI may show **preview** data for the external column and **read-model** data for Resort only where already wired.

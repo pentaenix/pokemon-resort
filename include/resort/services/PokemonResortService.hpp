@@ -14,6 +14,7 @@
 #include "resort/services/PokemonExportService.hpp"
 #include "resort/services/PokemonMatcher.hpp"
 #include "resort/services/PokemonMergeService.hpp"
+#include "resort/services/MirrorProjectionService.hpp"
 #include "resort/services/MirrorSessionService.hpp"
 
 #include <filesystem>
@@ -61,7 +62,10 @@ public:
     std::optional<PokemonSnapshot> prepareLatestRawSnapshotForGameWrite(
         const std::string& pkrid,
         std::optional<std::uint16_t> game_id = std::nullopt,
-        const std::string& format_name = {});
+        const std::string& format_name = {},
+        const std::string& bridge_project_root = {},
+        const char* bridge_argv0 = nullptr,
+        const std::filesystem::path& bridge_project_request_path = {});
     std::vector<PokemonSlotView> getBoxSlotViews(const std::string& profile_id, int box_id) const;
     std::optional<BoxLocation> getPokemonLocation(const std::string& profile_id, const std::string& pkrid) const;
 
@@ -110,6 +114,7 @@ private:
     std::unique_ptr<PokemonMergeService> merge_;
     std::unique_ptr<MirrorSessionService> mirror_sessions_;
     std::unique_ptr<PokemonImportService> imports_;
+    std::unique_ptr<MirrorProjectionService> projection_;
     std::unique_ptr<PokemonExportService> exports_;
 };
 

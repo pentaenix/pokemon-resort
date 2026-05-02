@@ -2,7 +2,9 @@
 
 #include "core/crypto/Sha256.hpp"
 #include "resort/domain/Ids.hpp"
+#include "resort/domain/PkmFormat.hpp"
 #include "resort/integration/Gen12DvBytes.hpp"
+#include "resort/services/MirrorProjectionService.hpp"
 #include "resort/persistence/Migrations.hpp"
 #include "resort/persistence/SqliteConnection.hpp"
 
@@ -46,13 +48,15 @@ PokemonResortService::PokemonResortService(const std::filesystem::path& profile_
         *matcher_,
         *merge_,
         *mirror_sessions_);
+    projection_ = std::make_unique<MirrorProjectionService>(*pokemon_, *snapshots_);
     exports_ = std::make_unique<PokemonExportService>(
         *connection_,
         *pokemon_,
         *boxes_,
         *snapshots_,
         *history_,
-        *mirror_sessions_);
+        *mirror_sessions_,
+        *projection_);
 }
 
 PokemonResortService::~PokemonResortService() = default;
@@ -135,9 +139,47 @@ std::optional<PokemonSnapshot> PokemonResortService::getLatestRawSnapshotForPoke
 std::optional<PokemonSnapshot> PokemonResortService::prepareLatestRawSnapshotForGameWrite(
     const std::string& pkrid,
     std::optional<std::uint16_t> game_id,
-    const std::string& format_name) {
-    auto snapshot = snapshots_->findLatestRawForPokemon(pkrid, game_id, format_name);
-    if (!snapshot || snapshot->raw_bytes.empty() || !isGen12StorageFormat(snapshot->format_name)) {
+    const std::string& format_name,
+    const std::string& bridge_project_root,
+    const char* bridge_argv0,
+    const std::filesystem::path& bridge_project_request_path) {
+    // Always start from the latest non-export snapshot by time. Do **not** prefer (game_id, format)
+    // first: an older same-format row (e.g. original Emerald pk3) would win over a newer ReturnRaw pk4
+    // from another generation, and we'd skip projection — stale bytes would overwrite mutable progress
+    // (level, exp, …) that merge already applied to canonical hot data.
+    auto snapshot = snapshots_->findLatestRawForPokemon(pkrid, std::nullopt, {});
+    if (!snapshot || snapshot->raw_bytes.empty() || snapshot->raw_hash_sha256.empty()) {
+        return std::nullopt;
+    }
+
+    if (!format_name.empty() && !pkmFormatNamesEqual(snapshot->format_name, format_name)) {
+        if (bridge_project_root.empty() || bridge_argv0 == nullptr || bridge_project_request_path.empty()) {
+            return std::nullopt;
+        }
+        MirrorBridgeProjectInput input;
+        input.pkrid = pkrid;
+        input.target_game = game_id.value_or(0);
+        input.target_format_name = format_name;
+        input.allow_lossy_projection = true;
+        const MirrorProjectDecodedResult projected = projection_->projectLatestSnapshotToTargetDecoded(
+            input, bridge_project_root, bridge_argv0, bridge_project_request_path);
+        if (!projected.success) {
+            std::cerr << "Warning: cross-gen prepare failed pkrid=" << pkrid
+                      << " err=" << projected.error << '\n';
+            return std::nullopt;
+        }
+        PokemonSnapshot next = *snapshot;
+        next.snapshot_id = generateId("snap");
+        next.kind = SnapshotKind::CanonicalCheckpoint;
+        next.captured_at_unix = unixNow();
+        next.format_name = projected.target_format_name;
+        next.raw_bytes = projected.raw_bytes;
+        next.raw_hash_sha256 = projected.raw_hash_sha256;
+        next.notes_json = "{\"schema_version\":1,\"reason\":\"cross_gen_projection_for_game_write\"}";
+        snapshot = std::move(next);
+    }
+
+    if (!isGen12StorageFormat(snapshot->format_name)) {
         return snapshot;
     }
 

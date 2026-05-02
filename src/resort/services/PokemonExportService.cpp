@@ -2,8 +2,11 @@
 
 #include "core/crypto/Sha256.hpp"
 #include "resort/domain/Ids.hpp"
+#include "resort/domain/PkmFormat.hpp"
 #include "resort/integration/Gen12DvBytes.hpp"
+#include "resort/services/MirrorProjectionService.hpp"
 
+#include <filesystem>
 #include <iostream>
 #include <iomanip>
 #include <random>
@@ -118,13 +121,15 @@ PokemonExportService::PokemonExportService(
     BoxRepository& boxes,
     SnapshotRepository& snapshots,
     HistoryRepository& history,
-    MirrorSessionService& mirror_sessions)
+    MirrorSessionService& mirror_sessions,
+    MirrorProjectionService& projection)
     : connection_(connection),
       pokemon_(pokemon),
       boxes_(boxes),
       snapshots_(snapshots),
       history_(history),
-      mirror_sessions_(mirror_sessions) {}
+      mirror_sessions_(mirror_sessions),
+      projection_(projection) {}
 
 ExportResult PokemonExportService::exportPokemon(
     const std::string& pkrid,
@@ -168,72 +173,162 @@ ExportResult PokemonExportService::exportPokemon(
         std::string format_name = context.target_format_name.empty() ? std::string("projection-json")
                                                                      : context.target_format_name;
         bool canonical_dv_repaired = false;
-        std::optional<PokemonSnapshot> compatible_raw =
-            snapshots_.findLatestRawForPokemon(pkrid, context.target_game, context.target_format_name);
-        if (!compatible_raw && !context.target_format_name.empty()) {
-            compatible_raw = snapshots_.findLatestRawForPokemon(pkrid, context.target_game);
-        }
+        // Latest snapshot first (see prepareLatestRawSnapshotForGameWrite): filtering by target_game +
+        // target_format returns an older same-format import instead of a newer ReturnRaw from another gen.
+        std::optional<PokemonSnapshot> compatible_raw = snapshots_.findLatestRawForPokemon(pkrid, std::nullopt, {});
+
+        bool have_import_grade_raw = false;
+
         if (compatible_raw && !compatible_raw->raw_bytes.empty()) {
-            format_name = compatible_raw->format_name;
-            raw = compatible_raw->raw_bytes;
-            raw_hash = compatible_raw->raw_hash_sha256;
-            std::cerr << kTempTransferLog
-                      << " Backend export using compatible raw snapshot pkrid=" << pkrid
-                      << " source_snapshot_id=" << compatible_raw->snapshot_id
-                      << " format=" << format_name
-                      << " raw_bytes=" << raw.size()
-                      << " hash=" << raw_hash << '\n';
-            if (isGen12StorageFormat(format_name)) {
-                if (const auto from_raw = readPk12Dv16FromRaw(raw, format_name)) {
-                    if (*from_raw == 0 || !pokemon->hot.dv16 || *pokemon->hot.dv16 == 0) {
-                        std::optional<std::uint16_t> use_dv;
-                        if (pokemon->hot.dv16 && *pokemon->hot.dv16 != 0) {
-                            use_dv = *pokemon->hot.dv16;
-                        } else if (*from_raw != 0) {
-                            use_dv = *from_raw;
-                        } else {
-                            use_dv = randomNonZeroGen12Dv16(kGen12ExportDvRng);
-                        }
-                        if (*from_raw == 0) {
-                            if (!patchPk12DvBytes(raw, format_name, *use_dv)) {
-                                throw std::runtime_error("failed to patch Gen 1/2 DV bytes during export");
+            const bool format_matches_target =
+                context.target_format_name.empty() ||
+                pkmFormatNamesEqual(compatible_raw->format_name, context.target_format_name);
+            if (format_matches_target) {
+                have_import_grade_raw = true;
+                format_name = compatible_raw->format_name;
+                raw = compatible_raw->raw_bytes;
+                raw_hash = compatible_raw->raw_hash_sha256;
+                std::cerr << kTempTransferLog
+                          << " Backend export using compatible raw snapshot pkrid=" << pkrid
+                          << " source_snapshot_id=" << compatible_raw->snapshot_id
+                          << " format=" << format_name
+                          << " raw_bytes=" << raw.size()
+                          << " hash=" << raw_hash << '\n';
+                if (isGen12StorageFormat(format_name)) {
+                    if (const auto from_raw = readPk12Dv16FromRaw(raw, format_name)) {
+                        if (*from_raw == 0 || !pokemon->hot.dv16 || *pokemon->hot.dv16 == 0) {
+                            std::optional<std::uint16_t> use_dv;
+                            if (pokemon->hot.dv16 && *pokemon->hot.dv16 != 0) {
+                                use_dv = *pokemon->hot.dv16;
+                            } else if (*from_raw != 0) {
+                                use_dv = *from_raw;
+                            } else {
+                                use_dv = randomNonZeroGen12Dv16(kGen12ExportDvRng);
                             }
-                            raw_hash = pr::sha256HexLowercase(raw);
-                            std::cerr << kTempTransferLog
-                                      << " Backend export repaired Gen12 zero DV in raw "
-                                      << formatGen12Dv16ForLog(*use_dv)
-                                      << " source_snapshot_id=" << compatible_raw->snapshot_id
-                                      << " pkrid=" << pkrid << '\n';
+                            if (*from_raw == 0) {
+                                if (!patchPk12DvBytes(raw, format_name, *use_dv)) {
+                                    throw std::runtime_error("failed to patch Gen 1/2 DV bytes during export");
+                                }
+                                raw_hash = pr::sha256HexLowercase(raw);
+                                std::cerr << kTempTransferLog
+                                          << " Backend export repaired Gen12 zero DV in raw "
+                                          << formatGen12Dv16ForLog(*use_dv)
+                                          << " source_snapshot_id=" << compatible_raw->snapshot_id
+                                          << " pkrid=" << pkrid << '\n';
+                            }
+                            if (!pokemon->hot.dv16 || *pokemon->hot.dv16 == 0) {
+                                pokemon->hot.dv16 = *use_dv;
+                                pokemon->revision += 1;
+                                pokemon->updated_at_unix = now;
+                                canonical_dv_repaired = true;
+                            }
                         }
-                        if (!pokemon->hot.dv16 || *pokemon->hot.dv16 == 0) {
-                            pokemon->hot.dv16 = *use_dv;
-                            pokemon->revision += 1;
-                            pokemon->updated_at_unix = now;
-                            canonical_dv_repaired = true;
-                        }
+                        std::cerr << kTempTransferLog << " Backend export Gen12 DV in exported raw "
+                                  << formatGen12Dv16ForLog(*readPk12Dv16FromRaw(raw, format_name))
+                                  << " hot.dv16="
+                                  << (pokemon->hot.dv16 ? std::to_string(*pokemon->hot.dv16)
+                                                        : std::string("null"))
+                                  << " pkrid=" << pkrid << '\n';
+                    } else {
+                        std::cerr << kTempTransferLog
+                                  << " Backend export Gen12 DV unreadable in raw (too small?) "
+                                  << "format=" << format_name << " pkrid=" << pkrid << '\n';
                     }
-                    std::cerr << kTempTransferLog << " Backend export Gen12 DV in exported raw "
-                              << formatGen12Dv16ForLog(*readPk12Dv16FromRaw(raw, format_name))
-                              << " hot.dv16="
-                              << (pokemon->hot.dv16 ? std::to_string(*pokemon->hot.dv16) : std::string("null"))
-                              << " pkrid=" << pkrid << '\n';
-                } else {
-                    std::cerr << kTempTransferLog << " Backend export Gen12 DV unreadable in raw (too small?) "
-                              << "format=" << format_name << " pkrid=" << pkrid << '\n';
                 }
+                std::ostringstream out;
+                out << "{"
+                    << "\"projection_schema\":1,"
+                    << "\"projection_kind\":\"resort_same_game_raw_snapshot\","
+                    << "\"pkrid\":\"" << escapeJson(pokemon->id.pkrid) << "\","
+                    << "\"source_snapshot_id\":\"" << escapeJson(compatible_raw->snapshot_id) << "\","
+                    << "\"target_game\":" << context.target_game << ","
+                    << "\"target_format\":\"" << escapeJson(format_name) << "\","
+                    << "\"lossy\":false"
+                    << "}";
+                projection = out.str();
+            } else if (!context.bridge_project_root.empty() && context.bridge_argv0 != nullptr) {
+                MirrorBridgeProjectInput bridge_in;
+                bridge_in.pkrid = pkrid;
+                bridge_in.target_game = context.target_game;
+                bridge_in.target_format_name = context.target_format_name;
+                const std::filesystem::path req_path =
+                    std::filesystem::temp_directory_path() / ("pr_export_proj_" + pkrid + ".json");
+                const MirrorProjectDecodedResult decoded = projection_.projectLatestSnapshotToTargetDecoded(
+                    bridge_in,
+                    context.bridge_project_root,
+                    context.bridge_argv0,
+                    req_path);
+                if (!decoded.success) {
+                    result.error =
+                        decoded.error.empty() ? std::string("bridge cross-gen projection failed") : decoded.error;
+                    return result;
+                }
+                have_import_grade_raw = true;
+                format_name = decoded.target_format_name;
+                raw = std::move(decoded.raw_bytes);
+                raw_hash = decoded.raw_hash_sha256;
+                std::cerr << kTempTransferLog
+                          << " Backend export using bridge cross-gen projection pkrid=" << pkrid
+                          << " source_snapshot_id=" << compatible_raw->snapshot_id
+                          << " format=" << format_name
+                          << " raw_bytes=" << raw.size()
+                          << " hash=" << raw_hash << '\n';
+                if (isGen12StorageFormat(format_name)) {
+                    if (const auto from_raw = readPk12Dv16FromRaw(raw, format_name)) {
+                        if (*from_raw == 0 || !pokemon->hot.dv16 || *pokemon->hot.dv16 == 0) {
+                            std::optional<std::uint16_t> use_dv;
+                            if (pokemon->hot.dv16 && *pokemon->hot.dv16 != 0) {
+                                use_dv = *pokemon->hot.dv16;
+                            } else if (*from_raw != 0) {
+                                use_dv = *from_raw;
+                            } else {
+                                use_dv = randomNonZeroGen12Dv16(kGen12ExportDvRng);
+                            }
+                            if (*from_raw == 0) {
+                                if (!patchPk12DvBytes(raw, format_name, *use_dv)) {
+                                    throw std::runtime_error("failed to patch Gen 1/2 DV bytes during export");
+                                }
+                                raw_hash = pr::sha256HexLowercase(raw);
+                                std::cerr << kTempTransferLog
+                                          << " Backend export repaired Gen12 zero DV after cross-gen raw "
+                                          << formatGen12Dv16ForLog(*use_dv)
+                                          << " source_snapshot_id=" << compatible_raw->snapshot_id
+                                          << " pkrid=" << pkrid << '\n';
+                            }
+                            if (!pokemon->hot.dv16 || *pokemon->hot.dv16 == 0) {
+                                pokemon->hot.dv16 = *use_dv;
+                                pokemon->revision += 1;
+                                pokemon->updated_at_unix = now;
+                                canonical_dv_repaired = true;
+                            }
+                        }
+                        std::cerr << kTempTransferLog << " Backend export Gen12 DV in exported raw "
+                                  << formatGen12Dv16ForLog(*readPk12Dv16FromRaw(raw, format_name))
+                                  << " hot.dv16="
+                                  << (pokemon->hot.dv16 ? std::to_string(*pokemon->hot.dv16)
+                                                        : std::string("null"))
+                                  << " pkrid=" << pkrid << '\n';
+                    } else {
+                        std::cerr << kTempTransferLog
+                                  << " Backend export Gen12 DV unreadable after cross-gen (too small?) "
+                                  << "format=" << format_name << " pkrid=" << pkrid << '\n';
+                    }
+                }
+                std::ostringstream out;
+                out << "{"
+                    << "\"projection_schema\":1,"
+                    << "\"projection_kind\":\"resort_bridge_cross_gen_projection\","
+                    << "\"pkrid\":\"" << escapeJson(pokemon->id.pkrid) << "\","
+                    << "\"source_snapshot_id\":\"" << escapeJson(compatible_raw->snapshot_id) << "\","
+                    << "\"target_game\":" << context.target_game << ","
+                    << "\"target_format\":\"" << escapeJson(format_name) << "\","
+                    << "\"lossy\":true"
+                    << "}";
+                projection = out.str();
             }
-            std::ostringstream out;
-            out << "{"
-                << "\"projection_schema\":1,"
-                << "\"projection_kind\":\"resort_same_game_raw_snapshot\","
-                << "\"pkrid\":\"" << escapeJson(pokemon->id.pkrid) << "\","
-                << "\"source_snapshot_id\":\"" << escapeJson(compatible_raw->snapshot_id) << "\","
-                << "\"target_game\":" << context.target_game << ","
-                << "\"target_format\":\"" << escapeJson(format_name) << "\","
-                << "\"lossy\":false"
-                << "}";
-            projection = out.str();
-        } else {
+        }
+
+        if (!have_import_grade_raw) {
             projection = projectionJson(*pokemon, context, beacon_tid, beacon_ot);
             raw.assign(projection.begin(), projection.end());
             raw_hash = stableProjectionHash(raw);

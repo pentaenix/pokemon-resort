@@ -21,4 +21,12 @@ bool parseBridgeImportFirstPokemonSourceGame(
     std::uint16_t* out_source_game,
     std::string* error_message = nullptr);
 
+/// Reads `format_name` from the first entry (PKHeX entity type lowercased, e.g. `pk4`). Matches the save's
+/// native encrypted PKM layout for PC writes — use this for cross-gen projection targets instead of `PcSlotSpecies::format`
+/// when mirror slots still carry a Pokémon's source encoding (e.g. `pk3`).
+bool parseBridgeImportFirstPokemonFormatName(
+    const std::string& bridge_import_stdout_json,
+    std::string* out_format_name,
+    std::string* error_message = nullptr);
+
 } // namespace pr

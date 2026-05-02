@@ -31,15 +31,14 @@ Already implemented:
 - Same-game return imports can attach generic exact-identity matches to an active mirror session and close that session after merge.
 - The transfer screen can attach exported raw snapshot bytes to a game slot as a mirror payload, so real save write-back has PKM bytes for Resort-origin Pokemon.
 - The native app keeps PKHeX behind the process bridge in `tools/pkhex_bridge`.
-- The bridge `project` command contract/stub exists and validates request shape; `SaveBridgeClient` has typed parsing/client seams for project results.
+- The bridge `project` command performs PKHeX `EntityConverter` runs; `SaveBridgeClient` exposes `projectPokemonWithBridge` and typed result parsing.
 
-Not yet implemented:
+Not yet implemented / partially implemented:
 
-- PKHeX-backed bridge `project` conversion for arbitrary target-generation projections.
-- A durable per-Pokemon canonical raw checkpoint separate from event snapshots.
+- PKHeX-backed bridge `project` conversion is **implemented** for arbitrary target-generation projections (`tools/pkhex_bridge/BridgeProject.cs`, PKHeX `EntityConverter`). Loss manifests remain heuristic until richer field-diff reporting lands.
+- Rolling **`CanonicalCheckpoint`** snapshots after **every** import are implemented in `PokemonImportService`; outbound orchestration still needs UI/export wiring to prefer bridge-projected bytes over recycled payloads everywhere.
 - A field-level merge policy that understands every mutable category across generations.
 - Player UI for lossy projection prompts, mirror send, mirror return, unboxed "away" state, and conflict review.
-- Cross-generation projection and loss manifests backed by PKHeX conversion/fallback rules.
 
 ## Architecture Diagram
 

@@ -7,7 +7,7 @@ Resort profile storage is SQLite-backed. The runtime path is `save_directory / p
 - `pokemon` stores canonical hot fields plus warm/cold JSON payloads. This is the long-lived Resort record.
 - `boxes` stores box metadata for a profile.
 - `box_slots` stores placement independently from canonical Pokemon. A partial unique index on `(profile_id, pkrid)` ensures one Pokemon occupies at most one slot per profile.
-- `pokemon_snapshots` stores exact raw imported/exported payload bytes and parsed notes.
+- `pokemon_snapshots` stores exact raw imported/exported payload bytes and parsed notes. `CanonicalCheckpoint` snapshots record the latest rolling evidence bytes after each import merge/create (paired with `ImportedRaw` / `ReturnRaw` rows); queries that need the best export source order prefer this kind (see `SnapshotRepository::findLatestRawForPokemon`).
 - `pokemon_history` stores audit events.
 - `mirror_sessions` stores outbound managed projections and return-tracking anchors.
 

@@ -48,7 +48,11 @@ The transaction order is:
 
 If placement or merge fails, the snapshot, canonical update, mirror close, history, and placement roll back together.
 
-Current snapshot kind note: all native imports, including managed returns, are stored as `SnapshotKind::ImportedRaw`. `SnapshotKind::ReturnRaw` is defined but not emitted by the current import service.
+Snapshot kinds:
+
+- First-class external imports use `SnapshotKind::ImportedRaw`.
+- Imports that resolve an active managed mirror (`match.mirror_session_id` set) use `SnapshotKind::ReturnRaw` for the incoming evidence row.
+- After every successful import that carries real PKM bytes, a companion `SnapshotKind::CanonicalCheckpoint` row is written so `SnapshotRepository::findLatestRawForPokemon` prefers the rolling canonical evidence for outbound projection (see [`storage_model.md`](storage_model.md)).
 
 ## Return Imports
 

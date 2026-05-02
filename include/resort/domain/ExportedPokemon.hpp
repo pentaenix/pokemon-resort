@@ -13,6 +13,10 @@ struct ExportContext {
     std::string target_format_name = "projection-json";
     bool managed_mirror = true;
     bool use_gen12_beacon = false;
+    /// When set with `bridge_argv0`, cross-generation exports call the PKHeX bridge `project` command
+    /// instead of reusing a same-format raw snapshot.
+    std::string bridge_project_root;
+    const char* bridge_argv0 = nullptr;
 };
 
 struct ExportResult {

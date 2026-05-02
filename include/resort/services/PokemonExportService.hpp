@@ -10,6 +10,8 @@
 
 namespace pr::resort {
 
+class MirrorProjectionService;
+
 class PokemonExportService {
 public:
     PokemonExportService(
@@ -18,7 +20,8 @@ public:
         BoxRepository& boxes,
         SnapshotRepository& snapshots,
         HistoryRepository& history,
-        MirrorSessionService& mirror_sessions);
+        MirrorSessionService& mirror_sessions,
+        MirrorProjectionService& projection);
 
     ExportResult exportPokemon(const std::string& pkrid, const ExportContext& context);
 
@@ -29,6 +32,7 @@ private:
     SnapshotRepository& snapshots_;
     HistoryRepository& history_;
     MirrorSessionService& mirror_sessions_;
+    MirrorProjectionService& projection_;
 };
 
 } // namespace pr::resort

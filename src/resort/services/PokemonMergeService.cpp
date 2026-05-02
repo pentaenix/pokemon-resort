@@ -1,7 +1,10 @@
 #include "resort/services/PokemonMergeService.hpp"
 
 #include "core/config/Json.hpp"
+#include "resort/domain/PokemonMergeFieldPolicy.hpp"
 #include "resort/integration/Gen12DvBytes.hpp"
+
+#include <string>
 
 #include <iomanip>
 #include <sstream>
@@ -129,6 +132,48 @@ pr::JsonValue mergeJsonValue(const pr::JsonValue& existing, const pr::JsonValue&
     return incoming;
 }
 
+pr::JsonValue stripIncomingWarmMirrorStaticKeys(const pr::JsonValue& incoming) {
+    if (!incoming.isObject()) {
+        return incoming;
+    }
+    pr::JsonValue::Object obj = incoming.asObject();
+    for (const auto key : pr::resort::kMirrorWarmStripIncomingKeys) {
+        obj.erase(std::string(key));
+    }
+    auto catalog_it = obj.find("resort_catalog");
+    if (catalog_it != obj.end() && catalog_it->second.isObject()) {
+        pr::JsonValue::Object catalog = catalog_it->second.asObject();
+        // `static_fields` describes the projected/cart format read. On mirror return, keep Resort's
+        // original static catalog instead of letting Pal Park / transfer metadata replace it.
+        catalog.erase("static_fields");
+        catalog_it->second = pr::JsonValue(catalog);
+    }
+    return pr::JsonValue(obj);
+}
+
+std::string mergeWarmJsonMirrorReturn(const std::string& existing, const std::string& incoming) {
+    if (isEmptyPayload(incoming)) {
+        return isEmptyPayload(existing) ? std::string(kDefaultJsonPayload) : existing;
+    }
+    if (isEmptyPayload(existing)) {
+        try {
+            const pr::JsonValue inc_root = pr::parseJsonText(incoming);
+            return serializeJson(stripIncomingWarmMirrorStaticKeys(inc_root));
+        } catch (const std::exception&) {
+            return incoming;
+        }
+    }
+
+    try {
+        const pr::JsonValue existing_json = pr::parseJsonText(existing);
+        const pr::JsonValue stripped_incoming =
+            stripIncomingWarmMirrorStaticKeys(pr::parseJsonText(incoming));
+        return serializeJson(mergeJsonValue(existing_json, stripped_incoming));
+    } catch (const std::exception&) {
+        return existing;
+    }
+}
+
 std::string mergeJsonPayload(const std::string& existing, const std::string& incoming) {
     if (isEmptyPayload(incoming)) {
         return isEmptyPayload(existing) ? std::string(kDefaultJsonPayload) : existing;
@@ -142,38 +187,101 @@ std::string mergeJsonPayload(const std::string& existing, const std::string& inc
         const pr::JsonValue incoming_json = pr::parseJsonText(incoming);
         return serializeJson(mergeJsonValue(existing_json, incoming_json));
     } catch (const std::exception&) {
-        // Invalid incoming warm/cold JSON must not erase existing preserved data.
         return existing;
     }
 }
 
-std::string mergeDiffJson(
+std::string movesJsonSnippet(const PokemonHot& hot) {
+    std::ostringstream out;
+    out << "[";
+    for (std::size_t i = 0; i < hot.move_ids.size(); ++i) {
+        if (i > 0) {
+            out << ",";
+        }
+        out << (hot.move_ids[i] ? std::to_string(*hot.move_ids[i]) : std::string("0"));
+    }
+    out << "]";
+    return out.str();
+}
+
+bool movesSlotsEqual(const PokemonHot& a, const PokemonHot& b) {
+    for (std::size_t i = 0; i < a.move_ids.size(); ++i) {
+        if (a.move_ids[i] != b.move_ids[i]) {
+            return false;
+        }
+        if (a.move_pp[i] != b.move_pp[i]) {
+            return false;
+        }
+        if (a.move_pp_ups[i] != b.move_pp_ups[i]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool hotEquals(const PokemonHot& a, const PokemonHot& b) {
+    return a.species_id == b.species_id && a.form_id == b.form_id && a.nickname == b.nickname &&
+           a.is_nicknamed == b.is_nicknamed && a.level == b.level && a.exp == b.exp && a.gender == b.gender &&
+           a.shiny == b.shiny && a.ability_id == b.ability_id && a.ability_slot == b.ability_slot &&
+           a.held_item_id == b.held_item_id && movesSlotsEqual(a, b) && a.hp_current == b.hp_current &&
+           a.hp_max == b.hp_max && a.status_flags == b.status_flags && a.ot_name == b.ot_name &&
+           a.tid16 == b.tid16 && a.sid16 == b.sid16 && a.tid32 == b.tid32 && a.origin_game == b.origin_game &&
+           a.language == b.language && a.met_location_id == b.met_location_id && a.met_level == b.met_level &&
+           a.met_date_unix == b.met_date_unix && a.ball_id == b.ball_id && a.pid == b.pid &&
+           a.encryption_constant == b.encryption_constant && a.home_tracker == b.home_tracker &&
+           a.dv16 == b.dv16 && a.lineage_root_species == b.lineage_root_species &&
+           a.identity_strength == b.identity_strength;
+}
+
+std::string mergeDiffJsonFull(
     const ResortPokemon& before,
     const ResortPokemon& after,
     const ImportedPokemon& imported) {
     std::ostringstream out;
     out << "{"
         << "\"event\":\"merged_from_import\","
+        << "\"kind\":\"full\","
         << "\"source_game\":" << imported.source_game << ","
         << "\"format\":\"" << escapeJson(imported.format_name) << "\","
-        << "\"before\":{\"level\":" << static_cast<int>(before.hot.level)
-        << ",\"exp\":" << before.hot.exp
-        << ",\"species_id\":" << before.hot.species_id << "},"
-        << "\"after\":{\"level\":" << static_cast<int>(after.hot.level)
-        << ",\"exp\":" << after.hot.exp
-        << ",\"species_id\":" << after.hot.species_id << "},"
-        << "\"warm_merged\":" << (before.warm.json != after.warm.json ? "true" : "false") << ","
-        << "\"cold_merged\":" << (before.cold.suspended_json != after.cold.suspended_json ? "true" : "false")
+        << "\"species_id\":{\"before\":" << before.hot.species_id << ",\"after\":" << after.hot.species_id << "},"
+        << "\"level\":{\"before\":" << static_cast<int>(before.hot.level)
+        << ",\"after\":" << static_cast<int>(after.hot.level) << "},"
+        << "\"exp\":{\"before\":" << before.hot.exp << ",\"after\":" << after.hot.exp << "},"
+        << "\"moves_before\":" << movesJsonSnippet(before.hot) << ","
+        << "\"moves_after\":" << movesJsonSnippet(after.hot)
         << "}";
     return out.str();
 }
 
-} // namespace
+std::string mergeDiffJsonMirrorReturn(
+    const ResortPokemon& before,
+    const ResortPokemon& after,
+    const ImportedPokemon& imported,
+    bool moves_from_cart,
+    bool evolved,
+    bool warm_changed) {
+    std::ostringstream out;
+    out << "{"
+        << "\"event\":\"mirror_return_sync\","
+        << "\"format\":\"" << escapeJson(imported.format_name) << "\","
+        << "\"level\":{\"before\":" << static_cast<int>(before.hot.level)
+        << ",\"after\":" << static_cast<int>(after.hot.level) << "},"
+        << "\"exp\":{\"before\":" << before.hot.exp << ",\"after\":" << after.hot.exp << "},"
+        << "\"moves_from_cart\":" << (moves_from_cart ? "true" : "false") << ","
+        << "\"evolved\":" << (evolved ? "true" : "false") << ","
+        << "\"warm_changed\":" << (warm_changed ? "true" : "false") << ","
+        << "\"moves_before\":" << movesJsonSnippet(before.hot) << ","
+        << "\"moves_after\":" << movesJsonSnippet(after.hot) << ","
+        << "\"met_location_id_preserved\":true,"
+        << "\"static_hot_policy\":\"mirror_return_v1\""
+        << "}";
+    return out.str();
+}
 
-PokemonMergeResult PokemonMergeService::mergeImported(
+PokemonMergeResult mergeFullReplace(
     ResortPokemon& canonical,
     const ImportedPokemon& imported,
-    long long updated_at_unix) const {
+    long long updated_at_unix) {
     const ResortPokemon before = canonical;
     PokemonHot next = canonical.hot;
     const PokemonHot& incoming = imported.hot;
@@ -235,13 +343,65 @@ PokemonMergeResult PokemonMergeService::mergeImported(
     canonical.hot = next;
     canonical.warm.json = mergeJsonPayload(canonical.warm.json, imported.warm_json);
     canonical.cold.suspended_json = mergeJsonPayload(canonical.cold.suspended_json, imported.suspended_json);
-    canonical.revision += 1;
-    canonical.updated_at_unix = updated_at_unix;
+
+    const bool warm_changed = before.warm.json != canonical.warm.json;
+    const bool cold_changed = before.cold.suspended_json != canonical.cold.suspended_json;
+    PokemonMergeResult result;
+    result.changed =
+        !hotEquals(before.hot, canonical.hot) || warm_changed || cold_changed;
+    if (result.changed) {
+        canonical.revision += 1;
+        canonical.updated_at_unix = updated_at_unix;
+    }
+    result.diff_json = mergeDiffJsonFull(before, canonical, imported);
+    return result;
+}
+
+PokemonMergeResult mergeMirrorReturnGameplay(
+    ResortPokemon& canonical,
+    const ImportedPokemon& imported,
+    long long updated_at_unix) {
+    const ResortPokemon before = canonical;
+    PokemonHot next = canonical.hot;
+    const PokemonHot& ih = imported.hot;
+    const PokemonHot& ch = canonical.hot;
+
+    const bool evolved =
+        (ih.species_id != ch.species_id) || (ih.form_id != ch.form_id);
+    const bool leveled_up = ih.level > ch.level;
+
+    applyMirrorReturnHotMutableOverlay(next, ch, ih, evolved, leveled_up);
+
+    const bool moves_from_cart = evolved || leveled_up;
+
+    canonical.hot = next;
+
+    const std::string warm_before = canonical.warm.json;
+    canonical.warm.json = mergeWarmJsonMirrorReturn(canonical.warm.json, imported.warm_json);
+    const bool warm_changed = warm_before != canonical.warm.json;
 
     PokemonMergeResult result;
-    result.changed = true;
-    result.diff_json = mergeDiffJson(before, canonical, imported);
+    result.changed = !hotEquals(before.hot, canonical.hot) || warm_changed;
+    if (result.changed) {
+        canonical.revision += 1;
+        canonical.updated_at_unix = updated_at_unix;
+    }
+    result.diff_json =
+        mergeDiffJsonMirrorReturn(before, canonical, imported, moves_from_cart, evolved, warm_changed);
     return result;
+}
+
+} // namespace
+
+PokemonMergeResult PokemonMergeService::mergeImported(
+    ResortPokemon& canonical,
+    const ImportedPokemon& imported,
+    long long updated_at_unix,
+    ImportMergeKind kind) const {
+    if (kind == ImportMergeKind::MirrorReturnGameplaySync) {
+        return mergeMirrorReturnGameplay(canonical, imported, updated_at_unix);
+    }
+    return mergeFullReplace(canonical, imported, updated_at_unix);
 }
 
 } // namespace pr::resort

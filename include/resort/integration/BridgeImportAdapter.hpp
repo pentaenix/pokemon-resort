@@ -23,6 +23,9 @@ struct BridgeImportParseResult {
 /// This deliberately rejects transfer-ticket summaries because canonical imports require exact raw payload bytes.
 BridgeImportParseResult parseBridgeImportPayload(const std::string& json_text);
 
+/// Standard base64 decode for bridge `raw_payload_base64` / `target_raw_payload_base64` fields.
+std::vector<unsigned char> decodeBase64Payload(const std::string& text);
+
 /// Builds an `ImportedPokemon` from a probed game PC slot plus merged bridge bytes (`bridge_box_payload_*`).
 /// Returns empty when merge/import data is missing or invalid.
 std::optional<ImportedPokemon> importedPokemonFromGamePcSlot(const PcSlotSpecies& slot, std::uint16_t source_game);

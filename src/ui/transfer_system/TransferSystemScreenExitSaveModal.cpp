@@ -410,11 +410,22 @@ bool TransferSystemScreen::preparePendingResortMirrorPayloadsForSave() {
                     return false;
                 }
             }
+            const std::filesystem::path bridge_project_req =
+                std::filesystem::temp_directory_path() /
+                ("pr_prepare_proj_" + slot.resort_pkrid + ".json");
+            // Mirror slots often retain the Pokémon's prior encoding (`pk3`) even while the loaded save is Gen 4.
+            // PKHeX write-projection requires payloads matching the *save file* (`pk4`). Prefer import snapshot format.
+            const std::string write_target_format = bridge_import_storage_format_name_.empty()
+                                                      ? slot.format
+                                                      : bridge_import_storage_format_name_;
             const std::optional<resort::PokemonSnapshot> snapshot =
                 resort_service_->prepareLatestRawSnapshotForGameWrite(
                     slot.resort_pkrid,
                     bridge_import_source_game_,
-                    slot.format);
+                    write_target_format,
+                    project_root_,
+                    bridge_argv0_,
+                    bridge_project_req);
             if (!snapshot || snapshot->raw_bytes.empty() || snapshot->raw_hash_sha256.empty()) {
                 std::cerr << "Warning: cannot save Resort mirror: missing compatible raw snapshot for "
                           << slot.resort_pkrid << '\n';
@@ -505,8 +516,11 @@ bool TransferSystemScreen::commitPendingResortStorageChangesAfterSave() {
             }
             resort::ExportContext ctx;
             ctx.target_game = *bridge_import_source_game_;
-            ctx.target_format_name = slot.format;
+            ctx.target_format_name = bridge_import_storage_format_name_.empty() ? slot.format
+                                                                               : bridge_import_storage_format_name_;
             ctx.managed_mirror = true;
+            ctx.bridge_project_root = project_root_;
+            ctx.bridge_argv0 = bridge_argv0_;
             const resort::ExportResult exported = resort_service_->exportPokemon(slot.resort_pkrid, ctx);
             if (!exported.success) {
                 std::cerr << "Warning: could not commit Resort mirror export after save: "
