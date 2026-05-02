@@ -113,6 +113,27 @@ void drawTexture(SDL_Renderer* renderer, const TextureHandle& texture, const SDL
     SDL_RenderCopy(renderer, texture.texture.get(), nullptr, &dst);
 }
 
+void drawTextureRotated(
+    SDL_Renderer* renderer,
+    const TextureHandle& texture,
+    const SDL_Rect& dst,
+    const Color& mod,
+    double angle_degrees,
+    const SDL_Point& center) {
+    if (!texture.texture || dst.w <= 0 || dst.h <= 0) return;
+    SDL_SetTextureBlendMode(texture.texture.get(), SDL_BLENDMODE_BLEND);
+    SDL_SetTextureAlphaMod(texture.texture.get(), static_cast<Uint8>(mod.a));
+    SDL_SetTextureColorMod(texture.texture.get(), static_cast<Uint8>(mod.r), static_cast<Uint8>(mod.g), static_cast<Uint8>(mod.b));
+    SDL_RenderCopyEx(
+        renderer,
+        texture.texture.get(),
+        nullptr,
+        &dst,
+        angle_degrees,
+        &center,
+        SDL_FLIP_NONE);
+}
+
 } // namespace
 
 ResortTransferLoadingRenderer::ResortTransferLoadingRenderer(
@@ -198,22 +219,64 @@ void ResortTransferLoadingRenderer::drawClouds(SDL_Renderer* renderer, const Res
 }
 
 void ResortTransferLoadingRenderer::drawMessage(SDL_Renderer* renderer, const ResortTransferLoadingFrame& frame) const {
-    if (!textures_.message.texture || textures_.message.width <= 0 || textures_.message.height <= 0) {
+    const bool quick_layout = frame.use_quick_pass_message_layout;
+    const TextureHandle& tex =
+        quick_layout && textures_.message_quick.texture && textures_.message_quick.width > 0 &&
+                textures_.message_quick.height > 0
+            ? textures_.message_quick
+            : textures_.message;
+    if (!tex.texture || tex.width <= 0 || tex.height <= 0) {
         return;
     }
     const double alpha = std::clamp(frame.message_alpha, 0.0, 1.0);
     if (alpha <= 0.0) {
         return;
     }
-    const double max_width = std::max(1.0, static_cast<double>(frame.viewport_w) * config_.message.max_width_ratio);
-    const double scale = std::min(1.0, max_width / static_cast<double>(textures_.message.width));
-    const int width = static_cast<int>(std::lround(static_cast<double>(textures_.message.width) * scale));
-    const int height = static_cast<int>(std::lround(static_cast<double>(textures_.message.height) * scale));
-    const int center_x = static_cast<int>(std::lround(static_cast<double>(frame.viewport_w) * config_.message.center_x_ratio));
-    const int center_y = static_cast<int>(std::lround(
-        static_cast<double>(frame.viewport_h - config_.message.center_bottom_offset) + frame.message_y_offset));
-    SDL_Rect dst{center_x - width / 2, center_y - height / 2, width, height};
-    drawTexture(renderer, textures_.message, dst, Color{255, 255, 255, static_cast<int>(std::lround(alpha * 255.0))});
+    const double max_width_ratio =
+        quick_layout ? config_.quick_pass.message.max_width_ratio : config_.message.max_width_ratio;
+    const double max_width = std::max(1.0, static_cast<double>(frame.viewport_w) * max_width_ratio);
+    const double scale = std::min(1.0, max_width / static_cast<double>(tex.width));
+    const int width = static_cast<int>(std::lround(static_cast<double>(tex.width) * scale));
+    const int height = static_cast<int>(std::lround(static_cast<double>(tex.height) * scale));
+    const double center_x_ratio =
+        quick_layout ? config_.quick_pass.message.center_x_ratio : config_.message.center_x_ratio;
+    const int center_bottom_offset =
+        quick_layout ? config_.quick_pass.message.center_bottom_offset : config_.message.center_bottom_offset;
+    const int anchor_x = static_cast<int>(std::lround(static_cast<double>(frame.viewport_w) * center_x_ratio));
+    const int anchor_y = static_cast<int>(std::lround(
+        static_cast<double>(frame.viewport_h - center_bottom_offset) + frame.message_y_offset));
+
+    const Color mod{255, 255, 255, static_cast<int>(std::lround(alpha * 255.0))};
+
+    if (quick_layout) {
+        double pivot_x = static_cast<double>(width) * 0.5;
+        switch (config_.quick_pass.message.align) {
+            case LoadingMessageHorizontalAlign::Left:
+                pivot_x = 0.0;
+                break;
+            case LoadingMessageHorizontalAlign::Center:
+                pivot_x = static_cast<double>(width) * 0.5;
+                break;
+            case LoadingMessageHorizontalAlign::Right:
+                pivot_x = static_cast<double>(width);
+                break;
+        }
+        const double pivot_y = static_cast<double>(height) * 0.5;
+        const SDL_Point center{static_cast<int>(std::lround(pivot_x)), static_cast<int>(std::lround(pivot_y))};
+        const int dst_x = static_cast<int>(std::lround(static_cast<double>(anchor_x) - pivot_x));
+        const int dst_y = static_cast<int>(std::lround(static_cast<double>(anchor_y) - pivot_y));
+        SDL_Rect dst{dst_x, dst_y, width, height};
+        drawTextureRotated(
+            renderer,
+            tex,
+            dst,
+            mod,
+            config_.quick_pass.message.angle_degrees,
+            center);
+    } else {
+        SDL_Rect dst{anchor_x - width / 2, anchor_y - height / 2, width, height};
+        drawTexture(renderer, tex, dst, mod);
+    }
 }
 
 void ResortTransferLoadingRenderer::drawWave(SDL_Renderer* renderer, const ResortTransferLoadingFrame& frame, int index) const {

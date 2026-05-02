@@ -352,6 +352,33 @@ void TransferSystemScreen::markResortBoxesDirty() {
     resort_boxes_dirty_ = true;
 }
 
+void TransferSystemScreen::noteCrossPanelGameToResortMoves(int count) {
+    if (count > 0) {
+        cross_panel_game_to_resort_moves_ += count;
+    }
+}
+
+void TransferSystemScreen::noteCrossPanelResortToGameMoves(int count) {
+    if (count > 0) {
+        cross_panel_resort_to_game_moves_ += count;
+    }
+}
+
+std::string TransferSystemScreen::successfulSaveQuickPassMessageKey() const {
+    const bool into_resort = cross_panel_game_to_resort_moves_ > 0;
+    const bool into_game = cross_panel_resort_to_game_moves_ > 0;
+    if (into_resort && into_game) {
+        return "message_transport_pokemon_bidirectional";
+    }
+    if (into_resort) {
+        return "message_transport_pokemon_in";
+    }
+    if (into_game) {
+        return "message_transport_pokemon_out";
+    }
+    return "message_pokemon_manage";
+}
+
 bool TransferSystemScreen::preparePendingResortMirrorPayloadsForSave() {
     if (!resort_service_) {
         return true;

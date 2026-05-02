@@ -81,11 +81,14 @@ void AppLoadingCoordinator::beginTradeDemo() {
     }
 }
 
-void AppLoadingCoordinator::beginSuccessfulSaveQuickPass() {
+void AppLoadingCoordinator::beginSuccessfulSaveQuickPass(const std::string& message_key) {
     temporal_loading_elapsed_seconds_ = 0.0;
     temporal_simulated_load_duration_seconds_ = 0.0;
     temporal_loading_completion_sent_ = true;
     active_screen_ = quick_boat_pass_screen_.get();
+    if (!message_key.empty()) {
+        quick_boat_pass_screen_->setLoadingMessageKey(message_key);
+    }
     active_screen_->beginQuickPass();
 }
 

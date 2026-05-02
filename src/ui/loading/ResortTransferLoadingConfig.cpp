@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 #include <filesystem>
+#include <optional>
 #include <stdexcept>
 #include <vector>
 
@@ -82,6 +83,27 @@ LoadingEase parseEase(const std::string& value, LoadingEase fallback) {
     if (value == "ease_out_cubic") return LoadingEase::EaseOutCubic;
     if (value == "ease_in_out_cubic") return LoadingEase::EaseInOutCubic;
     return fallback;
+}
+
+LoadingMessageHorizontalAlign parseHorizontalAlign(const std::string& value, LoadingMessageHorizontalAlign fallback) {
+    if (value == "left") return LoadingMessageHorizontalAlign::Left;
+    if (value == "center") return LoadingMessageHorizontalAlign::Center;
+    if (value == "right") return LoadingMessageHorizontalAlign::Right;
+    return fallback;
+}
+
+void applyOptionalColor(std::optional<Color>& out, const JsonValue& value) {
+    if (!value.isString()) {
+        return;
+    }
+    const std::string hex = value.asString();
+    if (hex.empty()) {
+        out = std::nullopt;
+        return;
+    }
+    Color parsed{};
+    applyColor(parsed, value);
+    out = parsed;
 }
 
 TemporalLoadingDemoType parseTemporalLoadingType(const std::string& value, TemporalLoadingDemoType fallback) {
@@ -186,6 +208,33 @@ ResortTransferLoadingConfig loadResortTransferLoadingConfig(const std::string& p
         if (auto v = child(*quick, "water_out_fraction")) config.quick_pass.water_out_fraction = std::clamp(asDouble(*v), 0.01, 1.0);
         if (auto v = child(*quick, "cloud_exit_start")) config.quick_pass.cloud_exit_start = std::clamp(asDouble(*v), 0.0, 1.0);
         if (auto v = child(*quick, "cloud_exit_fraction")) config.quick_pass.cloud_exit_fraction = std::clamp(asDouble(*v), 0.01, 1.0);
+        if (auto qmsg = child(*quick, "message"); qmsg && qmsg->isObject()) {
+            if (auto v = child(*qmsg, "show_text")) config.quick_pass.message.show_text = asBool(*v);
+            if (auto v = child(*qmsg, "text_align")) {
+                config.quick_pass.message.align = parseHorizontalAlign(asString(*v), config.quick_pass.message.align);
+            }
+            if (auto v = child(*qmsg, "align")) {
+                config.quick_pass.message.align = parseHorizontalAlign(asString(*v), config.quick_pass.message.align);
+            }
+            if (auto v = child(*qmsg, "text_color")) applyColor(config.quick_pass.message.color, *v);
+            if (auto v = child(*qmsg, "color")) applyColor(config.quick_pass.message.color, *v);
+            if (auto v = child(*qmsg, "shadow_color")) applyOptionalColor(config.quick_pass.message.shadow_color, *v);
+            if (auto v = child(*qmsg, "shadow_offset_x")) config.quick_pass.message.shadow_offset_x = asDouble(*v);
+            if (auto v = child(*qmsg, "shadow_offset_y")) config.quick_pass.message.shadow_offset_y = asDouble(*v);
+            if (auto v = child(*qmsg, "shadow_distance")) {
+                const double d = asDouble(*v);
+                config.quick_pass.message.shadow_offset_x = d;
+                config.quick_pass.message.shadow_offset_y = d;
+            }
+            if (auto v = child(*qmsg, "center_x_ratio")) config.quick_pass.message.center_x_ratio = asDouble(*v);
+            if (auto v = child(*qmsg, "center_bottom_offset")) config.quick_pass.message.center_bottom_offset = asInt(*v);
+            if (auto v = child(*qmsg, "angle_degrees")) config.quick_pass.message.angle_degrees = asDouble(*v);
+            if (auto v = child(*qmsg, "max_width_ratio")) {
+                config.quick_pass.message.max_width_ratio = std::clamp(asDouble(*v), 0.05, 1.0);
+            }
+            if (auto v = child(*qmsg, "line_spacing")) config.quick_pass.message.line_spacing = std::max(0, asInt(*v));
+            if (auto v = child(*qmsg, "font")) config.quick_pass.message.font = asString(*v);
+        }
     }
     if (auto v = child(*section, "minimum_loop_seconds")) {
         config.minimum_loop_seconds = std::max(0.0, asDouble(*v));

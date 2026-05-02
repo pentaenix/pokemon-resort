@@ -187,7 +187,7 @@ int resolvedBallItemIdForSlot(const TransferInfoBannerContext& context) {
         return pokespriteItemIdForBallId(slot->ball_id);
     }
 
-    const std::string origin_game_id = normalizePokemonGameId(slot->origin_game);
+    const std::string origin_game_id = resolvePokemonOrigin(*slot, context.source_game_key).game_id;
     if (!origin_game_id.empty() && gameLikelyLacksCaughtBallData(origin_game_id)) {
         return kDefaultPokeBallItemId;
     }

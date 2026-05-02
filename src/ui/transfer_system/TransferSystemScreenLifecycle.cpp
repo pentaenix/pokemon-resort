@@ -138,13 +138,47 @@ PcSlotSpecies TransferSystemScreen::pcSlotFromResortSlotView(
     s.area = "resort";
     s.box_index = box_id;
     s.slot_index = slot_index;
+    s.slug = view.species_slug;
     s.species_id = static_cast<int>(view.species_id);
+    s.species_name = view.species_name;
     s.form = static_cast<int>(view.form_id);
+    s.form_key = view.form_key;
     s.level = static_cast<int>(view.level);
     s.is_shiny = view.shiny;
     s.gender = static_cast<int>(view.gender);
-    if (!view.display_name.empty() && view.display_name != view.pkrid) {
+    s.ot_name = view.ot_name;
+    s.origin_game_id = static_cast<int>(view.origin_game);
+    if (view.source_game.has_value()) {
+        s.source_game_id = static_cast<int>(*view.source_game);
+    } else if (view.origin_game != 0) {
+        s.source_game_id = static_cast<int>(view.origin_game);
+    }
+    s.source_game_key = view.source_game_key;
+    if (view.ability_id.has_value()) {
+        s.ability_id = static_cast<int>(*view.ability_id);
+    }
+    if (view.ability_slot.has_value()) {
+        s.ability_slot = static_cast<int>(*view.ability_slot);
+    }
+    s.ability_name = view.ability_name;
+    if (view.ball_id.has_value()) {
+        s.ball_id = static_cast<int>(*view.ball_id);
+    }
+    s.held_item_name = view.held_item_name;
+    s.nature = view.nature;
+    s.primary_type = view.primary_type;
+    s.secondary_type = view.secondary_type;
+    s.tera_type = view.tera_type;
+    s.mark_icon = view.mark_icon;
+    s.pokerus_status = view.pokerus_status;
+    s.is_alpha = view.is_alpha;
+    s.is_gigantamax = view.is_gigantamax;
+    s.markings = static_cast<int>(view.markings);
+    if (!view.display_name.empty() && view.display_name != view.pkrid && view.display_name != view.species_name) {
         s.nickname = view.display_name;
+    }
+    if (s.species_name.empty() && !s.nickname.empty()) {
+        s.species_name = s.nickname;
     }
     if (view.held_item_id.has_value()) {
         s.held_item_id = static_cast<int>(*view.held_item_id);
@@ -155,8 +189,12 @@ PcSlotSpecies TransferSystemScreen::pcSlotFromResortSlotView(
         rq.gender = s.gender;
         rq.is_shiny = s.is_shiny;
         const ResolvedPokemonSprite r = sprite_assets_->resolvePokemon(rq);
-        s.slug = r.species_slug;
-        s.form_key = r.resolved_form_key;
+        if (s.slug.empty()) {
+            s.slug = r.species_slug;
+        }
+        if (s.form_key.empty()) {
+            s.form_key = r.resolved_form_key;
+        }
     }
     return s;
 }
@@ -181,6 +219,7 @@ bool TransferSystemScreen::persistResortPokemonDropToStorage(
                   << " target_was_occupied=" << (target_was_occupied ? "true" : "false")
                   << " target_pkrid_before=" << target_pkrid_before << '\n';
         markResortBoxesDirty();
+        noteCrossPanelGameToResortMoves(1);
         std::cerr << kTempTransferLog << " UI storage untouched; Game->Resort commit pending Save+Exit\n";
         return true;
     }
@@ -195,6 +234,7 @@ bool TransferSystemScreen::persistResortPokemonDropToStorage(
                   << " game_target_pkrid_before=" << target_pkrid_before << '\n';
         markGameBoxesDirty();
         markResortBoxesDirty();
+        noteCrossPanelResortToGameMoves(1);
         std::cerr << kTempTransferLog << " UI storage untouched; Resort->Game commit pending Save+Exit\n";
         return true;
     }
@@ -220,6 +260,8 @@ void TransferSystemScreen::enter(const TransferSaveSelection& selection, SDL_Ren
     pickup_sfx_requested_ = false;
     putdown_sfx_requested_ = false;
     successful_save_exit_requested_ = false;
+    cross_panel_game_to_resort_moves_ = 0;
+    cross_panel_resort_to_game_moves_ = 0;
     selection_cursor_hidden_after_mouse_ = false;
     speech_hover_active_ = false;
     dropdown_lmb_down_in_panel_ = false;
@@ -336,6 +378,25 @@ void TransferSystemScreen::enter(const TransferSaveSelection& selection, SDL_Ren
                 bridge_import_source_game_ = sg;
             } else {
                 std::cerr << "Warning: could not read source_game from bridge import: " << sg_err << '\n';
+            }
+        }
+    }
+
+    for (auto& box : game_pc_boxes_) {
+        for (auto& slot : box.slots) {
+            if (slot.occupied()) {
+                if (slot.source_game_key.empty()) {
+                    slot.source_game_key = current_game_key_;
+                }
+                if (slot.source_save_trainer_name.empty()) {
+                    slot.source_save_trainer_name = transfer_selection_.trainer_name;
+                }
+                if (slot.source_save_play_time.empty()) {
+                    slot.source_save_play_time = transfer_selection_.time;
+                }
+                if (slot.source_save_badges.empty()) {
+                    slot.source_save_badges = transfer_selection_.badges;
+                }
             }
         }
     }
@@ -588,4 +649,3 @@ void TransferSystemScreen::enter(const TransferSaveSelection& selection, SDL_Ren
 }
 
 } // namespace pr
-

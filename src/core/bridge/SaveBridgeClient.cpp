@@ -359,6 +359,14 @@ SaveBridgeProbeResult importSaveWithBridge(
     return runBridgeForSave(project_root, argv0, save_path, {"import"});
 }
 
+SaveBridgeProbeResult inspectPkmWithBridge(
+    const std::string& project_root,
+    const char* argv0,
+    const std::string& pkm_path,
+    int source_game) {
+    return runBridgeWithArgs(project_root, argv0, {"pkm-inspect", pkm_path, std::to_string(source_game)});
+}
+
 SaveBridgeProbeResult writeProjectionWithBridge(
     const std::string& project_root,
     const char* argv0,

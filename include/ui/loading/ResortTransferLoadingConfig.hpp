@@ -4,6 +4,7 @@
 
 #include <array>
 #include <map>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -29,6 +30,12 @@ struct ResortTransferWaveConfig {
     double wavelength = 500.0;
     double horizontal_speed = 34.0;
     double phase = 0.0;
+};
+
+enum class LoadingMessageHorizontalAlign {
+    Left,
+    Center,
+    Right
 };
 
 enum class TemporalLoadingDemoType {
@@ -75,6 +82,21 @@ struct ResortTransferLoadingConfig {
         double water_out_fraction = 0.28;
         double cloud_exit_start = 0.55;
         double cloud_exit_fraction = 0.45;
+
+        struct Message {
+            bool show_text = false;
+            LoadingMessageHorizontalAlign align = LoadingMessageHorizontalAlign::Right;
+            Color color{74, 155, 156, 255};
+            std::optional<Color> shadow_color;
+            double shadow_offset_x = 3.0;
+            double shadow_offset_y = 3.0;
+            double center_x_ratio = 0.82;
+            int center_bottom_offset = 620;
+            double angle_degrees = 0.0;
+            double max_width_ratio = 0.5;
+            int line_spacing = 0;
+            std::string font{};
+        } message;
     } quick_pass;
 
     double minimum_loop_seconds = 1.0;

@@ -1,5 +1,7 @@
 #include "resort/persistence/BoxRepository.hpp"
 
+#include "core/config/Json.hpp"
+
 #include <optional>
 #include <sstream>
 #include <stdexcept>
@@ -7,6 +9,87 @@
 #include <vector>
 
 namespace pr::resort {
+
+namespace {
+
+struct SlotWarmMetadata {
+    std::string source_game_key;
+    std::string species_slug;
+    std::string species_name;
+    std::string form_key;
+    std::string held_item_name;
+    std::string nature;
+    std::string ability_name;
+    std::string primary_type;
+    std::string secondary_type;
+    std::string tera_type;
+    std::string mark_icon;
+    std::string pokerus_status;
+    bool is_alpha = false;
+    bool is_gigantamax = false;
+    std::uint32_t markings = 0;
+};
+
+std::string stringField(const pr::JsonValue& object, const char* key) {
+    if (const pr::JsonValue* value = object.isObject() ? object.get(key) : nullptr) {
+        if (value->isString()) {
+            return value->asString();
+        }
+    }
+    return {};
+}
+
+bool boolField(const pr::JsonValue& object, const char* key) {
+    if (const pr::JsonValue* value = object.isObject() ? object.get(key) : nullptr) {
+        if (value->isBool()) {
+            return value->asBool();
+        }
+    }
+    return false;
+}
+
+std::uint32_t u32Field(const pr::JsonValue& object, const char* key) {
+    if (const pr::JsonValue* value = object.isObject() ? object.get(key) : nullptr) {
+        if (value->isNumber() && value->asNumber() >= 0.0) {
+            return static_cast<std::uint32_t>(value->asNumber());
+        }
+    }
+    return 0;
+}
+
+SlotWarmMetadata slotWarmMetadataFromJson(const std::string& warm_json) {
+    SlotWarmMetadata out;
+    if (warm_json.empty()) {
+        return out;
+    }
+    try {
+        const pr::JsonValue root = pr::parseJsonText(warm_json);
+        out.source_game_key = stringField(root, "source_game_key");
+        if (const pr::JsonValue* context = root.isObject() ? root.get("source_context") : nullptr) {
+            if (out.source_game_key.empty()) {
+                out.source_game_key = stringField(*context, "game_key");
+            }
+        }
+        out.species_slug = stringField(root, "species_slug");
+        out.species_name = stringField(root, "species_name");
+        out.form_key = stringField(root, "form_key");
+        out.held_item_name = stringField(root, "held_item_name");
+        out.nature = stringField(root, "nature");
+        out.ability_name = stringField(root, "ability_name");
+        out.primary_type = stringField(root, "primary_type");
+        out.secondary_type = stringField(root, "secondary_type");
+        out.tera_type = stringField(root, "tera_type");
+        out.mark_icon = stringField(root, "mark_icon");
+        out.pokerus_status = stringField(root, "pokerus_status");
+        out.is_alpha = boolField(root, "is_alpha");
+        out.is_gigantamax = boolField(root, "is_gigantamax");
+        out.markings = u32Field(root, "markings");
+    } catch (...) {
+    }
+    return out;
+}
+
+} // namespace
 
 BoxRepository::BoxRepository(SqliteConnection& connection)
     : connection_(connection) {}
@@ -215,6 +298,19 @@ SELECT
     p.shiny,
     p.gender,
     p.held_item_id,
+    p.ability_id,
+    p.ability_slot,
+    p.ot_name,
+    p.origin_game,
+    (
+        SELECT ps.game_id
+        FROM pokemon_snapshots ps
+        WHERE ps.pkrid = p.pkrid AND ps.kind = 0 AND ps.game_id IS NOT NULL
+        ORDER BY ps.captured_at DESC
+        LIMIT 1
+    ) AS source_game,
+    p.warm_json,
+    p.ball_id,
     p.hp_current,
     p.hp_max,
     p.status_flags
@@ -243,9 +339,39 @@ ORDER BY s.slot_index
         if (!stmt.columnIsNull(8)) {
             view.held_item_id = static_cast<unsigned short>(stmt.columnInt(8));
         }
-        view.hp_current = static_cast<unsigned short>(stmt.columnInt(9));
-        view.hp_max = static_cast<unsigned short>(stmt.columnInt(10));
-        view.status_icon = static_cast<unsigned char>(stmt.columnInt(11) & 0xff);
+        if (!stmt.columnIsNull(9)) {
+            view.ability_id = static_cast<unsigned short>(stmt.columnInt(9));
+        }
+        if (!stmt.columnIsNull(10)) {
+            view.ability_slot = static_cast<unsigned char>(stmt.columnInt(10));
+        }
+        view.ot_name = stmt.columnText(11);
+        view.origin_game = static_cast<unsigned short>(stmt.columnInt(12));
+        if (!stmt.columnIsNull(13)) {
+            view.source_game = static_cast<unsigned short>(stmt.columnInt(13));
+        }
+        const SlotWarmMetadata warm = slotWarmMetadataFromJson(stmt.columnBlobAsString(14));
+        view.source_game_key = warm.source_game_key;
+        view.species_slug = warm.species_slug;
+        view.species_name = warm.species_name;
+        view.form_key = warm.form_key;
+        view.held_item_name = warm.held_item_name;
+        view.nature = warm.nature;
+        view.ability_name = warm.ability_name;
+        view.primary_type = warm.primary_type;
+        view.secondary_type = warm.secondary_type;
+        view.tera_type = warm.tera_type;
+        view.mark_icon = warm.mark_icon;
+        view.pokerus_status = warm.pokerus_status;
+        view.is_alpha = warm.is_alpha;
+        view.is_gigantamax = warm.is_gigantamax;
+        view.markings = warm.markings;
+        if (!stmt.columnIsNull(15)) {
+            view.ball_id = static_cast<unsigned short>(stmt.columnInt(15));
+        }
+        view.hp_current = static_cast<unsigned short>(stmt.columnInt(16));
+        view.hp_max = static_cast<unsigned short>(stmt.columnInt(17));
+        view.status_icon = static_cast<unsigned char>(stmt.columnInt(18) & 0xff);
         views.push_back(std::move(view));
     }
     return views;

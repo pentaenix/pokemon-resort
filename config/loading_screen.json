@@ -44,7 +44,19 @@
       "water_out_start": 0.72,
       "water_out_fraction": 0.28,
       "cloud_exit_start": 0.55,
-      "cloud_exit_fraction": 0.45
+      "cloud_exit_fraction": 0.45,
+      "message": {
+        "show_text": true,
+        "text_align": "left",
+        "text_color": "#8eb5b3",
+        "shadow_color": "#585856",
+        "shadow_distance": 5,
+        "center_x_ratio": 0.09,
+        "center_bottom_offset": 560,
+        "angle_degrees": -16,
+        "max_width_ratio": 0.5,
+        "line_spacing": 0
+      }
     },
     "minimum_loop_seconds": 1,
     "border": {
@@ -88,7 +100,11 @@
       "enter_y_offset": 24,
       "default_key": "message_transport_pokemon",
       "texts": {
-        "message_transport_pokemon": "Transporting\nMany Pokemon..."
+        "message_transport_pokemon": "Transporting\nMany Pokemon...",
+        "message_transport_pokemon_in": "Welcome to\nParadise!",
+        "message_transport_pokemon_out": "See You\nAgain Soon!",
+        "message_transport_pokemon_bidirectional": "Come Back\nAnytime!",
+        "message_pokemon_manage": "Tidying\nThings\nUp!"
       }
     },
     "temporal": {

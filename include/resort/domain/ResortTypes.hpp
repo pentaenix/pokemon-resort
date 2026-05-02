@@ -88,13 +88,34 @@ struct ResortPokemon {
 
 struct PokemonSlotView {
     std::string pkrid;
+    std::string species_slug;
+    std::string species_name;
     std::uint16_t species_id = 0;
     std::uint16_t form_id = 0;
+    std::string form_key;
     std::string display_name;
     std::uint8_t level = 1;
     bool shiny = false;
     std::uint8_t gender = 0;
     std::optional<std::uint16_t> held_item_id;
+    std::string held_item_name;
+    std::optional<std::uint16_t> ability_id;
+    std::optional<std::uint8_t> ability_slot;
+    std::string ability_name;
+    std::string nature;
+    std::string primary_type;
+    std::string secondary_type;
+    std::string tera_type;
+    std::string mark_icon;
+    std::string pokerus_status;
+    bool is_alpha = false;
+    bool is_gigantamax = false;
+    std::uint32_t markings = 0;
+    std::string ot_name;
+    std::uint16_t origin_game = 0;
+    std::optional<std::uint16_t> source_game;
+    std::string source_game_key;
+    std::optional<std::uint16_t> ball_id;
     std::uint16_t hp_current = 0;
     std::uint16_t hp_max = 0;
     std::uint8_t status_icon = 0;

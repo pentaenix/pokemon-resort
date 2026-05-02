@@ -89,8 +89,16 @@ bool TransferSystemScreen::dropHeldMultiPokemonAt(const transfer_system::Pokemon
     }
 
     const auto entries = multi_pokemon_move_.entries();
+    using Move = transfer_system::PokemonMoveController;
+    const Move::Panel from_panel = entries.empty() ? Move::Panel::Game : entries.front().return_slot.panel;
+    const Move::Panel to_panel = target.panel;
     for (std::size_t i = 0; i < entries.size(); ++i) {
         setPokemonAt((*slots)[i], entries[i].pokemon);
+    }
+    if (from_panel == Move::Panel::Game && to_panel == Move::Panel::Resort) {
+        noteCrossPanelGameToResortMoves(static_cast<int>(entries.size()));
+    } else if (from_panel == Move::Panel::Resort && to_panel == Move::Panel::Game) {
+        noteCrossPanelResortToGameMoves(static_cast<int>(entries.size()));
     }
     std::cerr << "[TEMP_TRANSFER_LOG_DELETE] UI multi Pokemon drop count=" << entries.size()
               << " source_panel="
@@ -194,6 +202,9 @@ bool TransferSystemScreen::dropHeldMultiPokemonIntoFirstEmptyResortBox(int box_i
     for (std::size_t i = 0; i < entries.size(); ++i) {
         setPokemonAt(targets[i], entries[i].pokemon);
     }
+    if (!entries.empty() && entries.front().return_slot.panel == transfer_system::PokemonMoveController::Panel::Game) {
+        noteCrossPanelGameToResortMoves(static_cast<int>(entries.size()));
+    }
     std::cerr << "[TEMP_TRANSFER_LOG_DELETE] UI multi Pokemon quick-drop to Resort count=" << entries.size()
               << " target_box=" << box_index
               << " commit pending Save+Exit\n";
@@ -225,6 +236,9 @@ bool TransferSystemScreen::dropHeldMultiPokemonIntoFirstEmptySlotsInBox(int box_
     const auto entries = multi_pokemon_move_.entries();
     for (std::size_t i = 0; i < entries.size(); ++i) {
         setPokemonAt(targets[i], entries[i].pokemon);
+    }
+    if (!entries.empty() && entries.front().return_slot.panel == transfer_system::PokemonMoveController::Panel::Resort) {
+        noteCrossPanelResortToGameMoves(static_cast<int>(entries.size()));
     }
     std::cerr << "[TEMP_TRANSFER_LOG_DELETE] UI multi Pokemon quick-drop to Game count=" << entries.size()
               << " target_box=" << box_index

@@ -48,6 +48,54 @@ bool optionalBool(const pr::JsonValue& object, const std::string& key, bool fall
     return value && value->isBool() ? value->asBool() : fallback;
 }
 
+std::string escapeJson(const std::string& value) {
+    std::string out;
+    out.reserve(value.size() + 8);
+    for (const unsigned char raw : value) {
+        const char ch = static_cast<char>(raw);
+        switch (ch) {
+            case '"': out += "\\\""; break;
+            case '\\': out += "\\\\"; break;
+            case '\b': out += "\\b"; break;
+            case '\f': out += "\\f"; break;
+            case '\n': out += "\\n"; break;
+            case '\r': out += "\\r"; break;
+            case '\t': out += "\\t"; break;
+            default:
+                if (raw >= 0x20) {
+                    out.push_back(ch);
+                }
+                break;
+        }
+    }
+    return out;
+}
+
+void appendJsonStringField(std::string& json, const char* key, const std::string& value) {
+    if (value.empty()) {
+        return;
+    }
+    json += ",\"";
+    json += key;
+    json += "\":\"";
+    json += escapeJson(value);
+    json += "\"";
+}
+
+void appendJsonIntField(std::string& json, const char* key, int value) {
+    json += ",\"";
+    json += key;
+    json += "\":";
+    json += std::to_string(value);
+}
+
+void appendJsonBoolField(std::string& json, const char* key, bool value) {
+    json += ",\"";
+    json += key;
+    json += "\":";
+    json += value ? "true" : "false";
+}
+
 std::optional<unsigned short> optionalU16(const pr::JsonValue& object, const std::string& key) {
     const pr::JsonValue* value = child(object, key);
     if (!value || !value->isNumber()) {
@@ -244,7 +292,73 @@ std::optional<ImportedPokemon> tryBuildImportedFromGamePcSlot(const pr::PcSlotSp
     imported.format_name = slot.format;
     imported.raw_bytes = std::move(raw);
     imported.raw_hash_sha256 = slot.bridge_box_payload_hash_sha256;
-    imported.warm_json = "{\"schema_version\":1}";
+    imported.warm_json = "{\"schema_version\":1";
+    appendJsonStringField(imported.warm_json, "source_game_key", slot.source_game_key);
+    if (slot.source_game_id >= 0) {
+        appendJsonIntField(imported.warm_json, "source_game_id", slot.source_game_id);
+    }
+    appendJsonStringField(imported.warm_json, "species_slug", slot.slug);
+    appendJsonStringField(imported.warm_json, "species_name", slot.species_name);
+    appendJsonStringField(imported.warm_json, "form_key", slot.form_key);
+    appendJsonStringField(imported.warm_json, "held_item_name", slot.held_item_name);
+    appendJsonStringField(imported.warm_json, "nature", slot.nature);
+    appendJsonStringField(imported.warm_json, "ability_name", slot.ability_name);
+    appendJsonStringField(imported.warm_json, "primary_type", slot.primary_type);
+    appendJsonStringField(imported.warm_json, "secondary_type", slot.secondary_type);
+    appendJsonStringField(imported.warm_json, "tera_type", slot.tera_type);
+    appendJsonStringField(imported.warm_json, "mark_icon", slot.mark_icon);
+    appendJsonStringField(imported.warm_json, "pokerus_status", slot.pokerus_status);
+    if (slot.is_alpha) {
+        appendJsonBoolField(imported.warm_json, "is_alpha", true);
+    }
+    if (slot.is_gigantamax) {
+        appendJsonBoolField(imported.warm_json, "is_gigantamax", true);
+    }
+    if (slot.markings != 0) {
+        appendJsonIntField(imported.warm_json, "markings", slot.markings);
+    }
+    if (slot.move_count > 0) {
+        imported.warm_json += ",\"moves\":[";
+        bool first_move = true;
+        for (int i = 0; i < slot.move_count && i < static_cast<int>(slot.moves.size()); ++i) {
+            const auto& move = slot.moves[static_cast<std::size_t>(i)];
+            if (move.move_id <= 0 && move.move_name.empty()) {
+                continue;
+            }
+            if (!first_move) {
+                imported.warm_json += ",";
+            }
+            first_move = false;
+            imported.warm_json += "{\"slot_index\":" + std::to_string(move.slot_index);
+            if (move.move_id > 0) {
+                appendJsonIntField(imported.warm_json, "move_id", move.move_id);
+            }
+            appendJsonStringField(imported.warm_json, "move_name", move.move_name);
+            if (move.current_pp >= 0) {
+                appendJsonIntField(imported.warm_json, "current_pp", move.current_pp);
+            }
+            if (move.pp_ups >= 0) {
+                appendJsonIntField(imported.warm_json, "pp_ups", move.pp_ups);
+            }
+            imported.warm_json += "}";
+        }
+        imported.warm_json += "]";
+    }
+    if (!slot.source_game_key.empty() || slot.source_game_id >= 0 || !slot.source_save_trainer_name.empty() ||
+        !slot.source_save_play_time.empty() || !slot.source_save_badges.empty()) {
+        imported.warm_json += ",\"source_context\":{\"schema_version\":1";
+        if (!slot.source_game_key.empty()) {
+            appendJsonStringField(imported.warm_json, "game_key", slot.source_game_key);
+        }
+        if (slot.source_game_id >= 0) {
+            appendJsonIntField(imported.warm_json, "game_id", slot.source_game_id);
+        }
+        appendJsonStringField(imported.warm_json, "trainer_name", slot.source_save_trainer_name);
+        appendJsonStringField(imported.warm_json, "play_time", slot.source_save_play_time);
+        appendJsonStringField(imported.warm_json, "badges", slot.source_save_badges);
+        imported.warm_json += "}";
+    }
+    imported.warm_json += "}";
     imported.suspended_json = "{\"schema_version\":1}";
 
     PokemonHot& h = imported.hot;

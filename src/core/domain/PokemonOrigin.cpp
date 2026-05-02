@@ -298,9 +298,92 @@ std::string pokemonGameRegionKey(const std::string& game_id) {
     return "unknown";
 }
 
+std::string pokemonGameIdFromVersionId(int version_id) {
+    switch (version_id) {
+        case 1: return "pokemon_sapphire";
+        case 2: return "pokemon_ruby";
+        case 3: return "pokemon_emerald";
+        case 4: return "pokemon_firered";
+        case 5: return "pokemon_leafgreen";
+        case 7: return "pokemon_heartgold";
+        case 8: return "pokemon_soulsilver";
+        case 10: return "pokemon_diamond";
+        case 11: return "pokemon_pearl";
+        case 12: return "pokemon_platinum";
+        case 20: return "pokemon_white";
+        case 21: return "pokemon_black";
+        case 22: return "pokemon_white_2";
+        case 23: return "pokemon_black_2";
+        case 24: return "pokemon_x";
+        case 25: return "pokemon_y";
+        case 26: return "pokemon_alpha_sapphire";
+        case 27: return "pokemon_omega_ruby";
+        case 30: return "pokemon_sun";
+        case 31: return "pokemon_moon";
+        case 32: return "pokemon_ultra_sun";
+        case 33: return "pokemon_ultra_moon";
+        case 35: return "pokemon_red";
+        case 36: return "pokemon_gn";
+        case 37: return "pokemon_blue";
+        case 38: return "pokemon_yellow";
+        case 39: return "pokemon_gold";
+        case 40: return "pokemon_silver";
+        case 41: return "pokemon_crystal";
+        case 42: return "pokemon_lets_go_pikachu";
+        case 43: return "pokemon_lets_go_eevee";
+        case 44: return "pokemon_sword";
+        case 45: return "pokemon_shield";
+        case 47: return "pokemon_legends_arceus";
+        case 48: return "pokemon_brilliant_diamond";
+        case 49: return "pokemon_shining_pearl";
+        case 50: return "pokemon_scarlet";
+        case 51: return "pokemon_violet";
+        case 52: return "pokemon_gn";
+        case 53: return "pokemon_gn";
+        case 54: return "pokemon_gs";
+        case 55: return "pokemon_gs";
+        case 56: return "pokemon_ruby";
+        case 57: return "pokemon_emerald";
+        case 58: return "pokemon_firered";
+        case 62: return "pokemon_diamond";
+        case 63: return "pokemon_platinum";
+        case 64: return "pokemon_hgss";
+        case 66: return "pokemon_black";
+        case 67: return "pokemon_black_2";
+        case 68: return "pokemon_x";
+        case 70: return "pokemon_omega_ruby";
+        case 71: return "pokemon_sun";
+        case 72: return "pokemon_ultra_sun";
+        case 73: return "pokemon_lets_go_pikachu";
+        case 74: return "pokemon_swsh";
+        case 75: return "pokemon_brilliant_diamond";
+        case 76: return "pokemon_sv";
+        case 77: return "pokemon_gn";
+        case 78: return "pokemon_gs";
+        case 79: return "pokemon_emerald";
+        case 80: return "pokemon_platinum";
+        case 81: return "pokemon_black";
+        case 82: return "pokemon_x";
+        case 83: return "pokemon_sun";
+        case 84: return "pokemon_lets_go_pikachu";
+        case 85: return "pokemon_sword";
+        case 86: return "pokemon_sv";
+        default: return {};
+    }
+}
+
 PokemonOriginInfo resolvePokemonOrigin(const PcSlotSpecies& slot, const std::string& source_game_key) {
     PokemonOriginInfo out;
-    out.game_id = normalizePokemonGameId(slot.origin_game);
+    out.game_id = normalizePokemonGameId(slot.source_game_key);
+    if (out.game_id.empty()) {
+        out.game_id = pokemonGameIdFromVersionId(slot.source_game_id);
+    }
+    if (out.game_id.empty()) {
+        out.game_id = normalizePokemonGameId(slot.origin_game);
+    }
+    if (out.game_id.empty()) {
+        out.game_id = pokemonGameIdFromVersionId(slot.origin_game_id);
+    }
     if (out.game_id.empty()) {
         out.game_id = normalizePokemonGameId(source_game_key);
     }

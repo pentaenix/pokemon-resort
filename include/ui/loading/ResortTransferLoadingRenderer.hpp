@@ -12,6 +12,7 @@ struct ResortTransferLoadingTextures {
     TextureHandle cloud1;
     TextureHandle cloud2;
     TextureHandle message;
+    TextureHandle message_quick;
 };
 
 struct ResortTransferLoadingFrame {
@@ -32,6 +33,7 @@ struct ResortTransferLoadingFrame {
     double message_y_offset = 0.0;
     bool use_boat_center_x = false;
     double boat_center_x = 0.0;
+    bool use_quick_pass_message_layout = false;
 };
 
 class ResortTransferLoadingRenderer {

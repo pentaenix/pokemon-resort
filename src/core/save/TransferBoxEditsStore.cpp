@@ -113,6 +113,11 @@ void serializeSlot(std::ostringstream& out, const PcSlotSpecies& slot) {
         << "\"ball_id\":" << slot.ball_id << ","
         << "\"tid32\":" << (slot.tid32 ? std::to_string(*slot.tid32) : "-1") << ","
         << "\"origin_game_id\":" << slot.origin_game_id << ","
+        << "\"source_game_id\":" << slot.source_game_id << ","
+        << "\"source_game_key\":" << quoted(slot.source_game_key) << ","
+        << "\"source_save_trainer_name\":" << quoted(slot.source_save_trainer_name) << ","
+        << "\"source_save_play_time\":" << quoted(slot.source_save_play_time) << ","
+        << "\"source_save_badges\":" << quoted(slot.source_save_badges) << ","
         << "\"language\":" << slot.language << ","
         << "\"met_level\":" << slot.met_level << ","
         << "\"met_date_unix\":" << (slot.met_date_unix ? std::to_string(*slot.met_date_unix) : "-1") << ","
@@ -160,6 +165,11 @@ PcSlotSpecies parseSlot(const JsonValue& obj) {
     s.ball_id = asIntOrDefault(child(obj, "ball_id"), -1);
     s.tid32 = asU32Optional(child(obj, "tid32"));
     s.origin_game_id = asIntOrDefault(child(obj, "origin_game_id"), -1);
+    s.source_game_id = asIntOrDefault(child(obj, "source_game_id"), -1);
+    s.source_game_key = asStringOrEmpty(child(obj, "source_game_key"));
+    s.source_save_trainer_name = asStringOrEmpty(child(obj, "source_save_trainer_name"));
+    s.source_save_play_time = asStringOrEmpty(child(obj, "source_save_play_time"));
+    s.source_save_badges = asStringOrEmpty(child(obj, "source_save_badges"));
     s.language = asIntOrDefault(child(obj, "language"), -1);
     s.met_level = asIntOrDefault(child(obj, "met_level"), -1);
     s.met_date_unix = asI64Optional(child(obj, "met_date_unix"));
@@ -327,4 +337,3 @@ bool saveTransferBoxEditsOverlayAtomic(
 }
 
 } // namespace pr
-

@@ -13,6 +13,16 @@ void TransferSystemScreen::handlePointerMoved(int logical_x, int logical_y) {
     if (box_rename_modal_open_) {
         return;
     }
+    if (exit_save_modal_open_) {
+        mouse_hover_mini_preview_box_index_ = -1;
+        mouse_hover_focus_node_ = -1;
+        speech_hover_active_ = false;
+        selection_cursor_hidden_after_mouse_ = true;
+        if (const auto row = exitSaveModalRowAtPoint(logical_x, logical_y)) {
+            exit_save_modal_selected_row_ = *row;
+        }
+        return;
+    }
     if (pointer_moved) {
         selection_cursor_hidden_after_mouse_ = true;
         if (pokemon_move_.active()) {
@@ -346,4 +356,3 @@ void TransferSystemScreen::handlePointerMoved(int logical_x, int logical_y) {
 }
 
 } // namespace pr
-

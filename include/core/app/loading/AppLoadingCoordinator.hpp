@@ -22,7 +22,7 @@ public:
     LoadingScreenBase* activeScreen();
     void beginResortTransfer();
     void beginTradeDemo();
-    void beginSuccessfulSaveQuickPass();
+    void beginSuccessfulSaveQuickPass(const std::string& message_key = {});
     void update(double dt);
 
     bool consumeReturnToMenuRequest();
