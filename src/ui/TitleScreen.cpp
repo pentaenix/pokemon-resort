@@ -64,6 +64,12 @@ void TitleScreen::update(double dt) {
                 if (pending_transfer_after_fade_) {
                     pending_transfer_after_fade_ = false;
                     emitEvent(TitleScreenEvent::OpenTransferRequested);
+                } else if (pending_resort_after_fade_) {
+                    pending_resort_after_fade_ = false;
+                    emitEvent(TitleScreenEvent::OpenResortLoadingRequested);
+                } else if (pending_trade_after_fade_) {
+                    pending_trade_after_fade_ = false;
+                    emitEvent(TitleScreenEvent::OpenTradeLoadingRequested);
                 } else {
                     section_screen_.commitPendingSection();
                     changeState(TitleState::SectionScreen);
@@ -212,6 +218,16 @@ void TitleScreen::returnToMainMenuFromTransfer() {
     changeState(TitleState::MainMenuIdle);
 }
 
+void TitleScreen::returnToMainMenuFromResort() {
+    main_menu_.reset();
+    changeState(TitleState::MainMenuIdle);
+}
+
+void TitleScreen::returnToMainMenuFromTradeLoading() {
+    main_menu_.selectTrade();
+    changeState(TitleState::MainMenuIdle);
+}
+
 void TitleScreen::restartFromExternalScreen() {
     restartFromSplash();
 }
@@ -350,16 +366,20 @@ void TitleScreen::activateMainMenuSelection() {
     switch (main_menu_.activate()) {
         case MainMenuAction::OpenResort:
             pending_transfer_after_fade_ = false;
-            section_screen_.queueSection(SectionKind::Resort);
+            pending_resort_after_fade_ = true;
+            pending_trade_after_fade_ = false;
             changeState(TitleState::MainMenuToSection);
             break;
         case MainMenuAction::OpenTransfer:
+            pending_resort_after_fade_ = false;
             pending_transfer_after_fade_ = true;
+            pending_trade_after_fade_ = false;
             changeState(TitleState::MainMenuToSection);
             break;
         case MainMenuAction::OpenTrade:
             pending_transfer_after_fade_ = false;
-            section_screen_.queueSection(SectionKind::Trade);
+            pending_resort_after_fade_ = false;
+            pending_trade_after_fade_ = true;
             changeState(TitleState::MainMenuToSection);
             break;
         case MainMenuAction::OpenOptions:
@@ -411,6 +431,9 @@ void TitleScreen::restartFromSplash() {
     title_scene_elapsed_ = 0.0;
     main_menu_.reset();
     options_menu_.resetSelection();
+    pending_transfer_after_fade_ = false;
+    pending_resort_after_fade_ = false;
+    pending_trade_after_fade_ = false;
     section_screen_.resetToResort();
     cached_section_title_.clear();
     option_textures_dirty_ = true;

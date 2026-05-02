@@ -15,13 +15,13 @@ constexpr const char* kPokemonSelectColumns = R"sql(
     ot_name, tid16, sid16, tid32, origin_game, language,
     met_location_id, met_level, met_date, ball_id,
     pid, encryption_constant, home_tracker,
-    lineage_root_species, identity_strength, warm_json, suspended_json
+    lineage_root_species, dv16, identity_strength, warm_json, suspended_json
 )sql";
 
 template <typename T>
 void bindOptionalInt(SqliteStatement& stmt, int index, const std::optional<T>& value) {
     if (value) {
-        stmt.bindInt(index, static_cast<int>(*value));
+        stmt.bindInt64(index, static_cast<long long>(*value));
     } else {
         stmt.bindNull(index);
     }
@@ -111,9 +111,10 @@ ResortPokemon pokemonFromCurrentRow(const SqliteStatement& stmt) {
     h.encryption_constant = optionalU32(stmt, 42);
     h.home_tracker = optionalText(stmt, 43);
     h.lineage_root_species = static_cast<unsigned short>(stmt.columnInt(44));
-    h.identity_strength = static_cast<unsigned char>(stmt.columnInt(45));
-    p.warm.json = stmt.columnBlobAsString(46);
-    p.cold.suspended_json = stmt.columnBlobAsString(47);
+    h.dv16 = optionalU16(stmt, 45);
+    h.identity_strength = static_cast<unsigned char>(stmt.columnInt(46));
+    p.warm.json = stmt.columnBlobAsString(47);
+    p.cold.suspended_json = stmt.columnBlobAsString(48);
     return p;
 }
 
@@ -135,7 +136,7 @@ INSERT INTO pokemon (
     ot_name, tid16, sid16, tid32, origin_game, language,
     met_location_id, met_level, met_date, ball_id,
     pid, encryption_constant, home_tracker,
-    lineage_root_species, identity_strength, warm_json, suspended_json
+    lineage_root_species, dv16, identity_strength, warm_json, suspended_json
 ) VALUES (
     ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?, ?, ?, ?,
@@ -147,7 +148,7 @@ INSERT INTO pokemon (
     ?, ?, ?, ?, ?, ?,
     ?, ?, ?, ?,
     ?, ?, ?,
-    ?, ?, ?, ?
+    ?, ?, ?, ?, ?
 )
 )sql");
 
@@ -190,9 +191,10 @@ INSERT INTO pokemon (
     bindOptionalInt(stmt, 43, h.encryption_constant);
     if (h.home_tracker) stmt.bindText(44, *h.home_tracker); else stmt.bindNull(44);
     stmt.bindInt(45, h.lineage_root_species);
-    stmt.bindInt(46, h.identity_strength);
-    stmt.bindBlob(47, pokemon.warm.json.data(), static_cast<int>(pokemon.warm.json.size()));
-    stmt.bindBlob(48, pokemon.cold.suspended_json.data(), static_cast<int>(pokemon.cold.suspended_json.size()));
+    bindOptionalInt(stmt, 46, h.dv16);
+    stmt.bindInt(47, h.identity_strength);
+    stmt.bindBlob(48, pokemon.warm.json.data(), static_cast<int>(pokemon.warm.json.size()));
+    stmt.bindBlob(49, pokemon.cold.suspended_json.data(), static_cast<int>(pokemon.cold.suspended_json.size()));
     stmt.stepDone();
 }
 
@@ -241,6 +243,7 @@ UPDATE pokemon SET
     encryption_constant = ?,
     home_tracker = ?,
     lineage_root_species = ?,
+    dv16 = ?,
     identity_strength = ?,
     warm_json = ?,
     suspended_json = ?
@@ -283,10 +286,11 @@ WHERE pkrid = ?
     bindOptionalInt(stmt, 40, h.encryption_constant);
     if (h.home_tracker) stmt.bindText(41, *h.home_tracker); else stmt.bindNull(41);
     stmt.bindInt(42, h.lineage_root_species);
-    stmt.bindInt(43, h.identity_strength);
-    stmt.bindBlob(44, pokemon.warm.json.data(), static_cast<int>(pokemon.warm.json.size()));
-    stmt.bindBlob(45, pokemon.cold.suspended_json.data(), static_cast<int>(pokemon.cold.suspended_json.size()));
-    stmt.bindText(46, pokemon.id.pkrid);
+    bindOptionalInt(stmt, 43, h.dv16);
+    stmt.bindInt(44, h.identity_strength);
+    stmt.bindBlob(45, pokemon.warm.json.data(), static_cast<int>(pokemon.warm.json.size()));
+    stmt.bindBlob(46, pokemon.cold.suspended_json.data(), static_cast<int>(pokemon.cold.suspended_json.size()));
+    stmt.bindText(47, pokemon.id.pkrid);
     stmt.stepDone();
 }
 

@@ -133,8 +133,20 @@ void TransferSystemScreen::handlePointerMoved(int logical_x, int logical_y) {
                         pointer_drag_item_pickup_slot_index_},
                     transfer_system::move::HeldMoveController::InputMode::Pointer,
                     last_pointer_position_);
-                src->held_item_id = -1;
-                src->held_item_name.clear();
+                if (pointer_drag_item_pickup_from_game_) {
+                    if (!syncGamePcSlotHeldItemPayload(*src, -1, std::string{})) {
+                        ui_state_.requestErrorSfx();
+                        held_move_.clear();
+                        refreshResortBoxViewportModel();
+                        refreshGameBoxViewportModel();
+                        return;
+                    }
+                    markGameBoxesDirty();
+                } else {
+                    src->held_item_id = -1;
+                    src->held_item_name.clear();
+                    markResortBoxesDirty();
+                }
                 refreshResortBoxViewportModel();
                 refreshGameBoxViewportModel();
                 requestPickupSfx();

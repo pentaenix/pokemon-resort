@@ -62,6 +62,7 @@ struct PokemonHot {
     std::optional<std::uint32_t> pid;
     std::optional<std::uint32_t> encryption_constant;
     std::optional<std::string> home_tracker;
+    std::optional<std::uint16_t> dv16;
 
     std::uint16_t lineage_root_species = 0;
     std::uint8_t identity_strength = 0;
@@ -166,6 +167,7 @@ struct MirrorSession {
     std::optional<std::uint16_t> original_tid16;
     std::optional<std::uint16_t> original_sid16;
     std::optional<std::uint16_t> original_game;
+    std::optional<std::uint16_t> sent_dv16;
     std::string projection_json = "{}";
 };
 

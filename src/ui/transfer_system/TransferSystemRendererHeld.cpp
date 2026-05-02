@@ -277,10 +277,9 @@ void TransferSystemScreen::drawHeldBoxSpaceBox(SDL_Renderer* renderer) {
     const auto& box = from_game ? game_pc_boxes_[static_cast<std::size_t>(src)]
                                 : resort_pc_boxes_[static_cast<std::size_t>(src)];
     int occupied = 0;
-    int total = 0;
-    for (const auto& slot : box.slots) {
-        ++total;
-        if (slot.occupied()) ++occupied;
+    const int total = from_game ? gameSaveSlotsPerBox() : static_cast<int>(box.slots.size());
+    for (int i = 0; i < total && i < static_cast<int>(box.slots.size()); ++i) {
+        if (box.slots[static_cast<std::size_t>(i)].occupied()) ++occupied;
     }
     const TextureHandle* tex = nullptr;
     if (total <= 0) {

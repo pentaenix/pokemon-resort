@@ -69,8 +69,13 @@ bool TransferSystemScreen::swapGameAndResortPcBoxes(int game_box_index, int reso
         resort_box_index >= static_cast<int>(resort_pc_boxes_.size())) {
         return false;
     }
+    if (!boxFitsInGameSaveSlots(resort_pc_boxes_[static_cast<std::size_t>(resort_box_index)])) {
+        return false;
+    }
     std::swap(game_pc_boxes_[static_cast<std::size_t>(game_box_index)],
               resort_pc_boxes_[static_cast<std::size_t>(resort_box_index)]);
+    markGameBoxesDirty();
+    markResortBoxesDirty();
     mini_preview_box_index_ = -1;
     mouse_hover_mini_preview_box_index_ = -1;
     mini_preview_model_from_resort_ = false;
@@ -165,6 +170,7 @@ bool TransferSystemScreen::swapResortPcBoxes(int a, int b) {
         return true;
     }
     std::swap(resort_pc_boxes_[static_cast<std::size_t>(a)], resort_pc_boxes_[static_cast<std::size_t>(b)]);
+    markResortBoxesDirty();
     if (resort_service_) {
         resort_service_->swapResortBoxContents(kDefaultResortProfileId, a, b);
     }

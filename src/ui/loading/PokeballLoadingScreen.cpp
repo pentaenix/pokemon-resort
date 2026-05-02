@@ -1,4 +1,4 @@
-#include "ui/LoadingScreen.hpp"
+#include "ui/loading/PokeballLoadingScreen.hpp"
 
 #include "core/Font.hpp"
 #include "core/Json.hpp"
@@ -86,7 +86,7 @@ double easeInOutQuad(double value) {
 
 } // namespace
 
-LoadingScreen::LoadingScreen(
+PokeballLoadingScreen::PokeballLoadingScreen(
     SDL_Renderer* renderer,
     const WindowConfig& window_config,
     const std::string& fallback_font_path,
@@ -104,21 +104,44 @@ LoadingScreen::LoadingScreen(
     chooseNextBall();
 }
 
-void LoadingScreen::enter() {
+void PokeballLoadingScreen::enter() {
     lap_elapsed_seconds_ = 0.0;
+    display_elapsed_seconds_ = 0.0;
+    loading_complete_requested_ = false;
+    loading_animation_complete_ = false;
     chooseNextBall();
 }
 
-void LoadingScreen::update(double dt) {
+void PokeballLoadingScreen::setMinimumLoopSeconds(double minimum_loop_seconds) {
+    minimum_loop_seconds_ = std::max(0.0, minimum_loop_seconds);
+}
+
+void PokeballLoadingScreen::update(double dt) {
+    dt = std::max(0.0, dt);
     const double lap_seconds = std::max(0.05, config_.lap_seconds);
-    lap_elapsed_seconds_ += std::max(0.0, dt);
+    lap_elapsed_seconds_ += dt;
+    display_elapsed_seconds_ += dt;
     while (lap_elapsed_seconds_ >= lap_seconds) {
         lap_elapsed_seconds_ -= lap_seconds;
         chooseNextBall();
     }
+    if (loading_complete_requested_ && display_elapsed_seconds_ >= minimum_loop_seconds_) {
+        loading_animation_complete_ = true;
+    }
 }
 
-void LoadingScreen::render(SDL_Renderer* renderer) {
+void PokeballLoadingScreen::markLoadingComplete() {
+    loading_complete_requested_ = true;
+    if (display_elapsed_seconds_ >= minimum_loop_seconds_) {
+        loading_animation_complete_ = true;
+    }
+}
+
+bool PokeballLoadingScreen::isLoadingAnimationComplete() const {
+    return loading_animation_complete_;
+}
+
+void PokeballLoadingScreen::render(SDL_Renderer* renderer) {
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer);
@@ -168,7 +191,7 @@ void LoadingScreen::render(SDL_Renderer* renderer) {
     }
 }
 
-void LoadingScreen::loadConfig() {
+void PokeballLoadingScreen::loadConfig() {
     const fs::path path = resolvePath(project_root_, "config/loading_screen.json");
     if (!fs::exists(path)) {
         return;
@@ -198,7 +221,7 @@ void LoadingScreen::loadConfig() {
     }
 }
 
-void LoadingScreen::loadBallTextures(SDL_Renderer* renderer) {
+void PokeballLoadingScreen::loadBallTextures(SDL_Renderer* renderer) {
     const fs::path balls_directory = resolvePath(project_root_, config_.balls_directory);
     if (!fs::exists(balls_directory) || !fs::is_directory(balls_directory)) {
         std::cerr << "Warning: loading ball directory missing: " << balls_directory << '\n';
@@ -223,7 +246,7 @@ void LoadingScreen::loadBallTextures(SDL_Renderer* renderer) {
     }
 }
 
-void LoadingScreen::chooseNextBall() {
+void PokeballLoadingScreen::chooseNextBall() {
     if (ball_textures_.empty()) {
         current_ball_index_ = -1;
         return;
@@ -242,21 +265,21 @@ void LoadingScreen::chooseNextBall() {
     current_ball_index_ = next;
 }
 
-double LoadingScreen::scaleX() const {
+double PokeballLoadingScreen::scaleX() const {
     return static_cast<double>(window_config_.virtual_width) /
            static_cast<double>(window_config_.design_width > 0 ? window_config_.design_width : 512);
 }
 
-double LoadingScreen::scaleY() const {
+double PokeballLoadingScreen::scaleY() const {
     return static_cast<double>(window_config_.virtual_height) /
            static_cast<double>(window_config_.design_height > 0 ? window_config_.design_height : 384);
 }
 
-int LoadingScreen::sx(int value) const {
+int PokeballLoadingScreen::sx(int value) const {
     return static_cast<int>(std::round(static_cast<double>(value) * scaleX()));
 }
 
-int LoadingScreen::sy(int value) const {
+int PokeballLoadingScreen::sy(int value) const {
     return static_cast<int>(std::round(static_cast<double>(value) * scaleY()));
 }
 

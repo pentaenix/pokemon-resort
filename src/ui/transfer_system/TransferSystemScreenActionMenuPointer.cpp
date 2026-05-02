@@ -79,10 +79,18 @@ bool TransferSystemScreen::handleItemActionMenuPointerPressed(int logical_x, int
                         item_action_menu_.slotIndex()},
                     transfer_system::move::HeldMoveController::InputMode::Pointer,
                     last_pointer_position_);
-                src->held_item_id = -1;
-                src->held_item_name.clear();
                 if (item_action_menu_.fromGameBox()) {
+                    if (!syncGamePcSlotHeldItemPayload(*src, -1, std::string{})) {
+                        ui_state_.requestErrorSfx();
+                        held_move_.clear();
+                        item_action_menu_.close();
+                        return true;
+                    }
                     markGameBoxesDirty();
+                } else {
+                    src->held_item_id = -1;
+                    src->held_item_name.clear();
+                    markResortBoxesDirty();
                 }
                 refreshResortBoxViewportModel();
                 refreshGameBoxViewportModel();

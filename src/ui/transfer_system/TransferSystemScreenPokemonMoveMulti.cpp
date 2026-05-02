@@ -3,6 +3,7 @@
 #include <SDL.h>
 
 #include <algorithm>
+#include <iostream>
 #include <vector>
 
 namespace pr {
@@ -91,6 +92,16 @@ bool TransferSystemScreen::dropHeldMultiPokemonAt(const transfer_system::Pokemon
     for (std::size_t i = 0; i < entries.size(); ++i) {
         setPokemonAt((*slots)[i], entries[i].pokemon);
     }
+    std::cerr << "[TEMP_TRANSFER_LOG_DELETE] UI multi Pokemon drop count=" << entries.size()
+              << " source_panel="
+              << (entries.empty() || entries.front().return_slot.panel == transfer_system::PokemonMoveController::Panel::Game
+                      ? "game"
+                      : "resort")
+              << " target_panel="
+              << (target.panel == transfer_system::PokemonMoveController::Panel::Game ? "game" : "resort")
+              << " target_box=" << target.box_index
+              << " target_slot=" << target.slot_index
+              << " commit pending Save+Exit\n";
     multi_pokemon_move_.clear();
     refreshResortBoxViewportModel();
     refreshGameBoxViewportModel();
@@ -134,8 +145,10 @@ bool TransferSystemScreen::gameBoxHasEmptySlots(int box_index, int required_coun
     }
     const auto& slots = game_pc_boxes_[static_cast<std::size_t>(box_index)].slots;
     int empty_count = 0;
-    for (const PcSlotSpecies& slot : slots) {
-        if (!slot.occupied() && ++empty_count >= required_count) {
+    for (int i = 0; i < static_cast<int>(slots.size()); ++i) {
+        if (gameSaveSlotAccessible(i) &&
+            !slots[static_cast<std::size_t>(i)].occupied() &&
+            ++empty_count >= required_count) {
             return true;
         }
     }
@@ -181,6 +194,9 @@ bool TransferSystemScreen::dropHeldMultiPokemonIntoFirstEmptyResortBox(int box_i
     for (std::size_t i = 0; i < entries.size(); ++i) {
         setPokemonAt(targets[i], entries[i].pokemon);
     }
+    std::cerr << "[TEMP_TRANSFER_LOG_DELETE] UI multi Pokemon quick-drop to Resort count=" << entries.size()
+              << " target_box=" << box_index
+              << " commit pending Save+Exit\n";
     multi_pokemon_move_.clear();
     refreshGameBoxViewportModel();
     refreshResortBoxViewportModel();
@@ -196,7 +212,7 @@ bool TransferSystemScreen::dropHeldMultiPokemonIntoFirstEmptySlotsInBox(int box_
     targets.reserve(static_cast<std::size_t>(multi_pokemon_move_.count()));
     const auto& slots = game_pc_boxes_[static_cast<std::size_t>(box_index)].slots;
     for (int i = 0; i < static_cast<int>(slots.size()) && static_cast<int>(targets.size()) < multi_pokemon_move_.count(); ++i) {
-        if (!slots[static_cast<std::size_t>(i)].occupied()) {
+        if (gameSaveSlotAccessible(i) && !slots[static_cast<std::size_t>(i)].occupied()) {
             targets.push_back(transfer_system::PokemonMoveController::SlotRef{
                 transfer_system::PokemonMoveController::Panel::Game,
                 box_index,
@@ -210,6 +226,9 @@ bool TransferSystemScreen::dropHeldMultiPokemonIntoFirstEmptySlotsInBox(int box_
     for (std::size_t i = 0; i < entries.size(); ++i) {
         setPokemonAt(targets[i], entries[i].pokemon);
     }
+    std::cerr << "[TEMP_TRANSFER_LOG_DELETE] UI multi Pokemon quick-drop to Game count=" << entries.size()
+              << " target_box=" << box_index
+              << " commit pending Save+Exit\n";
     multi_pokemon_move_.clear();
     refreshGameBoxViewportModel();
     refreshResortBoxViewportModel();

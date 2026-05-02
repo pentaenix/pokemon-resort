@@ -292,10 +292,16 @@ bool TransferSystemScreen::tryGiveHeldItemToFirstEligiblePokemonInGameBox(int bo
         return false;
     }
     auto& slots = game_pc_boxes_[static_cast<std::size_t>(box_index)].slots;
-    for (auto& slot : slots) {
+    for (int i = 0; i < static_cast<int>(slots.size()); ++i) {
+        if (!gameSaveSlotAccessible(i)) {
+            continue;
+        }
+        auto& slot = slots[static_cast<std::size_t>(i)];
         if (slot.occupied() && slot.held_item_id <= 0) {
-            slot.held_item_id = held->item_id;
-            slot.held_item_name = held->item_name;
+            if (!syncGamePcSlotHeldItemPayload(slot, held->item_id, held->item_name)) {
+                ui_state_.requestErrorSfx();
+                return false;
+            }
             held_move_.clear();
             markGameBoxesDirty();
             refreshGameBoxViewportModel();
@@ -318,6 +324,7 @@ bool TransferSystemScreen::tryGiveHeldItemToFirstEligiblePokemonInResortBox(int 
             slot.held_item_id = held->item_id;
             slot.held_item_name = held->item_name;
             held_move_.clear();
+            markResortBoxesDirty();
             refreshGameBoxViewportModel();
             refreshResortBoxViewportModel();
             requestPutdownSfx();

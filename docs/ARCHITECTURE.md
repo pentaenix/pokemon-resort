@@ -2,13 +2,13 @@
 
 This is the central architecture map for the SDL2 app in [`pokemon-resort`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort). It should stay accurate enough that a human or AI agent can decide where a change belongs before editing code.
 
-For test strategy, use [`tests/README.md`](/Users/vanta/Desktop/title_screen_demo/tests/README.md) as the canonical test map. For config ownership, use [`docs/config/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/config/README.md). For transfer-system work, read [`docs/transfer_system/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/transfer_system/README.md) before editing transfer screen code. For bridge work, use [`PKHEX_BRIDGE.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/PKHEX_BRIDGE.md).
+For test strategy, use [`tests/README.md`](/Users/vanta/Desktop/title_screen_demo/tests/README.md) as the canonical test map. For config ownership, use [`docs/config/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/config/README.md). For transfer-system work, read [`docs/transfer_system/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/transfer_system/README.md) before editing transfer screen code. For mirror/projection architecture, use [`docs/transfer_system/MIRROR_PROJECTION_ARCHITECTURE.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/transfer_system/MIRROR_PROJECTION_ARCHITECTURE.md). For bridge work, use [`PKHEX_BRIDGE.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/PKHEX_BRIDGE.md).
 
 ## Current State
 
 The app currently implements:
 
-- title intro, title hold, main menu, options menu, and placeholder Resort/Trade section flow
+- title intro, title hold, main menu, options menu, and Resort/Trade loading-transition test flows
 - transfer entry from the main menu
 - loading screen while external saves are scanned and probed
 - transfer-ticket selection built from bridge/cache summaries
@@ -63,7 +63,8 @@ When changing behavior, name which source of truth you are changing before you e
 - [`TitleScreen.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/TitleScreen.cpp) owns title-flow state transitions, high-level title/menu/options/section coordination, and one-shot title events consumed by `App.cpp`.
 - [`MainMenuController.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/title_screen/MainMenuController.cpp) owns top-level menu selection and selected-row to menu-action mapping.
 - [`OptionsMenuController.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/title_screen/OptionsMenuController.cpp) owns options selection, value cycling, labels, and mapping to/from persisted `UserSettings`.
-- [`SectionScreenController.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/title_screen/SectionScreenController.cpp) owns placeholder section identity for menu destinations such as Resort and Trade.
+- [`src/ui/loading`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/loading) owns loading-screen implementations and the factory used by app flows. The Resort transfer boat screen includes its WhiteIdle/enter/loading/exit state machine and flat 2D SDL rendering.
+- [`SectionScreenController.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/title_screen/SectionScreenController.cpp) owns legacy placeholder section identity for any remaining placeholder menu destinations.
 - [`TitleScreenRender.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/title_screen/TitleScreenRender.cpp) owns title/menu/options/section rendering helpers, button geometry, texture caches, and logo shine generation.
 
 Title-side effects should flow through typed `TitleScreenEvent` values. Avoid adding more boolean consume methods.
@@ -78,7 +79,7 @@ If a transfer flow rule can be tested without SDL or PKHeX, prefer `TransferFlow
 
 ### Loading And Transfer Ticket Selection
 
-- [`LoadingScreen.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/LoadingScreen.cpp) owns the black transfer loading screen and reads [`loading_screen.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/loading_screen.json).
+- [`src/ui/loading`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/loading) owns reusable loading screens. `PokeballLoadingScreen.cpp` owns the black rotating Pokeball screen, and `ResortTransferLoadingScreen.cpp` owns the boat/resort transfer screen. Both are created through `LoadingScreenFactory` and read [`loading_screen.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/loading_screen.json); see [`docs/loading/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/loading/README.md).
 - [`TransferTicketScreen.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/TransferTicketScreen.cpp) renders transfer tickets from already parsed transfer summaries. It should not probe saves or parse bridge JSON.
 - [`TransferTicketListController.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/transfer_ticket/TransferTicketListController.cpp) owns ticket list state: selection, scroll target/current offset, pointer drag/click behavior, rip activation timing, fade-to-black handoff, return-to-title requests, and selected-save handoff.
 
@@ -144,7 +145,7 @@ Temporary held-object behavior is split deliberately:
 - `move/Gestures.hpp` provides reusable hold/drag gesture helpers for Box Space and quick-drop style behavior.
 - `TransferSystemScreen` applies accepted moves to current in-memory slots, refreshes viewport models, and requests pickup/putdown SFX.
 
-Current movement is non-persistent. Save mutation and durable Resort storage integration belong in a later write-back/backend layer.
+Movement remains in-memory for the external-save column. **Resort column persistence**: dropping a game PC Pokémon onto a Resort slot calls `PokemonResortService::importParsedPokemon` using merged bridge import bytes (`PcSlotSpecies.bridge_box_payload_*`) plus `source_game` parsed from the bridge `import` stdout. Resort-only moves continue to use `movePokemonToSlot` / `swapResortSlotContents`. External save write-back remains bridge-layer work.
 
 #### Item Tool Behavior
 
@@ -200,6 +201,8 @@ The Resort backend is separate from the options save file and from transfer-tick
 - `PokemonExportService` and `MirrorSessionService` own export projection snapshots and managed mirror sessions.
 
 The transfer screen still uses in-memory UI slot state. See [`docs/backend/frontend_integration.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/backend/frontend_integration.md) before replacing that with backend-backed storage.
+
+Durable cross-generation travel, lossy projection prompts, mirror return matching, and mutable-field merge policy are specified in [`docs/transfer_system/MIRROR_PROJECTION_ARCHITECTURE.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/transfer_system/MIRROR_PROJECTION_ARCHITECTURE.md). Keep that doc current before changing those backend or bridge contracts.
 
 ### Future: explicit player save bootstrap
 
@@ -258,7 +261,7 @@ Run .NET bridge tests sequentially when touching the bridge, save probing, impor
 - Native tests are registered with CTest; do not rely on a single executable name.
 - Language mode: C++17 plus Objective-C++ for the current macOS audio backend.
 - Current platform assumptions: macOS with `SDL2`, `SDL2_image`, `SDL2_ttf`, `AVFoundation`, and `Foundation`.
-- Save parsing bridge: external .NET helper under [`tools/pkhex_bridge`](/Users/vanta/Desktop/title_screen_demo/tools/pkhex_bridge).
+- Save parsing bridge: external .NET helper under [`tools/pkhex_bridge`](/Users/vanta/Desktop/title_screen_demo/tools/pkhex_bridge); guarded write-back logic is split under `tools/pkhex_bridge/WriteBack/` so `BridgeWriteBack.cs` stays orchestration-only and new projection domains add appliers instead of growing one file past ~500 lines.
 - Shipping bridge path: publish a self-contained helper and bundle it next to the executable or inside app resources.
 
 For cross-platform work, isolate OS-specific behavior behind small adapters. Avoid adding platform checks inside scene logic.

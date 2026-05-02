@@ -51,13 +51,16 @@ void TransferSystemScreen::onNavigate2d(int dx, int dy) {
         keyboard_multi_marquee_active_ = false;
     }
     if (keyboard_multi_marquee_active_) {
-        int row = keyboard_multi_marquee_corner_slot_ / 6;
-        int col = keyboard_multi_marquee_corner_slot_ % 6;
+        const int cols = keyboard_multi_marquee_from_game_ && gameSaveSlotsPerBox() <= 20 ? 5 : 6;
+        const int visible_slots = keyboard_multi_marquee_from_game_ ? gameSaveSlotsPerBox() : 30;
+        const int rows = std::max(1, (visible_slots + cols - 1) / cols);
+        int row = keyboard_multi_marquee_corner_slot_ / cols;
+        int col = keyboard_multi_marquee_corner_slot_ % cols;
         col += dx;
         row += dy;
-        row = std::clamp(row, 0, 4);
-        col = std::clamp(col, 0, 5);
-        keyboard_multi_marquee_corner_slot_ = row * 6 + col;
+        row = std::clamp(row, 0, rows - 1);
+        col = std::clamp(col, 0, cols - 1);
+        keyboard_multi_marquee_corner_slot_ = std::min(row * cols + col, visible_slots - 1);
         focus_.setCurrent((keyboard_multi_marquee_from_game_ ? 2000 : 1000) + keyboard_multi_marquee_corner_slot_);
         ui_state_.requestUiMoveSfx();
         return;

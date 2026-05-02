@@ -101,11 +101,11 @@ Repositories own SQL only. Do not put identity, merge, projection, or UI logic h
 Implemented in [`tools/pkhex_bridge`](/Users/vanta/Desktop/title_screen_demo/tools/pkhex_bridge):
 
 - `PKHeXBridge <save-path>`
-  Probe/preview command. Emits `bridge_probe_schema: 4` plus legacy ticket fields.
+  Probe/preview command. Emits `bridge_probe_schema: 5` plus legacy ticket fields.
 - `PKHeXBridge import <save-path>`
   Import-grade read. Emits `bridge_import_schema: 1`, including exact per-Pokemon raw payload bytes and SHA-256 hashes.
 - `PKHeXBridge write-projection <save-path> <projection-json-path>`
-  Applies a projection JSON to the save (after writing `*.bak`). Supports `projection_schema` 1 (box names) and 2 (full PC snapshot + names). See [`PKHEX_BRIDGE.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/PKHEX_BRIDGE.md).
+  Applies a projection JSON to the save (after snapshots under `<projection-dir>/transfer_write_backups/`). Supports `projection_schema` 1 (box names) and 2 (full PC snapshot + names). See [`PKHEX_BRIDGE.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/PKHEX_BRIDGE.md).
 
 Native process launcher methods are in [`include/core/SaveBridgeClient.hpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/core/SaveBridgeClient.hpp):
 
@@ -123,6 +123,10 @@ Source: [`tools/resort_backend_tool.cpp`](/Users/vanta/Desktop/title_screen_demo
   Creates import-grade native input and imports through normal Resort policy.
 - `resort_backend_tool export --db <profile.resort.db> --pkrid <pkrid> --target-game <id> [options]`
   Runs normal export projection and can write projection bytes to `--out`.
+- `resort_backend_tool recover --db <profile.resort.db> --pkrid <pkrid> [--profile default]`
+  Emergency recovery for an existing canonical Pokemon. Places it in the first available Resort slot using reject-if-occupied placement and closes any stale active mirror.
+- `resort_backend_tool reset --db <profile.resort.db> [--profile default] [--backup <path>] --confirm RESET`
+  **DANGEROUS**: wipes the Resort profile to an empty state. Deletes all canonical Pokémon (cascading snapshots/history/mirrors) and clears `box_slots`. Requires explicit `--confirm RESET`. Use `--backup` to copy the DB file before modifying it.
 
 ## Not Implemented Yet
 

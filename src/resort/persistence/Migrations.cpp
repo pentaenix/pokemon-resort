@@ -1,5 +1,6 @@
 #include "resort/persistence/Migrations.hpp"
 
+#include <string>
 #include <stdexcept>
 
 namespace pr::resort {
@@ -70,6 +71,7 @@ CREATE TABLE IF NOT EXISTS pokemon (
     encryption_constant     INTEGER,
     home_tracker            TEXT,
     lineage_root_species    INTEGER NOT NULL,
+    dv16                    INTEGER,
     identity_strength       INTEGER NOT NULL,
     warm_json               BLOB NOT NULL,
     suspended_json          BLOB NOT NULL
@@ -124,6 +126,7 @@ CREATE TABLE IF NOT EXISTS mirror_sessions (
     original_tid16          INTEGER,
     original_sid16          INTEGER,
     original_game           INTEGER,
+    sent_dv16               INTEGER,
     projection_json         BLOB NOT NULL,
     FOREIGN KEY (pkrid) REFERENCES pokemon(pkrid) ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED
 );
@@ -167,6 +170,21 @@ CREATE TABLE IF NOT EXISTS pokemon_history (
     connection.exec("CREATE INDEX IF NOT EXISTS idx_mirror_active_beacon ON mirror_sessions(target_game, beacon_tid16, beacon_ot_name, status)");
 }
 
+void addColumnIfMissing(SqliteConnection& connection, const char* table, const char* column, const char* definition) {
+    auto stmt = connection.prepare(std::string("PRAGMA table_info(") + table + ")");
+    while (stmt.stepRow()) {
+        if (stmt.columnText(1) == column) {
+            return;
+        }
+    }
+    connection.exec(std::string("ALTER TABLE ") + table + " ADD COLUMN " + definition);
+}
+
+void migrateTo2(SqliteConnection& connection) {
+    addColumnIfMissing(connection, "pokemon", "dv16", "dv16 INTEGER");
+    addColumnIfMissing(connection, "mirror_sessions", "sent_dv16", "sent_dv16 INTEGER");
+}
+
 } // namespace
 
 void runResortMigrations(SqliteConnection& connection) {
@@ -178,6 +196,11 @@ void runResortMigrations(SqliteConnection& connection) {
     if (version < 1) {
         migrateTo1(connection);
         setVersion(connection, 1);
+        version = 1;
+    }
+    if (version < 2) {
+        migrateTo2(connection);
+        setVersion(connection, 2);
     }
     tx.commit();
 }

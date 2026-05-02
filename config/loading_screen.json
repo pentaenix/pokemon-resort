@@ -15,5 +15,151 @@
   "lap_seconds": 0.95,
   "partial_spin_degrees": 24,
   "full_spin_degrees": -360,
-  "partial_spin_fraction": 0.28
+  "partial_spin_fraction": 0.28,
+  "resort_transfer": {
+    "assets": {
+      "boat": "assets/loading/boat.png",
+      "cloud1": "assets/loading/cloud1.png",
+      "cloud2": "assets/loading/cloud2.png"
+    },
+    "colors": {
+      "sky": "#f8f4e8",
+      "sun": "#fddb99",
+      "foam": "#ffffff",
+      "clouds": "#ffffff",
+      "border": "#ffffff"
+    },
+    "timing": {
+      "intro_water_sun": { "start": 0.0, "duration": 0.55, "ease": "ease_out_cubic" },
+      "intro_clouds": { "start": 0.10, "duration": 0.70, "ease": "ease_out_cubic" },
+      "intro_boat": { "start": 0.55, "duration": 0.5, "ease": "ease_in_out_cubic" },
+      "outro_boat": { "start": 0.0, "duration": 0.5, "ease": "ease_in_cubic" },
+      "outro_water_sun": { "start": 0.45, "duration": 0.55, "ease": "ease_in_cubic" },
+      "outro_clouds": { "start": 0.0, "duration": 1.0, "ease": "linear" }
+    },
+    "quick_pass": {
+      "duration": 3,
+      "ease": "ease_in_out_cubic",
+      "water_in_fraction": 0.25,
+      "water_out_start": 0.72,
+      "water_out_fraction": 0.28,
+      "cloud_exit_start": 0.55,
+      "cloud_exit_fraction": 0.45
+    },
+    "minimum_loop_seconds": 1,
+    "border": {
+      "inset": 25,
+      "radius": 34,
+      "stroke": 8
+    },
+    "sun": {
+      "diameter": 512,
+      "center_x_ratio": 0.70,
+      "bottom_offset": 460,
+      "offscreen_padding": 24
+    },
+    "boat": {
+      "center_x_ratio": 0.5,
+      "bottom_offset": 220,
+      "scale": 0.7,
+      "bob_pixels": 5,
+      "bob_seconds": 2.8,
+      "moving_bob_pixels": 2
+    },
+    "clouds": {
+      "cloud1_bottom_offset": 600,
+      "cloud2_bottom_offset": 510,
+      "spacing": 600,
+      "base_x_ratio": 0.42,
+      "drift_speed": 155,
+      "exit_speed": 1500
+    },
+    "message": {
+      "font": "assets/fonts/loading_card.TTF",
+      "font_size": 60,
+      "color": "#4a9b9c",
+      "center_x_ratio": 0.25,
+      "center_bottom_offset": 650,
+      "line_spacing": 0,
+      "max_width_ratio": 0.46,
+      "show_in_idle": false,
+      "intro": { "start": 0.62, "duration": 0.38, "ease": "ease_out_cubic" },
+      "outro": { "start": 0.0, "duration": 0.22, "ease": "ease_in_cubic" },
+      "enter_y_offset": 24,
+      "default_key": "message_transport_pokemon",
+      "texts": {
+        "message_transport_pokemon": "Transporting\nMany Pokemon..."
+      }
+    },
+    "temporal": {
+      "trade_button": {
+        "loading_type": "quick_boat_pass",
+        "message_key": "message_transport_pokemon",
+        "simulated_load_duration": 0
+      }
+    },
+    "foam": {
+      "color": "#ffffff",
+      "y_offset_from_boat_bottom": -3,
+      "overlap_with_hull": 7,
+      "total_width_percent_of_boat_width": 0.62,
+      "front_extension": 56,
+      "back_extension": 250,
+      "thickness": 24,
+      "bow_splash_width": 74,
+      "bow_splash_height": 18,
+      "speed_crest_count": 5,
+      "speed_crest_spacing": 13,
+      "speed_crest_front_x_offset": -35,
+      "speed_crest_height": 20,
+      "speed_crest_thickness": 16,
+      "speed_crest_angle_offset": 34,
+      "speed_crest_y_offset": -4,
+      "speed_crest_angle_degrees": -35,
+      "speed_crest_front_pulse_amount": 0.06,
+      "speed_crest_front_pulse_seconds": 0.85,
+      "speed_crest_scroll_speed": 45,
+      "main_scallop_count": 6,
+      "front_scallop_amplitude": 7.5,
+      "back_scallop_amplitude": 2,
+      "front_scallop_wavelength": 46,
+      "back_scallop_wavelength": 92,
+      "scroll_speed": -240,
+      "velocity_influence": 0.18,
+      "foam_world_phase_coupling": 1.0,
+      "trailing_stretch_amount": 170,
+      "stern_taper": 0.34,
+      "segments": 112
+    },
+    "waves": {
+      "segments": 64,
+      "sink_padding": 120,
+      "layers": [
+        {
+          "bottom_offset": 255,
+          "color": "#8bc3be",
+          "amplitude": 8,
+          "wavelength": 360,
+          "horizontal_speed": 118,
+          "phase": 40
+        },
+        {
+          "bottom_offset": 180,
+          "color": "#67aead",
+          "amplitude": 10,
+          "wavelength": 430,
+          "horizontal_speed": 165,
+          "phase": 130
+        },
+        {
+          "bottom_offset": 120,
+          "color": "#4a9b9c",
+          "amplitude": 12,
+          "wavelength": 500,
+          "horizontal_speed": 220,
+          "phase": 260
+        }
+      ]
+    }
+  }
 }

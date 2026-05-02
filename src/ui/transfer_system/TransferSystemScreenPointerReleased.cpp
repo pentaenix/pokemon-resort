@@ -110,21 +110,29 @@ bool TransferSystemScreen::handlePointerReleased(int logical_x, int logical_y) {
         const auto* hb = held_move_.heldBox();
         const int from = hb->source_box_index;
         const auto from_panel = hb->source_panel;
-        held_move_.clear();
+        bool moved = false;
         if (from >= 0 && target_box_index >= 0) {
             if (from_panel == transfer_system::move::HeldMoveController::PokemonSlotRef::Panel::Game && !target_resort) {
-                (void)swapGamePcBoxes(from, target_box_index);
+                moved = swapGamePcBoxes(from, target_box_index);
             } else if (
                 from_panel == transfer_system::move::HeldMoveController::PokemonSlotRef::Panel::Resort && target_resort) {
-                (void)swapResortPcBoxes(from, target_box_index);
+                moved = swapResortPcBoxes(from, target_box_index);
             } else if (
                 from_panel == transfer_system::move::HeldMoveController::PokemonSlotRef::Panel::Game && target_resort) {
-                (void)swapGameAndResortPcBoxes(from, target_box_index);
+                moved = swapGameAndResortPcBoxes(from, target_box_index);
             } else if (
                 from_panel == transfer_system::move::HeldMoveController::PokemonSlotRef::Panel::Resort && !target_resort) {
-                (void)swapGameAndResortPcBoxes(target_box_index, from);
+                moved = swapGameAndResortPcBoxes(target_box_index, from);
             }
         }
+        if (!moved) {
+            held_move_.clear();
+            refreshGameBoxViewportModel();
+            refreshResortBoxViewportModel();
+            triggerHeldSpriteRejectFeedback();
+            return true;
+        }
+        held_move_.clear();
         refreshGameBoxViewportModel();
         refreshResortBoxViewportModel();
         requestPutdownSfx();

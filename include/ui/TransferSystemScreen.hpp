@@ -80,6 +80,7 @@ public:
     bool consumePutdownSfxRequest();
     bool consumeErrorSfxRequest();
     bool consumeReturnToTicketListRequest();
+    bool consumeSuccessfulSaveExitRequest();
 
     bool canNavigate2d() const override { return true; }
     void onNavigate2d(int dx, int dy) override;
@@ -202,7 +203,13 @@ private:
 
     // --- External game save edits (prototype overlay persistence) ---
     bool game_boxes_dirty_ = false;
+    bool resort_boxes_dirty_ = false;
+    bool successful_save_exit_requested_ = false;
     void markGameBoxesDirty();
+    void markResortBoxesDirty();
+    bool preparePendingResortMirrorPayloadsForSave();
+    bool commitPendingGameToResortImportsBeforeSave();
+    bool commitPendingResortStorageChangesAfterSave();
     bool saveGameBoxEditsOverlayAndClearDirty();
     void drawBackground(SDL_Renderer* renderer) const;
     void updateAnimations(double dt);
@@ -315,6 +322,8 @@ private:
     /// Display name for the external save footer icon callout (`selection.game_title`).
     std::string selection_game_title_;
     TransferSaveSelection transfer_selection_{};
+    /// `source_game` (PKHeX save version) from the last successful bridge `import` stdout; used for Resort imports.
+    std::optional<std::uint16_t> bridge_import_source_game_{};
     int resort_pc_box_count_ = 60;
     std::vector<TransferSaveSelection::PcBox> resort_pc_boxes_{};
     resort::PokemonResortService* resort_service_{nullptr};
@@ -571,6 +580,9 @@ private:
     bool gameBoxHasEmptySlot(int box_index) const;
     bool gameBoxHasPreviewContent(int box_index) const;
     bool resortBoxHasPreviewContent(int box_index) const;
+    bool boxFitsInGameSaveSlots(const TransferSaveSelection::PcBox& box) const;
+    int gameSaveSlotsPerBox() const;
+    bool gameSaveSlotAccessible(int slot_index) const;
     bool shouldShowMiniPreviewForBox(int box_index, MiniPreviewContext context) const;
     bool shouldShowMiniPreviewForResortBox(int box_index, MiniPreviewContext context) const;
     bool openGameBoxFromBoxSpaceSelection(int box_index);
@@ -587,13 +599,17 @@ private:
     void updateBoxViewportsAndFocusDimming(double dt);
     void initializeResortPcBoxesFromStorage(SDL_Renderer* renderer);
     PcSlotSpecies pcSlotFromResortSlotView(const resort::PokemonSlotView& view, int box_id, int slot_index) const;
-    void persistResortPokemonDropToStorage(
+    /// Returns false when a storage write failed (caller should revert in-memory boxes).
+    bool persistResortPokemonDropToStorage(
         const transfer_system::PokemonMoveController::SlotRef& target,
         const transfer_system::PokemonMoveController::SlotRef& return_slot,
         bool target_was_occupied,
         bool swap_into_hand,
         const std::string& held_pkrid,
         const std::string& target_pkrid_before);
+
+    /// Refreshes import-grade PC encrypted bytes after a held-item change on the external-save panel (required for write-back).
+    bool syncGamePcSlotHeldItemPayload(PcSlotSpecies& slot, int new_held_item_id, const std::string& new_held_item_name);
 
     void clearBoxSpaceQuickDropGesture();
     void triggerHeldSpriteRejectFeedback();

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "resort/domain/ExportedPokemon.hpp"
+#include "resort/persistence/BoxRepository.hpp"
 #include "resort/persistence/HistoryRepository.hpp"
 #include "resort/persistence/PokemonRepository.hpp"
 #include "resort/persistence/SnapshotRepository.hpp"
@@ -14,6 +15,7 @@ public:
     PokemonExportService(
         SqliteConnection& connection,
         PokemonRepository& pokemon,
+        BoxRepository& boxes,
         SnapshotRepository& snapshots,
         HistoryRepository& history,
         MirrorSessionService& mirror_sessions);
@@ -23,6 +25,7 @@ public:
 private:
     SqliteConnection& connection_;
     PokemonRepository& pokemon_;
+    BoxRepository& boxes_;
     SnapshotRepository& snapshots_;
     HistoryRepository& history_;
     MirrorSessionService& mirror_sessions_;

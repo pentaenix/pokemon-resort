@@ -139,6 +139,7 @@ struct AudioConfig {
     std::string pickup_sfx = "assets/sfx/pickup.mp3";
     std::string putdown_sfx = "assets/sfx/putdown.mp3";
     std::string error_sfx = "assets/sfx/error.mp3";
+    std::string save_sfx = "assets/sfx/save.mp3";
     int music_volume = 7;
     int sfx_volume = 8;
 };

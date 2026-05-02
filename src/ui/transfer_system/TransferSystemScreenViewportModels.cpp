@@ -11,7 +11,14 @@ BoxViewportModel TransferSystemScreen::gameBoxViewportModelAt(int box_index) con
     }
     incoming.box_name = game_pc_boxes_[static_cast<std::size_t>(box_index)].name;
     const auto& slots = game_pc_boxes_[static_cast<std::size_t>(box_index)].slots;
+    const int accessible_slots = gameSaveSlotsPerBox();
+    incoming.visible_slot_count = accessible_slots;
+    incoming.slot_columns = accessible_slots <= 20 ? 5 : 6;
     for (std::size_t i = 0; i < incoming.slot_sprites.size() && i < slots.size(); ++i) {
+        if (static_cast<int>(i) >= accessible_slots) {
+            incoming.disabled_slots[i] = true;
+            continue;
+        }
         const auto& pc = slots[i];
         if (!pc.occupied() || !sprite_assets_ || !renderer_) {
             incoming.slot_sprites[i] = std::nullopt;
@@ -24,6 +31,11 @@ BoxViewportModel TransferSystemScreen::gameBoxViewportModelAt(int box_index) con
             incoming.held_item_sprites[i] =
                 item.texture ? std::optional<TextureHandle>(std::move(item)) : std::nullopt;
         }
+    }
+    for (std::size_t i = static_cast<std::size_t>(std::max(0, accessible_slots));
+         i < incoming.disabled_slots.size();
+         ++i) {
+        incoming.disabled_slots[i] = true;
     }
     return incoming;
 }
@@ -51,10 +63,9 @@ BoxViewportModel TransferSystemScreen::gameBoxSpaceViewportModelAt(int row_offse
 
         const auto& box = game_pc_boxes_[static_cast<std::size_t>(box_index)];
         int occupied = 0;
-        int total = 0;
-        for (const auto& slot : box.slots) {
-            ++total;
-            if (slot.occupied()) {
+        const int total = gameSaveSlotsPerBox();
+        for (int slot_index = 0; slot_index < total && slot_index < static_cast<int>(box.slots.size()); ++slot_index) {
+            if (box.slots[static_cast<std::size_t>(slot_index)].occupied()) {
                 ++occupied;
             }
         }

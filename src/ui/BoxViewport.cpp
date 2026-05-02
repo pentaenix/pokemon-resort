@@ -31,6 +31,7 @@ constexpr int kSlotGapX = 12;
 constexpr int kSlotGapY = 12;
 constexpr int kCols = 6;
 constexpr int kRows = 5;
+constexpr int kMaxSlots = kCols * kRows;
 
 constexpr int kGameIconSize = 45;
 constexpr int kFooterEdgePad = 17;
@@ -266,9 +267,10 @@ SDL_Rect computeSpriteGridClipRect(
     bool content_slide_active) {
     if (content_slide_active) {
         // Sliding columns use horizontal offsets up to ±viewport width; clip to full panel width for this band.
+        constexpr int kSlideClipInsetPx = 8;
         SDL_Rect r;
-        r.x = vx;
-        r.w = BoxViewport::kViewportWidth;
+        r.x = vx + kSlideClipInsetPx;
+        r.w = std::max(0, BoxViewport::kViewportWidth - 2 * kSlideClipInsetPx);
         r.y = std::max(vy, grid_y - pad);
         const int bottom = std::min(vy + BoxViewport::kViewportHeight, grid_y + grid_h + pad);
         r.h = std::max(0, bottom - r.y);
@@ -284,6 +286,42 @@ SDL_Rect computeSpriteGridClipRect(
     const int clip_bottom = std::min(vy + BoxViewport::kViewportHeight, clip_y + clip_h);
     clip_h = std::max(0, clip_bottom - clip_y);
     return SDL_Rect{clip_x, clip_y, clip_w, clip_h};
+}
+
+int clampedVisibleSlotCount(const BoxViewportModel& model) {
+    return std::clamp(model.visible_slot_count, 0, kMaxSlots);
+}
+
+int clampedSlotColumns(const BoxViewportModel& model) {
+    return std::clamp(model.slot_columns, 1, kCols);
+}
+
+int visibleSlotRows(const BoxViewportModel& model) {
+    const int slots = clampedVisibleSlotCount(model);
+    const int cols = clampedSlotColumns(model);
+    return slots <= 0 ? 0 : (slots + cols - 1) / cols;
+}
+
+SDL_Rect slotGridRect(const BoxViewportModel& model, int vx, int vy) {
+    const int pill_y = vy + kNameTopPad;
+    const int full_grid_w = kCols * kSlotW + (kCols - 1) * kSlotGapX;
+    const int full_grid_h = kRows * kSlotH + (kRows - 1) * kSlotGapY;
+    const int full_grid_x = vx + (BoxViewport::kViewportWidth - full_grid_w) / 2;
+    const int full_grid_y = pill_y + kNamePillH + kNameToGridGap;
+
+    const int slots = clampedVisibleSlotCount(model);
+    if (slots <= 0) {
+        return SDL_Rect{full_grid_x, full_grid_y, 0, 0};
+    }
+    const int cols = clampedSlotColumns(model);
+    const int rows = visibleSlotRows(model);
+    const int grid_w = cols * kSlotW + (cols - 1) * kSlotGapX;
+    const int grid_h = rows * kSlotH + (rows - 1) * kSlotGapY;
+    return SDL_Rect{
+        full_grid_x + (full_grid_w - grid_w) / 2,
+        full_grid_y + (full_grid_h - grid_h) / 2,
+        grid_w,
+        grid_h};
 }
 
 } // namespace
@@ -498,12 +536,12 @@ bool BoxViewport::getBoxSpaceScrollArrowBounds(SDL_Rect& out) const {
     const int vx = viewport_x_;
     const int vy = viewport_y_;
     const int pill_y = vy + kNameTopPad;
-    const int grid_w = kCols * kSlotW + (kCols - 1) * kSlotGapX;
-    const int grid_h = kRows * kSlotH + (kRows - 1) * kSlotGapY;
-    const int grid_x = vx + (BoxViewport::kViewportWidth - grid_w) / 2;
-    const int grid_y = pill_y + kNamePillH + kNameToGridGap;
-    const int grid_bottom = grid_y + grid_h;
-    const int grid_mid_x = grid_x + grid_w / 2;
+    const int full_grid_w = kCols * kSlotW + (kCols - 1) * kSlotGapX;
+    const int full_grid_h = kRows * kSlotH + (kRows - 1) * kSlotGapY;
+    const int full_grid_x = vx + (BoxViewport::kViewportWidth - full_grid_w) / 2;
+    const int full_grid_y = pill_y + kNamePillH + kNameToGridGap;
+    const int grid_bottom = full_grid_y + full_grid_h;
+    const int grid_mid_x = full_grid_x + full_grid_w / 2;
     const int scroll_cy =
         grid_bottom + kScrollBelowSlots + arrow_tex_.height / 2 + style_.footer_scroll_arrow_offset_y;
     out = SDL_Rect{grid_mid_x - arrow_tex_.width / 2, scroll_cy - arrow_tex_.height / 2, arrow_tex_.width, arrow_tex_.height};
@@ -511,21 +549,17 @@ bool BoxViewport::getBoxSpaceScrollArrowBounds(SDL_Rect& out) const {
 }
 
 bool BoxViewport::getSlotBounds(int slot_index, SDL_Rect& out) const {
-    if (slot_index < 0 || slot_index >= 30) {
+    const int visible_slots = clampedVisibleSlotCount(model_);
+    if (slot_index < 0 || slot_index >= visible_slots) {
         return false;
     }
-    const int vx = viewport_x_;
-    const int vy = viewport_y_;
-    const int pill_y = vy + kNameTopPad;
-
-    const int grid_w = kCols * kSlotW + (kCols - 1) * kSlotGapX;
-    const int grid_x = vx + (BoxViewport::kViewportWidth - grid_w) / 2;
-    const int grid_y = pill_y + kNamePillH + kNameToGridGap;
-    const int row = slot_index / kCols;
-    const int col = slot_index % kCols;
+    const SDL_Rect grid = slotGridRect(model_, viewport_x_, viewport_y_);
+    const int cols = clampedSlotColumns(model_);
+    const int row = slot_index / cols;
+    const int col = slot_index % cols;
     out = SDL_Rect{
-        grid_x + col * (kSlotW + kSlotGapX),
-        grid_y + row * (kSlotH + kSlotGapY),
+        grid.x + col * (kSlotW + kSlotGapX),
+        grid.y + row * (kSlotH + kSlotGapY),
         kSlotW,
         kSlotH};
     return true;
@@ -581,12 +615,12 @@ bool BoxViewport::getResortScrollArrowBounds(SDL_Rect& out) const {
     const int vx = viewport_x_;
     const int vy = viewport_y_;
     const int pill_y = vy + kNameTopPad;
-    const int grid_w = kCols * kSlotW + (kCols - 1) * kSlotGapX;
-    const int grid_h = kRows * kSlotH + (kRows - 1) * kSlotGapY;
-    const int grid_x = vx + (BoxViewport::kViewportWidth - grid_w) / 2;
-    const int grid_y = pill_y + kNamePillH + kNameToGridGap;
-    const int grid_bottom = grid_y + grid_h;
-    const int grid_mid_x = grid_x + grid_w / 2;
+    const int full_grid_w = kCols * kSlotW + (kCols - 1) * kSlotGapX;
+    const int full_grid_h = kRows * kSlotH + (kRows - 1) * kSlotGapY;
+    const int full_grid_x = vx + (BoxViewport::kViewportWidth - full_grid_w) / 2;
+    const int full_grid_y = pill_y + kNamePillH + kNameToGridGap;
+    const int grid_bottom = full_grid_y + full_grid_h;
+    const int grid_mid_x = full_grid_x + full_grid_w / 2;
     const int scroll_cy =
         grid_bottom + kScrollBelowSlots + arrow_tex_.height / 2 + style_.footer_scroll_arrow_offset_y;
     // The rendered arrow is rotated, but bounds use the raw texture rect.
@@ -691,30 +725,36 @@ void BoxViewport::renderBelowNamePlate(SDL_Renderer* renderer) const {
     const int pill_x = vx + (BoxViewport::kViewportWidth - kNamePillW) / 2;
     const int pill_y = vy + kNameTopPad;
 
-    const int grid_w = kCols * kSlotW + (kCols - 1) * kSlotGapX;
-    const int grid_h = kRows * kSlotH + (kRows - 1) * kSlotGapY;
-    const int grid_x = vx + (BoxViewport::kViewportWidth - grid_w) / 2;
-    const int grid_y = pill_y + kNamePillH + kNameToGridGap;
+    const int full_grid_w = kCols * kSlotW + (kCols - 1) * kSlotGapX;
+    const int full_grid_h = kRows * kSlotH + (kRows - 1) * kSlotGapY;
+    const int full_grid_x = vx + (BoxViewport::kViewportWidth - full_grid_w) / 2;
+    const int full_grid_y = pill_y + kNamePillH + kNameToGridGap;
 
     const int clip_pad = spriteGridClipPadding(style_);
     const SDL_Rect grid_clip =
-        computeSpriteGridClipRect(vx, vy, grid_x, grid_y, grid_w, grid_h, clip_pad, content_slide_active_);
+        computeSpriteGridClipRect(vx, vy, full_grid_x, full_grid_y, full_grid_w, full_grid_h, clip_pad, content_slide_active_);
     SDL_RenderSetClipRect(renderer, &grid_clip);
 
     // Two passes so overflow sprites paint above every slot’s chrome (neighbors’ rounded rects included).
     const bool box_space_header = (header_mode_ == HeaderMode::BoxSpace);
 
     auto draw_slot_backgrounds_only = [&](const BoxViewportModel& m, int dx) {
-        for (int row = 0; row < kRows; ++row) {
-            for (int col = 0; col < kCols; ++col) {
-                const std::size_t idx = static_cast<std::size_t>(row * kCols + col);
+        const SDL_Rect grid = slotGridRect(m, vx, vy);
+        const int cols = clampedSlotColumns(m);
+        const int slots = clampedVisibleSlotCount(m);
+        for (int idx_int = 0; idx_int < slots; ++idx_int) {
+                const std::size_t idx = static_cast<std::size_t>(idx_int);
+                const int row = idx_int / cols;
+                const int col = idx_int % cols;
                 const int wdx =
                     box_space_header && idx < m.slot_wiggle_dx.size() ? m.slot_wiggle_dx[idx] : 0;
-                const int sx = grid_x + col * (kSlotW + kSlotGapX) + dx + wdx;
-                const int sy = grid_y + row * (kSlotH + kSlotGapY);
-                const Color slot_bg = style_.slot_background_color.a == 0 ? kSlotBg : style_.slot_background_color;
+                const int sx = grid.x + col * (kSlotW + kSlotGapX) + dx + wdx;
+                const int sy = grid.y + row * (kSlotH + kSlotGapY);
+                Color slot_bg = style_.slot_background_color.a == 0 ? kSlotBg : style_.slot_background_color;
+                if (idx < m.disabled_slots.size() && m.disabled_slots[idx]) {
+                    slot_bg = Color{188, 188, 188, 180};
+                }
                 fillRoundedRectScanlines(renderer, sx, sy, kSlotW, kSlotH, kSlotCornerRadius, slot_bg);
-            }
         }
     };
 
@@ -726,13 +766,17 @@ void BoxViewport::renderBelowNamePlate(SDL_Renderer* renderer) const {
         const bool show_item_overlay = !box_space_grid && item_overlay_t_ > 0.001;
         const bool grey_pokemon = !box_space_grid && item_overlay_active_;
         const bool dim_for_focus = !box_space_grid && focus_dimming_active_;
-        for (int row = 0; row < kRows; ++row) {
-            for (int col = 0; col < kCols; ++col) {
-                const std::size_t idx = static_cast<std::size_t>(row * kCols + col);
+        const SDL_Rect grid = slotGridRect(m, vx, vy);
+        const int cols = clampedSlotColumns(m);
+        const int slots = clampedVisibleSlotCount(m);
+        for (int idx_int = 0; idx_int < slots; ++idx_int) {
+                const std::size_t idx = static_cast<std::size_t>(idx_int);
+                const int row = idx_int / cols;
+                const int col = idx_int % cols;
                 const int wdx =
                     box_space_grid && idx < m.slot_wiggle_dx.size() ? m.slot_wiggle_dx[idx] : 0;
-                const int sx = grid_x + col * (kSlotW + kSlotGapX) + dx + wdx;
-                const int sy = grid_y + row * (kSlotH + kSlotGapY);
+                const int sx = grid.x + col * (kSlotW + kSlotGapX) + dx + wdx;
+                const int sy = grid.y + row * (kSlotH + kSlotGapY);
                 if (idx < m.slot_sprites.size()) {
                     const auto& slot = m.slot_sprites[idx];
                     if (slot.has_value() && slot->texture) {
@@ -762,7 +806,6 @@ void BoxViewport::renderBelowNamePlate(SDL_Renderer* renderer) const {
                         }
                     }
                 }
-            }
         }
     };
 
@@ -780,7 +823,7 @@ void BoxViewport::renderBelowNamePlate(SDL_Renderer* renderer) const {
 
     SDL_RenderSetClipRect(renderer, nullptr);
 
-    const int grid_bottom = grid_y + grid_h;
+    const int grid_bottom = full_grid_y + full_grid_h;
     const int footer_row_y = grid_bottom + kFooterBelowSlots;
 
     const int icon_y = footer_row_y + (kBoxSpaceBtnH - kGameIconSize) / 2;
@@ -828,14 +871,14 @@ void BoxViewport::renderBelowNamePlate(SDL_Renderer* renderer) const {
 
     if (arrow_tex_.texture) {
         if (role_ == BoxViewportRole::ResortStorage) {
-            const int grid_mid_x = grid_x + grid_w / 2;
+            const int grid_mid_x = full_grid_x + full_grid_w / 2;
             const int scroll_cy =
                 grid_bottom + kScrollBelowSlots + arrow_tex_.height / 2 + style_.footer_scroll_arrow_offset_y;
             // Left-pointing asset; counter-clockwise 90° is downward (SDL angle is clockwise, so use -90°).
             drawArrowRotated(renderer, arrow_tex_, grid_mid_x, scroll_cy, -90.0, style_.arrow_mod_color);
         } else if (role_ == BoxViewportRole::ExternalGameSave && header_mode_ == HeaderMode::BoxSpace &&
                    box_space_scroll_arrow_visible_) {
-            const int grid_mid_x = grid_x + grid_w / 2;
+            const int grid_mid_x = full_grid_x + full_grid_w / 2;
             const int scroll_cy =
                 grid_bottom + kScrollBelowSlots + arrow_tex_.height / 2 + style_.footer_scroll_arrow_offset_y;
             drawArrowRotated(renderer, arrow_tex_, grid_mid_x, scroll_cy, -90.0, style_.arrow_mod_color);

@@ -1,5 +1,6 @@
 #include "ui/TransferFlowCoordinator.hpp"
 
+#include "ui/loading/LoadingScreenFactory.hpp"
 #include "ui/transfer_flow/TransferFlowController.hpp"
 #include "ui/transfer_flow/TransferSelectionBuilder.hpp"
 
@@ -76,6 +77,26 @@ bool TransferFlowCoordinator::consumeReturnToTitleRequest() {
     return flow_controller_.consumeReturnToTitleRequest();
 }
 
+bool TransferFlowCoordinator::consumeSuccessfulSaveReturnToTicketsRequest() {
+    if (!successful_save_return_to_tickets_requested_) {
+        return false;
+    }
+    successful_save_return_to_tickets_requested_ = false;
+    return true;
+}
+
+void TransferFlowCoordinator::completeSuccessfulSaveReturnToTickets() {
+    if (!transfer_system_screen_) {
+        return;
+    }
+    flow_controller_.returnToTicketListFromTransferSystem(
+        transfer_system_screen_->currentGameKey(),
+        transfer_system_screen_->currentGameBoxIndex());
+    if (transfer_ticket_) {
+        transfer_ticket_->prepareReturnFromGameTransferScreen();
+    }
+}
+
 bool TransferFlowCoordinator::hasTransferMusic() const {
     return transfer_ticket_ && !transfer_ticket_->musicPath().empty();
 }
@@ -126,7 +147,8 @@ bool TransferFlowCoordinator::consumeErrorSfxRequest() {
 
 void TransferFlowCoordinator::ensureLoadingScreen() {
     if (!loading_screen_) {
-        loading_screen_ = std::make_unique<LoadingScreen>(
+        loading_screen_ = createLoadingScreen(
+            LoadingScreenType::Pokeball,
             renderer_,
             window_config_,
             font_path_,
@@ -248,6 +270,10 @@ void TransferFlowCoordinator::updateTransferSystem(double dt) {
     }
 
     transfer_system_screen_->update(dt);
+    if (transfer_system_screen_->consumeSuccessfulSaveExitRequest()) {
+        successful_save_return_to_tickets_requested_ = true;
+        return;
+    }
     if (transfer_system_screen_->consumeReturnToTicketListRequest()) {
         flow_controller_.returnToTicketListFromTransferSystem(
             transfer_system_screen_->currentGameKey(),

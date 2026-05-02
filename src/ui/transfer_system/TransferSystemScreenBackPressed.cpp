@@ -39,8 +39,17 @@ void TransferSystemScreen::onBackPressed() {
             held->origin_slot.slot_index};
         if (PcSlotSpecies* src = mutablePokemonAt(origin)) {
             if (src->occupied()) {
-                src->held_item_id = held->item_id;
-                src->held_item_name = held->item_name;
+                if (origin.panel == Move::Panel::Game) {
+                    if (!syncGamePcSlotHeldItemPayload(*src, held->item_id, held->item_name)) {
+                        ui_state_.requestErrorSfx();
+                        return;
+                    }
+                    markGameBoxesDirty();
+                } else {
+                    src->held_item_id = held->item_id;
+                    src->held_item_name = held->item_name;
+                    markResortBoxesDirty();
+                }
             }
         }
         held_move_.clear();
@@ -82,7 +91,7 @@ void TransferSystemScreen::onBackPressed() {
         closeResortBoxDropdown();
         return;
     }
-    if (game_boxes_dirty_) {
+    if (game_boxes_dirty_ || resort_boxes_dirty_) {
         openExitSaveModal();
         return;
     }

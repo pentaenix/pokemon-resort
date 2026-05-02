@@ -10,6 +10,8 @@ namespace pr {
 struct TransferSaveSelection {
     struct PcBox {
         std::string name;
+        /// Actual external save slots in this box before UI padding (20 for Gen 1/2, normally 30 otherwise).
+        int native_slot_count = 0;
         /// Parsed slot summaries for this external save box. Rendering and future details should read this data,
         /// not raw bridge JSON.
         std::vector<PcSlotSpecies> slots;

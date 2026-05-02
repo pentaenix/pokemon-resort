@@ -89,6 +89,12 @@ bool TransferSystemScreen::consumeReturnToTicketListRequest() {
     return ui_state_.consumeReturnToTicketListRequest();
 }
 
+bool TransferSystemScreen::consumeSuccessfulSaveExitRequest() {
+    const bool requested = successful_save_exit_requested_;
+    successful_save_exit_requested_ = false;
+    return requested;
+}
+
 void TransferSystemScreen::requestReturnToTicketList() {
     // Kept for call sites that still phrase this as a screen-level request.
     ui_state_.startExit();
