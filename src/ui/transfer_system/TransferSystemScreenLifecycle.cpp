@@ -252,6 +252,7 @@ void TransferSystemScreen::enter(const TransferSaveSelection& selection, SDL_Ren
     ui_state_.enter();
     transfer_selection_ = selection;
     bridge_import_source_game_.reset();
+    bridge_import_storage_format_name_.clear();
     initializeResortPcBoxesFromStorage(renderer);
     resort_box_browser_.enter(static_cast<int>(resort_pc_boxes_.size()), 0);
     pokemon_move_.clear();
@@ -378,6 +379,13 @@ void TransferSystemScreen::enter(const TransferSaveSelection& selection, SDL_Ren
                 bridge_import_source_game_ = sg;
             } else {
                 std::cerr << "Warning: could not read source_game from bridge import: " << sg_err << '\n';
+            }
+            std::string fmt_err;
+            std::string storage_fmt;
+            if (parseBridgeImportFirstPokemonFormatName(import_result.stdout_text, &storage_fmt, &fmt_err)) {
+                bridge_import_storage_format_name_ = std::move(storage_fmt);
+            } else if (!fmt_err.empty()) {
+                std::cerr << "Warning: could not read format_name from bridge import: " << fmt_err << '\n';
             }
         }
     }

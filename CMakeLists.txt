@@ -13,6 +13,7 @@ find_package(SQLite3)
 set(RESORT_STORAGE_SOURCES
     src/core/crypto/Sha256.cpp
     src/resort/domain/Ids.cpp
+    src/resort/domain/PokemonMergeFieldPolicy.cpp
     src/resort/persistence/SqliteConnection.cpp
     src/resort/persistence/Migrations.cpp
     src/resort/persistence/PokemonRepository.cpp
@@ -26,6 +27,8 @@ set(RESORT_STORAGE_SOURCES
     src/resort/services/PokemonMergeService.cpp
     src/resort/services/PokemonImportService.cpp
     src/resort/services/PokemonExportService.cpp
+    src/resort/services/MirrorProjectionService.cpp
+    src/resort/services/MirrorReturnAnalysis.cpp
     src/resort/services/PokemonResortService.cpp
     src/resort/services/BridgeImportService.cpp
     src/resort/integration/BridgeImportAdapter.cpp
@@ -169,6 +172,18 @@ else()
     target_link_libraries(resort_storage_tests PRIVATE sqlite3)
 endif()
 add_test(NAME resort_storage_tests COMMAND resort_storage_tests)
+
+add_executable(mutable_merge_policy_tests
+    ../tests/native/resort/mutable_merge_policy_tests.cpp
+    src/resort/services/MirrorReturnAnalysis.cpp
+    src/resort/services/PokemonMergeService.cpp
+    src/resort/domain/PokemonMergeFieldPolicy.cpp
+    src/resort/integration/Gen12DvBytes.cpp
+    src/core/config/Json.cpp
+    src/core/crypto/Sha256.cpp
+)
+target_include_directories(mutable_merge_policy_tests PRIVATE include)
+add_test(NAME mutable_merge_policy_tests COMMAND mutable_merge_policy_tests)
 
 add_executable(app_transition_controller_tests
     ../tests/native/core/app_transition_controller_tests.cpp

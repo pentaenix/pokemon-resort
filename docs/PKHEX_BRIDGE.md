@@ -30,11 +30,13 @@ This keeps `PKHeX.Core` behind a small CLI boundary and prevents the native app 
 - [`tools/pkhex_bridge/BridgeImport.cs`](/Users/vanta/Desktop/title_screen_demo/tools/pkhex_bridge/BridgeImport.cs)
   owns import-grade per-Pokemon reads, including raw payload bytes and hashes.
 - [`tools/pkhex_bridge/BridgeWriteBack.cs`](/Users/vanta/Desktop/title_screen_demo/tools/pkhex_bridge/BridgeWriteBack.cs)
-  owns guarded projection write-back validation. It does not mutate saves yet.
+  orchestrates validated `write-projection` save mutations (schemas 1–2; backups under `transfer_write_backups/`).
+- [`tools/pkhex_bridge/BridgeProject.cs`](/Users/vanta/Desktop/title_screen_demo/tools/pkhex_bridge/BridgeProject.cs)
+  converts import-grade PKM bytes to another format via PKHeX `EntityConverter` (`project` command).
 - [`tools/pkhex_bridge/PkmHeldItemPatch.cs`](/Users/vanta/Desktop/title_screen_demo/tools/pkhex_bridge/PkmHeldItemPatch.cs)
   decodes import-grade `EncryptedBoxData`, sets `HeldItem`, and re-exports bytes for write-back when only the held item changes on a PC slot.
 - [`pokemon-resort/src/core/bridge/SaveBridgeClient.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/bridge/SaveBridgeClient.cpp)
-  resolves and launches the helper process for probe, import, write-projection validation, and held-item patch requests.
+  resolves and launches the helper process for probe, import, `project`, `write-projection`, and held-item patch requests.
 - [`pokemon-resort/src/core/save/SaveLibrary.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/save/SaveLibrary.cpp)
   scans, probes, caches, parses the light ticket summary, and parses the deeper per-slot transfer box model used by `TransferSystemScreen`.
 - [`pokemon-resort/src/resort/integration/BridgeImportAdapter.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/resort/integration/BridgeImportAdapter.cpp)
@@ -66,7 +68,13 @@ dotnet run --project /Users/vanta/Desktop/title_screen_demo/tools/pkhex_bridge/P
 
 Output includes `bridge_pkm_inspect_schema: 1` and a compatible `bridge_import_schema: 1` Pokemon array. The optional numeric source game is copied into the import-style payload when known.
 
-Guarded projection write-back validation:
+Cross-generation PKM projection (request JSON file; see `MIRROR_PROJECTION_ARCHITECTURE.md`):
+
+```bash
+dotnet run --project /Users/vanta/Desktop/title_screen_demo/tools/pkhex_bridge/PKHeXBridge.csproj -- project "/path/to/bridge_project_request.json"
+```
+
+Guarded save write-back:
 
 ```bash
 dotnet run --project /Users/vanta/Desktop/title_screen_demo/tools/pkhex_bridge/PKHeXBridge.csproj -- write-projection "/absolute/path/to/save.sav" "/absolute/path/to/projection.json"

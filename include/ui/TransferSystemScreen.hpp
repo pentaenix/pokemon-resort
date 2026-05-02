@@ -333,6 +333,9 @@ private:
     TransferSaveSelection transfer_selection_{};
     /// `source_game` (PKHeX save version) from the last successful bridge `import` stdout; used for Resort imports.
     std::optional<std::uint16_t> bridge_import_source_game_{};
+    /// Native PKM storage format for the loaded external save (`pk4`, …), from bridge import `format_name`.
+    /// Mirror slots may still show a Pokémon's source format (`pk3`); use this for prepare/export targeting.
+    std::string bridge_import_storage_format_name_;
     int resort_pc_box_count_ = 60;
     std::vector<TransferSaveSelection::PcBox> resort_pc_boxes_{};
     resort::PokemonResortService* resort_service_{nullptr};

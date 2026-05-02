@@ -47,7 +47,7 @@ Headers:
 - `PokemonImportService::importParsedPokemon(imported, context)`
   Lower-level import orchestration used by the facade.
 
-Current snapshot kind note: return imports that match an active mirror are persisted with `SnapshotKind::ImportedRaw`; the `SnapshotKind::ReturnRaw` enum exists but is not emitted yet.
+Import snapshots: managed mirror returns use `SnapshotKind::ReturnRaw`; other external evidence uses `SnapshotKind::ImportedRaw`. Each successful import with real PKM bytes also inserts `SnapshotKind::CanonicalCheckpoint` (see `import_flow.md`).
 
 ## Matching And Merge
 
@@ -65,7 +65,17 @@ Headers:
 
 Headers:
 
+- [`include/resort/services/MirrorProjectionService.hpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/resort/services/MirrorProjectionService.hpp)
+- [`include/resort/services/MirrorReturnAnalysis.hpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/resort/services/MirrorReturnAnalysis.hpp)
 - [`include/resort/services/PokemonExportService.hpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/resort/services/PokemonExportService.hpp)
+
+- `MirrorProjectionService::projectLatestSnapshotToTarget(...)`
+  Builds a bridge `project` request from `SnapshotRepository::findLatestRawForPokemon` (canonical checkpoint–aware) and runs `projectPokemonWithBridge`.
+- `MirrorReturnAnalysis::analyzePreMerge(canonical, imported)`
+  Heuristic conflict flags (`pid_changed`, `tid16_changed`, etc.) for future quarantine UX before merge.
+
+Also:
+
 - [`include/resort/services/MirrorSessionService.hpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/resort/services/MirrorSessionService.hpp)
 
 - `PokemonExportService::exportPokemon(pkrid, context)`

@@ -11,7 +11,7 @@
 
 namespace pr::resort {
 
-namespace {
+namespace detail {
 
 const pr::JsonValue* child(const pr::JsonValue& parent, const std::string& key) {
     return parent.isObject() ? parent.get(key) : nullptr;
@@ -447,7 +447,11 @@ std::optional<ImportedPokemon> tryBuildImportedFromGamePcSlot(const pr::PcSlotSp
     return imported;
 }
 
-} // namespace
+} // namespace detail
+
+std::vector<unsigned char> decodeBase64Payload(const std::string& text) {
+    return detail::decodeBase64(text);
+}
 
 BridgeImportParseResult parseBridgeImportPayload(const std::string& json_text) {
     BridgeImportParseResult result;
@@ -457,18 +461,18 @@ BridgeImportParseResult parseBridgeImportPayload(const std::string& json_text) {
             result.error = "Bridge import payload root must be an object";
             return result;
         }
-        const int schema = requireInt(root, "bridge_import_schema");
+        const int schema = detail::requireInt(root, "bridge_import_schema");
         if (schema != 1) {
             result.error = "Unsupported bridge_import_schema";
             return result;
         }
-        const pr::JsonValue* arr = child(root, "pokemon");
+        const pr::JsonValue* arr = detail::child(root, "pokemon");
         if (!arr || !arr->isArray()) {
             result.error = "Import payload must contain a pokemon array";
             return result;
         }
         for (const pr::JsonValue& item : arr->asArray()) {
-            result.pokemon.push_back(parseOnePokemon(item));
+            result.pokemon.push_back(detail::parseOnePokemon(item));
         }
         result.success = true;
         return result;
@@ -480,7 +484,7 @@ BridgeImportParseResult parseBridgeImportPayload(const std::string& json_text) {
 }
 
 std::optional<ImportedPokemon> importedPokemonFromGamePcSlot(const pr::PcSlotSpecies& slot, std::uint16_t source_game) {
-    return tryBuildImportedFromGamePcSlot(slot, source_game);
+    return detail::tryBuildImportedFromGamePcSlot(slot, source_game);
 }
 
 } // namespace pr::resort

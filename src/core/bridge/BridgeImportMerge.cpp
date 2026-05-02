@@ -251,4 +251,68 @@ bool parseBridgeImportFirstPokemonSourceGame(
     return parseBridgeImportFirstPokemonSourceGameImpl(bridge_import_stdout_json, out_source_game, error_message);
 }
 
+bool parseBridgeImportFirstPokemonFormatNameImpl(
+    const std::string& bridge_import_stdout_json,
+    std::string* out_format_name,
+    std::string* error_message) {
+    if (!out_format_name) {
+        if (error_message) {
+            *error_message = "out_format_name is null";
+        }
+        return false;
+    }
+    if (error_message) {
+        error_message->clear();
+    }
+    try {
+        const JsonValue root = parseJsonText(bridge_import_stdout_json);
+        if (!root.isObject()) {
+            if (error_message) {
+                *error_message = "bridge import root must be an object";
+            }
+            return false;
+        }
+        const JsonValue* schema_val = child(root, "bridge_import_schema");
+        if (!schema_val || !schema_val->isNumber() || static_cast<int>(schema_val->asNumber()) != 1) {
+            if (error_message) {
+                *error_message = "unsupported bridge_import_schema";
+            }
+            return false;
+        }
+        const JsonValue* pokemon_arr = child(root, "pokemon");
+        if (!pokemon_arr || !pokemon_arr->isArray() || pokemon_arr->asArray().empty()) {
+            if (error_message) {
+                *error_message = "bridge import missing pokemon array";
+            }
+            return false;
+        }
+        for (const JsonValue& item : pokemon_arr->asArray()) {
+            if (!item.isObject()) {
+                continue;
+            }
+            const std::string fmt = asStringOrEmpty(child(item, "format_name"));
+            if (!fmt.empty()) {
+                *out_format_name = fmt;
+                return true;
+            }
+        }
+        if (error_message) {
+            *error_message = "bridge import pokemon entries missing format_name";
+        }
+        return false;
+    } catch (const std::exception& ex) {
+        if (error_message) {
+            *error_message = ex.what();
+        }
+        return false;
+    }
+}
+
+bool parseBridgeImportFirstPokemonFormatName(
+    const std::string& bridge_import_stdout_json,
+    std::string* out_format_name,
+    std::string* error_message) {
+    return parseBridgeImportFirstPokemonFormatNameImpl(bridge_import_stdout_json, out_format_name, error_message);
+}
+
 } // namespace pr

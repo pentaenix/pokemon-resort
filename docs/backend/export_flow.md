@@ -38,18 +38,24 @@ Real target-game PKM conversion should be added behind the bridge/integration la
 
 ## Bridge Write-Back Boundary
 
-The bridge has a guarded command:
+The bridge exposes a **guarded** write command:
 
 ```bash
 dotnet /Users/vanta/Desktop/title_screen_demo/tools/pkhex_bridge/bin/Debug/net10.0/PKHeXBridge.dll write-projection "/absolute/path/to/save.sav" "/absolute/path/to/projection.json"
 ```
 
-It currently validates:
+What it does today:
 
-- save file exists and loads through PKHeX
-- projection JSON exists
-- `projection_schema` is supported
+- Validates paths and projection size caps (see [`PKHEX_BRIDGE.md`](../PKHEX_BRIDGE.md)).
+- Loads the save with PKHeX and writes immutable `.initbak` plus a rolling `.bak` under `<projection-dir>/transfer_write_backups/`.
+- Applies supported projection domains:
+  - `projection_schema` **1** — PC box names only.
+  - `projection_schema` **2** — full PC snapshot: `box_names` plus `pc_boxes` with import-grade **encrypted** PKM payloads per slot (`raw_payload_base64` + `raw_hash_sha256`), validated before `SetBoxSlotAtIndex`.
+- On success, atomically replaces the live `.sav` after byte-for-byte verification; on failure it may restore from the rolling backup.
 
-It then returns `write_back_not_implemented` instead of mutating the save. This is deliberate until PKM conversion and safe slot write-back rules are implemented and tested per format.
+What is still **not** the full product story:
 
-Do not add unsafe in-place save mutation around this boundary.
+- Party, bag, and other save regions are not in the projection schema yet.
+- **Cross-generation PKM bytes** for a Resort-driven send are produced by the separate bridge `project` command (PKHeX `EntityConverter`), not by hoping an old cached `.pk` stays valid — see [`MIRROR_PROJECTION_ARCHITECTURE.md`](../transfer_system/MIRROR_PROJECTION_ARCHITECTURE.md).
+
+Do not add unsafe in-place save mutation around this boundary; extend `WriteBack/` appliers and schema versions instead of ad hoc edits.
