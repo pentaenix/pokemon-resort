@@ -4,6 +4,7 @@
 #include "resort/persistence/BoxRepository.hpp"
 #include "resort/persistence/HistoryRepository.hpp"
 #include "resort/persistence/PokemonRepository.hpp"
+#include "resort/persistence/PidTransportRegistryRepository.hpp"
 #include "resort/persistence/SnapshotRepository.hpp"
 #include "resort/persistence/SqliteConnection.hpp"
 #include "resort/services/PokemonMatcher.hpp"
@@ -22,7 +23,8 @@ public:
         HistoryRepository& history,
         PokemonMatcher& matcher,
         PokemonMergeService& merge,
-        MirrorSessionService& mirror_sessions);
+        MirrorSessionService& mirror_sessions,
+        PidTransportRegistryRepository& pid_transport);
 
     ImportResult importParsedPokemon(const ImportedPokemon& imported, const ImportContext& context);
 
@@ -35,6 +37,7 @@ private:
     PokemonMatcher& matcher_;
     PokemonMergeService& merge_;
     MirrorSessionService& mirror_sessions_;
+    PidTransportRegistryRepository& pid_transport_;
 };
 
 } // namespace pr::resort

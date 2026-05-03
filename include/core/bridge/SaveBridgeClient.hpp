@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -69,6 +71,8 @@ struct SaveBridgeProjectResult {
     std::vector<std::string> lost_categories;
     std::vector<std::string> projected_categories;
     std::vector<std::string> loss_notes;
+    /// Present when the bridge decoded the projected PKM personality (`converted.PID`).
+    std::optional<std::uint32_t> target_pid;
     std::string stdout_text;
     std::string stderr_text;
     std::string error_message;

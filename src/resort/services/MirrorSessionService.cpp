@@ -46,9 +46,15 @@ MirrorSession MirrorSessionService::openMirrorSession(
     session.original_sid16 = pokemon->hot.sid16;
     session.original_game = pokemon->hot.origin_game;
     session.sent_dv16 = pokemon->hot.dv16;
+    session.mirror_canonical_pid = context.mirror_canonical_pid;
+    session.transport_pid = context.transport_pid;
     session.projection_json = context.projection_metadata_json;
 
     mirrors_.insert(session);
+
+    if (context.mirror_canonical_pid) {
+        pokemon_.ensureOriginalPidIfUnset(pkrid, *context.mirror_canonical_pid);
+    }
 
     PokemonHistoryEvent event;
     event.event_id = generateId("hist");

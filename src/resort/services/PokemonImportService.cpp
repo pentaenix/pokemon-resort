@@ -1,6 +1,7 @@
 #include "resort/services/PokemonImportService.hpp"
 
 #include "resort/domain/Ids.hpp"
+#include "resort/domain/PokemonMergeFieldPolicy.hpp"
 #include "resort/integration/Gen12DvBytes.hpp"
 
 #include <iostream>
@@ -123,6 +124,12 @@ ResortPokemon canonicalFromImport(
     if (pokemon.hot.lineage_root_species == 0 && imported.identity.lineage_root_species != 0) {
         pokemon.hot.lineage_root_species = imported.identity.lineage_root_species;
     }
+    if (imported.identity.pid) {
+        pokemon.original_pid = *imported.identity.pid;
+    } else if (pokemon.hot.pid) {
+        pokemon.original_pid = *pokemon.hot.pid;
+    }
+    pokemon.pid_history_json = "[]";
     pokemon.warm.json = imported.warm_json.empty() ? kDefaultJsonPayload : imported.warm_json;
     pokemon.cold.suspended_json = imported.suspended_json.empty() ? kDefaultJsonPayload : imported.suspended_json;
     pokemon.created_at_unix = now;
@@ -140,7 +147,8 @@ PokemonImportService::PokemonImportService(
     HistoryRepository& history,
     PokemonMatcher& matcher,
     PokemonMergeService& merge,
-    MirrorSessionService& mirror_sessions)
+    MirrorSessionService& mirror_sessions,
+    PidTransportRegistryRepository& pid_transport)
     : connection_(connection),
       pokemon_(pokemon),
       boxes_(boxes),
@@ -148,7 +156,8 @@ PokemonImportService::PokemonImportService(
       history_(history),
       matcher_(matcher),
       merge_(merge),
-      mirror_sessions_(mirror_sessions) {}
+      mirror_sessions_(mirror_sessions),
+      pid_transport_(pid_transport) {}
 
 ImportResult PokemonImportService::importParsedPokemon(
     const ImportedPokemon& imported_in,
@@ -186,7 +195,22 @@ ImportResult PokemonImportService::importParsedPokemon(
         resolveGen12ZeroDvForResortImport(existing_canonical, imported, kGen12DvRng);
         final_pkrid = pkrid;
         final_match_reason = match.reason;
-        const bool mirror_return = !match.mirror_session_id.empty();
+        bool inferred_mirror_return = false;
+        if (match.matched && match.mirror_session_id.empty() && existing_canonical) {
+            const bool incoming_save_differs_from_canonical_origin =
+                imported.source_game != 0 &&
+                existing_canonical->hot.origin_game != 0 &&
+                imported.source_game != existing_canonical->hot.origin_game;
+            const bool incoming_origin_differs_from_canonical_origin =
+                imported.hot.origin_game != 0 &&
+                existing_canonical->hot.origin_game != 0 &&
+                imported.hot.origin_game != existing_canonical->hot.origin_game;
+            inferred_mirror_return =
+                incoming_save_differs_from_canonical_origin ||
+                incoming_origin_differs_from_canonical_origin ||
+                isStableIdentityMatchReasonForMirrorReturn(match.reason);
+        }
+        const bool mirror_return = !match.mirror_session_id.empty() || inferred_mirror_return;
         std::cerr << kTempTransferLog
                   << " import in fmt=" << imported.format_name
                   << " species=" << imported.hot.species_id
@@ -195,13 +219,13 @@ ImportResult PokemonImportService::importParsedPokemon(
                   << " matched=" << (match.matched ? "yes" : "no")
                   << " reason=" << match.reason
                   << (mirror_return ? " mirror_return" : "")
+                  << (inferred_mirror_return ? " inferred_cross_gen" : "")
                   << '\n';
 
         PokemonSnapshot snapshot;
         snapshot.snapshot_id = snapshot_id;
         snapshot.pkrid = pkrid;
-        snapshot.kind = match.mirror_session_id.empty() ? SnapshotKind::ImportedRaw
-                                                         : SnapshotKind::ReturnRaw;
+        snapshot.kind = mirror_return ? SnapshotKind::ReturnRaw : SnapshotKind::ImportedRaw;
         snapshot.format_name = imported.format_name;
         snapshot.game_id = imported.source_game;
         snapshot.captured_at_unix = now;
@@ -214,13 +238,15 @@ ImportResult PokemonImportService::importParsedPokemon(
         // can follow while preserving the no-loss ordering inside the transaction.
         snapshots_.insert(snapshot);
 
-        insertCanonicalCheckpointSnapshot(
-            snapshots_,
-            pkrid,
-            imported,
-            snapshot_id,
-            now,
-            !match.mirror_session_id.empty());
+        if (!mirror_return) {
+            insertCanonicalCheckpointSnapshot(
+                snapshots_,
+                pkrid,
+                imported,
+                snapshot_id,
+                now,
+                false);
+        }
 
         if (match.matched) {
             auto canonical = pokemon_.findById(pkrid);
@@ -242,6 +268,7 @@ ImportResult PokemonImportService::importParsedPokemon(
             event.diff_json = merged.diff_json;
             history_.insert(event);
             if (!match.mirror_session_id.empty()) {
+                pid_transport_.deactivateByMirrorSession(match.mirror_session_id);
                 mirror_sessions_.closeReturned(match.mirror_session_id, now);
             }
             merged_canonical = true;

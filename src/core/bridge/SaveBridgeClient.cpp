@@ -5,6 +5,7 @@
 #include <array>
 #include <cmath>
 #include <cerrno>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
@@ -541,6 +542,15 @@ SaveBridgeProjectResult parseBridgeProjectResultJson(const std::string& stdout_t
             out.lost_categories = stringArrayOrEmpty(manifest->get("lost_categories"));
             out.projected_categories = stringArrayOrEmpty(manifest->get("projected_categories"));
             out.loss_notes = stringArrayOrEmpty(manifest->get("notes"));
+        }
+
+        if (const JsonValue* tp = root.get("target_pid")) {
+            if (tp->isNumber()) {
+                const double v = tp->asNumber();
+                if (v >= 0.0 && v <= 4294967295.0) {
+                    out.target_pid = static_cast<std::uint32_t>(std::llround(v));
+                }
+            }
         }
 
         if (out.target_format_name.empty() ||

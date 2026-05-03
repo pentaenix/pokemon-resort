@@ -17,6 +17,14 @@ Export does not mutate canonical Pokemon fields. It only records projection/audi
 
 Current implementation always opens a mirror session for export. `ExportContext::managed_mirror` is currently metadata in the projection payload, not a way to disable mirror creation.
 
+When bridge projection is available, `MirrorProjectionService` chooses imported/canonical base snapshots rather than returned mirror evidence. The projection request overlays current canonical Resort static identity before serialization: OT, TID/SID, language, canonical PID, and encryption constant. For downgrades into older games, the projected file may use target-game origin/met defaults for legality/playability; those values are projection data and must not overwrite canonical Resort origin/met fields on return. Invalid target-generation balls fall back to a normal Poke Ball.
+
+If a target generation needs a different PID to preserve visible constraints such as shiny/nature/gender/ability, that generated PID is stored as mirror transport metadata and must not overwrite Resort canonical identity.
+
+For Gen 3/4 projections, nature is PID-derived. The bridge applies Resort's requested nature after static PID overlay so the projected PID can change as transport metadata while the visible nature stays canonical. Non-nicknamed Pokemon are serialized with PKHeX's clear-nickname/species-name path so event fixed-nickname heuristics do not accidentally set `IsNicknamed`.
+
+The transfer-screen save/exit path prepares exact PKM payloads before calling bridge `write-projection`. After the save write succeeds, it must call `commitPreparedMirrorExport(...)` with those exact bytes, hash, format, and transport PID. Do not call a second export at commit time; that can create a mirror session and PID registry entry for bytes different from the ones written into the game save.
+
 ## Gen 1/2 Managed Beacon
 
 Set `ExportContext::use_gen12_beacon = true` for managed Gen 1/2 helper projections. The backend records:
@@ -27,6 +35,15 @@ Set `ExportContext::use_gen12_beacon = true` for managed Gen 1/2 helper projecti
 - original OT/TID/SID/game restoration fields
 
 The beacon is a helper for managed mirror rediscovery. It is not the canonical identity model.
+
+For Gen 3+ mirror returns, temporary projection PIDs are tracked generation-by-generation in `pid_transport_registry` and `pokemon.pid_history_json`. Matching by that temporary PID resolves to the existing `pkrid`; the temporary PID is deactivated after return and remains audit metadata only.
+
+Target met-location defaults used for downgrade projections:
+
+- Gen 1/2: Pallet Town
+- Gen 3: Faraway Island
+- Gen 4/5: a lovely place
+- Gen 6+: Lovely Place
 
 ## Current Projection Payload
 

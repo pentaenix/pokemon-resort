@@ -4,6 +4,7 @@
 #include "core/Types.hpp"
 #include "core/assets/Font.hpp"
 #include "core/assets/PokeSpriteAssets.hpp"
+#include "resort/domain/ExportedPokemon.hpp"
 #include "ui/BoxViewport.hpp"
 #include "ui/FocusManager.hpp"
 #include "ui/Screen.hpp"
@@ -212,6 +213,15 @@ private:
     bool successful_save_exit_requested_ = false;
     int cross_panel_game_to_resort_moves_ = 0;
     int cross_panel_resort_to_game_moves_ = 0;
+    struct PendingPreparedMirrorExport {
+        std::string pkrid;
+        resort::ExportContext context;
+        std::vector<unsigned char> raw_payload;
+        std::string raw_hash;
+        std::string format_name;
+        std::optional<std::uint32_t> transport_pid;
+    };
+    std::vector<PendingPreparedMirrorExport> pending_prepared_mirror_exports_;
     void noteCrossPanelGameToResortMoves(int count);
     void noteCrossPanelResortToGameMoves(int count);
     void markGameBoxesDirty();

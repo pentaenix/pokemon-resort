@@ -15,6 +15,8 @@ Header: [`include/resort/services/PokemonResortService.hpp`](/Users/vanta/Deskto
   Imports one already parsed import-grade Pokemon. Validates raw bytes/hash, matches active mirrors first, then stable identifiers, writes an imported snapshot, creates or merges canonical state, writes history, optionally places in a slot, and commits atomically.
 - `exportPokemon(pkrid, context)`
   Creates a backend projection snapshot, opens a mirror session, writes export/mirror history, and returns projection bytes plus `snapshot_id` and `mirror_session_id`. It does not mutate canonical Pokemon fields. Current implementation always opens a mirror; `ExportContext::managed_mirror` is serialized in projection metadata and is not a switch for disabling mirror creation.
+- `commitPreparedMirrorExport(pkrid, context, raw_payload, raw_hash, format_name, transport_pid)`
+  Commits an export/mirror session from PKM bytes already prepared for `write-projection`. Use this in save/exit flows after the game save write succeeds so the mirror session and PID transport registry describe the exact payload that was written.
 - `getPokemonById(pkrid)`
   Loads the full canonical `ResortPokemon`.
 - `pokemonExists(pkrid)`
@@ -47,7 +49,7 @@ Headers:
 - `PokemonImportService::importParsedPokemon(imported, context)`
   Lower-level import orchestration used by the facade.
 
-Import snapshots: managed mirror returns use `SnapshotKind::ReturnRaw`; other external evidence uses `SnapshotKind::ImportedRaw`. Each successful import with real PKM bytes also inserts `SnapshotKind::CanonicalCheckpoint` (see `import_flow.md`).
+Import snapshots: managed mirror returns use `SnapshotKind::ReturnRaw`; other external evidence uses `SnapshotKind::ImportedRaw`. First-time/full canonical imports with real PKM bytes also insert `SnapshotKind::CanonicalCheckpoint`; mirror returns do not promote returned projection bytes to canonical checkpoints (see `import_flow.md`).
 
 ## Matching And Merge
 
@@ -57,9 +59,9 @@ Headers:
 - [`include/resort/services/PokemonMergeService.hpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/resort/services/PokemonMergeService.hpp)
 
 - `PokemonMatcher::findBestMatch(imported)`
-  Match order is active beacon mirror, `home_tracker`, `pid + encryption_constant + TID/SID + OT`, then `pid + TID/SID + OT`. Native `pk1`/`pk2` without a managed mirror intentionally returns no exact match.
+  Match order is active beacon mirror, PID transport registry / active mirror transport PID, `home_tracker`, `pid + encryption_constant + TID/SID + OT`, then `pid + TID/SID + OT`. Native `pk1`/`pk2` without a managed mirror intentionally returns no exact match.
 - `PokemonMergeService::mergeImported(canonical, imported, updated_at_unix)`
-  Updates mutable hot fields, preserves immutable identity/timestamps, replaces optional fields only when incoming data provides them, deep-merges warm/cold JSON, unions arrays, increments revision, and returns a history diff JSON.
+  Updates mutable hot fields, preserves immutable identity/timestamps, replaces optional fields only when incoming data provides them, deep-merges warm/cold JSON, unions arrays, increments revision, and returns a history diff JSON. Mirror-return merges preserve cross-generation nickname flags, copy returning cart moves/PP, and record automatically removed moves in warm metadata.
 
 ## Export And Mirror Services
 

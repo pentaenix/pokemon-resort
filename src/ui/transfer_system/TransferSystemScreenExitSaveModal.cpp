@@ -1,8 +1,10 @@
 #include "ui/TransferSystemScreen.hpp"
 
 #include "core/bridge/SaveBridgeClient.hpp"
+#include "core/config/Json.hpp"
 #include "resort/domain/ExportedPokemon.hpp"
 #include "resort/domain/ImportedPokemon.hpp"
+#include "resort/domain/PkmFormat.hpp"
 #include "resort/integration/BridgeImportAdapter.hpp"
 #include "resort/services/PokemonResortService.hpp"
 
@@ -56,6 +58,26 @@ std::string escapeJsonString(const std::string& s) {
 }
 
 std::string quoted(const std::string& s) { return std::string{"\""} + escapeJsonString(s) + "\""; }
+
+std::optional<std::uint32_t> targetPidFromSnapshotNotes(const std::string& notes_json) {
+    if (notes_json.empty()) {
+        return std::nullopt;
+    }
+    try {
+        const JsonValue root = parseJsonText(notes_json);
+        const JsonValue* target_pid = root.get("target_pid");
+        if (!target_pid || !target_pid->isNumber()) {
+            return std::nullopt;
+        }
+        const double value = target_pid->asNumber();
+        if (value < 0.0 || value > 4294967295.0) {
+            return std::nullopt;
+        }
+        return static_cast<std::uint32_t>(std::llround(value));
+    } catch (const std::exception&) {
+        return std::nullopt;
+    }
+}
 
 std::string encodeBase64(const std::vector<unsigned char>& bytes) {
     std::string out;
@@ -383,6 +405,7 @@ bool TransferSystemScreen::preparePendingResortMirrorPayloadsForSave() {
     if (!resort_service_) {
         return true;
     }
+    pending_prepared_mirror_exports_.clear();
     if (!bridge_import_source_game_.has_value()) {
         for (const auto& box : resort_pc_boxes_) {
             for (const auto& slot : box.slots) {
@@ -415,9 +438,14 @@ bool TransferSystemScreen::preparePendingResortMirrorPayloadsForSave() {
                 ("pr_prepare_proj_" + slot.resort_pkrid + ".json");
             // Mirror slots often retain the Pokémon's prior encoding (`pk3`) even while the loaded save is Gen 4.
             // PKHeX write-projection requires payloads matching the *save file* (`pk4`). Prefer import snapshot format.
-            const std::string write_target_format = bridge_import_storage_format_name_.empty()
-                                                      ? slot.format
-                                                      : bridge_import_storage_format_name_;
+            const std::string inferred_write_target_format =
+                bridge_import_source_game_ ? resort::pkmStorageFormatNameForGameId(*bridge_import_source_game_)
+                                           : std::string{};
+            const std::string write_target_format = !inferred_write_target_format.empty()
+                                                      ? inferred_write_target_format
+                                                      : (bridge_import_storage_format_name_.empty()
+                                                             ? slot.format
+                                                             : bridge_import_storage_format_name_);
             const std::optional<resort::PokemonSnapshot> snapshot =
                 resort_service_->prepareLatestRawSnapshotForGameWrite(
                     slot.resort_pkrid,
@@ -434,10 +462,29 @@ bool TransferSystemScreen::preparePendingResortMirrorPayloadsForSave() {
             slot.bridge_box_payload_base64 = encodeBase64(snapshot->raw_bytes);
             slot.bridge_box_payload_hash_sha256 = snapshot->raw_hash_sha256;
             slot.format = snapshot->format_name;
+            slot.pid = targetPidFromSnapshotNotes(snapshot->notes_json).value_or(slot.pid.value_or(0));
+            if (slot.pid && *slot.pid == 0) {
+                slot.pid.reset();
+            }
+            resort::ExportContext ctx;
+            ctx.target_game = *bridge_import_source_game_;
+            ctx.target_format_name = write_target_format;
+            ctx.managed_mirror = true;
+            ctx.bridge_project_root = project_root_;
+            ctx.bridge_argv0 = bridge_argv0_;
+            PendingPreparedMirrorExport pending;
+            pending.pkrid = slot.resort_pkrid;
+            pending.context = ctx;
+            pending.raw_payload = snapshot->raw_bytes;
+            pending.raw_hash = snapshot->raw_hash_sha256;
+            pending.format_name = snapshot->format_name;
+            pending.transport_pid = slot.pid;
+            pending_prepared_mirror_exports_.push_back(std::move(pending));
             std::cerr << kTempTransferLog
                       << " Save prepare Resort mirror payload pkrid=" << slot.resort_pkrid
                       << " snapshot_id=" << snapshot->snapshot_id
                       << " format=" << snapshot->format_name
+                      << " transport_pid=" << (slot.pid ? std::to_string(*slot.pid) : std::string("null"))
                       << " raw_bytes=" << snapshot->raw_bytes.size()
                       << " hash=" << snapshot->raw_hash_sha256 << '\n';
         }
@@ -509,29 +556,26 @@ bool TransferSystemScreen::commitPendingResortStorageChangesAfterSave() {
         return false;
     }
 
-    for (const auto& box : game_pc_boxes_) {
-        for (const auto& slot : box.slots) {
-            if (!slot.occupied() || slot.resort_pkrid.empty()) {
-                continue;
-            }
-            resort::ExportContext ctx;
-            ctx.target_game = *bridge_import_source_game_;
-            ctx.target_format_name = bridge_import_storage_format_name_.empty() ? slot.format
-                                                                               : bridge_import_storage_format_name_;
-            ctx.managed_mirror = true;
-            ctx.bridge_project_root = project_root_;
-            ctx.bridge_argv0 = bridge_argv0_;
-            const resort::ExportResult exported = resort_service_->exportPokemon(slot.resort_pkrid, ctx);
-            if (!exported.success) {
-                std::cerr << "Warning: could not commit Resort mirror export after save: "
-                          << exported.error << '\n';
-                return false;
-            }
-            std::cerr << kTempTransferLog
-                      << " Save commit Resort->Game mirror pkrid=" << exported.pkrid
-                      << " mirror_session_id=" << exported.mirror_session_id
-                      << " snapshot_id=" << exported.snapshot_id << '\n';
+    for (const auto& pending : pending_prepared_mirror_exports_) {
+        const resort::ExportResult exported = resort_service_->commitPreparedMirrorExport(
+            pending.pkrid,
+            pending.context,
+            pending.raw_payload,
+            pending.raw_hash,
+            pending.format_name,
+            pending.transport_pid);
+        if (!exported.success) {
+            std::cerr << "Warning: could not commit prepared Resort mirror export after save: "
+                      << exported.error << '\n';
+            return false;
         }
+        std::cerr << kTempTransferLog
+                  << " Save commit prepared Resort->Game mirror pkrid=" << exported.pkrid
+                  << " mirror_session_id=" << exported.mirror_session_id
+                  << " snapshot_id=" << exported.snapshot_id
+                  << " transport_pid="
+                  << (exported.transport_pid ? std::to_string(*exported.transport_pid) : std::string("null"))
+                  << '\n';
     }
 
     for (std::size_t bi = 0; bi < resort_pc_boxes_.size(); ++bi) {
@@ -565,6 +609,7 @@ bool TransferSystemScreen::commitPendingResortStorageChangesAfterSave() {
         }
     }
     std::cerr << kTempTransferLog << " Save commit Resort storage complete\n";
+    pending_prepared_mirror_exports_.clear();
     return true;
 }
 
@@ -648,4 +693,3 @@ bool TransferSystemScreen::saveGameBoxEditsOverlayAndClearDirty() {
 }
 
 } // namespace pr
-

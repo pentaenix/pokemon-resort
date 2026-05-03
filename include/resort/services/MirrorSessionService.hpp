@@ -6,6 +6,7 @@
 #include "resort/persistence/PokemonRepository.hpp"
 #include "resort/persistence/SqliteConnection.hpp"
 
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <vector>
@@ -15,6 +16,10 @@ namespace pr::resort {
 struct MirrorOpenContext {
     std::optional<std::uint16_t> beacon_tid16;
     std::optional<std::string> beacon_ot_name;
+    /// Canonical Resort PID when the mirror opens (stable identity).
+    std::optional<std::uint32_t> mirror_canonical_pid;
+    /// PID embedded in the exported PKM for this leg (legacy projection may differ).
+    std::optional<std::uint32_t> transport_pid;
     std::string projection_metadata_json = "{\"schema_version\":1}";
 };
 

@@ -2,6 +2,7 @@
 
 #include "core/config/Json.hpp"
 #include "core/crypto/Sha256.hpp"
+#include "resort/domain/PkmFormat.hpp"
 #include "resort/domain/ResortTypes.hpp"
 #include "resort/integration/BridgeImportAdapter.hpp"
 #include "resort/persistence/PokemonRepository.hpp"
@@ -120,7 +121,11 @@ void appendMoveReconciliationJson(std::ostringstream& body, const std::string& w
 void appendPreSaveReviewJson(
     std::ostringstream& body,
     const std::string& warm_json,
-    const PokemonHot* hot) {
+    const PokemonHot* hot,
+    std::optional<std::uint32_t> original_pid,
+    std::uint16_t target_game,
+    int source_constraint_generation,
+    int target_constraint_generation) {
     bool any = false;
     auto open = [&]() {
         if (!any) {
@@ -180,13 +185,45 @@ void appendPreSaveReviewJson(
                 body << ",\"friendship_current\":" << *v;
             }
         }
+        const pr::JsonValue* nature = root.get("nature");
+        if (nature && nature->isString() && !nature->asString().empty()) {
+            open();
+            body << ",\"nature\":\"" << jsonEscape(nature->asString()) << "\"";
+        }
     } catch (const std::exception&) {
     }
 
     if (hot) {
+        const std::optional<std::uint32_t> canonical_pid = original_pid ? original_pid : hot->pid;
+        const bool downgrade_projection =
+            source_constraint_generation > 0 &&
+            target_constraint_generation > 0 &&
+            target_constraint_generation < source_constraint_generation;
         open();
         body << ",\"nickname\":\"" << jsonEscape(hot->nickname) << "\""
-             << ",\"is_nicknamed\":" << (hot->is_nicknamed ? "true" : "false");
+             << ",\"is_nicknamed\":" << (hot->is_nicknamed ? "true" : "false")
+             << ",\"apply_static_fields\":true"
+             << ",\"ot_name\":\"" << jsonEscape(hot->ot_name) << "\""
+             << ",\"tid16\":" << (hot->tid16 ? std::to_string(*hot->tid16) : "null")
+             << ",\"sid16\":" << (hot->sid16 ? std::to_string(*hot->sid16) : "null")
+             << ",\"language\":" << (hot->language ? std::to_string(*hot->language) : "null")
+             << ",\"ball_id\":" << (hot->ball_id ? std::to_string(*hot->ball_id) : "null")
+             << ",\"pid\":" << (canonical_pid ? std::to_string(*canonical_pid) : "null")
+             << ",\"encryption_constant\":"
+             << (hot->encryption_constant ? std::to_string(*hot->encryption_constant) : "null");
+        if (downgrade_projection) {
+            body << ",\"origin_game\":" << (target_game != 0 ? std::to_string(target_game) : "null");
+        } else {
+            body << ",\"origin_game\":" << (hot->origin_game != 0 ? std::to_string(hot->origin_game) : "null")
+                 << ",\"met_location_id\":"
+                 << (hot->met_location_id ? std::to_string(*hot->met_location_id) : "null")
+                 << ",\"met_level\":" << (hot->met_level ? std::to_string(*hot->met_level) : "null");
+        }
+    }
+
+    if (target_constraint_generation > 0 && target_constraint_generation <= 3) {
+        open();
+        body << ",\"skip_default_nickname\":true";
     }
 
     if (any) {
@@ -194,7 +231,10 @@ void appendPreSaveReviewJson(
     }
 }
 
-void appendHotMutableOverlayJson(std::ostringstream& body, const PokemonHot* hot) {
+void appendHotMutableOverlayJson(
+    std::ostringstream& body,
+    const PokemonHot* hot,
+    int target_constraint_generation) {
     if (!hot) {
         return;
     }
@@ -223,8 +263,11 @@ void appendHotMutableOverlayJson(std::ostringstream& body, const PokemonHot* hot
              << ",\"pp_ups\":" << (hot->move_pp_ups[i] ? std::to_string(*hot->move_pp_ups[i]) : "0")
              << "}";
     }
-    body << "]"
-         << "}";
+    body << "]";
+    if (target_constraint_generation > 0 && target_constraint_generation <= 3) {
+        body << ",\"skip_default_nickname\":true";
+    }
+    body << "}";
 }
 
 } // namespace
@@ -250,12 +293,12 @@ MirrorBridgeProjectOutcome MirrorProjectionService::projectLatestSnapshotToTarge
         return out;
     }
     std::optional<PokemonSnapshot> source =
-        snapshots_.findLatestRawForPokemon(input.pkrid, input.target_game, input.target_format_name);
+        snapshots_.findLatestCanonicalBaseForPokemon(input.pkrid, input.target_game, input.target_format_name);
     if (!source) {
-        source = snapshots_.findLatestRawForPokemon(input.pkrid, std::nullopt, input.target_format_name);
+        source = snapshots_.findLatestCanonicalBaseForPokemon(input.pkrid, std::nullopt, input.target_format_name);
     }
     if (!source) {
-        source = snapshots_.findLatestRawForPokemon(input.pkrid, std::nullopt, std::string{});
+        source = snapshots_.findMostAdvancedCanonicalBaseForPokemon(input.pkrid);
     }
     if (!source || source->raw_bytes.empty() || source->raw_hash_sha256.empty()) {
         out.error = "No import-grade raw snapshot to project for pkrid=" + input.pkrid;
@@ -264,10 +307,14 @@ MirrorBridgeProjectOutcome MirrorProjectionService::projectLatestSnapshotToTarge
 
     const std::string b64 = encodeBase64(source->raw_bytes);
     const std::string source_fmt = source->format_name.empty() ? "PKM" : source->format_name;
+    out.source_snapshot_id = source->snapshot_id;
+    out.source_format_name = source_fmt;
 
     const std::optional<ResortPokemon> canonical = pokemon_.findById(input.pkrid);
     const std::string warm_json = canonical ? canonical->warm.json : "";
     const PokemonHot* hot_ptr = canonical ? &canonical->hot : nullptr;
+    const int source_constraint_gen = constraintGenerationFromStorageFormat(source_fmt);
+    const int target_constraint_gen = constraintGenerationFromStorageFormat(input.target_format_name);
 
     std::ostringstream body;
     body << "{"
@@ -282,8 +329,15 @@ MirrorBridgeProjectOutcome MirrorProjectionService::projectLatestSnapshotToTarge
          << "},"
          << "\"source_snapshot_id\":\"" << jsonEscape(source->snapshot_id) << "\"";
     appendMoveReconciliationJson(body, warm_json);
-    appendPreSaveReviewJson(body, warm_json, hot_ptr);
-    appendHotMutableOverlayJson(body, hot_ptr);
+    appendPreSaveReviewJson(
+        body,
+        warm_json,
+        hot_ptr,
+        canonical ? canonical->original_pid : std::nullopt,
+        input.target_game,
+        source_constraint_gen,
+        target_constraint_gen);
+    appendHotMutableOverlayJson(body, hot_ptr, target_constraint_gen);
     body << "}";
 
     {
@@ -321,6 +375,8 @@ MirrorProjectDecodedResult MirrorProjectionService::projectLatestSnapshotToTarge
         return out;
     }
     const pr::SaveBridgeProjectResult& br = bridge_out.bridge;
+    out.source_snapshot_id = bridge_out.source_snapshot_id;
+    out.source_format_name = bridge_out.source_format_name;
     if (br.target_raw_payload_base64.empty() || br.target_raw_hash_sha256.empty()) {
         out.error = "bridge project response missing target payload or hash";
         return out;
@@ -341,6 +397,10 @@ MirrorProjectDecodedResult MirrorProjectionService::projectLatestSnapshotToTarge
     out.raw_hash_sha256 = br.target_raw_hash_sha256;
     out.target_format_name =
         br.target_format_name.empty() ? input.target_format_name : br.target_format_name;
+    out.bridge_lossy = br.loss_manifest_lossy;
+    out.bridge_lost_categories = br.lost_categories;
+    out.bridge_loss_notes = br.loss_notes;
+    out.bridge_target_pid = br.target_pid;
     return out;
 }
 

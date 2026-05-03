@@ -14,6 +14,7 @@ set(RESORT_STORAGE_SOURCES
     src/core/crypto/Sha256.cpp
     src/resort/domain/Ids.cpp
     src/resort/domain/PokemonMergeFieldPolicy.cpp
+    src/resort/diagnostics/ResortTransferLog.cpp
     src/resort/persistence/SqliteConnection.cpp
     src/resort/persistence/Migrations.cpp
     src/resort/persistence/PokemonRepository.cpp
@@ -21,6 +22,7 @@ set(RESORT_STORAGE_SOURCES
     src/resort/persistence/SnapshotRepository.cpp
     src/resort/persistence/HistoryRepository.cpp
     src/resort/persistence/MirrorSessionRepository.cpp
+    src/resort/persistence/PidTransportRegistryRepository.cpp
     src/resort/services/BoxViewService.cpp
     src/resort/services/MirrorSessionService.cpp
     src/resort/services/PokemonMatcher.cpp

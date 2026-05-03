@@ -26,6 +26,11 @@ public:
         std::uint16_t beacon_tid16,
         const std::string& beacon_ot_name) const;
 
+    /// Active mirrors whose exported PKM carried this PID on the target leg (legacy projection alias).
+    std::vector<MirrorSession> findActiveByTransportPidAndGame(
+        std::uint32_t transport_pid,
+        std::uint16_t target_game) const;
+
 private:
     SqliteConnection& connection_;
 };

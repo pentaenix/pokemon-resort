@@ -272,7 +272,7 @@ WHERE pkrid = ?
     stmt.bindInt(5, h.level);
     stmt.bindInt64(6, h.exp);
     stmt.bindInt(7, h.gender);
-    stmt.bindInt(8, h.shiny ? 1 : 0);
+    stmt.bindInt(8, (h.shiny || existing.hot.shiny) ? 1 : 0);
     if (h.ability_id) stmt.bindInt(9, *h.ability_id); else stmt.bindNull(9);
     if (h.ability_slot) stmt.bindInt(10, *h.ability_slot); else stmt.bindNull(10);
     if (h.held_item_id) stmt.bindInt(11, *h.held_item_id); else stmt.bindNull(11);
@@ -289,7 +289,15 @@ WHERE pkrid = ?
     if (h.met_level) stmt.bindInt(22, *h.met_level); else stmt.bindNull(22);
     if (h.met_date_unix) stmt.bindInt64(23, *h.met_date_unix); else stmt.bindNull(23);
     if (h.ball_id) stmt.bindInt(24, *h.ball_id); else stmt.bindNull(24);
-    if (h.pid) stmt.bindInt64(25, *h.pid); else stmt.bindNull(25);
+    if (existing.original_pid) {
+        stmt.bindInt64(25, static_cast<long long>(*existing.original_pid));
+    } else if (existing.hot.pid) {
+        stmt.bindInt64(25, static_cast<long long>(*existing.hot.pid));
+    } else if (h.pid) {
+        stmt.bindInt64(25, static_cast<long long>(*h.pid));
+    } else {
+        stmt.bindNull(25);
+    }
     if (h.encryption_constant) stmt.bindInt64(26, *h.encryption_constant); else stmt.bindNull(26);
     if (h.home_tracker) stmt.bindText(27, *h.home_tracker); else stmt.bindNull(27);
     stmt.bindInt(28, h.lineage_root_species != 0 ? h.lineage_root_species : h.species_id);

@@ -1,6 +1,7 @@
 #include "resort/services/PokemonMergeService.hpp"
 
 #include "core/config/Json.hpp"
+#include "resort/domain/PkmFormat.hpp"
 #include "resort/domain/PokemonMergeFieldPolicy.hpp"
 #include "resort/integration/Gen12DvBytes.hpp"
 
@@ -146,6 +147,9 @@ pr::JsonValue stripIncomingWarmMirrorStaticKeys(const pr::JsonValue& incoming) {
         // `static_fields` describes the projected/cart format read. On mirror return, keep Resort's
         // original static catalog instead of letting Pal Park / transfer metadata replace it.
         catalog.erase("static_fields");
+        // Cart friendship / pokerus blocks must not overwrite Resort warm catalog on return.
+        catalog.erase("friendship");
+        catalog.erase("pokerus");
         catalog_it->second = pr::JsonValue(catalog);
     }
     return pr::JsonValue(obj);
@@ -219,6 +223,51 @@ bool movesSlotsEqual(const PokemonHot& a, const PokemonHot& b) {
     return true;
 }
 
+std::string rememberRemovedMoves(
+    const std::string& existing,
+    const PokemonHot& before,
+    const PokemonHot& returning,
+    const std::string& return_format) {
+    std::set<std::uint16_t> returned_moves;
+    for (const auto& move : returning.move_ids) {
+        if (move && *move != 0) {
+            returned_moves.insert(*move);
+        }
+    }
+
+    pr::JsonValue::Array removed;
+    for (const auto& move : before.move_ids) {
+        if (!move || *move == 0 || returned_moves.count(*move) > 0) {
+            continue;
+        }
+        pr::JsonValue::Object entry;
+        entry.emplace("move_id", pr::JsonValue(static_cast<double>(*move)));
+        entry.emplace("reason", pr::JsonValue(std::string("target_generation_projection")));
+        if (!return_format.empty()) {
+            entry.emplace("return_format", pr::JsonValue(return_format));
+        }
+        removed.emplace_back(pr::JsonValue(entry));
+    }
+
+    if (removed.empty()) {
+        return existing;
+    }
+
+    pr::JsonValue::Object catalog;
+    catalog.emplace("auto_removed_moves", pr::JsonValue(removed));
+    pr::JsonValue::Object root_patch;
+    root_patch.emplace("schema_version", pr::JsonValue(1.0));
+    root_patch.emplace("resort_catalog", pr::JsonValue(catalog));
+
+    try {
+        const pr::JsonValue existing_json =
+            isEmptyPayload(existing) ? pr::JsonValue(pr::JsonValue::Object{}) : pr::parseJsonText(existing);
+        return serializeJson(mergeJsonValue(existing_json, pr::JsonValue(root_patch)));
+    } catch (const std::exception&) {
+        return existing;
+    }
+}
+
 bool hotEquals(const PokemonHot& a, const PokemonHot& b) {
     return a.species_id == b.species_id && a.form_id == b.form_id && a.nickname == b.nickname &&
            a.is_nicknamed == b.is_nicknamed && a.level == b.level && a.exp == b.exp && a.gender == b.gender &&
@@ -283,6 +332,9 @@ PokemonMergeResult mergeFullReplace(
     const ImportedPokemon& imported,
     long long updated_at_unix) {
     const ResortPokemon before = canonical;
+    if (!canonical.original_pid && canonical.hot.pid) {
+        canonical.original_pid = *canonical.hot.pid;
+    }
     PokemonHot next = canonical.hot;
     const PokemonHot& incoming = imported.hot;
 
@@ -293,7 +345,7 @@ PokemonMergeResult mergeFullReplace(
     next.level = incoming.level;
     next.exp = incoming.exp;
     next.gender = incoming.gender;
-    next.shiny = incoming.shiny;
+    next.shiny = canonical.hot.shiny || incoming.shiny;
     next.move_ids = incoming.move_ids;
     next.move_pp = incoming.move_pp;
     next.move_pp_ups = incoming.move_pp_ups;
@@ -312,7 +364,13 @@ PokemonMergeResult mergeFullReplace(
     replaceIfPresent(next.met_level, incoming.met_level);
     replaceIfPresent(next.met_date_unix, incoming.met_date_unix);
     replaceIfPresent(next.ball_id, incoming.ball_id);
-    replaceIfPresent(next.pid, incoming.pid);
+    if (canonical.original_pid) {
+        next.pid = *canonical.original_pid;
+    } else if (canonical.hot.pid) {
+        next.pid = *canonical.hot.pid;
+    } else {
+        replaceIfPresent(next.pid, incoming.pid);
+    }
     replaceIfPresent(next.encryption_constant, incoming.encryption_constant);
     replaceIfPresent(next.home_tracker, incoming.home_tracker);
     if (isGen12StorageFormat(imported.format_name)) {
@@ -341,6 +399,9 @@ PokemonMergeResult mergeFullReplace(
     }
 
     canonical.hot = next;
+    if (!canonical.original_pid && canonical.hot.pid) {
+        canonical.original_pid = *canonical.hot.pid;
+    }
     canonical.warm.json = mergeJsonPayload(canonical.warm.json, imported.warm_json);
     canonical.cold.suspended_json = mergeJsonPayload(canonical.cold.suspended_json, imported.suspended_json);
 
@@ -362,22 +423,41 @@ PokemonMergeResult mergeMirrorReturnGameplay(
     const ImportedPokemon& imported,
     long long updated_at_unix) {
     const ResortPokemon before = canonical;
+    if (!canonical.original_pid && canonical.hot.pid) {
+        canonical.original_pid = *canonical.hot.pid;
+    }
     PokemonHot next = canonical.hot;
     const PokemonHot& ih = imported.hot;
     const PokemonHot& ch = canonical.hot;
 
     const bool evolved =
         (ih.species_id != ch.species_id) || (ih.form_id != ch.form_id);
-    const bool leveled_up = ih.level > ch.level;
+    const bool allow_name_update =
+        imported.source_game != 0 &&
+        canonical.hot.origin_game != 0 &&
+        imported.source_game == canonical.hot.origin_game;
 
-    applyMirrorReturnHotMutableOverlay(next, ch, ih, evolved, leveled_up);
+    applyMirrorReturnHotMutableOverlay(next, ch, ih, evolved, allow_name_update);
 
-    const bool moves_from_cart = evolved || leveled_up;
+    const bool moves_from_cart = !movesSlotsEqual(ch, ih);
 
     canonical.hot = next;
+    {
+        const std::string storage_fmt = pkmStorageFormatNameForGameId(canonical.hot.origin_game);
+        const int constraint_gen = constraintGenerationFromStorageFormat(
+            storage_fmt.empty() ? std::string_view("pk9") : std::string_view(storage_fmt));
+        sanitizeHotMovesForConstraintGeneration(canonical.hot, constraint_gen);
+    }
+    if (!canonical.original_pid && canonical.hot.pid) {
+        canonical.original_pid = *canonical.hot.pid;
+    }
+    if (canonical.original_pid) {
+        canonical.hot.pid = *canonical.original_pid;
+    }
 
     const std::string warm_before = canonical.warm.json;
     canonical.warm.json = mergeWarmJsonMirrorReturn(canonical.warm.json, imported.warm_json);
+    canonical.warm.json = rememberRemovedMoves(canonical.warm.json, before.hot, imported.hot, imported.format_name);
     const bool warm_changed = warm_before != canonical.warm.json;
 
     PokemonMergeResult result;
