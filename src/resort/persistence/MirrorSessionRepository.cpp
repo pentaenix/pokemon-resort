@@ -4,10 +4,24 @@ namespace pr::resort {
 
 namespace {
 
+constexpr const char* kMirrorSessionSelectColumns =
+    "mirror_session_id, pkrid, target_game, status, created_at, returned_at, "
+    "beacon_tid16, beacon_ot_name, sent_species_id, sent_form_id, sent_lineage_root, "
+    "sent_level, sent_exp, original_ot_name, original_tid16, original_sid16, "
+    "original_game, sent_dv16, projection_json, mirror_canonical_pid, transport_pid";
+
 template <typename T>
 void bindOptionalInt(SqliteStatement& stmt, int index, const std::optional<T>& value) {
     if (value) {
         stmt.bindInt(index, static_cast<int>(*value));
+    } else {
+        stmt.bindNull(index);
+    }
+}
+
+void bindOptionalUInt32(SqliteStatement& stmt, int index, const std::optional<std::uint32_t>& value) {
+    if (value) {
+        stmt.bindInt64(index, static_cast<long long>(*value));
     } else {
         stmt.bindNull(index);
     }
@@ -33,6 +47,13 @@ std::optional<long long> optionalI64(const SqliteStatement& stmt, int index) {
         return std::nullopt;
     }
     return stmt.columnInt64(index);
+}
+
+std::optional<std::uint32_t> optionalU32(const SqliteStatement& stmt, int index) {
+    if (stmt.columnIsNull(index)) {
+        return std::nullopt;
+    }
+    return static_cast<std::uint32_t>(stmt.columnInt64(index));
 }
 
 std::optional<std::string> optionalText(const SqliteStatement& stmt, int index) {
@@ -63,16 +84,21 @@ MirrorSession sessionFromCurrentRow(const SqliteStatement& stmt) {
     session.original_game = optionalU16(stmt, 16);
     session.sent_dv16 = optionalU16(stmt, 17);
     session.projection_json = stmt.columnBlobAsString(18);
+    session.mirror_canonical_pid = optionalU32(stmt, 19);
+    session.transport_pid = optionalU32(stmt, 20);
     return session;
 }
 
-void bindSession(SqliteStatement& stmt, const MirrorSession& session) {
+void bindSessionInsert(SqliteStatement& stmt, const MirrorSession& session) {
     stmt.bindText(1, session.mirror_session_id);
     stmt.bindText(2, session.pkrid);
     stmt.bindInt(3, session.target_game);
     stmt.bindInt(4, static_cast<int>(session.status));
     stmt.bindInt64(5, session.created_at_unix);
-    if (session.returned_at_unix) stmt.bindInt64(6, *session.returned_at_unix); else stmt.bindNull(6);
+    if (session.returned_at_unix)
+        stmt.bindInt64(6, *session.returned_at_unix);
+    else
+        stmt.bindNull(6);
     bindOptionalInt(stmt, 7, session.beacon_tid16);
     bindOptionalText(stmt, 8, session.beacon_ot_name);
     stmt.bindInt(9, session.sent_species_id);
@@ -86,6 +112,34 @@ void bindSession(SqliteStatement& stmt, const MirrorSession& session) {
     bindOptionalInt(stmt, 17, session.original_game);
     bindOptionalInt(stmt, 18, session.sent_dv16);
     stmt.bindBlob(19, session.projection_json.data(), static_cast<int>(session.projection_json.size()));
+    bindOptionalUInt32(stmt, 20, session.mirror_canonical_pid);
+    bindOptionalUInt32(stmt, 21, session.transport_pid);
+}
+
+void bindSessionUpdateBody(SqliteStatement& stmt, const MirrorSession& session) {
+    stmt.bindText(1, session.pkrid);
+    stmt.bindInt(2, session.target_game);
+    stmt.bindInt(3, static_cast<int>(session.status));
+    stmt.bindInt64(4, session.created_at_unix);
+    if (session.returned_at_unix)
+        stmt.bindInt64(5, *session.returned_at_unix);
+    else
+        stmt.bindNull(5);
+    bindOptionalInt(stmt, 6, session.beacon_tid16);
+    bindOptionalText(stmt, 7, session.beacon_ot_name);
+    stmt.bindInt(8, session.sent_species_id);
+    stmt.bindInt(9, session.sent_form_id);
+    stmt.bindInt(10, session.sent_lineage_root);
+    stmt.bindInt(11, session.sent_level);
+    stmt.bindInt64(12, session.sent_exp);
+    bindOptionalText(stmt, 13, session.original_ot_name);
+    bindOptionalInt(stmt, 14, session.original_tid16);
+    bindOptionalInt(stmt, 15, session.original_sid16);
+    bindOptionalInt(stmt, 16, session.original_game);
+    bindOptionalInt(stmt, 17, session.sent_dv16);
+    stmt.bindBlob(18, session.projection_json.data(), static_cast<int>(session.projection_json.size()));
+    bindOptionalUInt32(stmt, 19, session.mirror_canonical_pid);
+    bindOptionalUInt32(stmt, 20, session.transport_pid);
 }
 
 } // namespace
@@ -94,15 +148,15 @@ MirrorSessionRepository::MirrorSessionRepository(SqliteConnection& connection)
     : connection_(connection) {}
 
 void MirrorSessionRepository::insert(const MirrorSession& session) {
-    auto stmt = connection_.prepare(R"sql(
+    auto stmt = connection_.prepare(std::string(R"sql(
 INSERT INTO mirror_sessions (
     mirror_session_id, pkrid, target_game, status, created_at, returned_at,
     beacon_tid16, beacon_ot_name, sent_species_id, sent_form_id, sent_lineage_root,
     sent_level, sent_exp, original_ot_name, original_tid16, original_sid16,
-    original_game, sent_dv16, projection_json
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-)sql");
-    bindSession(stmt, session);
+    original_game, sent_dv16, projection_json, mirror_canonical_pid, transport_pid
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+)sql"));
+    bindSessionInsert(stmt, session);
     stmt.stepDone();
 }
 
@@ -126,37 +180,19 @@ UPDATE mirror_sessions SET
     original_sid16 = ?,
     original_game = ?,
     sent_dv16 = ?,
-    projection_json = ?
+    projection_json = ?,
+    mirror_canonical_pid = ?,
+    transport_pid = ?
 WHERE mirror_session_id = ?
 )sql");
-    stmt.bindText(1, session.pkrid);
-    stmt.bindInt(2, session.target_game);
-    stmt.bindInt(3, static_cast<int>(session.status));
-    stmt.bindInt64(4, session.created_at_unix);
-    if (session.returned_at_unix) stmt.bindInt64(5, *session.returned_at_unix); else stmt.bindNull(5);
-    bindOptionalInt(stmt, 6, session.beacon_tid16);
-    bindOptionalText(stmt, 7, session.beacon_ot_name);
-    stmt.bindInt(8, session.sent_species_id);
-    stmt.bindInt(9, session.sent_form_id);
-    stmt.bindInt(10, session.sent_lineage_root);
-    stmt.bindInt(11, session.sent_level);
-    stmt.bindInt64(12, session.sent_exp);
-    bindOptionalText(stmt, 13, session.original_ot_name);
-    bindOptionalInt(stmt, 14, session.original_tid16);
-    bindOptionalInt(stmt, 15, session.original_sid16);
-    bindOptionalInt(stmt, 16, session.original_game);
-    bindOptionalInt(stmt, 17, session.sent_dv16);
-    stmt.bindBlob(18, session.projection_json.data(), static_cast<int>(session.projection_json.size()));
-    stmt.bindText(19, session.mirror_session_id);
+    bindSessionUpdateBody(stmt, session);
+    stmt.bindText(21, session.mirror_session_id);
     stmt.stepDone();
 }
 
 std::optional<MirrorSession> MirrorSessionRepository::findById(const std::string& mirror_session_id) const {
-    auto stmt = connection_.prepare(R"sql(
-SELECT mirror_session_id, pkrid, target_game, status, created_at, returned_at,
-       beacon_tid16, beacon_ot_name, sent_species_id, sent_form_id, sent_lineage_root,
-       sent_level, sent_exp, original_ot_name, original_tid16, original_sid16,
-       original_game, sent_dv16, projection_json
+    auto stmt = connection_.prepare(
+        std::string("SELECT ") + kMirrorSessionSelectColumns + R"sql(
 FROM mirror_sessions
 WHERE mirror_session_id = ?
 )sql");
@@ -168,11 +204,8 @@ WHERE mirror_session_id = ?
 }
 
 std::optional<MirrorSession> MirrorSessionRepository::findActiveForPokemon(const std::string& pkrid) const {
-    auto stmt = connection_.prepare(R"sql(
-SELECT mirror_session_id, pkrid, target_game, status, created_at, returned_at,
-       beacon_tid16, beacon_ot_name, sent_species_id, sent_form_id, sent_lineage_root,
-       sent_level, sent_exp, original_ot_name, original_tid16, original_sid16,
-       original_game, sent_dv16, projection_json
+    auto stmt = connection_.prepare(
+        std::string("SELECT ") + kMirrorSessionSelectColumns + R"sql(
 FROM mirror_sessions
 WHERE pkrid = ? AND status = ?
 ORDER BY created_at DESC
@@ -190,11 +223,8 @@ std::optional<MirrorSession> MirrorSessionRepository::findActiveByBeacon(
     std::uint16_t target_game,
     std::uint16_t beacon_tid16,
     const std::string& beacon_ot_name) const {
-    auto stmt = connection_.prepare(R"sql(
-SELECT mirror_session_id, pkrid, target_game, status, created_at, returned_at,
-       beacon_tid16, beacon_ot_name, sent_species_id, sent_form_id, sent_lineage_root,
-       sent_level, sent_exp, original_ot_name, original_tid16, original_sid16,
-       original_game, sent_dv16, projection_json
+    auto stmt = connection_.prepare(
+        std::string("SELECT ") + kMirrorSessionSelectColumns + R"sql(
 FROM mirror_sessions
 WHERE target_game = ?
   AND status = ?
@@ -217,11 +247,8 @@ std::vector<MirrorSession> MirrorSessionRepository::findActiveCandidatesByBeacon
     std::uint16_t target_game,
     std::uint16_t beacon_tid16,
     const std::string& beacon_ot_name) const {
-    auto stmt = connection_.prepare(R"sql(
-SELECT mirror_session_id, pkrid, target_game, status, created_at, returned_at,
-       beacon_tid16, beacon_ot_name, sent_species_id, sent_form_id, sent_lineage_root,
-       sent_level, sent_exp, original_ot_name, original_tid16, original_sid16,
-       original_game, sent_dv16, projection_json
+    auto stmt = connection_.prepare(
+        std::string("SELECT ") + kMirrorSessionSelectColumns + R"sql(
 FROM mirror_sessions
 WHERE target_game = ?
   AND status = ?
@@ -237,6 +264,28 @@ ORDER BY created_at DESC
     stmt.bindText(4, beacon_ot_name);
     stmt.bindInt(5, beacon_tid16);
     stmt.bindText(6, beacon_ot_name);
+
+    std::vector<MirrorSession> sessions;
+    while (stmt.stepRow()) {
+        sessions.push_back(sessionFromCurrentRow(stmt));
+    }
+    return sessions;
+}
+
+std::vector<MirrorSession> MirrorSessionRepository::findActiveByTransportPidAndGame(
+    std::uint32_t transport_pid,
+    std::uint16_t target_game) const {
+    auto stmt = connection_.prepare(
+        std::string("SELECT ") + kMirrorSessionSelectColumns + R"sql(
+FROM mirror_sessions
+WHERE status = ?
+  AND transport_pid = ?
+  AND target_game = ?
+ORDER BY created_at DESC
+)sql");
+    stmt.bindInt(1, static_cast<int>(MirrorStatus::Active));
+    stmt.bindInt64(2, static_cast<long long>(transport_pid));
+    stmt.bindInt(3, target_game);
 
     std::vector<MirrorSession> sessions;
     while (stmt.stepRow()) {

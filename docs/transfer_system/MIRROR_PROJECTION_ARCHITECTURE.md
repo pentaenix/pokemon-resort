@@ -36,7 +36,7 @@ Already implemented:
 Not yet implemented / partially implemented:
 
 - PKHeX-backed bridge `project` conversion is **implemented** for arbitrary target-generation projections (`tools/pkhex_bridge/BridgeProject.cs`, PKHeX `EntityConverter`). Loss manifests remain heuristic until richer field-diff reporting lands.
-- Rolling **`CanonicalCheckpoint`** snapshots after **every** import are implemented in `PokemonImportService`; outbound orchestration still needs UI/export wiring to prefer bridge-projected bytes over recycled payloads everywhere.
+- Rolling **`CanonicalCheckpoint`** snapshots are written for first-time/full canonical imports. Mirror returns write `ReturnRaw` evidence but do **not** promote the returned projection bytes to canonical checkpoint bytes.
 - A field-level merge policy that understands every mutable category across generations.
 - Player UI for lossy projection prompts, mirror send, mirror return, unboxed "away" state, and conflict review.
 
@@ -111,6 +111,7 @@ Retention rule:
 - Always keep first import and latest canonical checkpoint.
 - Keep active mirror projection and return raw until the mirror is closed and audited.
 - Keep bounded historical checkpoints for debugging and player trust. Do not store every generated projection forever unless the user explicitly exports/audits it.
+- A returned mirror/projection is evidence, not canonical truth. Do not write returned mirror bytes as `CanonicalCheckpoint`; merge allowed mutable fields into Resort state and keep the returned bytes as `MirrorReturnRaw` / `ReturnRaw` for audit.
 
 ### Mirrors
 
@@ -125,6 +126,7 @@ Mirror session stores:
 - identity beacons usable by older games (TID/OT, optional slot metadata, generated marker where legal)
 - projection JSON / loss manifest summary
 - source canonical snapshot id used to create the mirror
+- canonical/original PID and, when projection required it, the target-generation transport PID
 
 Active mirror placement rule:
 
@@ -134,6 +136,14 @@ Active mirror placement rule:
 - Do not render active-mirror Pokemon anywhere in Resort UI until a later explicit feature (for example passports/travel records) is designed.
 - Backend storage for active-mirror Pokemon should be treated as an off-Pokemon container: safe, queryable by services, but not presentable to normal player UI.
 - At most one active mirror may exist for a `pkrid`. Sending to another game must be rejected until the active mirror is returned, lost, or explicitly abandoned.
+
+### Temporary PID Mapping
+
+PID equality is not identity. Resort identity is always `pkrid`.
+
+When a future-generation Pokemon is projected into an older generation whose PID rules affect shiny, nature, gender, or ability slot, the bridge may generate a target-compatible transport PID. That PID belongs only to the projection. Export must record it in `mirror_sessions.transport_pid`, `pid_transport_registry`, and `pokemon.pid_history_json` while preserving `pokemon.original_pid` and canonical `hot.pid`.
+
+Return import checks the active PID transport mapping before creating a new Pokemon. A match resolves to the existing `pkrid`, deactivates the temporary mapping, restores canonical/original PID, and merges only allowed mutable fields. The returned `.pk3`/`.pk4` bytes are kept as `ReturnRaw` evidence and must not become the canonical checkpoint.
 
 ## Architectural Decisions
 
@@ -158,6 +168,10 @@ Moving a Pokemon to an older game may lose representable data in the mirror. Res
 ### AD-004: Newer-format canonical raw is preferred, but not sufficient alone
 
 The latest/highest-fidelity PK blob is the best binary base. It should be paired with a readable Resort persona and bounded snapshots. A single overwritten PK blob is not acceptable for "never lose data" because bad merges would be irreversible.
+
+Projection source selection must ignore `ReturnRaw` mirror evidence and old `CanonicalCheckpoint` rows whose notes mark them as mirror-return checkpoints. Outbound projection should start from imported/canonical base bytes and then overlay current canonical Resort persona fields.
+
+The transfer UI save/exit path has one extra invariant: the mirror session must be committed from the exact raw payload prepared for `write-projection`. Do not prepare PKM bytes for a game slot and then call a second export to create the mirror session, because a second projection can produce a different transport PID than the bytes written to the save.
 
 ### AD-005: Field-level merge policy belongs in Resort services
 
@@ -240,6 +254,10 @@ Bridge responsibilities:
 - Decode source PK bytes.
 - Let PKHeX attempt direct conversion where supported.
 - For unsupported downgrades, create a target-format projection from allowed fields when policy permits.
+- Apply canonical static identity supplied by Resort before final target serialization. OT, TID/SID, language, canonical PID, and encryption constant stay Resort-owned. For downgrades, the projection may set target-game origin/met defaults for legality/playability without writing those values back to canonical Resort fields.
+- For PID-derived nature formats (Gen 3/4), apply requested nature after canonical/static PID overlay. The resulting PID is a transport PID when it differs from canonical identity.
+- Gen 3 trainer names must go through PKHeX's Gen 3 string/trash-byte converter, not generic UTF-8 assignment. Invalid balls for the target generation fall back to a normal Poke Ball.
+- For target formats where species casing differs, keep Resort's nickname flag authoritative. Non-nicknamed projections use PKHeX `ClearNickname()` / language-specific species-name bytes, not legality-driven fixed-nickname helpers. A Gen 3 uppercase default species name must not become a Gen 5 nickname on return.
 - Validate target-format payload.
 - Emit loss manifest and field report.
 - Never mutate Resort DB directly.
@@ -282,7 +300,7 @@ Responsibilities:
 - Compare returned fields against sent baseline and canonical state.
 - Call merge policy.
 - Store `MirrorReturnRaw` snapshot.
-- Write new `CanonicalCheckpoint` snapshot if canonical bytes changed.
+- Do not write the returned projection bytes as a canonical checkpoint. If canonical PK bytes need regeneration after merge, that is a separate projection/checkpoint operation from canonical Resort data, not promotion of the returned `.pk*` payload.
 - Close mirror session returned.
 - Place the Pokemon into the player-selected Resort slot using normal box placement policy.
 - Record history and conflict/audit notes.
@@ -504,4 +522,3 @@ tests/run_all_tests.sh
 - Add SQL through repositories and migrations only.
 - Add prompt text from loss-manifest categories, not from hardcoded generation assumptions.
 - Keep `TransferSystemScreen` as an adapter: it should request projection/return actions and render results, not decide identity or merge rules.
-

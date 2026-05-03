@@ -1,5 +1,8 @@
 #include "resort/services/PokemonMatcher.hpp"
 
+#include "resort/domain/PkmFormat.hpp"
+#include "resort/domain/ResortTypes.hpp"
+
 namespace pr::resort {
 
 namespace {
@@ -90,6 +93,30 @@ bool gen12NativeOriginalTrainerMatches(
     return session.original_game && *session.original_game == session.target_game &&
            session.original_tid16 && *session.original_tid16 == tid16 &&
            session.original_ot_name && *session.original_ot_name == ot_name;
+}
+
+bool mirrorTransportIdentityMatches(
+    const MirrorSession& session,
+    std::optional<std::uint16_t> tid16,
+    std::optional<std::uint16_t> sid16,
+    const std::string& ot_name) {
+    if (!tid16 || ot_name.empty()) {
+        return false;
+    }
+    if (session.beacon_tid16 && session.beacon_ot_name && *session.beacon_tid16 == *tid16 &&
+        *session.beacon_ot_name == ot_name) {
+        return true;
+    }
+    if (!session.original_tid16 || !session.original_ot_name) {
+        return false;
+    }
+    if (*session.original_tid16 != *tid16 || *session.original_ot_name != ot_name) {
+        return false;
+    }
+    if (session.original_sid16 && sid16) {
+        return *session.original_sid16 == *sid16;
+    }
+    return true;
 }
 
 bool gen12MirrorProgressionIsCompatible(
@@ -199,9 +226,13 @@ PokemonMatchResult matchedMaybeActiveMirror(
 
 } // namespace
 
-PokemonMatcher::PokemonMatcher(PokemonRepository& pokemon, MirrorSessionRepository& mirrors)
+PokemonMatcher::PokemonMatcher(
+    PokemonRepository& pokemon,
+    MirrorSessionRepository& mirrors,
+    PidTransportRegistryRepository& pid_transport)
     : pokemon_(pokemon),
-      mirrors_(mirrors) {}
+      mirrors_(mirrors),
+      pid_transport_(pid_transport) {}
 
 PokemonMatchResult PokemonMatcher::findBestMatch(const ImportedPokemon& imported) const {
     const auto tid16 = importedTid16(imported);
@@ -272,6 +303,24 @@ PokemonMatchResult PokemonMatcher::findBestMatch(const ImportedPokemon& imported
     const auto ec = importedEncryptionConstant(imported);
     const auto sid16 = importedSid16(imported);
 
+    const int incoming_constraint_gen = constraintGenerationFromStorageFormat(imported.format_name);
+    if (pid && incoming_constraint_gen > 0) {
+        if (auto mapping = pid_transport_.findActiveByTempPidAndTargetGen(*pid, incoming_constraint_gen)) {
+            if (auto session = mirrors_.findById(mapping->mirror_session_id)) {
+                if (session->status == MirrorStatus::Active && session->pkrid == mapping->pkrid &&
+                    session->transport_pid && *session->transport_pid == *pid) {
+                    return matchedMirror(*session, "pid_transport_registry");
+                }
+            }
+            if (auto fallback = mirrors_.findActiveForPokemon(mapping->pkrid)) {
+                if (fallback->transport_pid && *fallback->transport_pid == *pid &&
+                    fallback->target_game == imported.source_game) {
+                    return matchedMirror(*fallback, "pid_transport_registry");
+                }
+            }
+        }
+    }
+
     if (pid && ec && (tid16 || sid16) && !ot_name.empty()) {
         if (auto found = pokemon_.findByPidEcTidSidOt(*pid, *ec, tid16, sid16, ot_name)) {
             return matchedMaybeActiveMirror(mirrors_, *found, imported, MatchConfidence::Exact, "pid_ec_tid_sid_ot", true);
@@ -281,6 +330,47 @@ PokemonMatchResult PokemonMatcher::findBestMatch(const ImportedPokemon& imported
     if (pid && (tid16 || sid16) && !ot_name.empty()) {
         if (auto found = pokemon_.findByPidTidSidOt(*pid, tid16, sid16, ot_name)) {
             return matchedMaybeActiveMirror(mirrors_, *found, imported, MatchConfidence::Strong, "pid_tid_sid_ot");
+        }
+    }
+
+    if (pid && tid16 && !ot_name.empty()) {
+        const auto transport_candidates =
+            mirrors_.findActiveByTransportPidAndGame(*pid, imported.source_game);
+        std::optional<MirrorSession> best_session;
+        int best_score = -1;
+        bool ambiguous = false;
+
+        for (const auto& candidate : transport_candidates) {
+            if (!mirrorTransportIdentityMatches(candidate, tid16, sid16, ot_name)) {
+                continue;
+            }
+            if (!progressionIsCompatible(candidate, imported)) {
+                continue;
+            }
+            int score = 50;
+            if (const auto canonical = pokemon_.findById(candidate.pkrid)) {
+                score += moveOverlapScore(*canonical, imported);
+                if (canonical->hot.species_id == imported.hot.species_id) {
+                    score += 40;
+                }
+                if (canonical->hot.form_id == imported.hot.form_id) {
+                    score += 10;
+                }
+            }
+            if (score > best_score) {
+                best_session = candidate;
+                best_score = score;
+                ambiguous = false;
+            } else if (score == best_score && best_session.has_value()) {
+                ambiguous = true;
+            }
+        }
+
+        if (best_session && !ambiguous) {
+            return matchedMirror(*best_session, "mirror_transport_pid");
+        }
+        if (best_session && ambiguous) {
+            return noMatch("mirror_transport_pid_ambiguous");
         }
     }
 

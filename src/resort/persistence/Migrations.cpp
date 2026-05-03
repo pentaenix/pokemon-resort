@@ -185,6 +185,41 @@ void migrateTo2(SqliteConnection& connection) {
     addColumnIfMissing(connection, "mirror_sessions", "sent_dv16", "sent_dv16 INTEGER");
 }
 
+void migrateTo3(SqliteConnection& connection) {
+    addColumnIfMissing(connection, "mirror_sessions", "mirror_canonical_pid", "mirror_canonical_pid INTEGER");
+    addColumnIfMissing(connection, "mirror_sessions", "transport_pid", "transport_pid INTEGER");
+    connection.exec(
+        "CREATE INDEX IF NOT EXISTS idx_mirror_transport_pid ON mirror_sessions(transport_pid, target_game, "
+        "status) WHERE transport_pid IS NOT NULL");
+}
+
+void migrateTo4(SqliteConnection& connection) {
+    addColumnIfMissing(connection, "pokemon", "original_pid", "original_pid INTEGER");
+    addColumnIfMissing(connection, "pokemon", "pid_history_json", "pid_history_json TEXT NOT NULL DEFAULT '[]'");
+    connection.exec("UPDATE pokemon SET original_pid = pid WHERE original_pid IS NULL AND pid IS NOT NULL");
+    connection.exec("UPDATE pokemon SET pid_history_json = '[]' WHERE pid_history_json IS NULL OR pid_history_json = ''");
+
+    connection.exec(R"sql(
+CREATE TABLE IF NOT EXISTS pid_transport_registry (
+    row_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    temp_pid INTEGER NOT NULL,
+    pkrid TEXT NOT NULL,
+    original_pid INTEGER NOT NULL,
+    source_constraint_gen INTEGER NOT NULL,
+    target_constraint_gen INTEGER NOT NULL,
+    created_at_unix INTEGER NOT NULL,
+    mirror_session_id TEXT,
+    active INTEGER NOT NULL DEFAULT 1,
+    FOREIGN KEY (pkrid) REFERENCES pokemon(pkrid) ON DELETE CASCADE,
+    FOREIGN KEY (mirror_session_id) REFERENCES mirror_sessions(mirror_session_id) ON DELETE SET NULL
+);
+)sql");
+    connection.exec(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_pid_transport_active_temp ON pid_transport_registry(temp_pid) "
+        "WHERE active = 1");
+    connection.exec("CREATE INDEX IF NOT EXISTS idx_pid_transport_pkrid ON pid_transport_registry(pkrid)");
+}
+
 } // namespace
 
 void runResortMigrations(SqliteConnection& connection) {
@@ -201,6 +236,16 @@ void runResortMigrations(SqliteConnection& connection) {
     if (version < 2) {
         migrateTo2(connection);
         setVersion(connection, 2);
+        version = 2;
+    }
+    if (version < 3) {
+        migrateTo3(connection);
+        setVersion(connection, 3);
+        version = 3;
+    }
+    if (version < 4) {
+        migrateTo4(connection);
+        setVersion(connection, 4);
     }
     tx.commit();
 }

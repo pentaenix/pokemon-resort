@@ -6,6 +6,7 @@
 #include "resort/persistence/BoxRepository.hpp"
 #include "resort/persistence/HistoryRepository.hpp"
 #include "resort/persistence/MirrorSessionRepository.hpp"
+#include "resort/persistence/PidTransportRegistryRepository.hpp"
 #include "resort/persistence/PokemonRepository.hpp"
 #include "resort/persistence/SnapshotRepository.hpp"
 #include "resort/persistence/SqliteConnection.hpp"
@@ -52,6 +53,13 @@ public:
 
     ImportResult importParsedPokemon(const ImportedPokemon& imported, const ImportContext& context);
     ExportResult exportPokemon(const std::string& pkrid, const ExportContext& context);
+    ExportResult commitPreparedMirrorExport(
+        const std::string& pkrid,
+        const ExportContext& context,
+        const std::vector<unsigned char>& raw_payload,
+        const std::string& raw_hash,
+        const std::string& format_name,
+        std::optional<std::uint32_t> transport_pid);
 
     std::optional<ResortPokemon> getPokemonById(const std::string& pkrid) const;
     bool pokemonExists(const std::string& pkrid) const;
@@ -109,6 +117,7 @@ private:
     std::unique_ptr<SnapshotRepository> snapshots_;
     std::unique_ptr<HistoryRepository> history_;
     std::unique_ptr<MirrorSessionRepository> mirrors_;
+    std::unique_ptr<PidTransportRegistryRepository> pid_transport_;
     std::unique_ptr<BoxViewService> box_views_;
     std::unique_ptr<PokemonMatcher> matcher_;
     std::unique_ptr<PokemonMergeService> merge_;

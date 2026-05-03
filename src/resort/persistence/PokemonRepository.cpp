@@ -1,5 +1,7 @@
 #include "resort/persistence/PokemonRepository.hpp"
 
+#include <sstream>
+
 namespace pr::resort {
 
 namespace {
@@ -15,7 +17,8 @@ constexpr const char* kPokemonSelectColumns = R"sql(
     ot_name, tid16, sid16, tid32, origin_game, language,
     met_location_id, met_level, met_date, ball_id,
     pid, encryption_constant, home_tracker,
-    lineage_root_species, dv16, identity_strength, warm_json, suspended_json
+    lineage_root_species, dv16, identity_strength, warm_json, suspended_json,
+    original_pid, pid_history_json
 )sql";
 
 template <typename T>
@@ -115,6 +118,11 @@ ResortPokemon pokemonFromCurrentRow(const SqliteStatement& stmt) {
     h.identity_strength = static_cast<unsigned char>(stmt.columnInt(46));
     p.warm.json = stmt.columnBlobAsString(47);
     p.cold.suspended_json = stmt.columnBlobAsString(48);
+    p.original_pid = optionalU32(stmt, 49);
+    p.pid_history_json = stmt.columnText(50);
+    if (p.pid_history_json.empty()) {
+        p.pid_history_json = "[]";
+    }
     return p;
 }
 
@@ -136,7 +144,8 @@ INSERT INTO pokemon (
     ot_name, tid16, sid16, tid32, origin_game, language,
     met_location_id, met_level, met_date, ball_id,
     pid, encryption_constant, home_tracker,
-    lineage_root_species, dv16, identity_strength, warm_json, suspended_json
+    lineage_root_species, dv16, identity_strength, warm_json, suspended_json,
+    original_pid, pid_history_json
 ) VALUES (
     ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?, ?, ?, ?,
@@ -148,7 +157,8 @@ INSERT INTO pokemon (
     ?, ?, ?, ?, ?, ?,
     ?, ?, ?, ?,
     ?, ?, ?,
-    ?, ?, ?, ?, ?
+    ?, ?, ?, ?, ?,
+    ?, ?
 )
 )sql");
 
@@ -195,6 +205,8 @@ INSERT INTO pokemon (
     stmt.bindInt(47, h.identity_strength);
     stmt.bindBlob(48, pokemon.warm.json.data(), static_cast<int>(pokemon.warm.json.size()));
     stmt.bindBlob(49, pokemon.cold.suspended_json.data(), static_cast<int>(pokemon.cold.suspended_json.size()));
+    bindOptionalInt(stmt, 50, pokemon.original_pid);
+    stmt.bindText(51, pokemon.pid_history_json.empty() ? "[]" : pokemon.pid_history_json);
     stmt.stepDone();
 }
 
@@ -246,7 +258,9 @@ UPDATE pokemon SET
     dv16 = ?,
     identity_strength = ?,
     warm_json = ?,
-    suspended_json = ?
+    suspended_json = ?,
+    original_pid = ?,
+    pid_history_json = ?
 WHERE pkrid = ?
 )sql");
 
@@ -290,7 +304,9 @@ WHERE pkrid = ?
     stmt.bindInt(44, h.identity_strength);
     stmt.bindBlob(45, pokemon.warm.json.data(), static_cast<int>(pokemon.warm.json.size()));
     stmt.bindBlob(46, pokemon.cold.suspended_json.data(), static_cast<int>(pokemon.cold.suspended_json.size()));
-    stmt.bindText(47, pokemon.id.pkrid);
+    bindOptionalInt(stmt, 47, pokemon.original_pid);
+    stmt.bindText(48, pokemon.pid_history_json.empty() ? "[]" : pokemon.pid_history_json);
+    stmt.bindText(49, pokemon.id.pkrid);
     stmt.stepDone();
 }
 
@@ -376,6 +392,56 @@ LIMIT 1
         return std::nullopt;
     }
     return pokemonFromCurrentRow(stmt);
+}
+
+void PokemonRepository::ensureOriginalPidIfUnset(const std::string& pkrid, std::uint32_t pid) {
+    auto stmt = connection_.prepare(
+        "UPDATE pokemon SET original_pid = ? WHERE pkrid = ? AND original_pid IS NULL");
+    stmt.bindInt64(1, static_cast<long long>(pid));
+    stmt.bindText(2, pkrid);
+    stmt.stepDone();
+}
+
+void PokemonRepository::appendPidHistoryEntry(
+    const std::string& pkrid,
+    std::uint32_t temp_pid,
+    int source_constraint_gen,
+    int target_constraint_gen,
+    std::int64_t created_at_unix) {
+    std::string history = "[]";
+    if (auto row = findById(pkrid)) {
+        history = row->pid_history_json.empty() ? "[]" : row->pid_history_json;
+    }
+    while (!history.empty() && (history.back() == ' ' || history.back() == '\n' || history.back() == '\r')) {
+        history.pop_back();
+    }
+    if (history.empty()) {
+        history = "[]";
+    }
+
+    std::ostringstream entry;
+    entry << "{\"temp_pid\":" << static_cast<unsigned long long>(temp_pid)
+          << ",\"source_generation\":" << source_constraint_gen
+          << ",\"target_generation\":" << target_constraint_gen
+          << ",\"timestamp\":" << created_at_unix << "}";
+
+    std::string next;
+    if (history == "[]") {
+        next = "[" + entry.str() + "]";
+    } else if (!history.empty() && history.front() == '[' && history.back() == ']') {
+        next = history.substr(0, history.size() - 1);
+        if (next.size() > 1) {
+            next += ",";
+        }
+        next += entry.str() + "]";
+    } else {
+        next = "[" + entry.str() + "]";
+    }
+
+    auto stmt = connection_.prepare("UPDATE pokemon SET pid_history_json = ? WHERE pkrid = ?");
+    stmt.bindText(1, next);
+    stmt.bindText(2, pkrid);
+    stmt.stepDone();
 }
 
 } // namespace pr::resort

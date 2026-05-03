@@ -86,4 +86,120 @@ LIMIT 1
     return snapshotFromCurrentRow(stmt);
 }
 
+std::optional<PokemonSnapshot> SnapshotRepository::findMostAdvancedRawForPokemon(const std::string& pkrid) const {
+    auto stmt = connection_.prepare(R"sql(
+SELECT snapshot_id, pkrid, kind, format_name, game_id, captured_at,
+       raw_bytes, raw_hash_sha256, parsed_json, notes_json
+FROM pokemon_snapshots
+WHERE pkrid = ?
+  AND kind != ?
+ORDER BY CASE lower(format_name)
+           WHEN 'pk9' THEN 90
+           WHEN 'pb8' THEN 82
+           WHEN 'pa8' THEN 82
+           WHEN 'pk8' THEN 80
+           WHEN 'pk7' THEN 70
+           WHEN 'pk6' THEN 60
+           WHEN 'pk5' THEN 50
+           WHEN 'pk4' THEN 40
+           WHEN 'pk3' THEN 30
+           WHEN 'pk2' THEN 20
+           WHEN 'pk1' THEN 10
+           ELSE 0
+         END DESC,
+         captured_at DESC,
+         CASE WHEN kind = ? THEN 0 ELSE 1 END,
+         snapshot_id DESC
+LIMIT 1
+)sql");
+    stmt.bindText(1, pkrid);
+    stmt.bindInt(2, static_cast<int>(SnapshotKind::ExportProjection));
+    stmt.bindInt(3, static_cast<int>(SnapshotKind::CanonicalCheckpoint));
+    if (!stmt.stepRow()) {
+        return std::nullopt;
+    }
+    return snapshotFromCurrentRow(stmt);
+}
+
+std::optional<PokemonSnapshot> SnapshotRepository::findLatestCanonicalBaseForPokemon(
+    const std::string& pkrid,
+    std::optional<std::uint16_t> game_id,
+    const std::string& format_name) const {
+    auto stmt = connection_.prepare(R"sql(
+SELECT snapshot_id, pkrid, kind, format_name, game_id, captured_at,
+       raw_bytes, raw_hash_sha256, parsed_json, notes_json
+FROM pokemon_snapshots
+WHERE pkrid = ?
+  AND kind IN (?, ?)
+  AND NOT (kind = ? AND CAST(notes_json AS TEXT) LIKE '%"mirror_return_checkpoint"%')
+  AND NOT (kind = ? AND CAST(notes_json AS TEXT) LIKE '%"matched":true%')
+  AND (? IS NULL OR game_id = ?)
+  AND (? = '' OR lower(format_name) = lower(?))
+ORDER BY captured_at DESC,
+         CASE WHEN kind = ? THEN 0 ELSE 1 END,
+         snapshot_id DESC
+LIMIT 1
+)sql");
+    stmt.bindText(1, pkrid);
+    stmt.bindInt(2, static_cast<int>(SnapshotKind::ImportedRaw));
+    stmt.bindInt(3, static_cast<int>(SnapshotKind::CanonicalCheckpoint));
+    stmt.bindInt(4, static_cast<int>(SnapshotKind::CanonicalCheckpoint));
+    stmt.bindInt(5, static_cast<int>(SnapshotKind::ImportedRaw));
+    if (game_id) {
+        stmt.bindInt(6, *game_id);
+        stmt.bindInt(7, *game_id);
+    } else {
+        stmt.bindNull(6);
+        stmt.bindNull(7);
+    }
+    stmt.bindText(8, format_name);
+    stmt.bindText(9, format_name);
+    stmt.bindInt(10, static_cast<int>(SnapshotKind::CanonicalCheckpoint));
+    if (!stmt.stepRow()) {
+        return std::nullopt;
+    }
+    return snapshotFromCurrentRow(stmt);
+}
+
+std::optional<PokemonSnapshot> SnapshotRepository::findMostAdvancedCanonicalBaseForPokemon(
+    const std::string& pkrid) const {
+    auto stmt = connection_.prepare(R"sql(
+SELECT snapshot_id, pkrid, kind, format_name, game_id, captured_at,
+       raw_bytes, raw_hash_sha256, parsed_json, notes_json
+FROM pokemon_snapshots
+WHERE pkrid = ?
+  AND kind IN (?, ?)
+  AND NOT (kind = ? AND CAST(notes_json AS TEXT) LIKE '%"mirror_return_checkpoint"%')
+  AND NOT (kind = ? AND CAST(notes_json AS TEXT) LIKE '%"matched":true%')
+ORDER BY CASE lower(format_name)
+           WHEN 'pk9' THEN 90
+           WHEN 'pb8' THEN 82
+           WHEN 'pa8' THEN 82
+           WHEN 'pk8' THEN 80
+           WHEN 'pk7' THEN 70
+           WHEN 'pk6' THEN 60
+           WHEN 'pk5' THEN 50
+           WHEN 'pk4' THEN 40
+           WHEN 'pk3' THEN 30
+           WHEN 'pk2' THEN 20
+           WHEN 'pk1' THEN 10
+           ELSE 0
+         END DESC,
+         captured_at DESC,
+         CASE WHEN kind = ? THEN 0 ELSE 1 END,
+         snapshot_id DESC
+LIMIT 1
+)sql");
+    stmt.bindText(1, pkrid);
+    stmt.bindInt(2, static_cast<int>(SnapshotKind::ImportedRaw));
+    stmt.bindInt(3, static_cast<int>(SnapshotKind::CanonicalCheckpoint));
+    stmt.bindInt(4, static_cast<int>(SnapshotKind::CanonicalCheckpoint));
+    stmt.bindInt(5, static_cast<int>(SnapshotKind::ImportedRaw));
+    stmt.bindInt(6, static_cast<int>(SnapshotKind::CanonicalCheckpoint));
+    if (!stmt.stepRow()) {
+        return std::nullopt;
+    }
+    return snapshotFromCurrentRow(stmt);
+}
+
 } // namespace pr::resort

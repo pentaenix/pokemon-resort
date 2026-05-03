@@ -81,6 +81,10 @@ struct ResortPokemon {
     PokemonHot hot;
     PokemonWarm warm;
     PokemonCold cold;
+    /// Permanent personality id from first canonical capture; never overwritten by transport legs.
+    std::optional<std::uint32_t> original_pid;
+    /// JSON array of `{temp_pid, source_generation, target_generation, timestamp}` entries.
+    std::string pid_history_json = "[]";
     std::uint64_t revision = 1;
     std::int64_t created_at_unix = 0;
     std::int64_t updated_at_unix = 0;
@@ -189,6 +193,10 @@ struct MirrorSession {
     std::optional<std::uint16_t> original_sid16;
     std::optional<std::uint16_t> original_game;
     std::optional<std::uint16_t> sent_dv16;
+    /// Resort canonical `PokemonHot.pid` captured when the mirror opens (stable identity).
+    std::optional<std::uint32_t> mirror_canonical_pid;
+    /// PID embedded in the exported PKM for this leg (may differ after legacy projection).
+    std::optional<std::uint32_t> transport_pid;
     std::string projection_json = "{}";
 };
 

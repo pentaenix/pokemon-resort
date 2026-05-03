@@ -3,6 +3,7 @@
 #include "resort/domain/ResortTypes.hpp"
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -27,6 +28,7 @@ struct ExportResult {
     std::string format_name;
     std::vector<unsigned char> raw_payload;
     std::string raw_hash;
+    std::optional<std::uint32_t> transport_pid;
     std::string error;
 };
 

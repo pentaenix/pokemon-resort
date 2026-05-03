@@ -1,6 +1,7 @@
 #include "resort/services/PokemonResortService.hpp"
 
 #include "core/crypto/Sha256.hpp"
+#include "resort/diagnostics/ResortTransferLog.hpp"
 #include "resort/domain/Ids.hpp"
 #include "resort/domain/PkmFormat.hpp"
 #include "resort/integration/Gen12DvBytes.hpp"
@@ -8,9 +9,12 @@
 #include "resort/persistence/Migrations.hpp"
 #include "resort/persistence/SqliteConnection.hpp"
 
+#include <chrono>
 #include <filesystem>
 #include <iostream>
 #include <random>
+#include <sstream>
+#include <string_view>
 
 namespace pr::resort {
 
@@ -19,6 +23,73 @@ namespace {
 constexpr const char* kTempTransferLog = "[TEMP_TRANSFER_LOG_DELETE]";
 
 thread_local std::mt19937 kGen12PrepareWriteDvRng{std::random_device{}()};
+
+std::string jsonEscapeMinimal(std::string_view s) {
+    std::string out;
+    out.reserve(s.size() + 4);
+    for (const char c : s) {
+        switch (c) {
+            case '"': out += "\\\""; break;
+            case '\\': out += "\\\\"; break;
+            case '\n': out += "\\n"; break;
+            case '\r': out += "\\r"; break;
+            default: out += c; break;
+        }
+    }
+    return out;
+}
+
+std::string transferImportJsonLine(const ImportResult& r, const ImportContext& ctx, const ResortPokemon* canonical) {
+    const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                        std::chrono::system_clock::now().time_since_epoch())
+                        .count();
+    std::ostringstream o;
+    o << "{\"schema_version\":1,\"ts_ms\":" << ms << ",\"event\":\"import\""
+      << ",\"profile_id\":\"" << jsonEscapeMinimal(ctx.profile_id) << "\""
+      << ",\"success\":true"
+      << ",\"pkrid\":\"" << jsonEscapeMinimal(r.pkrid) << "\""
+      << ",\"snapshot_id\":\"" << jsonEscapeMinimal(r.snapshot_id) << "\""
+      << ",\"created\":" << (r.created ? "true" : "false") << ",\"merged\":" << (r.merged ? "true" : "false")
+      << ",\"match_reason\":\"" << jsonEscapeMinimal(r.match_reason) << "\"";
+    if (canonical) {
+        o << ",\"canonical_shiny\":" << (canonical->hot.shiny ? "true" : "false")
+          << ",\"canonical_species_id\":" << canonical->hot.species_id
+          << ",\"canonical_origin_game\":" << canonical->hot.origin_game;
+    }
+    o << "}";
+    return o.str();
+}
+
+std::string transferBridgeProjectJsonLine(
+    const std::string& pkrid,
+    const MirrorProjectDecodedResult& projected) {
+    const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                        std::chrono::system_clock::now().time_since_epoch())
+                        .count();
+    std::ostringstream o;
+    o << "{\"schema_version\":1,\"ts_ms\":" << ms << ",\"event\":\"bridge_project\""
+      << ",\"pkrid\":\"" << jsonEscapeMinimal(pkrid) << "\""
+      << ",\"source_snapshot_id\":\"" << jsonEscapeMinimal(projected.source_snapshot_id) << "\""
+      << ",\"source_format\":\"" << jsonEscapeMinimal(projected.source_format_name) << "\""
+      << ",\"target_format\":\"" << jsonEscapeMinimal(projected.target_format_name) << "\""
+      << ",\"lossy\":" << (projected.bridge_lossy ? "true" : "false")
+      << ",\"lost_categories\":[";
+    for (std::size_t i = 0; i < projected.bridge_lost_categories.size(); ++i) {
+        if (i > 0) {
+            o << ',';
+        }
+        o << '"' << jsonEscapeMinimal(projected.bridge_lost_categories[i]) << '"';
+    }
+    o << "],\"loss_notes\":[";
+    for (std::size_t i = 0; i < projected.bridge_loss_notes.size() && i < 12; ++i) {
+        if (i > 0) {
+            o << ',';
+        }
+        o << '"' << jsonEscapeMinimal(projected.bridge_loss_notes[i]) << '"';
+    }
+    o << "]}";
+    return o.str();
+}
 
 } // namespace
 
@@ -31,8 +102,9 @@ PokemonResortService::PokemonResortService(const std::filesystem::path& profile_
     snapshots_ = std::make_unique<SnapshotRepository>(*connection_);
     history_ = std::make_unique<HistoryRepository>(*connection_);
     mirrors_ = std::make_unique<MirrorSessionRepository>(*connection_);
+    pid_transport_ = std::make_unique<PidTransportRegistryRepository>(*connection_);
     box_views_ = std::make_unique<BoxViewService>(*boxes_);
-    matcher_ = std::make_unique<PokemonMatcher>(*pokemon_, *mirrors_);
+    matcher_ = std::make_unique<PokemonMatcher>(*pokemon_, *mirrors_, *pid_transport_);
     merge_ = std::make_unique<PokemonMergeService>();
     mirror_sessions_ = std::make_unique<MirrorSessionService>(
         *connection_,
@@ -47,7 +119,8 @@ PokemonResortService::PokemonResortService(const std::filesystem::path& profile_
         *history_,
         *matcher_,
         *merge_,
-        *mirror_sessions_);
+        *mirror_sessions_,
+        *pid_transport_);
     projection_ = std::make_unique<MirrorProjectionService>(*pokemon_, *snapshots_);
     exports_ = std::make_unique<PokemonExportService>(
         *connection_,
@@ -56,7 +129,8 @@ PokemonResortService::PokemonResortService(const std::filesystem::path& profile_
         *snapshots_,
         *history_,
         *mirror_sessions_,
-        *projection_);
+        *projection_,
+        *pid_transport_);
 }
 
 PokemonResortService::~PokemonResortService() = default;
@@ -112,13 +186,36 @@ ImportResult PokemonResortService::importParsedPokemon(
     const ImportedPokemon& imported,
     const ImportContext& context) {
     ensureProfile(context.profile_id);
-    return imports_->importParsedPokemon(imported, context);
+    ImportResult result = imports_->importParsedPokemon(imported, context);
+    if (result.success) {
+        const auto canonical = pokemon_->findById(result.pkrid);
+        appendResortTransferJsonl(
+            profile_path_,
+            transferImportJsonLine(result, context, canonical ? &*canonical : nullptr));
+    }
+    return result;
 }
 
 ExportResult PokemonResortService::exportPokemon(
     const std::string& pkrid,
     const ExportContext& context) {
     return exports_->exportPokemon(pkrid, context);
+}
+
+ExportResult PokemonResortService::commitPreparedMirrorExport(
+    const std::string& pkrid,
+    const ExportContext& context,
+    const std::vector<unsigned char>& raw_payload,
+    const std::string& raw_hash,
+    const std::string& format_name,
+    std::optional<std::uint32_t> transport_pid) {
+    return exports_->commitPreparedMirrorExport(
+        pkrid,
+        context,
+        raw_payload,
+        raw_hash,
+        format_name,
+        transport_pid);
 }
 
 std::optional<ResortPokemon> PokemonResortService::getPokemonById(const std::string& pkrid) const {
@@ -143,23 +240,43 @@ std::optional<PokemonSnapshot> PokemonResortService::prepareLatestRawSnapshotFor
     const std::string& bridge_project_root,
     const char* bridge_argv0,
     const std::filesystem::path& bridge_project_request_path) {
-    // Always start from the latest non-export snapshot by time. Do **not** prefer (game_id, format)
-    // first: an older same-format row (e.g. original Emerald pk3) would win over a newer ReturnRaw pk4
-    // from another generation, and we'd skip projection — stale bytes would overwrite mutable progress
-    // (level, exp, …) that merge already applied to canonical hot data.
+    const std::string inferred_format = game_id ? pkmStorageFormatNameForGameId(*game_id) : std::string{};
+    const std::string target_format = format_name.empty() ? inferred_format : format_name;
+    // Start from the latest raw only as a fallback container. When a bridge is available below,
+    // projection source selection intentionally prefers target-format snapshots, then the most advanced
+    // available snapshot, and overlays current canonical Resort state as the payload goes out.
     auto snapshot = snapshots_->findLatestRawForPokemon(pkrid, std::nullopt, {});
     if (!snapshot || snapshot->raw_bytes.empty() || snapshot->raw_hash_sha256.empty()) {
         return std::nullopt;
     }
 
-    if (!format_name.empty() && !pkmFormatNamesEqual(snapshot->format_name, format_name)) {
-        if (bridge_project_root.empty() || bridge_argv0 == nullptr || bridge_project_request_path.empty()) {
+    if (!target_format.empty() &&
+        (bridge_project_root.empty() || bridge_argv0 == nullptr || bridge_project_request_path.empty()) &&
+        !pkmFormatNamesEqual(snapshot->format_name, target_format)) {
+        if (auto same_format = snapshots_->findLatestRawForPokemon(pkrid, game_id, target_format)) {
+            if (!same_format->raw_bytes.empty() && !same_format->raw_hash_sha256.empty()) {
+                snapshot = std::move(same_format);
+            } else {
+                return std::nullopt;
+            }
+        } else if (auto same_format_any_game =
+                       snapshots_->findLatestRawForPokemon(pkrid, std::nullopt, target_format)) {
+            if (!same_format_any_game->raw_bytes.empty() && !same_format_any_game->raw_hash_sha256.empty()) {
+                snapshot = std::move(same_format_any_game);
+            } else {
+                return std::nullopt;
+            }
+        } else {
             return std::nullopt;
         }
+    } else if (!target_format.empty() &&
+               !bridge_project_root.empty() &&
+               bridge_argv0 != nullptr &&
+               !bridge_project_request_path.empty()) {
         MirrorBridgeProjectInput input;
         input.pkrid = pkrid;
         input.target_game = game_id.value_or(0);
-        input.target_format_name = format_name;
+        input.target_format_name = target_format;
         input.allow_lossy_projection = true;
         const MirrorProjectDecodedResult projected = projection_->projectLatestSnapshotToTargetDecoded(
             input, bridge_project_root, bridge_argv0, bridge_project_request_path);
@@ -168,6 +285,7 @@ std::optional<PokemonSnapshot> PokemonResortService::prepareLatestRawSnapshotFor
                       << " err=" << projected.error << '\n';
             return std::nullopt;
         }
+        appendResortTransferJsonl(profile_path_, transferBridgeProjectJsonLine(pkrid, projected));
         PokemonSnapshot next = *snapshot;
         next.snapshot_id = generateId("snap");
         next.kind = SnapshotKind::CanonicalCheckpoint;
@@ -175,7 +293,9 @@ std::optional<PokemonSnapshot> PokemonResortService::prepareLatestRawSnapshotFor
         next.format_name = projected.target_format_name;
         next.raw_bytes = projected.raw_bytes;
         next.raw_hash_sha256 = projected.raw_hash_sha256;
-        next.notes_json = "{\"schema_version\":1,\"reason\":\"cross_gen_projection_for_game_write\"}";
+        next.notes_json = std::string("{\"schema_version\":1,\"reason\":\"projection_for_game_write\",\"target_pid\":") +
+            (projected.bridge_target_pid ? std::to_string(*projected.bridge_target_pid) : std::string("null")) +
+            "}";
         snapshot = std::move(next);
     }
 

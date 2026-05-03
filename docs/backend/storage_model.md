@@ -7,9 +7,10 @@ Resort profile storage is SQLite-backed. The runtime path is `save_directory / p
 - `pokemon` stores canonical hot fields plus warm/cold JSON payloads. This is the long-lived Resort record.
 - `boxes` stores box metadata for a profile.
 - `box_slots` stores placement independently from canonical Pokemon. A partial unique index on `(profile_id, pkrid)` ensures one Pokemon occupies at most one slot per profile.
-- `pokemon_snapshots` stores exact raw imported/exported payload bytes and parsed notes. `CanonicalCheckpoint` snapshots record the latest rolling evidence bytes after each import merge/create (paired with `ImportedRaw` / `ReturnRaw` rows); queries that need the best export source order prefer this kind (see `SnapshotRepository::findLatestRawForPokemon`).
+- `pokemon_snapshots` stores exact raw imported/exported payload bytes and parsed notes. `CanonicalCheckpoint` snapshots record first-time/full canonical import bytes. `ReturnRaw` mirror evidence is retained for audit but is not promoted to canonical checkpoint bytes; projection source queries use imported/canonical base snapshots and skip mirror-return checkpoints.
 - `pokemon_history` stores audit events.
 - `mirror_sessions` stores outbound managed projections and return-tracking anchors.
+- `pid_transport_registry` stores active generation/format-scoped temporary PID mappings for projections that needed a target-compatible PID. It maps the projection PID back to canonical `pkrid` and canonical PID; return import deactivates the row after a recognized match.
 
 The schema is created in [`Migrations.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/resort/persistence/Migrations.cpp). Current schema version is `1`.
 
@@ -35,7 +36,9 @@ Default Resort profile creation uses `BoxRepository::ensureDefaultBoxes(profile_
 ## Important Invariants
 
 - Canonical Pokemon identity is `pkrid`, not save path, box slot, pointer identity, or source game position.
+- Canonical personality identity is `pokemon.original_pid` / canonical `hot.pid`; transport PIDs are mirror metadata only.
 - Box placement is not stored inside the Pokemon row.
 - Snapshots preserve raw bytes for every meaningful lifecycle event.
 - Export projections do not delete canonical warm/cold data.
 - Merge never clears warm/cold fields just because an older format lacks them.
+- Mirror-return raw bytes do not overwrite static identity fields such as OT, TID/SID, origin/met data, ball, language, canonical PID, or nickname flag on cross-generation return.

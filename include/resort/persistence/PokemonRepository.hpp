@@ -29,6 +29,14 @@ public:
         std::optional<std::uint16_t> sid16,
         const std::string& ot_name) const;
 
+    void ensureOriginalPidIfUnset(const std::string& pkrid, std::uint32_t pid);
+    void appendPidHistoryEntry(
+        const std::string& pkrid,
+        std::uint32_t temp_pid,
+        int source_constraint_gen,
+        int target_constraint_gen,
+        std::int64_t created_at_unix);
+
 private:
     SqliteConnection& connection_;
 };

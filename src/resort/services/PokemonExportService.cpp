@@ -12,6 +12,7 @@
 #include <random>
 #include <sstream>
 #include <stdexcept>
+#include <string_view>
 
 namespace pr::resort {
 
@@ -122,14 +123,16 @@ PokemonExportService::PokemonExportService(
     SnapshotRepository& snapshots,
     HistoryRepository& history,
     MirrorSessionService& mirror_sessions,
-    MirrorProjectionService& projection)
+    MirrorProjectionService& projection,
+    PidTransportRegistryRepository& pid_transport)
     : connection_(connection),
       pokemon_(pokemon),
       boxes_(boxes),
       snapshots_(snapshots),
       history_(history),
       mirror_sessions_(mirror_sessions),
-      projection_(projection) {}
+      projection_(projection),
+      pid_transport_(pid_transport) {}
 
 ExportResult PokemonExportService::exportPokemon(
     const std::string& pkrid,
@@ -163,6 +166,12 @@ ExportResult PokemonExportService::exportPokemon(
 
     try {
         const long long now = unixNow();
+        if (pokemon->hot.pid) {
+            pokemon_.ensureOriginalPidIfUnset(pkrid, *pokemon->hot.pid);
+            if (!pokemon->original_pid) {
+                pokemon->original_pid = *pokemon->hot.pid;
+            }
+        }
         const std::optional<std::uint16_t> beacon_tid = context.use_gen12_beacon
             ? std::optional<std::uint16_t>(beaconTidForPkrid(pkrid))
             : std::nullopt;
@@ -170,9 +179,15 @@ ExportResult PokemonExportService::exportPokemon(
         std::string projection;
         std::vector<unsigned char> raw;
         std::string raw_hash;
-        std::string format_name = context.target_format_name.empty() ? std::string("projection-json")
-                                                                     : context.target_format_name;
+        const std::string inferred_target_format = pkmStorageFormatNameForGameId(context.target_game);
+        const std::string target_format_name = context.target_format_name.empty()
+                                                   ? inferred_target_format
+                                                   : context.target_format_name;
+        std::string format_name = target_format_name.empty() ? std::string("projection-json")
+                                                             : target_format_name;
         bool canonical_dv_repaired = false;
+        std::optional<std::uint32_t> mirror_transport_pid;
+        int source_constraint_gen = 0;
         // Latest snapshot first (see prepareLatestRawSnapshotForGameWrite): filtering by target_game +
         // target_format returns an older same-format import instead of a newer ReturnRaw from another gen.
         std::optional<PokemonSnapshot> compatible_raw = snapshots_.findLatestRawForPokemon(pkrid, std::nullopt, {});
@@ -180,10 +195,14 @@ ExportResult PokemonExportService::exportPokemon(
         bool have_import_grade_raw = false;
 
         if (compatible_raw && !compatible_raw->raw_bytes.empty()) {
+            const bool can_bridge_project =
+                !target_format_name.empty() &&
+                !context.bridge_project_root.empty() &&
+                context.bridge_argv0 != nullptr;
             const bool format_matches_target =
-                context.target_format_name.empty() ||
-                pkmFormatNamesEqual(compatible_raw->format_name, context.target_format_name);
-            if (format_matches_target) {
+                target_format_name.empty() ||
+                pkmFormatNamesEqual(compatible_raw->format_name, target_format_name);
+            if (!can_bridge_project && format_matches_target) {
                 have_import_grade_raw = true;
                 format_name = compatible_raw->format_name;
                 raw = compatible_raw->raw_bytes;
@@ -246,11 +265,13 @@ ExportResult PokemonExportService::exportPokemon(
                     << "\"lossy\":false"
                     << "}";
                 projection = out.str();
-            } else if (!context.bridge_project_root.empty() && context.bridge_argv0 != nullptr) {
+                mirror_transport_pid = pokemon->hot.pid;
+                source_constraint_gen = constraintGenerationFromStorageFormat(format_name);
+            } else if (can_bridge_project) {
                 MirrorBridgeProjectInput bridge_in;
                 bridge_in.pkrid = pkrid;
                 bridge_in.target_game = context.target_game;
-                bridge_in.target_format_name = context.target_format_name;
+                bridge_in.target_format_name = target_format_name;
                 const std::filesystem::path req_path =
                     std::filesystem::temp_directory_path() / ("pr_export_proj_" + pkrid + ".json");
                 const MirrorProjectDecodedResult decoded = projection_.projectLatestSnapshotToTargetDecoded(
@@ -267,9 +288,12 @@ ExportResult PokemonExportService::exportPokemon(
                 format_name = decoded.target_format_name;
                 raw = std::move(decoded.raw_bytes);
                 raw_hash = decoded.raw_hash_sha256;
+                mirror_transport_pid = decoded.bridge_target_pid;
+                source_constraint_gen = constraintGenerationFromStorageFormat(decoded.source_format_name);
                 std::cerr << kTempTransferLog
-                          << " Backend export using bridge cross-gen projection pkrid=" << pkrid
-                          << " source_snapshot_id=" << compatible_raw->snapshot_id
+                          << " Backend export using bridge projection pkrid=" << pkrid
+                          << " source_snapshot_id=" << decoded.source_snapshot_id
+                          << " source_format=" << decoded.source_format_name
                           << " format=" << format_name
                           << " raw_bytes=" << raw.size()
                           << " hash=" << raw_hash << '\n';
@@ -317,9 +341,10 @@ ExportResult PokemonExportService::exportPokemon(
                 std::ostringstream out;
                 out << "{"
                     << "\"projection_schema\":1,"
-                    << "\"projection_kind\":\"resort_bridge_cross_gen_projection\","
+                    << "\"projection_kind\":\"resort_bridge_projection\","
                     << "\"pkrid\":\"" << escapeJson(pokemon->id.pkrid) << "\","
-                    << "\"source_snapshot_id\":\"" << escapeJson(compatible_raw->snapshot_id) << "\","
+                    << "\"source_snapshot_id\":\"" << escapeJson(decoded.source_snapshot_id) << "\","
+                    << "\"source_format\":\"" << escapeJson(decoded.source_format_name) << "\","
                     << "\"target_game\":" << context.target_game << ","
                     << "\"target_format\":\"" << escapeJson(format_name) << "\","
                     << "\"lossy\":true"
@@ -337,6 +362,12 @@ ExportResult PokemonExportService::exportPokemon(
                       << " format=" << format_name
                       << " raw_bytes=" << raw.size()
                       << " hash=" << raw_hash << '\n';
+        }
+
+        if (source_constraint_gen == 0) {
+            const std::string nm = pkmStorageFormatNameForGameId(pokemon->hot.origin_game);
+            source_constraint_gen =
+                constraintGenerationFromStorageFormat(nm.empty() ? std::string_view("pk9") : std::string_view(nm));
         }
 
         SqliteTransaction tx(connection_);
@@ -369,11 +400,35 @@ ExportResult PokemonExportService::exportPokemon(
         mirror_context.beacon_ot_name = context.use_gen12_beacon
             ? std::optional<std::string>(beacon_ot)
             : std::nullopt;
+        mirror_context.mirror_canonical_pid =
+            pokemon->original_pid ? pokemon->original_pid : pokemon->hot.pid;
+        mirror_context.transport_pid = mirror_transport_pid;
         mirror_context.projection_metadata_json = projection;
         MirrorSession mirror = mirror_sessions_.openMirrorSession(pkrid, context.target_game, mirror_context);
         std::cerr << kTempTransferLog
                   << " Backend export mirror opened mirror_session_id=" << mirror.mirror_session_id
                   << " pkrid=" << pkrid << '\n';
+
+        const std::optional<std::uint32_t> canonical_personality =
+            pokemon->original_pid ? pokemon->original_pid : pokemon->hot.pid;
+        const int target_constraint_gen = constraintGenerationFromStorageFormat(format_name);
+        if (mirror.transport_pid && canonical_personality && target_constraint_gen > 0 &&
+            *mirror.transport_pid != *canonical_personality) {
+            pid_transport_.insertActiveMapping(
+                *mirror.transport_pid,
+                pkrid,
+                *canonical_personality,
+                source_constraint_gen,
+                target_constraint_gen,
+                now,
+                mirror.mirror_session_id);
+            pokemon_.appendPidHistoryEntry(
+                pkrid,
+                *mirror.transport_pid,
+                source_constraint_gen,
+                target_constraint_gen,
+                now);
+        }
         if (context.managed_mirror) {
             boxes_.removePokemon("default", pkrid);
             std::cerr << kTempTransferLog
@@ -404,11 +459,155 @@ ExportResult PokemonExportService::exportPokemon(
         result.format_name = format_name;
         result.raw_payload = raw;
         result.raw_hash = raw_hash;
+        result.transport_pid = mirror_transport_pid;
         return result;
     } catch (const std::exception& ex) {
         std::cerr << kTempTransferLog
                   << " Backend export rollback error=" << ex.what()
                   << " pkrid=" << pkrid << '\n';
+        result.error = ex.what();
+        return result;
+    }
+}
+
+ExportResult PokemonExportService::commitPreparedMirrorExport(
+    const std::string& pkrid,
+    const ExportContext& context,
+    const std::vector<unsigned char>& raw_payload,
+    const std::string& raw_hash,
+    const std::string& format_name,
+    std::optional<std::uint32_t> transport_pid) {
+    ExportResult result;
+    if (raw_payload.empty() || raw_hash.empty() || format_name.empty()) {
+        result.error = "Prepared mirror export requires raw payload, hash, and format";
+        return result;
+    }
+
+    auto pokemon = pokemon_.findById(pkrid);
+    if (!pokemon) {
+        result.error = "Pokemon not found: " + pkrid;
+        return result;
+    }
+    if (context.managed_mirror) {
+        if (auto active = mirror_sessions_.getActiveForPokemon(pkrid)) {
+            if (boxes_.findPokemonLocation("default", pkrid).has_value()) {
+                mirror_sessions_.closeReturned(active->mirror_session_id, unixNow());
+            } else {
+                result.error = "Pokemon already has an active mirror: " + pkrid;
+                return result;
+            }
+        }
+    }
+
+    try {
+        const long long now = unixNow();
+        if (pokemon->hot.pid) {
+            pokemon_.ensureOriginalPidIfUnset(pkrid, *pokemon->hot.pid);
+            if (!pokemon->original_pid) {
+                pokemon->original_pid = *pokemon->hot.pid;
+            }
+        }
+        if (!transport_pid) {
+            transport_pid = pokemon->hot.pid;
+        }
+
+        const std::optional<std::uint16_t> beacon_tid = context.use_gen12_beacon
+            ? std::optional<std::uint16_t>(beaconTidForPkrid(pkrid))
+            : std::nullopt;
+        const std::string beacon_ot = context.use_gen12_beacon ? "RESORT" : pokemon->hot.ot_name;
+
+        std::ostringstream projection;
+        projection << "{"
+                   << "\"projection_schema\":1,"
+                   << "\"projection_kind\":\"resort_prepared_bridge_projection\","
+                   << "\"pkrid\":\"" << escapeJson(pokemon->id.pkrid) << "\","
+                   << "\"target_game\":" << context.target_game << ","
+                   << "\"target_format\":\"" << escapeJson(format_name) << "\","
+                   << "\"transport_pid\":"
+                   << (transport_pid ? std::to_string(*transport_pid) : "null")
+                   << "}";
+
+        SqliteTransaction tx(connection_);
+
+        PokemonSnapshot snapshot;
+        snapshot.snapshot_id = generateId("snap");
+        snapshot.pkrid = pkrid;
+        snapshot.kind = SnapshotKind::ExportProjection;
+        snapshot.format_name = format_name;
+        snapshot.game_id = context.target_game;
+        snapshot.captured_at_unix = now;
+        snapshot.raw_bytes = raw_payload;
+        snapshot.raw_hash_sha256 = raw_hash;
+        snapshot.parsed_json = projection.str();
+        snapshot.notes_json = "{\"schema_version\":1,\"prepared_for_game_write\":true}";
+        snapshots_.insert(snapshot);
+
+        MirrorOpenContext mirror_context;
+        mirror_context.beacon_tid16 = beacon_tid;
+        mirror_context.beacon_ot_name = context.use_gen12_beacon
+            ? std::optional<std::string>(beacon_ot)
+            : std::nullopt;
+        mirror_context.mirror_canonical_pid =
+            pokemon->original_pid ? pokemon->original_pid : pokemon->hot.pid;
+        mirror_context.transport_pid = transport_pid;
+        mirror_context.projection_metadata_json = projection.str();
+        MirrorSession mirror = mirror_sessions_.openMirrorSession(pkrid, context.target_game, mirror_context);
+
+        const std::optional<std::uint32_t> canonical_personality =
+            pokemon->original_pid ? pokemon->original_pid : pokemon->hot.pid;
+        const int target_constraint_gen = constraintGenerationFromStorageFormat(format_name);
+        int source_constraint_gen = 0;
+        if (const std::string origin_format = pkmStorageFormatNameForGameId(pokemon->hot.origin_game);
+            !origin_format.empty()) {
+            source_constraint_gen = constraintGenerationFromStorageFormat(origin_format);
+        }
+        if (source_constraint_gen == 0) {
+            source_constraint_gen = target_constraint_gen;
+        }
+        if (transport_pid && canonical_personality && target_constraint_gen > 0 &&
+            *transport_pid != *canonical_personality) {
+            pid_transport_.insertActiveMapping(
+                *transport_pid,
+                pkrid,
+                *canonical_personality,
+                source_constraint_gen,
+                target_constraint_gen,
+                now,
+                mirror.mirror_session_id);
+            pokemon_.appendPidHistoryEntry(
+                pkrid,
+                *transport_pid,
+                source_constraint_gen,
+                target_constraint_gen,
+                now);
+        }
+
+        if (context.managed_mirror) {
+            boxes_.removePokemon("default", pkrid);
+        }
+
+        PokemonHistoryEvent event;
+        event.event_id = generateId("hist");
+        event.pkrid = pkrid;
+        event.event_type = HistoryEventType::Exported;
+        event.timestamp_unix = now;
+        event.source_snapshot_id = snapshot.snapshot_id;
+        event.mirror_session_id = mirror.mirror_session_id;
+        event.diff_json = exportDiffJson(context, mirror.mirror_session_id);
+        history_.insert(event);
+
+        tx.commit();
+
+        result.success = true;
+        result.pkrid = pkrid;
+        result.snapshot_id = snapshot.snapshot_id;
+        result.mirror_session_id = mirror.mirror_session_id;
+        result.format_name = format_name;
+        result.raw_payload = raw_payload;
+        result.raw_hash = raw_hash;
+        result.transport_pid = transport_pid;
+        return result;
+    } catch (const std::exception& ex) {
         result.error = ex.what();
         return result;
     }
