@@ -58,7 +58,7 @@ Real target-game PKM conversion should be added behind the bridge/integration la
 The bridge exposes a **guarded** write command:
 
 ```bash
-dotnet /Users/vanta/Desktop/title_screen_demo/pkr-tools/pkhex_bridge/bin/Debug/net10.0/PKHeXBridge.dll write-projection "/absolute/path/to/save.sav" "/absolute/path/to/projection.json"
+dotnet /Users/vanta/Desktop/title_screen_demo/pokemon-resort/tools/pkhex_bridge/bin/Debug/net10.0/PKHeXBridge.dll write-projection "/absolute/path/to/save.sav" "/absolute/path/to/projection.json"
 ```
 
 What it does today:

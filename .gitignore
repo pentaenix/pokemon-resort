@@ -1,6 +1,10 @@
 # macOS
 .DS_Store
 **/.DS_Store
+**/bin/
+**/obj/
+**/publish/
+**/TestResults/
 
 # CMake / local build outputs
 /build/
@@ -40,6 +44,7 @@ compile_commands.json
 *.sav.bak
 *.bak
 *.tmp
+!tests/test-data/**/*.sav
 
 # Editor / IDE
 .idea/

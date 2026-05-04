@@ -1,5 +1,522 @@
 #!/usr/bin/env bash
-# Delegate to repo-root pkr so `./pkr` works from pokemon-resort.
+# Pokemon Resort CLI — usage: pkr build | pkr run | pkr --newgame --confirm | pkr recover <pkrid> | ...
 set -euo pipefail
-ROOT_PKR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/pkr"
-exec "$ROOT_PKR" "$@"
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$SCRIPT_DIR"
+PR_DIR="${PKR_PROJECT_DIR:-$REPO_ROOT}"
+BUILD_DIR="$PR_DIR/build"
+BRIDGE_DIR="$REPO_ROOT/tools/pkhex_bridge"
+
+warn_if_stray_repo_root_build() {
+    local stray="$REPO_ROOT/build"
+    if [[ -d "$stray" && "$stray" != "$BUILD_DIR" ]]; then
+        echo "pkr: warning: found a second build tree at $stray" >&2
+        echo "pkr:          use only $BUILD_DIR (this script always configures there)." >&2
+        echo "pkr:          delete the stray copy: rm -rf \"$stray\"" >&2
+    fi
+}
+
+cmake_jobs() {
+    if command -v nproc >/dev/null 2>&1; then
+        echo "-j$(nproc)"
+    elif command -v sysctl >/dev/null 2>&1; then
+        echo "-j$(sysctl -n hw.ncpu 2>/dev/null || echo 4)"
+    else
+        echo "-j4"
+    fi
+}
+
+usage() {
+    sed 's/^        //' <<'EOF'
+        Pokemon Resort — pkr
+
+        pkr run              Configure (if needed), incremental build, run the game
+        pkr run --bridge     Same, but build + publish PKHeX bridge first (recommended if you changed tools/pkhex_bridge)
+        pkr run --clean      Clear transfer cache, clean rebuild everything, rebuild + publish bridge, then run
+        pkr dev              Same as pkr run
+        pkr build            Incremental CMake build only
+        pkr build --bridge   CMake build, then dotnet build + publish for PKHeX bridge (keeps transfer sprites in sync)
+        pkr build --all      Full clean rebuild (removes build/, reconfigure, rebuild all)
+        pkr build --all --bridge   Clean rebuild game + publish bridge
+        pkr build -all       Same as --all
+        pkr bridge           dotnet build + dotnet publish for tools/pkhex_bridge (updates publish/<rid>/ for releases)
+        pkr clear            Delete transfer probe cache (same as game --clear-save-cache); needs a built binary
+        pkr recover <pkrid>  Emergency recovery: put a canonical Pokemon in the first available Resort slot
+        pkr reset-resort     DANGEROUS: wipe Resort profile (requires --confirm RESET)
+        pkr --newgame --confirm   Same as reset-resort; shorthand for testing (order: --newgame --confirm or --confirm --newgame)
+        pkr newgame --confirm     Same as above via subcommand
+
+        Build output always goes to: <repo>/build
+        (If you also have <repo>/build from an old cmake command, remove it — it confuses which binary to run.)
+
+        PKHeX bridge (transfer / future save I/O):
+          Run "pkr bridge" before shipping or after changing BridgeConsole / BridgeProbe so tools/pkhex_bridge/publish/
+          matches bin/Release. The game prefers bin/Release/net10.0 over publish/ when both exist; stale publish/ alone
+          used to emit minimal JSON and break box sprites. Override binary: PKHEX_BRIDGE_EXECUTABLE=/path/to/PKHeXBridge
+
+        Environment:
+          PKR_PROJECT_DIR     Override path to pokemon-resort (default: this repo root)
+          PKR_RESORT_DB       Override Resort SQLite DB path for pkr recover
+          PKHEX_BRIDGE_RID    dotnet publish runtime id (default: osx-arm64 on Apple silicon, osx-x64 on Intel Mac,
+                              linux-x64 on Linux, win-x64 on Windows MSYS)
+
+        Extra args after pkr run / pkr dev are passed to title_screen_demo (e.g. config path), except --bridge is consumed by pkr.
+EOF
+}
+
+ensure_pr_dir() {
+    if [[ ! -d "$PR_DIR" ]]; then
+        echo "pkr: missing project directory: $PR_DIR" >&2
+        exit 1
+    fi
+    if [[ ! -f "$PR_DIR/CMakeLists.txt" ]]; then
+        echo "pkr: no CMakeLists.txt in $PR_DIR" >&2
+        exit 1
+    fi
+}
+
+ensure_bridge_dir() {
+    if [[ ! -f "$BRIDGE_DIR/PKHeXBridge.csproj" ]]; then
+        echo "pkr: missing PKHeX bridge project: $BRIDGE_DIR/PKHeXBridge.csproj" >&2
+        exit 1
+    fi
+}
+
+pkr_bridge_rid() {
+    if [[ -n "${PKHEX_BRIDGE_RID:-}" ]]; then
+        echo "$PKHEX_BRIDGE_RID"
+        return
+    fi
+    case "$(uname -s 2>/dev/null)" in
+        Darwin)
+            case "$(uname -m 2>/dev/null)" in
+                arm64) echo osx-arm64 ;;
+                *) echo osx-x64 ;;
+            esac
+            ;;
+        Linux) echo linux-x64 ;;
+        MINGW*|MSYS*|CYGWIN*) echo win-x64 ;;
+        *) echo osx-arm64 ;;
+    esac
+}
+
+pkr_bridge() {
+    ensure_bridge_dir
+    if ! command -v dotnet >/dev/null 2>&1; then
+        echo "pkr: dotnet not found; install .NET SDK to build PKHeXBridge" >&2
+        exit 1
+    fi
+    local rid out
+    rid="$(pkr_bridge_rid)"
+    out="publish/$rid"
+    echo "pkr: PKHeX bridge dotnet build + publish (RID=$rid -> tools/pkhex_bridge/$out)"
+    (
+        cd "$BRIDGE_DIR"
+        dotnet build -c Release
+        dotnet publish -c Release -r "$rid" -o "$out" --self-contained true
+    )
+}
+
+clear_transfer_cache_best_effort() {
+    # The canonical cache lives in SDL_GetPrefPath(org, app)/transfer_save_cache.json.
+    # We mirror App.cpp's resolveSaveDirectory behavior here so pkr can clear cache
+    # without requiring a previously-built native binary.
+    local root="$PR_DIR"
+    local org app
+    org="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["persistence"]["organization"])' "$root/config/title_screen.json" 2>/dev/null || true)"
+    app="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["persistence"]["application"])' "$root/config/title_screen.json" 2>/dev/null || true)"
+
+    local removed_any=false
+    if [[ -n "${org:-}" && -n "${app:-}" ]]; then
+        case "$(uname -s 2>/dev/null)" in
+            Darwin)
+                local p="$HOME/Library/Application Support/$org/$app/transfer_save_cache.json"
+                if [[ -f "$p" ]]; then
+                    echo "pkr: clearing transfer_save_cache (direct) -> $p"
+                    if rm -f "$p" 2>/dev/null; then
+                        removed_any=true
+                    else
+                        echo "pkr: warning: could not remove $p (permission denied?)" >&2
+                    fi
+                fi
+                ;;
+        esac
+    fi
+
+    # Fallback path used when SDL_GetPrefPath fails: <root>/save/transfer_save_cache.json
+    local fallback="$root/save/transfer_save_cache.json"
+    if [[ -f "$fallback" ]]; then
+        echo "pkr: clearing transfer_save_cache (fallback) -> $fallback"
+        if rm -f "$fallback" 2>/dev/null; then
+            removed_any=true
+        else
+            echo "pkr: warning: could not remove $fallback" >&2
+        fi
+    fi
+
+    if ! $removed_any; then
+        echo "pkr: no transfer_save_cache.json found to clear (best effort)"
+    fi
+}
+
+pkr_bridge_clean() {
+    ensure_bridge_dir
+    if ! command -v dotnet >/dev/null 2>&1; then
+        echo "pkr: dotnet not found; install .NET SDK to build PKHeXBridge" >&2
+        exit 1
+    fi
+    local rid out
+    rid="$(pkr_bridge_rid)"
+    out="publish/$rid"
+    echo "pkr: PKHeX bridge clean rebuild (RID=$rid)"
+    (
+        cd "$BRIDGE_DIR"
+        rm -rf bin obj "$out"
+        dotnet build -c Release
+        dotnet publish -c Release -r "$rid" -o "$out" --self-contained true
+    )
+}
+
+configure_if_needed() {
+    if [[ ! -f "$BUILD_DIR/CMakeCache.txt" ]]; then
+        echo "pkr: configuring CMake -> $BUILD_DIR"
+        cmake -S "$PR_DIR" -B "$BUILD_DIR"
+    fi
+}
+
+pkr_build_incremental() {
+    ensure_pr_dir
+    warn_if_stray_repo_root_build
+    configure_if_needed
+    echo "pkr: incremental build"
+    cmake --build "$BUILD_DIR" "$(cmake_jobs)"
+}
+
+pkr_build_all() {
+    ensure_pr_dir
+    warn_if_stray_repo_root_build
+    echo "pkr: clean rebuild (removing $BUILD_DIR)"
+    rm -rf "$BUILD_DIR"
+    echo "pkr: configuring CMake"
+    cmake -S "$PR_DIR" -B "$BUILD_DIR"
+    echo "pkr: building all targets"
+    cmake --build "$BUILD_DIR" "$(cmake_jobs)"
+}
+
+pkr_run() {
+    local with_bridge=false
+    local clean=false
+    local forward=()
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --bridge)
+                with_bridge=true
+                shift
+                ;;
+            --clean)
+                clean=true
+                with_bridge=true
+                shift
+                ;;
+            *)
+                forward+=("$1")
+                shift
+                ;;
+        esac
+    done
+
+    # Bash 3.2 + set -u: "${forward[@]}" errors when the array is empty.
+    if ((${#forward[@]})); then
+        set -- "${forward[@]}"
+    else
+        set --
+    fi
+
+    if $clean; then
+        clear_transfer_cache_best_effort
+        pkr_bridge_clean
+        pkr_build_all
+    else
+        if $with_bridge; then
+            pkr_bridge
+        fi
+        pkr_build_incremental
+    fi
+    local exe="$BUILD_DIR/title_screen_demo"
+    if [[ ! -x "$exe" ]] && [[ ! -f "$exe" ]]; then
+        echo "pkr: expected executable not found: $exe" >&2
+        exit 1
+    fi
+    echo "pkr: running $exe"
+    (cd "$PR_DIR" && exec "$exe" "$@")
+}
+
+pkr_clear() {
+    ensure_pr_dir
+    local exe="$BUILD_DIR/title_screen_demo"
+    if [[ ! -f "$exe" ]]; then
+        echo "pkr: build the game first: pkr build" >&2
+        exit 1
+    fi
+    echo "pkr: clearing transfer_save_cache (via title_screen_demo --clear-save-cache)"
+    (cd "$PR_DIR" && exec "$exe" --clear-save-cache "$@")
+}
+
+pkr_resort_db_path() {
+    if [[ -n "${PKR_RESORT_DB:-}" ]]; then
+        echo "$PKR_RESORT_DB"
+        return
+    fi
+
+    python3 - "$PR_DIR/config/title_screen.json" <<'PY'
+import json
+import os
+import sys
+from pathlib import Path
+
+config = json.load(open(sys.argv[1], encoding="utf-8"))
+persistence = config.get("persistence", {})
+org = persistence.get("organization", "pokemon-resort")
+app = persistence.get("application", "pokemon-resort")
+db_name = persistence.get("resort_profile_file_name", "profile.resort.db") or "profile.resort.db"
+
+if sys.platform == "darwin":
+    base = Path.home() / "Library" / "Application Support" / org / app
+else:
+    base = Path(sys.argv[1]).resolve().parents[1] / "save"
+
+print(base / db_name)
+PY
+}
+
+pkr_recover() {
+    ensure_pr_dir
+    if [[ $# -lt 1 || "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+        echo "Usage: pkr recover <pkrid> [--db <profile.resort.db>] [--profile <profile_id>]" >&2
+        exit 2
+    fi
+
+    local pkrid="$1"
+    shift
+    local db=""
+    local profile="default"
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --db)
+                if [[ $# -lt 2 || -z "${2:-}" ]]; then
+                    echo "pkr: --db requires a path" >&2
+                    exit 2
+                fi
+                db="${2:-}"
+                shift 2
+                ;;
+            --profile)
+                if [[ $# -lt 2 || -z "${2:-}" ]]; then
+                    echo "pkr: --profile requires a profile id" >&2
+                    exit 2
+                fi
+                profile="${2:-}"
+                shift 2
+                ;;
+            *)
+                echo "pkr: unknown argument for recover: $1" >&2
+                exit 2
+                ;;
+        esac
+    done
+    if [[ -z "$db" ]]; then
+        db="$(pkr_resort_db_path)"
+    fi
+    if [[ ! -f "$db" ]]; then
+        echo "pkr: Resort database not found: $db" >&2
+        echo "pkr: run the game once or pass --db <profile.resort.db>" >&2
+        exit 1
+    fi
+
+    warn_if_stray_repo_root_build
+    configure_if_needed
+    echo "pkr: building resort_backend_tool"
+    cmake --build "$BUILD_DIR" --target resort_backend_tool "$(cmake_jobs)"
+
+    local tool="$BUILD_DIR/resort_backend_tool"
+    if [[ ! -x "$tool" && ! -f "$tool" ]]; then
+        echo "pkr: expected backend tool not found: $tool" >&2
+        exit 1
+    fi
+    echo "pkr: recovering $pkrid into first available Resort slot"
+    exec "$tool" recover --db "$db" --profile "$profile" --pkrid "$pkrid"
+}
+
+pkr_reset_resort() {
+    ensure_pr_dir
+    local profile="default"
+    local db=""
+    local backup=""
+    local confirm=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --profile)
+                profile="${2:-}"
+                shift 2
+                ;;
+            --db)
+                db="${2:-}"
+                shift 2
+                ;;
+            --backup)
+                backup="${2:-}"
+                shift 2
+                ;;
+            --confirm)
+                confirm="${2:-}"
+                shift 2
+                ;;
+            -h|--help)
+                echo "Usage: pkr reset-resort [--profile default] [--db <profile.resort.db>] [--backup <path>] --confirm RESET" >&2
+                exit 2
+                ;;
+            *)
+                echo "pkr: unknown argument for reset-resort: $1" >&2
+                exit 2
+                ;;
+        esac
+    done
+    if [[ "$confirm" != "RESET" ]]; then
+        echo "pkr: refusing to reset without --confirm RESET" >&2
+        exit 2
+    fi
+    if [[ -z "$db" ]]; then
+        db="$(pkr_resort_db_path)"
+    fi
+    if [[ ! -f "$db" ]]; then
+        echo "pkr: Resort database not found: $db" >&2
+        exit 1
+    fi
+
+    warn_if_stray_repo_root_build
+    configure_if_needed
+    echo "pkr: building resort_backend_tool"
+    cmake --build "$BUILD_DIR" --target resort_backend_tool "$(cmake_jobs)"
+    local tool="$BUILD_DIR/resort_backend_tool"
+    echo "pkr: resetting Resort profile (profile=$profile)"
+    if [[ -n "$backup" ]]; then
+        exec "$tool" reset --db "$db" --profile "$profile" --backup "$backup" --confirm RESET
+    fi
+    exec "$tool" reset --db "$db" --profile "$profile" --confirm RESET
+}
+
+pkr_newgame() {
+    local args=()
+    local ok=false
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --confirm)
+                ok=true
+                args+=(--confirm RESET)
+                shift
+                ;;
+            --profile|--db|--backup)
+                if [[ $# -lt 2 ]]; then
+                    echo "pkr: $1 requires a value" >&2
+                    exit 2
+                fi
+                args+=("$1" "$2")
+                shift 2
+                ;;
+            -h|--help)
+                echo "Usage: pkr newgame --confirm [--profile <id>] [--db <profile.resort.db>] [--backup <path>]" >&2
+                echo "       pkr --newgame --confirm   (same)" >&2
+                exit 0
+                ;;
+            *)
+                echo "pkr: unknown argument for newgame: $1" >&2
+                exit 2
+                ;;
+        esac
+    done
+    if ! $ok; then
+        echo "pkr: refusing newgame without --confirm" >&2
+        exit 2
+    fi
+    pkr_reset_resort "${args[@]}"
+}
+
+if [[ (${1:-} == --newgame && ${2:-} == --confirm) || (${1:-} == --confirm && ${2:-} == --newgame) ]]; then
+    shift 2
+    exec "$0" newgame --confirm "$@"
+fi
+
+cmd="${1:-}"
+case "$cmd" in
+    ""|-h|--help|help)
+        usage
+        ;;
+    build)
+        shift
+        all=false
+        with_bridge=false
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                -all|--all)
+                    all=true
+                    shift
+                    ;;
+                --bridge)
+                    with_bridge=true
+                    shift
+                    ;;
+                -h|--help)
+                    usage
+                    exit 0
+                    ;;
+                *)
+                    echo "pkr: unknown option for build: $1" >&2
+                    echo "Try: pkr build   or   pkr build --all   or   pkr build --bridge" >&2
+                    exit 1
+                    ;;
+            esac
+        done
+        if $all; then
+            pkr_build_all
+        else
+            pkr_build_incremental
+        fi
+        if $with_bridge; then
+            pkr_bridge
+        fi
+        ;;
+    bridge)
+        shift
+        if [[ $# -gt 0 ]]; then
+            echo "pkr: unknown arguments for bridge: $*" >&2
+            exit 1
+        fi
+        pkr_bridge
+        ;;
+    run|dev)
+        shift
+        pkr_run "$@"
+        ;;
+    clear)
+        shift
+        pkr_clear "$@"
+        ;;
+    recover)
+        shift
+        pkr_recover "$@"
+        ;;
+    reset-resort)
+        shift
+        pkr_reset_resort "$@"
+        ;;
+    newgame)
+        shift
+        pkr_newgame "$@"
+        ;;
+    *)
+        echo "pkr: unknown command: $cmd" >&2
+        usage >&2
+        exit 1
+        ;;
+esac

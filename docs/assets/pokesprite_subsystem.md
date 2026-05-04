@@ -172,6 +172,6 @@ Prefer a stable category plus key. Update the banner presenter/renderer if the n
 
 ## Tests
 
-Update [`pokesprite_assets_tests.cpp`](/Users/vanta/Desktop/title_screen_demo/pkr-tests/native/core/pokesprite_assets_tests.cpp) when changing resolver behavior, fallback rules, metadata parsing, item usage variants, or misc icon lookup.
+Update [`pokesprite_assets_tests.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/tests/native/core/pokesprite_assets_tests.cpp) when changing resolver behavior, fallback rules, metadata parsing, item usage variants, or misc icon lookup.
 
 Update the relevant transfer-system harness only when a sprite/icon change affects player-visible screen wiring.

@@ -10,7 +10,7 @@ The integration is intentionally process-based:
 
 1. Native C++ scans likely save files in [`saves`](/Users/vanta/Desktop/title_screen_demo/saves).
 2. [`SaveLibrary.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/save/SaveLibrary.cpp) hashes candidates and checks the transfer probe cache.
-3. [`SaveBridgeClient.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/bridge/SaveBridgeClient.cpp) launches the .NET helper under [`pkr-tools/pkhex_bridge`](/Users/vanta/Desktop/title_screen_demo/pkr-tools/pkhex_bridge).
+3. [`SaveBridgeClient.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/bridge/SaveBridgeClient.cpp) launches the .NET helper under [`tools/pkhex_bridge`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/tools/pkhex_bridge).
 4. The helper loads the save with `PKHeX.Core`.
 5. The helper writes one JSON object to stdout.
 6. Native C++ parses the subset it needs today and can be expanded to consume the richer model fields.
@@ -19,21 +19,21 @@ This keeps `PKHeX.Core` behind a small CLI boundary and prevents the native app 
 
 ## Source Files
 
-- [`pkr-tools/pkhex_bridge/PKHeXBridge.csproj`](/Users/vanta/Desktop/title_screen_demo/pkr-tools/pkhex_bridge/PKHeXBridge.csproj)
+- [`tools/pkhex_bridge/PKHeXBridge.csproj`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/tools/pkhex_bridge/PKHeXBridge.csproj)
   owns the .NET target and `PKHeX.Core` package reference.
-- [`pkr-tools/pkhex_bridge/Program.cs`](/Users/vanta/Desktop/title_screen_demo/pkr-tools/pkhex_bridge/Program.cs)
+- [`tools/pkhex_bridge/Program.cs`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/tools/pkhex_bridge/Program.cs)
   forwards CLI arguments to `BridgeConsole`.
-- [`pkr-tools/pkhex_bridge/BridgeConsole.cs`](/Users/vanta/Desktop/title_screen_demo/pkr-tools/pkhex_bridge/BridgeConsole.cs)
+- [`tools/pkhex_bridge/BridgeConsole.cs`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/tools/pkhex_bridge/BridgeConsole.cs)
   defines the stdout JSON shape emitted to native code.
-- [`pkr-tools/pkhex_bridge/BridgeProbe.cs`](/Users/vanta/Desktop/title_screen_demo/pkr-tools/pkhex_bridge/BridgeProbe.cs)
+- [`tools/pkhex_bridge/BridgeProbe.cs`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/tools/pkhex_bridge/BridgeProbe.cs)
   owns save loading, `SaveReader`, and the DTOs for trainer, Pokedex, Pokemon, boxes, and bag data.
-- [`pkr-tools/pkhex_bridge/BridgeImport.cs`](/Users/vanta/Desktop/title_screen_demo/pkr-tools/pkhex_bridge/BridgeImport.cs)
+- [`tools/pkhex_bridge/BridgeImport.cs`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/tools/pkhex_bridge/BridgeImport.cs)
   owns import-grade per-Pokemon reads, including raw payload bytes and hashes.
-- [`pkr-tools/pkhex_bridge/BridgeWriteBack.cs`](/Users/vanta/Desktop/title_screen_demo/pkr-tools/pkhex_bridge/BridgeWriteBack.cs)
+- [`tools/pkhex_bridge/BridgeWriteBack.cs`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/tools/pkhex_bridge/BridgeWriteBack.cs)
   orchestrates validated `write-projection` save mutations (schemas 1–2; backups under `transfer_write_backups/`).
-- [`pkr-tools/pkhex_bridge/BridgeProject.cs`](/Users/vanta/Desktop/title_screen_demo/pkr-tools/pkhex_bridge/BridgeProject.cs)
+- [`tools/pkhex_bridge/BridgeProject.cs`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/tools/pkhex_bridge/BridgeProject.cs)
   converts import-grade PKM bytes to another format via PKHeX `EntityConverter` (`project` command).
-- [`pkr-tools/pkhex_bridge/PkmHeldItemPatch.cs`](/Users/vanta/Desktop/title_screen_demo/pkr-tools/pkhex_bridge/PkmHeldItemPatch.cs)
+- [`tools/pkhex_bridge/PkmHeldItemPatch.cs`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/tools/pkhex_bridge/PkmHeldItemPatch.cs)
   decodes import-grade `EncryptedBoxData`, sets `HeldItem`, and re-exports bytes for write-back when only the held item changes on a PC slot.
 - [`pokemon-resort/src/core/bridge/SaveBridgeClient.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/bridge/SaveBridgeClient.cpp)
   resolves and launches the helper process for probe, import, `project`, `write-projection`, and held-item patch requests.
@@ -51,19 +51,19 @@ The bridge accepts these operations:
 Preview/probe:
 
 ```bash
-dotnet run --project /Users/vanta/Desktop/title_screen_demo/pkr-tools/pkhex_bridge/PKHeXBridge.csproj -- "/absolute/path/to/save.sav"
+dotnet run --project /Users/vanta/Desktop/title_screen_demo/pokemon-resort/tools/pkhex_bridge/PKHeXBridge.csproj -- "/absolute/path/to/save.sav"
 ```
 
 Import-grade read:
 
 ```bash
-dotnet run --project /Users/vanta/Desktop/title_screen_demo/pkr-tools/pkhex_bridge/PKHeXBridge.csproj -- import "/absolute/path/to/save.sav"
+dotnet run --project /Users/vanta/Desktop/title_screen_demo/pokemon-resort/tools/pkhex_bridge/PKHeXBridge.csproj -- import "/absolute/path/to/save.sav"
 ```
 
 Single PKM inspection, used by Resort metadata repair:
 
 ```bash
-dotnet run --project /Users/vanta/Desktop/title_screen_demo/pkr-tools/pkhex_bridge/PKHeXBridge.csproj -- pkm-inspect "/absolute/path/to/pokemon.pk4" 64
+dotnet run --project /Users/vanta/Desktop/title_screen_demo/pokemon-resort/tools/pkhex_bridge/PKHeXBridge.csproj -- pkm-inspect "/absolute/path/to/pokemon.pk4" 64
 ```
 
 Output includes `bridge_pkm_inspect_schema: 1` and a compatible `bridge_import_schema: 1` Pokemon array. The optional numeric source game is copied into the import-style payload when known.
@@ -71,7 +71,7 @@ Output includes `bridge_pkm_inspect_schema: 1` and a compatible `bridge_import_s
 Cross-generation PKM projection (request JSON file; see `MIRROR_PROJECTION_ARCHITECTURE.md`):
 
 ```bash
-dotnet run --project /Users/vanta/Desktop/title_screen_demo/pkr-tools/pkhex_bridge/PKHeXBridge.csproj -- project "/path/to/bridge_project_request.json"
+dotnet run --project /Users/vanta/Desktop/title_screen_demo/pokemon-resort/tools/pkhex_bridge/PKHeXBridge.csproj -- project "/path/to/bridge_project_request.json"
 ```
 
 Projection export performs a final normalization pass immediately before checksum refresh and serialization. For Gen 3/4 targets, nature, shiny state, gender, form, and available ability slot are PID-derived visible fields, so the bridge solves them together through PKHeX PID helpers (`EntityPID` / `CommonEdits`) and validates the final payload. Manual fixes such as changing a PID until `PID % 25 == nature` are unsafe because they can silently change form, gender, ability slot, or shiny state.
@@ -81,13 +81,13 @@ Nickname normalization also runs at the end, after target species, language, and
 Guarded save write-back:
 
 ```bash
-dotnet run --project /Users/vanta/Desktop/title_screen_demo/pkr-tools/pkhex_bridge/PKHeXBridge.csproj -- write-projection "/absolute/path/to/save.sav" "/absolute/path/to/projection.json"
+dotnet run --project /Users/vanta/Desktop/title_screen_demo/pokemon-resort/tools/pkhex_bridge/PKHeXBridge.csproj -- write-projection "/absolute/path/to/save.sav" "/absolute/path/to/projection.json"
 ```
 
 Patch held item on one import-grade PC slot (JSON request file; avoids huge CLI arguments):
 
 ```bash
-dotnet run --project /Users/vanta/Desktop/title_screen_demo/pkr-tools/pkhex_bridge/PKHeXBridge.csproj -- pkm-patch-held-item "/absolute/path/to/request.json"
+dotnet run --project /Users/vanta/Desktop/title_screen_demo/pokemon-resort/tools/pkhex_bridge/PKHeXBridge.csproj -- pkm-patch-held-item "/absolute/path/to/request.json"
 ```
 
 Request body: `{"raw_payload_base64":"<EncryptedBoxData base64>","held_item_id":<int>}` — use `held_item_id` `0` to clear. Response (`bridge_held_item_patch_schema: 1`): `success`, `raw_payload_base64`, `raw_hash_sha256`, `error`, `details`.
@@ -115,7 +115,7 @@ Write-projection output includes:
 - `rolling_backup_path`
 - `restored_from_rolling_backup` — `true` if a failed final replace re-copied the rolling `.bak` onto the live save path (avoids leaving a torn/partial `.sav` when possible)
 
-**Safety:** Empty or null-embedded paths are rejected. Projection JSON size is capped (64 MiB) before parse. Serialized save size is capped before writing. Bytes are written to a same-folder temp file with OS-level durable flush where supported (`WriteThrough` on Windows), then the file is read back and compared byte-for-byte to the expected buffer before the live save is replaced. Stale `*.prtmp*` partials are removed before the next attempt. If the final replace throws, the bridge copies the rolling backup (exact pre-attempt copy of the save) back onto the external save path. A force-quit during the replace can still leave ambiguity at the OS level; the rolling backup under `transfer_write_backups/` remains the recovery source. Write-back code is split under `pkr-tools/pkhex_bridge/WriteBack/` so new projection sections (items, etc.) add new applier types instead of growing one monolith.
+**Safety:** Empty or null-embedded paths are rejected. Projection JSON size is capped (64 MiB) before parse. Serialized save size is capped before writing. Bytes are written to a same-folder temp file with OS-level durable flush where supported (`WriteThrough` on Windows), then the file is read back and compared byte-for-byte to the expected buffer before the live save is replaced. Stale `*.prtmp*` partials are removed before the next attempt. If the final replace throws, the bridge copies the rolling backup (exact pre-attempt copy of the save) back onto the external save path. A force-quit during the replace can still leave ambiguity at the OS level; the rolling backup under `transfer_write_backups/` remains the recovery source. Write-back code is split under `tools/pkhex_bridge/WriteBack/` so new projection sections (items, etc.) add new applier types instead of growing one monolith.
 
 On success, `status` is typically `ok`.
 
@@ -124,11 +124,11 @@ The native launcher resolves bridge candidates in this order:
 - `PKHEX_BRIDGE_EXECUTABLE` environment override
 - helper bundled next to the native executable
 - helper bundled under macOS app `Contents/Resources`
-- debug or release build outputs under `pkr-tools/pkhex_bridge/bin`
-- published helper under `pkr-tools/pkhex_bridge/publish`
+- debug or release build outputs under `tools/pkhex_bridge/bin`
+- published helper under `tools/pkhex_bridge/publish`
 - development fallback using `dotnet run --project`
 
-Development builds intentionally prefer local `bin/Debug` or `bin/Release` output before `pkr-tools/pkhex_bridge/publish` so contributors do not accidentally run stale published JSON after changing the bridge. Shipping builds should bundle a freshly published self-contained helper next to the native executable or inside app resources, and should not depend on `dotnet run`.
+Development builds intentionally prefer local `bin/Debug` or `bin/Release` output before `tools/pkhex_bridge/publish` so contributors do not accidentally run stale published JSON after changing the bridge. Shipping builds should bundle a freshly published self-contained helper next to the native executable or inside app resources, and should not depend on `dotnet run`.
 
 ## JSON Contract
 
@@ -186,7 +186,7 @@ Use these fields for new features:
 
 ## Reader Models
 
-The bridge models live in [`BridgeProbe.cs`](/Users/vanta/Desktop/title_screen_demo/pkr-tools/pkhex_bridge/BridgeProbe.cs).
+The bridge models live in [`BridgeProbe.cs`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/tools/pkhex_bridge/BridgeProbe.cs).
 They are designed to be useful for reads now and for the guarded write-back work that will eventually fill in `write-projection`.
 
 ### Trainer
@@ -369,7 +369,7 @@ Run unit tests:
 ```bash
 DOTNET_CLI_HOME=/Users/vanta/Desktop/title_screen_demo/.dotnet \
 NUGET_PACKAGES=/Users/vanta/Desktop/title_screen_demo/.nuget/packages \
-dotnet test /Users/vanta/Desktop/title_screen_demo/pkr-tests/unit/pkhex_bridge/PKHeXBridge.UnitTests/PKHeXBridge.UnitTests.csproj --no-restore
+dotnet test /Users/vanta/Desktop/title_screen_demo/pokemon-resort/tests/unit/pkhex_bridge/PKHeXBridge.UnitTests/PKHeXBridge.UnitTests.csproj --no-restore
 ```
 
 Run integration tests:
@@ -377,7 +377,7 @@ Run integration tests:
 ```bash
 DOTNET_CLI_HOME=/Users/vanta/Desktop/title_screen_demo/.dotnet \
 NUGET_PACKAGES=/Users/vanta/Desktop/title_screen_demo/.nuget/packages \
-dotnet test /Users/vanta/Desktop/title_screen_demo/pkr-tests/integration/pkhex_bridge/PKHeXBridge.IntegrationTests/PKHeXBridge.IntegrationTests.csproj --no-restore
+dotnet test /Users/vanta/Desktop/title_screen_demo/pokemon-resort/tests/integration/pkhex_bridge/PKHeXBridge.IntegrationTests/PKHeXBridge.IntegrationTests.csproj --no-restore
 ```
 
 Integration tests use real save files from [`saves`](/Users/vanta/Desktop/title_screen_demo/saves).
