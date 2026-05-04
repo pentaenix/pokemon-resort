@@ -7,7 +7,7 @@ The current codebase is no longer just a title-screen demo. Treat this README as
 ## Start Here
 
 - [`docs/ARCHITECTURE.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/ARCHITECTURE.md) is the central architecture map.
-- [`../tests/README.md`](/Users/vanta/Desktop/title_screen_demo/tests/README.md) is the canonical testing map.
+- [`../pkr-tests/README.md`](/Users/vanta/Desktop/title_screen_demo/pkr-tests/README.md) is the canonical testing map.
 - [`docs/config/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/config/README.md) explains which JSON files own which UI surfaces.
 - [`docs/transfer_system/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/transfer_system/README.md) is the practical field guide for transfer-system changes.
 - [`docs/PKHEX_BRIDGE.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/PKHEX_BRIDGE.md) is the canonical PKHeX bridge contract.
@@ -71,7 +71,7 @@ Use this map before changing code:
 - **Transfer system screen:** `src/ui/TransferSystemScreen.cpp` adapts real SDL input/render state to smaller controllers. Pure controllers and render helpers live under `src/ui/transfer_system/`; read [`docs/transfer_system/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/transfer_system/README.md) before changing this area.
 - **Input:** `src/core/input/InputRouter.cpp`, `src/core/input/InputBindings.cpp`, and `include/ui/ScreenInput.hpp` keep keyboard/controller/mouse routing centralized.
 - **Save scanning and bridge summaries:** `src/core/save/SaveLibrary.cpp` owns save discovery, bridge probing, cache behavior, and parsed transfer models.
-- **PKHeX bridge boundary:** `src/core/bridge/SaveBridgeClient.cpp` launches the .NET helper in `../tools/pkhex_bridge`; native C++ should not link `PKHeX.Core`.
+- **PKHeX bridge boundary:** `src/core/bridge/SaveBridgeClient.cpp` launches the .NET helper in `../pkr-tools/pkhex_bridge`; native C++ should not link `PKHeX.Core`.
 - **PokeSprite assets:** `src/core/assets/PokeSpriteAssets.cpp` owns Pokemon, item, and misc icon path resolution plus texture caching.
 - **Resort backend:** `src/resort/` and `include/resort/` own canonical Pokemon storage, import/export services, repositories, and SQLite persistence.
 
@@ -91,12 +91,12 @@ See [`docs/config/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-res
 
 ## PKHeX Bridge
 
-The PKHeX integration is intentionally process-based. The native app calls a .NET helper under [`../tools/pkhex_bridge`](/Users/vanta/Desktop/title_screen_demo/tools/pkhex_bridge) through `SaveBridgeClient`.
+The PKHeX integration is intentionally process-based. The native app calls a .NET helper under [`../pkr-tools/pkhex_bridge`](/Users/vanta/Desktop/title_screen_demo/pkr-tools/pkhex_bridge) through `SaveBridgeClient`.
 
 For development:
 
 ```bash
-cd /Users/vanta/Desktop/title_screen_demo/tools/pkhex_bridge
+cd /Users/vanta/Desktop/title_screen_demo/pkr-tools/pkhex_bridge
 dotnet restore
 dotnet build
 dotnet run --project PKHeXBridge.csproj -- "/absolute/path/to/save.sav"
@@ -113,7 +113,7 @@ The full launch order, JSON contract, import-grade model, and guarded write-proj
 
 ## Testing
 
-The canonical test guide is [`../tests/README.md`](/Users/vanta/Desktop/title_screen_demo/tests/README.md).
+The canonical test guide is [`../pkr-tests/README.md`](/Users/vanta/Desktop/title_screen_demo/pkr-tests/README.md).
 
 Before finishing behavior or architecture changes, run the relevant focused tests and then the native suite:
 
@@ -124,7 +124,7 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
-Run bridge unit/integration/e2e tests when touching `tools/pkhex_bridge`, save probing, import-grade JSON, write-projection validation, bridge-backed native import, or bridge output consumed by `SaveLibrary`.
+Run bridge unit/integration/e2e tests when touching `pkr-tools/pkhex_bridge`, save probing, import-grade JSON, write-projection validation, bridge-backed native import, or bridge output consumed by `SaveLibrary`.
 
 ## Contributor Rules Of Thumb
 

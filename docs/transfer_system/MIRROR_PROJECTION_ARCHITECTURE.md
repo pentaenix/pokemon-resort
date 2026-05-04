@@ -30,12 +30,12 @@ Already implemented:
 - Same-game Resort-to-game export can reuse the latest compatible raw snapshot payload instead of synthetic projection bytes.
 - Same-game return imports can attach generic exact-identity matches to an active mirror session and close that session after merge.
 - The transfer screen can attach exported raw snapshot bytes to a game slot as a mirror payload, so real save write-back has PKM bytes for Resort-origin Pokemon.
-- The native app keeps PKHeX behind the process bridge in `tools/pkhex_bridge`.
+- The native app keeps PKHeX behind the process bridge in `pkr-tools/pkhex_bridge`.
 - The bridge `project` command performs PKHeX `EntityConverter` runs; `SaveBridgeClient` exposes `projectPokemonWithBridge` and typed result parsing.
 
 Not yet implemented / partially implemented:
 
-- PKHeX-backed bridge `project` conversion is **implemented** for arbitrary target-generation projections (`tools/pkhex_bridge/BridgeProject.cs`, PKHeX `EntityConverter`). Loss manifests remain heuristic until richer field-diff reporting lands.
+- PKHeX-backed bridge `project` conversion is **implemented** for arbitrary target-generation projections (`pkr-tools/pkhex_bridge/BridgeProject.cs`, PKHeX `EntityConverter`). Loss manifests remain heuristic until richer field-diff reporting lands.
 - Rolling **`CanonicalCheckpoint`** snapshots are written for first-time/full canonical imports. Mirror returns write `ReturnRaw` evidence but do **not** promote the returned projection bytes to canonical checkpoint bytes.
 - A field-level merge policy that understands every mutable category across generations.
 - Player UI for lossy projection prompts, mirror send, mirror return, unboxed "away" state, and conflict review.
@@ -201,7 +201,7 @@ Active mirrors are an **off-Pokemon backend state**, not a UI state. Normal Reso
 
 Location:
 
-- `tools/pkhex_bridge/BridgeProject.cs`
+- `pkr-tools/pkhex_bridge/BridgeProject.cs`
 - exposed through `BridgeConsole.cs` as `project`
 
 Input JSON:
@@ -497,7 +497,7 @@ Prompt details should come from `loss_manifest`, not hardcoded assumptions in UI
 
 ## Testing Strategy
 
-Use the test pyramid from `tests/README.md`.
+Use the test pyramid from `pkr-tests/README.md`.
 
 Required coverage:
 
@@ -512,7 +512,7 @@ Required coverage:
 For save/bridge/mirror work, run:
 
 ```bash
-tests/run_all_tests.sh
+pkr-tests/run_all_tests.sh
 ```
 
 ## Modification Rules For Future Contributors

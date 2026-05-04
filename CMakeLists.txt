@@ -162,7 +162,7 @@ endif()
 enable_testing()
 
 add_executable(resort_storage_tests
-    ../tests/native/resort/storage_import_tests.cpp
+    ../pkr-tests/native/resort/storage_import_tests.cpp
     src/core/config/Json.cpp
     src/core/bridge/SaveBridgeClient.cpp
     ${RESORT_STORAGE_SOURCES}
@@ -176,7 +176,7 @@ endif()
 add_test(NAME resort_storage_tests COMMAND resort_storage_tests)
 
 add_executable(mutable_merge_policy_tests
-    ../tests/native/resort/mutable_merge_policy_tests.cpp
+    ../pkr-tests/native/resort/mutable_merge_policy_tests.cpp
     src/resort/services/MirrorReturnAnalysis.cpp
     src/resort/services/PokemonMergeService.cpp
     src/resort/domain/PokemonMergeFieldPolicy.cpp
@@ -188,42 +188,42 @@ target_include_directories(mutable_merge_policy_tests PRIVATE include)
 add_test(NAME mutable_merge_policy_tests COMMAND mutable_merge_policy_tests)
 
 add_executable(app_transition_controller_tests
-    ../tests/native/core/app_transition_controller_tests.cpp
+    ../pkr-tests/native/core/app_transition_controller_tests.cpp
     src/core/app/transition/AppTransitionController.cpp
 )
 target_include_directories(app_transition_controller_tests PRIVATE include)
 add_test(NAME app_transition_controller_tests COMMAND app_transition_controller_tests)
 
 add_executable(app_frame_requests_tests
-    ../tests/native/core/app_frame_requests_tests.cpp
+    ../pkr-tests/native/core/app_frame_requests_tests.cpp
     src/core/app/frame/AppFrameRequests.cpp
 )
 target_include_directories(app_frame_requests_tests PRIVATE include)
 add_test(NAME app_frame_requests_tests COMMAND app_frame_requests_tests)
 
 add_executable(title_screen_menu_tests
-    ../tests/native/title_screen/main_menu_controller_tests.cpp
+    ../pkr-tests/native/title_screen/main_menu_controller_tests.cpp
     src/ui/title_screen/MainMenuController.cpp
 )
 target_include_directories(title_screen_menu_tests PRIVATE include)
 add_test(NAME title_screen_menu_tests COMMAND title_screen_menu_tests)
 
 add_executable(title_screen_options_tests
-    ../tests/native/title_screen/options_menu_controller_tests.cpp
+    ../pkr-tests/native/title_screen/options_menu_controller_tests.cpp
     src/ui/title_screen/OptionsMenuController.cpp
 )
 target_include_directories(title_screen_options_tests PRIVATE include)
 add_test(NAME title_screen_options_tests COMMAND title_screen_options_tests)
 
 add_executable(title_screen_section_tests
-    ../tests/native/title_screen/section_screen_controller_tests.cpp
+    ../pkr-tests/native/title_screen/section_screen_controller_tests.cpp
     src/ui/title_screen/SectionScreenController.cpp
 )
 target_include_directories(title_screen_section_tests PRIVATE include)
 add_test(NAME title_screen_section_tests COMMAND title_screen_section_tests)
 
 add_executable(resort_loading_transition_screen_tests
-    ../tests/native/resort_loading/resort_loading_transition_screen_tests.cpp
+    ../pkr-tests/native/resort_loading/resort_loading_transition_screen_tests.cpp
     src/core/assets/Assets.cpp
     src/core/assets/Font.cpp
     src/core/config/Json.cpp
@@ -240,7 +240,7 @@ target_link_libraries(resort_loading_transition_screen_tests PRIVATE SDL2::SDL2 
 add_test(NAME resort_loading_transition_screen_tests COMMAND resort_loading_transition_screen_tests)
 
 add_executable(transfer_ticket_list_tests
-    ../tests/native/transfer_ticket/transfer_ticket_list_controller_tests.cpp
+    ../pkr-tests/native/transfer_ticket/transfer_ticket_list_controller_tests.cpp
     src/ui/transfer_ticket/TransferTicketListController.cpp
 )
 target_include_directories(transfer_ticket_list_tests PRIVATE include)
@@ -248,7 +248,7 @@ target_link_libraries(transfer_ticket_list_tests PRIVATE SDL2::SDL2)
 add_test(NAME transfer_ticket_list_tests COMMAND transfer_ticket_list_tests)
 
 add_executable(transfer_selection_builder_tests
-    ../tests/native/transfer_flow/transfer_selection_builder_tests.cpp
+    ../pkr-tests/native/transfer_flow/transfer_selection_builder_tests.cpp
     src/core/domain/PokemonOrigin.cpp
     src/ui/transfer_flow/TransferSelectionBuilder.cpp
 )
@@ -256,14 +256,14 @@ target_include_directories(transfer_selection_builder_tests PRIVATE include)
 add_test(NAME transfer_selection_builder_tests COMMAND transfer_selection_builder_tests)
 
 add_executable(transfer_flow_controller_tests
-    ../tests/native/transfer_flow/transfer_flow_controller_tests.cpp
+    ../pkr-tests/native/transfer_flow/transfer_flow_controller_tests.cpp
     src/ui/transfer_flow/TransferFlowController.cpp
 )
 target_include_directories(transfer_flow_controller_tests PRIVATE include)
 add_test(NAME transfer_flow_controller_tests COMMAND transfer_flow_controller_tests)
 
 add_executable(game_transfer_config_tests
-    ../tests/native/transfer_system/game_transfer_config_tests.cpp
+    ../pkr-tests/native/transfer_system/game_transfer_config_tests.cpp
     src/core/config/Json.cpp
     src/ui/transfer_system/GameTransferConfig.cpp
 )
@@ -271,7 +271,7 @@ target_include_directories(game_transfer_config_tests PRIVATE include)
 add_test(NAME game_transfer_config_tests COMMAND game_transfer_config_tests)
 
 add_executable(transfer_info_banner_presenter_tests
-    ../tests/native/transfer_system/transfer_info_banner_presenter_tests.cpp
+    ../pkr-tests/native/transfer_system/transfer_info_banner_presenter_tests.cpp
     src/core/domain/PokemonBall.cpp
     src/core/domain/PokemonOrigin.cpp
     src/ui/transfer_system/TransferInfoBannerPresenter.cpp
@@ -280,21 +280,21 @@ target_include_directories(transfer_info_banner_presenter_tests PRIVATE include)
 add_test(NAME transfer_info_banner_presenter_tests COMMAND transfer_info_banner_presenter_tests)
 
 add_executable(transfer_system_ui_state_controller_tests
-    ../tests/native/transfer_system/transfer_system_ui_state_controller_tests.cpp
+    ../pkr-tests/native/transfer_system/transfer_system_ui_state_controller_tests.cpp
     src/ui/transfer_system/TransferSystemUiStateController.cpp
 )
 target_include_directories(transfer_system_ui_state_controller_tests PRIVATE include)
 add_test(NAME transfer_system_ui_state_controller_tests COMMAND transfer_system_ui_state_controller_tests)
 
 add_executable(game_box_browser_controller_tests
-    ../tests/native/transfer_system/game_box_browser_controller_tests.cpp
+    ../pkr-tests/native/transfer_system/game_box_browser_controller_tests.cpp
     src/ui/transfer_system/GameBoxBrowserController.cpp
 )
 target_include_directories(game_box_browser_controller_tests PRIVATE include)
 add_test(NAME game_box_browser_controller_tests COMMAND game_box_browser_controller_tests)
 
 add_executable(pokemon_action_menu_controller_tests
-    ../tests/native/transfer_system/pokemon_action_menu_controller_tests.cpp
+    ../pkr-tests/native/transfer_system/pokemon_action_menu_controller_tests.cpp
     src/ui/transfer_system/PokemonActionMenuController.cpp
 )
 target_include_directories(pokemon_action_menu_controller_tests PRIVATE include)
@@ -302,7 +302,7 @@ target_link_libraries(pokemon_action_menu_controller_tests PRIVATE SDL2::SDL2)
 add_test(NAME pokemon_action_menu_controller_tests COMMAND pokemon_action_menu_controller_tests)
 
 add_executable(multi_pokemon_move_controller_tests
-    ../tests/native/transfer_system/multi_pokemon_move_controller_tests.cpp
+    ../pkr-tests/native/transfer_system/multi_pokemon_move_controller_tests.cpp
     src/ui/transfer_system/MultiPokemonMoveController.cpp
 )
 target_include_directories(multi_pokemon_move_controller_tests PRIVATE include)
@@ -310,7 +310,7 @@ target_link_libraries(multi_pokemon_move_controller_tests PRIVATE SDL2::SDL2)
 add_test(NAME multi_pokemon_move_controller_tests COMMAND multi_pokemon_move_controller_tests)
 
 add_executable(transfer_system_focus_graph_tests
-    ../tests/native/transfer_system/transfer_system_focus_graph_tests.cpp
+    ../pkr-tests/native/transfer_system/transfer_system_focus_graph_tests.cpp
     src/ui/transfer_system/TransferSystemFocusGraph.cpp
 )
 target_include_directories(transfer_system_focus_graph_tests PRIVATE include)
@@ -318,7 +318,7 @@ target_link_libraries(transfer_system_focus_graph_tests PRIVATE SDL2::SDL2)
 add_test(NAME transfer_system_focus_graph_tests COMMAND transfer_system_focus_graph_tests)
 
 add_executable(input_router_tests
-    ../tests/native/core/input_router_tests.cpp
+    ../pkr-tests/native/core/input_router_tests.cpp
     src/core/input/InputBindings.cpp
     src/core/input/InputRouter.cpp
 )
@@ -327,7 +327,7 @@ target_link_libraries(input_router_tests PRIVATE SDL2::SDL2)
 add_test(NAME input_router_tests COMMAND input_router_tests)
 
 add_executable(config_loader_tests
-    ../tests/native/core/config_loader_tests.cpp
+    ../pkr-tests/native/core/config_loader_tests.cpp
     src/core/config/ConfigLoader.cpp
     src/core/config/Json.cpp
 )
@@ -335,7 +335,7 @@ target_include_directories(config_loader_tests PRIVATE include)
 add_test(NAME config_loader_tests COMMAND config_loader_tests)
 
 add_executable(transfer_box_edits_store_tests
-    ../tests/native/core/transfer_box_edits_store_tests.cpp
+    ../pkr-tests/native/core/transfer_box_edits_store_tests.cpp
     src/core/save/TransferBoxEditsStore.cpp
     src/core/config/Json.cpp
 )
@@ -343,7 +343,7 @@ target_include_directories(transfer_box_edits_store_tests PRIVATE include)
 add_test(NAME transfer_box_edits_store_tests COMMAND transfer_box_edits_store_tests)
 
 add_executable(bridge_import_merge_tests
-    ../tests/native/core/bridge_import_merge_tests.cpp
+    ../pkr-tests/native/core/bridge_import_merge_tests.cpp
     src/core/bridge/BridgeImportMerge.cpp
     src/core/config/Json.cpp
 )
@@ -351,7 +351,7 @@ target_include_directories(bridge_import_merge_tests PRIVATE include)
 add_test(NAME bridge_import_merge_tests COMMAND bridge_import_merge_tests)
 
 add_executable(pcslot_imported_pokemon_builder_tests
-    ../tests/native/resort/pcslot_imported_pokemon_builder_tests.cpp
+    ../pkr-tests/native/resort/pcslot_imported_pokemon_builder_tests.cpp
     src/resort/integration/BridgeImportAdapter.cpp
     src/core/config/Json.cpp
 )
@@ -359,7 +359,7 @@ target_include_directories(pcslot_imported_pokemon_builder_tests PRIVATE include
 add_test(NAME pcslot_imported_pokemon_builder_tests COMMAND pcslot_imported_pokemon_builder_tests)
 
 add_executable(save_bridge_client_tests
-    ../tests/native/core/save_bridge_client_tests.cpp
+    ../pkr-tests/native/core/save_bridge_client_tests.cpp
     src/core/bridge/SaveBridgeClient.cpp
     src/core/config/Json.cpp
 )
@@ -367,7 +367,7 @@ target_include_directories(save_bridge_client_tests PRIVATE include)
 add_test(NAME save_bridge_client_tests COMMAND save_bridge_client_tests)
 
 add_executable(pokesprite_assets_tests
-    ../tests/native/core/pokesprite_assets_tests.cpp
+    ../pkr-tests/native/core/pokesprite_assets_tests.cpp
     src/core/config/Json.cpp
     src/core/assets/PokeSpriteAssets.cpp
 )
@@ -376,7 +376,7 @@ target_link_libraries(pokesprite_assets_tests PRIVATE SDL2::SDL2 SDL2_image::SDL
 add_test(NAME pokesprite_assets_tests COMMAND pokesprite_assets_tests)
 
 add_executable(save_library_cache_tests
-    ../tests/native/core/save_library_cache_tests.cpp
+    ../pkr-tests/native/core/save_library_cache_tests.cpp
     src/core/config/Json.cpp
     src/core/bridge/SaveBridgeClient.cpp
     src/core/save/SaveLibrary.cpp
@@ -385,7 +385,7 @@ target_include_directories(save_library_cache_tests PRIVATE include)
 add_test(NAME save_library_cache_tests COMMAND save_library_cache_tests)
 
 add_executable(input_config_integration_tests
-    ../tests/native/core/input_config_integration_tests.cpp
+    ../pkr-tests/native/core/input_config_integration_tests.cpp
     src/core/config/ConfigLoader.cpp
     src/core/input/InputBindings.cpp
     src/core/input/InputRouter.cpp
@@ -397,11 +397,11 @@ add_test(NAME input_config_integration_tests COMMAND input_config_integration_te
 
 add_test(
     NAME title_screen_headless_smoke
-    COMMAND /bin/zsh ${CMAKE_SOURCE_DIR}/../tests/e2e/native/run_title_screen_headless_smoke.sh
+    COMMAND /bin/zsh ${CMAKE_SOURCE_DIR}/../pkr-tests/e2e/native/run_title_screen_headless_smoke.sh
 )
 
 add_executable(title_screen_flow_harness_tests
-    ../tests/e2e/native/title_screen_flow_harness_tests.cpp
+    ../pkr-tests/e2e/native/title_screen_flow_harness_tests.cpp
     src/core/assets/Assets.cpp
     src/core/config/ConfigLoader.cpp
     src/core/assets/Font.cpp
@@ -420,7 +420,7 @@ target_link_libraries(title_screen_flow_harness_tests PRIVATE SDL2::SDL2 SDL2_im
 add_test(NAME title_screen_flow_harness_tests COMMAND title_screen_flow_harness_tests)
 
 add_executable(transfer_system_flow_harness_tests
-    ../tests/e2e/native/transfer_system_flow_harness_tests.cpp
+    ../pkr-tests/e2e/native/transfer_system_flow_harness_tests.cpp
     src/core/assets/Assets.cpp
     src/core/config/ConfigLoader.cpp
     src/core/assets/Font.cpp
@@ -506,7 +506,7 @@ endif()
 add_test(NAME transfer_system_flow_harness_tests COMMAND transfer_system_flow_harness_tests)
 
 add_executable(transfer_ticket_unicode_harness_tests
-    ../tests/e2e/native/transfer_ticket_unicode_harness_tests.cpp
+    ../pkr-tests/e2e/native/transfer_ticket_unicode_harness_tests.cpp
     src/core/assets/Assets.cpp
     src/core/config/ConfigLoader.cpp
     src/core/assets/Font.cpp
@@ -535,7 +535,7 @@ endif()
 
 add_custom_target(pkhex_bridge_publish
     COMMAND dotnet publish
-        ${CMAKE_SOURCE_DIR}/../tools/pkhex_bridge/PKHeXBridge.csproj
+        ${CMAKE_SOURCE_DIR}/../pkr-tools/pkhex_bridge/PKHeXBridge.csproj
         -c Release
         -r osx-arm64
         --self-contained true
