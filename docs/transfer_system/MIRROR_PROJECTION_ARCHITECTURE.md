@@ -255,9 +255,9 @@ Bridge responsibilities:
 - Let PKHeX attempt direct conversion where supported.
 - For unsupported downgrades, create a target-format projection from allowed fields when policy permits.
 - Apply canonical static identity supplied by Resort before final target serialization. OT, TID/SID, language, canonical PID, and encryption constant stay Resort-owned. For downgrades, the projection may set target-game origin/met defaults for legality/playability without writing those values back to canonical Resort fields.
-- For PID-derived nature formats (Gen 3/4), apply requested nature after canonical/static PID overlay. The resulting PID is a transport PID when it differs from canonical identity.
+- For PID-derived visible fields in Gen 3/4, run a final projection normalization after conversion, move reconciliation, pre-save review, and hot mutable overlay. The bridge must solve nature, shiny state, gender, form, and available ability slot together through PKHeX PID helpers, then validate before serialization. Manual `PID % 25` nature adjustment is not sufficient because it can break other PID-derived visible fields.
 - Gen 3 trainer names must go through PKHeX's Gen 3 string/trash-byte converter, not generic UTF-8 assignment. Invalid balls for the target generation fall back to a normal Poke Ball.
-- For target formats where species casing differs, keep Resort's nickname flag authoritative. Non-nicknamed projections use PKHeX `ClearNickname()` / language-specific species-name bytes, not legality-driven fixed-nickname helpers. A Gen 3 uppercase default species name must not become a Gen 5 nickname on return.
+- For target formats where species casing differs, keep Resort's nickname state authoritative. Resort stores nickname text and `is_nicknamed`; the bool is not recoverable from Gen 3 bytes alone. Final nickname normalization runs after target species/language/format are final: non-nicknamed projections use PKHeX `ClearNickname()` / language-specific species-name bytes, while real nicknames use PKHeX nickname setters. Mirror return must not let a Gen 3 uppercase/default species name overwrite canonical nickname state.
 - Validate target-format payload.
 - Emit loss manifest and field report.
 - Never mutate Resort DB directly.

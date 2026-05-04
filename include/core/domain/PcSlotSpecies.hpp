@@ -32,6 +32,7 @@ struct PcSlotSpecies {
     std::string species_name;
     int species_id = -1;
     std::string nickname;
+    bool is_nicknamed = false;
     int form = -1;
     std::string form_key;
     int gender = -1;

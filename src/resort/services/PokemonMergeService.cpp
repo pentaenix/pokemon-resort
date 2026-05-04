@@ -432,10 +432,17 @@ PokemonMergeResult mergeMirrorReturnGameplay(
 
     const bool evolved =
         (ih.species_id != ch.species_id) || (ih.form_id != ch.form_id);
-    const bool allow_name_update =
+    const int incoming_constraint_gen =
+        constraintGenerationFromStorageFormat(imported.format_name.empty()
+            ? std::string_view("pkm")
+            : std::string_view(imported.format_name));
+    const bool incoming_has_explicit_nickname_flag = incoming_constraint_gen >= 5;
+    const bool same_origin_return =
         imported.source_game != 0 &&
         canonical.hot.origin_game != 0 &&
         imported.source_game == canonical.hot.origin_game;
+    const bool allow_name_update =
+        same_origin_return && (incoming_has_explicit_nickname_flag || ih.is_nicknamed);
 
     applyMirrorReturnHotMutableOverlay(next, ch, ih, evolved, allow_name_update);
 

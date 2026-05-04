@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cctype>
 #include <fstream>
 #include <ctime>
 #include <filesystem>
@@ -188,6 +189,27 @@ bool asBoolOrDefault(const JsonValue* value, bool fallback) {
     return value && value->isBool() ? value->asBool() : fallback;
 }
 
+std::string canonicalNameKey(const std::string& value) {
+    std::string out;
+    out.reserve(value.size());
+    for (const unsigned char ch : value) {
+        if (std::isalnum(ch)) {
+            out.push_back(static_cast<char>(std::tolower(ch)));
+        }
+    }
+    return out;
+}
+
+bool nicknameLooksCustom(const std::string& nickname, const std::string& species_name) {
+    if (nickname.empty()) {
+        return false;
+    }
+    if (species_name.empty()) {
+        return true;
+    }
+    return canonicalNameKey(nickname) != canonicalNameKey(species_name);
+}
+
 std::vector<std::string> parseStringArray(const JsonValue* value) {
     std::vector<std::string> result;
     if (!value || !value->isArray()) {
@@ -325,6 +347,9 @@ void fillSlotFromPokemonObject(PcSlotSpecies& out, const JsonValue& pokemon) {
     out.species_name = asStringOrEmpty(childAny(pokemon, {"SpeciesName", "speciesName", "species_name"}));
     out.species_id = speciesIdFromPokemonObject(pokemon);
     out.nickname = asStringOrEmpty(childAny(pokemon, {"Nickname", "nickname"}));
+    out.is_nicknamed = asBoolOrDefault(
+        childAny(pokemon, {"IsNicknamed", "isNicknamed", "is_nicknamed"}),
+        nicknameLooksCustom(out.nickname, out.species_name));
     out.form = asIntOrDefault(childAny(pokemon, {"Form", "form"}), out.form);
     out.form_key = formKeyFromPokemonObject(pokemon);
     if (out.form_key.empty() && out.species_id >= 0 && out.form >= 0) {
@@ -694,6 +719,9 @@ std::vector<PcSlotSpecies> parseBoxOneSlotsArrayField(const JsonValue* value) {
             s.species_name = asStringOrEmpty(child(item, "species_name"));
             s.species_id = asIntOrDefault(childAny(item, {"species_id", "speciesId"}), s.species_id);
             s.nickname = asStringOrEmpty(child(item, "nickname"));
+            s.is_nicknamed = asBoolOrDefault(
+                childAny(item, {"is_nicknamed", "isNicknamed", "IsNicknamed"}),
+                nicknameLooksCustom(s.nickname, s.species_name));
             s.form = asIntOrDefault(child(item, "form"), s.form);
             s.form_key = asStringOrEmpty(childAny(item, {"form_key", "formKey"}));
             s.gender = asIntOrDefault(childAny(item, {"gender", "Gender"}), s.gender);
@@ -891,6 +919,7 @@ std::string serializePcSlotArray(const std::vector<PcSlotSpecies>& slots, const 
             << child_padding << "    \"species_name\": \"" << escapeJson(s.species_name) << "\",\n"
             << child_padding << "    \"species_id\": " << s.species_id << ",\n"
             << child_padding << "    \"nickname\": \"" << escapeJson(s.nickname) << "\",\n"
+            << child_padding << "    \"is_nicknamed\": " << (s.is_nicknamed ? "true" : "false") << ",\n"
             << child_padding << "    \"form\": " << s.form << ",\n"
             << child_padding << "    \"form_key\": \"" << escapeJson(s.form_key) << "\",\n"
             << child_padding << "    \"gender\": " << s.gender << ",\n"
