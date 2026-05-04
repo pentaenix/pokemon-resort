@@ -20,7 +20,7 @@ namespace pr {
 
 namespace {
 
-/// Must match `bridge_probe_schema` in `tools/pkhex_bridge/BridgeConsole.cs`.
+/// Must match `bridge_probe_schema` in `pkr-tools/pkhex_bridge/BridgeConsole.cs`.
 constexpr int kBridgeProbeSchemaRequired = 5;
 
 struct CachedSaveRecord {
@@ -1486,7 +1486,7 @@ std::optional<TransferSaveSummary> probeTransferSummaryFresh(
             std::cerr << "[SaveLibrary] fresh_probe reject path=" << save_path
                       << " reason=outdated_bridge_binary bridge_probe_schema=" << summary->bridge_probe_schema
                       << " need>=" << kBridgeProbeSchemaRequired
-                      << " (rebuild tools/pkhex_bridge and prefer bin/Release over stale publish/)\n";
+                      << " (rebuild pkr-tools/pkhex_bridge and prefer bin/Release over stale publish/)\n";
             return std::nullopt;
         }
         std::cerr << "[SaveLibrary] fresh_probe ok path=" << save_path

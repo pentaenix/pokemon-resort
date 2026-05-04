@@ -5,7 +5,7 @@
 Use the PKHeX bridge probe command to see what is in an external save for preview:
 
 ```bash
-dotnet /Users/vanta/Desktop/title_screen_demo/tools/pkhex_bridge/bin/Debug/net10.0/PKHeXBridge.dll "/absolute/path/to/save.sav"
+dotnet /Users/vanta/Desktop/title_screen_demo/pkr-tools/pkhex_bridge/bin/Debug/net10.0/PKHeXBridge.dll "/absolute/path/to/save.sav"
 ```
 
 This emits `bridge_probe_schema: 5` JSON with trainer, Pokedex, bag, boxes, and preview Pokemon models. These fields are useful for UI display, but they are not canonical Resort data.
@@ -15,7 +15,7 @@ This emits `bridge_probe_schema: 5` JSON with trainer, Pokedex, bag, boxes, and 
 Use the bridge import operation for real import:
 
 ```bash
-dotnet /Users/vanta/Desktop/title_screen_demo/tools/pkhex_bridge/bin/Debug/net10.0/PKHeXBridge.dll import "/absolute/path/to/save.sav"
+dotnet /Users/vanta/Desktop/title_screen_demo/pkr-tools/pkhex_bridge/bin/Debug/net10.0/PKHeXBridge.dll import "/absolute/path/to/save.sav"
 ```
 
 The output has `bridge_import_schema: 1` and a `pokemon` array. Each Pokemon includes:

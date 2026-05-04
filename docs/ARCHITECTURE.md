@@ -2,7 +2,7 @@
 
 This is the central architecture map for the SDL2 app in [`pokemon-resort`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort). It should stay accurate enough that a human or AI agent can decide where a change belongs before editing code.
 
-For test strategy, use [`tests/README.md`](/Users/vanta/Desktop/title_screen_demo/tests/README.md) as the canonical test map. For config ownership, use [`docs/config/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/config/README.md). For transfer-system work, read [`docs/transfer_system/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/transfer_system/README.md) before editing transfer screen code. For mirror/projection architecture, use [`docs/transfer_system/MIRROR_PROJECTION_ARCHITECTURE.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/transfer_system/MIRROR_PROJECTION_ARCHITECTURE.md). For bridge work, use [`PKHEX_BRIDGE.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/PKHEX_BRIDGE.md).
+For test strategy, use [`pkr-tests/README.md`](/Users/vanta/Desktop/title_screen_demo/pkr-tests/README.md) as the canonical test map. For config ownership, use [`docs/config/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/config/README.md). For transfer-system work, read [`docs/transfer_system/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/transfer_system/README.md) before editing transfer screen code. For mirror/projection architecture, use [`docs/transfer_system/MIRROR_PROJECTION_ARCHITECTURE.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/transfer_system/MIRROR_PROJECTION_ARCHITECTURE.md). For bridge work, use [`PKHEX_BRIDGE.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/PKHEX_BRIDGE.md).
 
 ## Current State
 
@@ -241,7 +241,7 @@ See [`docs/config/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-res
 
 ## Testing Map
 
-Use [`tests/README.md`](/Users/vanta/Desktop/title_screen_demo/tests/README.md) as the canonical test source. As of the current build, the native CTest suite includes storage/backend, title controllers, transfer ticket, transfer flow, transfer-system config/state/browser/action-menu/focus, input/config, PokeSprite assets, save-library cache, headless boot, title flow harness, transfer-system harness, and transfer-ticket Unicode harness coverage.
+Use [`pkr-tests/README.md`](/Users/vanta/Desktop/title_screen_demo/pkr-tests/README.md) as the canonical test source. As of the current build, the native CTest suite includes storage/backend, title controllers, transfer ticket, transfer flow, transfer-system config/state/browser/action-menu/focus, input/config, PokeSprite assets, save-library cache, headless boot, title flow harness, transfer-system harness, and transfer-ticket Unicode harness coverage.
 
 Run:
 
@@ -262,7 +262,7 @@ Run .NET bridge tests sequentially when touching the bridge, save probing, impor
 - Native tests are registered with CTest; do not rely on a single executable name.
 - Language mode: C++17 plus Objective-C++ for the current macOS audio backend.
 - Current platform assumptions: macOS with `SDL2`, `SDL2_image`, `SDL2_ttf`, `AVFoundation`, and `Foundation`.
-- Save parsing bridge: external .NET helper under [`tools/pkhex_bridge`](/Users/vanta/Desktop/title_screen_demo/tools/pkhex_bridge); guarded write-back logic is split under `tools/pkhex_bridge/WriteBack/` so `BridgeWriteBack.cs` stays orchestration-only and new projection domains add appliers instead of growing one file past ~500 lines.
+- Save parsing bridge: external .NET helper under [`pkr-tools/pkhex_bridge`](/Users/vanta/Desktop/title_screen_demo/pkr-tools/pkhex_bridge); guarded write-back logic is split under `pkr-tools/pkhex_bridge/WriteBack/` so `BridgeWriteBack.cs` stays orchestration-only and new projection domains add appliers instead of growing one file past ~500 lines.
 - Shipping bridge path: publish a self-contained helper and bundle it next to the executable or inside app resources.
 
 For cross-platform work, isolate OS-specific behavior behind small adapters. Avoid adding platform checks inside scene logic.
@@ -309,7 +309,7 @@ Read task-specific files rather than always starting from `TitleScreen.cpp`:
 - Use this architecture doc for module boundaries.
 - Use `docs/transfer_system/README.md` before changing transfer-system behavior, layout, movement, focus, banner, or rendering code.
 - Use `docs/config/README.md` before adding JSON fields.
-- Use `tests/README.md` before deciding what to run.
+- Use `pkr-tests/README.md` before deciding what to run.
 - Use `PKHEX_BRIDGE.md` before touching save probing, bridge JSON, import-grade reads, or write-back validation.
 - Use backend docs before building UI against canonical Resort storage.
 

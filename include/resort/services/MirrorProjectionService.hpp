@@ -13,7 +13,7 @@ namespace pr::resort {
 class PokemonRepository;
 class SnapshotRepository;
 
-/// Input for the .NET `project` command (see `tools/pkhex_bridge/BridgeProject.cs`): converts snapshot
+/// Input for the .NET `project` command (see `pkr-tools/pkhex_bridge/BridgeProject.cs`): converts snapshot
 /// bytes to a target-generation encrypted PC payload using PKHeX `EntityConverter`.
 struct MirrorBridgeProjectInput {
     std::string pkrid;

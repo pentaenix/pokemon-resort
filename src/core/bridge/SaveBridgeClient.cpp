@@ -241,7 +241,7 @@ std::vector<fs::path> findBridgeCandidates(
     }
 
     const fs::path workspace_root = project_root.parent_path();
-    const fs::path bridge_root = workspace_root / "tools" / "pkhex_bridge";
+    const fs::path bridge_root = workspace_root / "pkr-tools" / "pkhex_bridge";
     // Prefer a local `dotnet build` output over `publish/`. Stale publish binaries have been
     // observed to win first and emit minimal JSON (no boxes), breaking transfer sprites.
     candidates.push_back(bridge_root / "bin" / "Debug" / "net10.0" / "PKHeXBridge");
@@ -265,7 +265,7 @@ std::optional<BridgeLaunchSpec> resolveBridgeLaunchSpec(
         }
     }
 
-    const fs::path bridge_project = project_root.parent_path() / "tools" / "pkhex_bridge" / "PKHeXBridge.csproj";
+    const fs::path bridge_project = project_root.parent_path() / "pkr-tools" / "pkhex_bridge" / "PKHeXBridge.csproj";
     if (fs::exists(bridge_project)) {
         return BridgeLaunchSpec{
             normalizePath(bridge_project),

@@ -295,7 +295,7 @@ Some cursor, speech-bubble, mini-preview, and geometry adaptation still lives in
 
 ## Testing Rules
 
-Use [`tests/README.md`](/Users/vanta/Desktop/title_screen_demo/tests/README.md) as the canonical test map.
+Use [`pkr-tests/README.md`](/Users/vanta/Desktop/title_screen_demo/pkr-tests/README.md) as the canonical test map.
 
 For transfer-system changes, the usual order is:
 
