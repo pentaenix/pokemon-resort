@@ -1,6 +1,6 @@
 # Testing And Seed Data
 
-This page covers backend-specific tests and seed/export workflows. The canonical repository-wide test map is [`/Users/vanta/Desktop/title_screen_demo/pkr-tests/README.md`](/Users/vanta/Desktop/title_screen_demo/pkr-tests/README.md).
+This page covers backend-specific tests and seed/export workflows. The canonical repository-wide test map is [`/Users/vanta/Desktop/title_screen_demo/pokemon-resort/tests/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/tests/README.md).
 
 ## Native Test Suite
 
@@ -28,13 +28,13 @@ Bridge tests should be run when backend changes touch bridge import, import-grad
 ```bash
 DOTNET_CLI_HOME=/Users/vanta/Desktop/title_screen_demo/.dotnet \
 NUGET_PACKAGES=/Users/vanta/Desktop/title_screen_demo/.nuget/packages \
-dotnet test /Users/vanta/Desktop/title_screen_demo/pkr-tests/unit/pkhex_bridge/PKHeXBridge.UnitTests/PKHeXBridge.UnitTests.csproj --no-restore
+dotnet test /Users/vanta/Desktop/title_screen_demo/pokemon-resort/tests/unit/pkhex_bridge/PKHeXBridge.UnitTests/PKHeXBridge.UnitTests.csproj --no-restore
 ```
 
 ```bash
 DOTNET_CLI_HOME=/Users/vanta/Desktop/title_screen_demo/.dotnet \
 NUGET_PACKAGES=/Users/vanta/Desktop/title_screen_demo/.nuget/packages \
-dotnet test /Users/vanta/Desktop/title_screen_demo/pkr-tests/integration/pkhex_bridge/PKHeXBridge.IntegrationTests/PKHeXBridge.IntegrationTests.csproj --no-restore
+dotnet test /Users/vanta/Desktop/title_screen_demo/pokemon-resort/tests/integration/pkhex_bridge/PKHeXBridge.IntegrationTests/PKHeXBridge.IntegrationTests.csproj --no-restore
 ```
 
 ## Seed Tool
@@ -108,19 +108,19 @@ For bridge contract details, launch resolution, and JSON examples, use [`../PKHE
 Development-time preview of an external save:
 
 ```bash
-dotnet /Users/vanta/Desktop/title_screen_demo/pkr-tools/pkhex_bridge/bin/Debug/net10.0/PKHeXBridge.dll "/absolute/path/to/save.sav"
+dotnet /Users/vanta/Desktop/title_screen_demo/pokemon-resort/tools/pkhex_bridge/bin/Debug/net10.0/PKHeXBridge.dll "/absolute/path/to/save.sav"
 ```
 
 Import-grade read:
 
 ```bash
-dotnet /Users/vanta/Desktop/title_screen_demo/pkr-tools/pkhex_bridge/bin/Debug/net10.0/PKHeXBridge.dll import "/absolute/path/to/save.sav"
+dotnet /Users/vanta/Desktop/title_screen_demo/pokemon-resort/tools/pkhex_bridge/bin/Debug/net10.0/PKHeXBridge.dll import "/absolute/path/to/save.sav"
 ```
 
 Guarded write-back validation:
 
 ```bash
-dotnet /Users/vanta/Desktop/title_screen_demo/pkr-tools/pkhex_bridge/bin/Debug/net10.0/PKHeXBridge.dll write-projection "/absolute/path/to/save.sav" "/tmp/projection.json"
+dotnet /Users/vanta/Desktop/title_screen_demo/pokemon-resort/tools/pkhex_bridge/bin/Debug/net10.0/PKHeXBridge.dll write-projection "/absolute/path/to/save.sav" "/tmp/projection.json"
 ```
 
 The write-back command currently validates and refuses mutation with `write_back_not_implemented`.

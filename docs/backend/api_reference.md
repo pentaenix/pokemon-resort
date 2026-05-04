@@ -110,7 +110,7 @@ Repositories own SQL only. Do not put identity, merge, projection, or UI logic h
 
 ## Bridge Commands
 
-Implemented in [`pkr-tools/pkhex_bridge`](/Users/vanta/Desktop/title_screen_demo/pkr-tools/pkhex_bridge):
+Implemented in [`tools/pkhex_bridge`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/tools/pkhex_bridge):
 
 - `PKHeXBridge <save-path>`
   Probe/preview command. Emits `bridge_probe_schema: 5` plus legacy ticket fields.
