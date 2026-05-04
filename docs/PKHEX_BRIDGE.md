@@ -74,6 +74,10 @@ Cross-generation PKM projection (request JSON file; see `MIRROR_PROJECTION_ARCHI
 dotnet run --project /Users/vanta/Desktop/title_screen_demo/tools/pkhex_bridge/PKHeXBridge.csproj -- project "/path/to/bridge_project_request.json"
 ```
 
+Projection export performs a final normalization pass immediately before checksum refresh and serialization. For Gen 3/4 targets, nature, shiny state, gender, form, and available ability slot are PID-derived visible fields, so the bridge solves them together through PKHeX PID helpers (`EntityPID` / `CommonEdits`) and validates the final payload. Manual fixes such as changing a PID until `PID % 25 == nature` are unsafe because they can silently change form, gender, ability slot, or shiny state.
+
+Nickname normalization also runs at the end, after target species, language, and format are final. If Resort metadata says `is_nicknamed=false`, the bridge clears the nickname through PKHeX so the target-format, language-specific species default is serialized. If `is_nicknamed=true`, the canonical nickname is set through PKHeX. Do not manually blank nickname strings or trash bytes, and do not use `SetDefaultNickname()` on this mirror path. Gen 3 has no stored nickname flag, so uppercase/default species-name bytes such as `PIKACHU` are not canonical nickname text and must not be carried into Gen 5 as real nicknames.
+
 Guarded save write-back:
 
 ```bash

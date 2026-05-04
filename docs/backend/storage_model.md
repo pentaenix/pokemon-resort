@@ -37,8 +37,9 @@ Default Resort profile creation uses `BoxRepository::ensureDefaultBoxes(profile_
 
 - Canonical Pokemon identity is `pkrid`, not save path, box slot, pointer identity, or source game position.
 - Canonical personality identity is `pokemon.original_pid` / canonical `hot.pid`; transport PIDs are mirror metadata only.
+- Canonical nickname state is the pair `pokemon.nickname` plus `pokemon.is_nicknamed`. For non-nicknamed Pokemon, the nickname text may be display/default text, but the bool is authoritative; old-generation species-name bytes are not custom nickname state.
 - Box placement is not stored inside the Pokemon row.
 - Snapshots preserve raw bytes for every meaningful lifecycle event.
 - Export projections do not delete canonical warm/cold data.
 - Merge never clears warm/cold fields just because an older format lacks them.
-- Mirror-return raw bytes do not overwrite static identity fields such as OT, TID/SID, origin/met data, ball, language, canonical PID, or nickname flag on cross-generation return.
+- Mirror-return raw bytes do not overwrite static identity fields such as OT, TID/SID, origin/met data, ball, language, canonical PID, or nickname state on cross-generation return.

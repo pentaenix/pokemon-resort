@@ -21,7 +21,7 @@ When bridge projection is available, `MirrorProjectionService` chooses imported/
 
 If a target generation needs a different PID to preserve visible constraints such as shiny/nature/gender/ability, that generated PID is stored as mirror transport metadata and must not overwrite Resort canonical identity.
 
-For Gen 3/4 projections, nature is PID-derived. The bridge applies Resort's requested nature after static PID overlay so the projected PID can change as transport metadata while the visible nature stays canonical. Non-nicknamed Pokemon are serialized with PKHeX's clear-nickname/species-name path so event fixed-nickname heuristics do not accidentally set `IsNicknamed`.
+For Gen 3/4 projections, several visible fields are PID-derived: nature, shiny state, gender, form, and ability slot where available. The bridge performs final projection normalization after all Resort metadata overlays and before serialization, solving those constraints together with PKHeX helpers and validating the result. Non-nicknamed Pokemon are serialized with PKHeX's `ClearNickname()` path as the final nickname operation so target-format, language-specific default species bytes are materialized without turning Gen 3 uppercase defaults into canonical Gen 5 nicknames.
 
 The transfer-screen save/exit path prepares exact PKM payloads before calling bridge `write-projection`. After the save write succeeds, it must call `commitPreparedMirrorExport(...)` with those exact bytes, hash, format, and transport PID. Do not call a second export at commit time; that can create a mirror session and PID registry entry for bytes different from the ones written into the game save.
 

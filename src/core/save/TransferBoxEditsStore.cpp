@@ -3,6 +3,7 @@
 #include "core/config/Json.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
@@ -42,6 +43,27 @@ std::optional<std::int64_t> asI64Optional(const JsonValue* value) {
 
 bool asBoolOrDefault(const JsonValue* value, bool fallback) {
     return (value && value->isBool()) ? value->asBool() : fallback;
+}
+
+std::string canonicalNameKey(const std::string& value) {
+    std::string out;
+    out.reserve(value.size());
+    for (const unsigned char ch : value) {
+        if (std::isalnum(ch)) {
+            out.push_back(static_cast<char>(std::tolower(ch)));
+        }
+    }
+    return out;
+}
+
+bool nicknameLooksCustom(const std::string& nickname, const std::string& species_name) {
+    if (nickname.empty()) {
+        return false;
+    }
+    if (species_name.empty()) {
+        return true;
+    }
+    return canonicalNameKey(nickname) != canonicalNameKey(species_name);
 }
 
 std::string asStringOrEmpty(const JsonValue* value) {
@@ -103,6 +125,7 @@ void serializeSlot(std::ostringstream& out, const PcSlotSpecies& slot) {
         << "\"species_name\":" << quoted(slot.species_name) << ","
         << "\"species_id\":" << slot.species_id << ","
         << "\"nickname\":" << quoted(slot.nickname) << ","
+        << "\"is_nicknamed\":" << (slot.is_nicknamed ? "true" : "false") << ","
         << "\"form\":" << slot.form << ","
         << "\"form_key\":" << quoted(slot.form_key) << ","
         << "\"gender\":" << slot.gender << ","
@@ -155,6 +178,7 @@ PcSlotSpecies parseSlot(const JsonValue& obj) {
     s.species_name = asStringOrEmpty(child(obj, "species_name"));
     s.species_id = asIntOrDefault(child(obj, "species_id"), -1);
     s.nickname = asStringOrEmpty(child(obj, "nickname"));
+    s.is_nicknamed = asBoolOrDefault(child(obj, "is_nicknamed"), nicknameLooksCustom(s.nickname, s.species_name));
     s.form = asIntOrDefault(child(obj, "form"), -1);
     s.form_key = asStringOrEmpty(child(obj, "form_key"));
     s.gender = asIntOrDefault(child(obj, "gender"), -1);

@@ -24,8 +24,9 @@ namespace pr::resort {
 ///   (`shiny` is merged as **monotonic**: canonical shiny OR cart shiny — never downgrade)
 /// - Moves (+ PP) are always mirrored from the returning cart so target-generation move loss or player
 ///   replacement persists when the Pokémon comes back.
-/// - Nickname and `is_nicknamed` are immutable on cross-generation mirror return; only same-origin/source-game
-///   returns may update them.
+/// - Nickname and `is_nicknamed` are immutable on cross-generation mirror return. Same-origin/source-game
+///   returns may update them only when the incoming format has an explicit nickname flag, or when an
+///   older-format read is inferred to contain a custom nickname.
 ///
 /// **Generation notes**
 /// - Modern gens: IV/EV/nature live primarily in cold/raw blobs; bottle caps / mints imply those bytes

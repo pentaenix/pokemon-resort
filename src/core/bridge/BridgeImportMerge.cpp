@@ -197,6 +197,10 @@ bool mergeBridgeImportIntoGamePcBoxes(
                 if (!nickname.empty()) {
                     slot.nickname = nickname;
                 }
+                if (const JsonValue* is_nicknamed = child(*hot, "is_nicknamed");
+                    is_nicknamed && is_nicknamed->isBool()) {
+                    slot.is_nicknamed = is_nicknamed->asBool();
+                }
                 slot.level = asIntOrDefault(child(*hot, "level"), slot.level);
                 slot.exp = asIntOrDefault(child(*hot, "exp"), slot.exp);
                 slot.gender = asIntOrDefault(child(*hot, "gender"), slot.gender);

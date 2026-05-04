@@ -61,7 +61,7 @@ Headers:
 - `PokemonMatcher::findBestMatch(imported)`
   Match order is active beacon mirror, PID transport registry / active mirror transport PID, `home_tracker`, `pid + encryption_constant + TID/SID + OT`, then `pid + TID/SID + OT`. Native `pk1`/`pk2` without a managed mirror intentionally returns no exact match.
 - `PokemonMergeService::mergeImported(canonical, imported, updated_at_unix)`
-  Updates mutable hot fields, preserves immutable identity/timestamps, replaces optional fields only when incoming data provides them, deep-merges warm/cold JSON, unions arrays, increments revision, and returns a history diff JSON. Mirror-return merges preserve cross-generation nickname flags, copy returning cart moves/PP, and record automatically removed moves in warm metadata.
+  Updates mutable hot fields, preserves immutable identity/timestamps, replaces optional fields only when incoming data provides them, deep-merges warm/cold JSON, unions arrays, increments revision, and returns a history diff JSON. Mirror-return merges preserve cross-generation nickname state, copy returning cart moves/PP, and record automatically removed moves in warm metadata. Older-format default species-name bytes are not strong evidence of a nickname change.
 
 ## Export And Mirror Services
 

@@ -365,7 +365,7 @@ std::optional<ImportedPokemon> tryBuildImportedFromGamePcSlot(const pr::PcSlotSp
     h.species_id = static_cast<unsigned short>(slot.species_id);
     h.form_id = slot.form >= 0 ? static_cast<unsigned short>(slot.form) : 0;
     h.nickname = slot.nickname;
-    h.is_nicknamed = !slot.nickname.empty();
+    h.is_nicknamed = slot.is_nicknamed;
     h.level = slot.level >= 0 ? static_cast<unsigned char>(slot.level) : 1;
     h.exp = slot.exp >= 0 ? static_cast<unsigned int>(slot.exp) : 0;
     h.gender = slot.gender >= 0 ? static_cast<unsigned char>(slot.gender) : 0;

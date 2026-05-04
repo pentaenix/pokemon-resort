@@ -76,4 +76,4 @@ Current mirror-return mutable rules:
 - Species/form can update when the mirror evolved.
 - Move slots and PP come from the returning cart so target-generation move loss or player replacements persist.
 - Moves that disappeared during a projection/return are recorded under `warm_json.resort_catalog.auto_removed_moves` for a future reteach mechanic.
-- Nickname and `is_nicknamed` are immutable on cross-generation mirror return. They may update only when the returning source game is the canonical origin/source game. This prevents Gen 3 uppercase default species names such as `PIKACHU` from becoming invalid Gen 5 nicknames.
+- Nickname state is canonical data: Resort stores both nickname text and `is_nicknamed`. Cross-generation mirror returns preserve that canonical state. Same-origin returns may update nickname state only when the target format has an explicit nickname flag, or when an older-format return is inferred by PKHeX to contain a custom nickname. Gen 3 default species-name bytes such as `PIKACHU` are projection bytes, not canonical custom nicknames.
