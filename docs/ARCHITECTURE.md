@@ -2,7 +2,7 @@
 
 This is the central architecture map for the SDL2 app in [`pokemon-resort`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort). It should stay accurate enough that a human or AI agent can decide where a change belongs before editing code.
 
-For test strategy, use [`tests/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/tests/README.md) as the canonical test map. For config ownership, use [`docs/config/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/config/README.md). For transfer-system work, read [`docs/transfer_system/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/transfer_system/README.md) before editing transfer screen code. For mirror/projection architecture, use [`docs/transfer_system/MIRROR_PROJECTION_ARCHITECTURE.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/transfer_system/MIRROR_PROJECTION_ARCHITECTURE.md). For bridge work, use [`PKHEX_BRIDGE.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/PKHEX_BRIDGE.md).
+For test strategy, use [`tests/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/tests/README.md) as the canonical test map. For config ownership, use [`docs/config/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/config/README.md). For transfer-system work, read [`docs/transfer_system/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/transfer_system/README.md) before editing transfer screen code. For OpenHome-first transfer persistence and safety, read [`docs/transfer_system/SAVE_EXIT_SAFETY.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/transfer_system/SAVE_EXIT_SAFETY.md) plus the OpenHome integration notes (`docs/openhome-*.md`). For bridge work, use [`PKHEX_BRIDGE.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/PKHEX_BRIDGE.md).
 
 ## Current State
 
@@ -203,7 +203,13 @@ The Resort backend is separate from the options save file and from transfer-tick
 
 The transfer screen still uses in-memory UI slot state. See [`docs/backend/frontend_integration.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/backend/frontend_integration.md) before replacing that with backend-backed storage.
 
-Durable cross-generation travel, lossy projection prompts, mirror return matching, and mutable-field merge policy are specified in [`docs/transfer_system/MIRROR_PROJECTION_ARCHITECTURE.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/transfer_system/MIRROR_PROJECTION_ARCHITECTURE.md). Keep that doc current before changing those backend or bridge contracts.
+Durable cross-generation travel is migrating to an OpenHome-first model. Keep these docs current before changing backend or transfer persistence contracts:
+
+- [`docs/openhome-first-mirror-retirement.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/openhome-first-mirror-retirement.md)
+- [`docs/openhome-persistent-identity-integration.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/openhome-persistent-identity-integration.md)
+- [`docs/transfer_system/SAVE_EXIT_SAFETY.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/transfer_system/SAVE_EXIT_SAFETY.md)
+
+`docs/transfer_system/MIRROR_PROJECTION_ARCHITECTURE.md` remains as legacy design history only.
 
 ### Future: explicit player save bootstrap
 

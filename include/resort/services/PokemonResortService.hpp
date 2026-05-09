@@ -6,6 +6,7 @@
 #include "resort/persistence/BoxRepository.hpp"
 #include "resort/persistence/HistoryRepository.hpp"
 #include "resort/persistence/MirrorSessionRepository.hpp"
+#include "resort/persistence/OpenHomeLinkRepository.hpp"
 #include "resort/persistence/PidTransportRegistryRepository.hpp"
 #include "resort/persistence/PokemonRepository.hpp"
 #include "resort/persistence/SnapshotRepository.hpp"
@@ -76,11 +77,30 @@ public:
         const std::filesystem::path& bridge_project_request_path = {});
     std::vector<PokemonSlotView> getBoxSlotViews(const std::string& profile_id, int box_id) const;
     std::optional<BoxLocation> getPokemonLocation(const std::string& profile_id, const std::string& pkrid) const;
+    void linkOpenHomePayloadToPokemon(
+        const std::string& pkrid,
+        const openhome::OpenHomePokemonPayload& payload);
+    std::optional<std::string> getOpenHomeIdForPokemon(const std::string& pkrid) const;
+    std::optional<std::string> getPokemonIdForOpenHomeId(const std::string& openhome_id) const;
+    void recordPokemonInGamePlacement(
+        const std::string& pkrid,
+        const std::string& openhome_id,
+        std::optional<std::uint16_t> game_id,
+        const std::string& save_path,
+        int box_index,
+        int slot_index);
+    void recordPokemonHomePlacement(
+        const std::string& pkrid,
+        const std::string& openhome_id,
+        int bank,
+        int box,
+        int slot);
 
     std::vector<std::pair<int, std::string>> listProfileBoxes(const std::string& profile_id) const;
 
     /// Updates `box_slots` for one Pokémon (clears prior slot rows via `BoxRepository::placePokemon`).
     void movePokemonToSlot(const BoxLocation& destination, const std::string& pkrid, BoxPlacementPolicy policy);
+    void removePokemonFromBoxes(const std::string& profile_id, const std::string& pkrid);
 
     /// Emergency recovery: places an existing canonical Pokemon in the first empty Resort slot.
     /// Never overwrites another slot occupant.
@@ -117,6 +137,7 @@ private:
     std::unique_ptr<SnapshotRepository> snapshots_;
     std::unique_ptr<HistoryRepository> history_;
     std::unique_ptr<MirrorSessionRepository> mirrors_;
+    std::unique_ptr<OpenHomeLinkRepository> openhome_links_;
     std::unique_ptr<PidTransportRegistryRepository> pid_transport_;
     std::unique_ptr<BoxViewService> box_views_;
     std::unique_ptr<PokemonMatcher> matcher_;

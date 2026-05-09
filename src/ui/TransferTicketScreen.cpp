@@ -128,7 +128,6 @@ TransferTicketScreen::TransferTicketScreen(
       sprite_assets_(std::move(sprite_assets)) {
     const fs::path root = resolvePath(project_root_, "assets/transfer_select_save");
     assets_.background = loadTexture(renderer, root / "background.png");
-    assets_.banner = loadTexture(renderer, root / "transfer_top_banner.png");
     assets_.backdrop = loadTexture(renderer, root / "backdrop.png");
     assets_.stamp = loadTexture(renderer, root / "stamp.png");
     assets_.main_left = loadTexture(renderer, root / "main_left.png");
@@ -219,7 +218,7 @@ void TransferTicketScreen::render(SDL_Renderer* renderer) {
 
     SDL_RenderSetClipRect(renderer, nullptr);
 
-    drawTextureTopLeft(renderer, assets_.banner, 0, 0);
+    renderTransferTicketWaveBanner(renderer, wave_banner_, elapsed_seconds_, window_config_.virtual_width);
     drawTextureCentered(renderer, screen_text_.title, screen_header_.title_center.x, screen_header_.title_center.y);
     drawTextureCentered(renderer, screen_text_.subtitle, screen_header_.subtitle_center.x, screen_header_.subtitle_center.y);
     drawTextureTopLeft(renderer, assets_.stamp, 0, 0);
@@ -512,6 +511,9 @@ void TransferTicketScreen::loadTransferConfig() {
                 *background_animation,
                 "speed_y",
                 background_animation_.speed_y);
+        }
+        if (const JsonValue* wave_banner = transfer_screen_config->get("top_wave_banner")) {
+            applyTransferTicketWaveBannerConfig(wave_banner_, *wave_banner);
         }
     }
 

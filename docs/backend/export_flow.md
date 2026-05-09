@@ -73,6 +73,8 @@ What it does today:
 What is still **not** the full product story:
 
 - Party, bag, and other save regions are not in the projection schema yet.
-- **Cross-generation PKM bytes** for a Resort-driven send are produced by the separate bridge `project` command (PKHeX `EntityConverter`), not by hoping an old cached `.pk` stays valid — see [`MIRROR_PROJECTION_ARCHITECTURE.md`](../transfer_system/MIRROR_PROJECTION_ARCHITECTURE.md).
+- **Cross-generation movement** is migrating to an OpenHome-first path. The mirror-first document is now legacy design history:
+  - current: [`../openhome-first-mirror-retirement.md`](../openhome-first-mirror-retirement.md)
+  - safety invariants: [`../transfer_system/SAVE_EXIT_SAFETY.md`](../transfer_system/SAVE_EXIT_SAFETY.md)
 
 Do not add unsafe in-place save mutation around this boundary; extend `WriteBack/` appliers and schema versions instead of ad hoc edits.

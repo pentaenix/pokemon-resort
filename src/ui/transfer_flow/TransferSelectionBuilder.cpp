@@ -15,6 +15,7 @@ TransferSaveSelection selectionFromRecord(const SaveFileRecord& record) {
     TransferSaveSelection selection;
     selection.source_path = record.path;
     selection.source_filename = record.filename;
+    selection.pkhex_save_type = summary.pkhex_save_type;
     selection.game_key = summary.game_id;
     selection.game_title = pokemonGameTitle(summary.game_id, record.filename);
     selection.trainer_name = summary.player_name;
@@ -63,6 +64,9 @@ TransferSaveSelection mergeFreshSummary(
     merged.pokedex_seen = std::to_string(fresh_summary.pokedex_seen_count);
     merged.pokedex_caught = std::to_string(fresh_summary.pokedex_caught_count);
     merged.badges = std::to_string(fresh_summary.badges);
+    if (!fresh_summary.pkhex_save_type.empty()) {
+        merged.pkhex_save_type = fresh_summary.pkhex_save_type;
+    }
     merged.pc_boxes.clear();
     merged.pc_boxes.reserve(fresh_summary.pc_boxes.size());
     for (const auto& box : fresh_summary.pc_boxes) {

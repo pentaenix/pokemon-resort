@@ -4,6 +4,7 @@
 #include "core/crypto/Sha256.hpp"
 #include "resort/domain/PkmFormat.hpp"
 #include "resort/domain/ResortTypes.hpp"
+#include "resort/domain/ResortRibbonCatalogMerge.hpp"
 #include "resort/integration/BridgeImportAdapter.hpp"
 #include "resort/persistence/PokemonRepository.hpp"
 #include "resort/persistence/SnapshotRepository.hpp"
@@ -170,6 +171,42 @@ void appendPreSaveReviewJson(
                     body << ",\"pokerus_days\":" << *v;
                 }
             }
+            const pr::JsonValue* ribbon_catalog_ribbons = rc->get("ribbons");
+            const pr::JsonValue* ribbon_catalog_flags = rc->get("ribbon_flags");
+            const pr::JsonValue* combined_ribbons = nullptr;
+            pr::JsonValue combined_storage;
+            if (ribbon_catalog_ribbons && ribbon_catalog_ribbons->isObject() && ribbon_catalog_flags &&
+                ribbon_catalog_flags->isObject()) {
+                combined_storage =
+                    mergeRibbonCatalogMapsGainOnly(*ribbon_catalog_flags, *ribbon_catalog_ribbons);
+                combined_ribbons = &combined_storage;
+            } else if (ribbon_catalog_ribbons && ribbon_catalog_ribbons->isObject()) {
+                combined_ribbons = ribbon_catalog_ribbons;
+            } else if (ribbon_catalog_flags && ribbon_catalog_flags->isObject()) {
+                combined_ribbons = ribbon_catalog_flags;
+            }
+
+            if (combined_ribbons && combined_ribbons->isObject() && !combined_ribbons->asObject().empty()) {
+                open();
+                body << ",\"ribbon_flags\":{";
+                bool rf_first = true;
+                for (const auto& kv : combined_ribbons->asObject()) {
+                    if (!rf_first) {
+                        body << ",";
+                    }
+                    rf_first = false;
+                    body << "\"" << jsonEscape(kv.first) << "\":";
+                    const pr::JsonValue& rv = kv.second;
+                    if (rv.isBool()) {
+                        body << (rv.asBool() ? "true" : "false");
+                    } else if (rv.isNumber()) {
+                        body << static_cast<int>(std::lround(rv.asNumber()));
+                    } else {
+                        body << "null";
+                    }
+                }
+                body << "}";
+            }
         }
         if (!friendship_from_catalog) {
             if (const auto v = jsonIntFromObject(root, "original_trainer_friendship")) {
@@ -214,9 +251,16 @@ void appendPreSaveReviewJson(
         if (downgrade_projection) {
             body << ",\"origin_game\":" << (target_game != 0 ? std::to_string(target_game) : "null");
         } else {
+            // `hot.met_location_id` uses the **origin generation's** location table (Gen III indices from Resort).
+            // PK4 expects **Gen IV** indices; passing Gen III IDs through PKHeX mis-maps them (e.g. Ever Grande →
+            // Pokémon League). Legitimate GBA→DS transfers always use Pal Park (55 in D/P/Pt/HGSS).
+            std::optional<std::uint16_t> met_for_bridge = hot->met_location_id;
+            if (source_constraint_generation == 3 && target_constraint_generation == 4) {
+                met_for_bridge = 55;
+            }
             body << ",\"origin_game\":" << (hot->origin_game != 0 ? std::to_string(hot->origin_game) : "null")
                  << ",\"met_location_id\":"
-                 << (hot->met_location_id ? std::to_string(*hot->met_location_id) : "null")
+                 << (met_for_bridge ? std::to_string(*met_for_bridge) : "null")
                  << ",\"met_level\":" << (hot->met_level ? std::to_string(*hot->met_level) : "null");
         }
     }

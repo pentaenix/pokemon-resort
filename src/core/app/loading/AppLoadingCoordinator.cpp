@@ -45,12 +45,14 @@ void AppLoadingCoordinator::beginResortTransfer() {
     temporal_loading_elapsed_seconds_ = 0.0;
     temporal_simulated_load_duration_seconds_ = 0.0;
     temporal_loading_completion_sent_ = true;
+    successful_save_quick_pass_waits_for_external_complete_ = false;
     active_screen_ = resort_transfer_screen_.get();
     resort_transfer_screen_->enterWithMessageKey("message_transport_pokemon");
 }
 
 void AppLoadingCoordinator::beginTradeDemo() {
     temporal_loading_elapsed_seconds_ = 0.0;
+    successful_save_quick_pass_waits_for_external_complete_ = false;
     temporal_loading_completion_sent_ = false;
     if (auto it = config_.temporal.find("trade_button"); it != config_.temporal.end()) {
         temporal_loading_type_ = it->second.loading_type;
@@ -84,12 +86,22 @@ void AppLoadingCoordinator::beginTradeDemo() {
 void AppLoadingCoordinator::beginSuccessfulSaveQuickPass(const std::string& message_key) {
     temporal_loading_elapsed_seconds_ = 0.0;
     temporal_simulated_load_duration_seconds_ = 0.0;
-    temporal_loading_completion_sent_ = true;
+    temporal_loading_completion_sent_ = false;
+    successful_save_quick_pass_waits_for_external_complete_ = true;
     active_screen_ = quick_boat_pass_screen_.get();
     if (!message_key.empty()) {
         quick_boat_pass_screen_->setLoadingMessageKey(message_key);
     }
-    active_screen_->beginQuickPass();
+    active_screen_->beginQuickPass(true);
+}
+
+void AppLoadingCoordinator::markSuccessfulSaveQuickPassWorkComplete() {
+    if (!successful_save_quick_pass_waits_for_external_complete_ || !active_screen_) {
+        return;
+    }
+    successful_save_quick_pass_waits_for_external_complete_ = false;
+    active_screen_->markLoadingComplete();
+    temporal_loading_completion_sent_ = true;
 }
 
 void AppLoadingCoordinator::update(double dt) {
@@ -98,7 +110,7 @@ void AppLoadingCoordinator::update(double dt) {
     }
 
     active_screen_->update(dt);
-    if (!temporal_loading_completion_sent_) {
+    if (!temporal_loading_completion_sent_ && !successful_save_quick_pass_waits_for_external_complete_) {
         temporal_loading_elapsed_seconds_ += dt;
         if (temporal_loading_elapsed_seconds_ >= temporal_simulated_load_duration_seconds_) {
             active_screen_->markLoadingComplete();

@@ -31,7 +31,7 @@ bool TransferSystemScreen::beginMultiPokemonMoveFromSlots(
 
     int min_row = 99;
     int min_col = 99;
-    constexpr int kCols = 6;
+    const int kCols = refs.front().panel == Move::Panel::Game && gameSaveSlotsPerBox() <= 20 ? 5 : 6;
     for (const Move::SlotRef& ref : unique_refs) {
         const PcSlotSpecies* slot = pokemonAt(ref);
         if (!slot || !slot->occupied()) {
@@ -62,10 +62,24 @@ bool TransferSystemScreen::beginMultiPokemonMoveFromSlots(
         entries.push_back(std::move(entry));
     }
 
-    for (const Move::SlotRef& ref : unique_refs) {
-        clearPokemonAt(ref);
+    const bool ok = withConservationGuard("beginMultiPokemonMoveFromSlots", [&]() {
+        for (const Move::SlotRef& ref : unique_refs) {
+            clearPokemonAt(ref);
+        }
+        multi_pokemon_move_.pickUp(std::move(entries), input_mode, pointer, kCols);
+        return true;
+    });
+    if (!ok) {
+        // Best-effort rollback: put entries back.
+        for (const auto& entry : entries) {
+            setPokemonAt(entry.return_slot, entry.pokemon);
+        }
+        multi_pokemon_move_.clear();
+        refreshResortBoxViewportModel();
+        refreshGameBoxViewportModel();
+        ui_state_.requestErrorSfx();
+        return false;
     }
-    multi_pokemon_move_.pickUp(std::move(entries), input_mode, pointer);
     refreshResortBoxViewportModel();
     refreshGameBoxViewportModel();
     requestPickupSfx();
@@ -76,7 +90,7 @@ bool TransferSystemScreen::dropHeldMultiPokemonAt(const transfer_system::Pokemon
     if (!multi_pokemon_move_.active()) {
         return false;
     }
-    const auto slots = multi_pokemon_move_.targetSlotsFor(target);
+    const auto slots = multi_pokemon_move_.targetSlotsFor(target, multiPokemonTargetColumnsFor(target));
     if (!slots || slots->size() != multi_pokemon_move_.entries().size()) {
         return false;
     }
@@ -88,14 +102,31 @@ bool TransferSystemScreen::dropHeldMultiPokemonAt(const transfer_system::Pokemon
         }
     }
 
-    const auto entries = multi_pokemon_move_.entries();
+    const std::vector<transfer_system::MultiPokemonMoveController::Entry> entries = multi_pokemon_move_.entries();
+    if (target.panel == transfer_system::PokemonMoveController::Panel::Game &&
+        !allPokemonSupportedByTargetGame(entries)) {
+        return false;
+    }
     using Move = transfer_system::PokemonMoveController;
     const Move::Panel from_panel = entries.empty() ? Move::Panel::Game : entries.front().return_slot.panel;
     const Move::Panel to_panel = target.panel;
-    for (std::size_t i = 0; i < entries.size(); ++i) {
-        setPokemonAt((*slots)[i], entries[i].pokemon);
+    const bool drop_ok = withConservationGuard("dropHeldMultiPokemonAt", [&]() {
+        for (std::size_t i = 0; i < entries.size(); ++i) {
+            setPokemonAt((*slots)[i], entries[i].pokemon);
+        }
+        multi_pokemon_move_.clear();
+        return true;
+    });
+    if (!drop_ok) {
+        ui_state_.requestErrorSfx();
+        return false;
     }
     if (from_panel == Move::Panel::Game && to_panel == Move::Panel::Resort) {
+        if (resort_service_) {
+            for (std::size_t i = 0; i < entries.size(); ++i) {
+                enqueuePendingOpenHomePullIfNeededForGameToResort((*slots)[i], entries[i].return_slot);
+            }
+        }
         noteCrossPanelGameToResortMoves(static_cast<int>(entries.size()));
     } else if (from_panel == Move::Panel::Resort && to_panel == Move::Panel::Game) {
         noteCrossPanelResortToGameMoves(static_cast<int>(entries.size()));
@@ -110,7 +141,6 @@ bool TransferSystemScreen::dropHeldMultiPokemonAt(const transfer_system::Pokemon
               << " target_box=" << target.box_index
               << " target_slot=" << target.slot_index
               << " commit pending Save+Exit\n";
-    multi_pokemon_move_.clear();
     refreshResortBoxViewportModel();
     refreshGameBoxViewportModel();
     requestPutdownSfx();
@@ -134,10 +164,17 @@ bool TransferSystemScreen::cancelHeldMultiPokemonMove() {
         }
     }
     const auto entries = multi_pokemon_move_.entries();
-    for (const auto& entry : entries) {
-        setPokemonAt(entry.return_slot, entry.pokemon);
+    const bool ok = withConservationGuard("cancelHeldMultiPokemonMove", [&]() {
+        for (const auto& entry : entries) {
+            setPokemonAt(entry.return_slot, entry.pokemon);
+        }
+        multi_pokemon_move_.clear();
+        return true;
+    });
+    if (!ok) {
+        ui_state_.requestErrorSfx();
+        return false;
     }
-    multi_pokemon_move_.clear();
     refreshResortBoxViewportModel();
     refreshGameBoxViewportModel();
     requestPutdownSfx();
@@ -203,6 +240,11 @@ bool TransferSystemScreen::dropHeldMultiPokemonIntoFirstEmptyResortBox(int box_i
         setPokemonAt(targets[i], entries[i].pokemon);
     }
     if (!entries.empty() && entries.front().return_slot.panel == transfer_system::PokemonMoveController::Panel::Game) {
+        if (resort_service_) {
+            for (std::size_t i = 0; i < entries.size(); ++i) {
+                enqueuePendingOpenHomePullIfNeededForGameToResort(targets[i], entries[i].return_slot);
+            }
+        }
         noteCrossPanelGameToResortMoves(static_cast<int>(entries.size()));
     }
     std::cerr << "[TEMP_TRANSFER_LOG_DELETE] UI multi Pokemon quick-drop to Resort count=" << entries.size()
@@ -219,6 +261,10 @@ bool TransferSystemScreen::dropHeldMultiPokemonIntoFirstEmptySlotsInBox(int box_
     if (!multi_pokemon_move_.active() || !gameBoxHasEmptySlots(box_index, multi_pokemon_move_.count())) {
         return false;
     }
+    const auto entries = multi_pokemon_move_.entries();
+    if (!allPokemonSupportedByTargetGame(entries)) {
+        return false;
+    }
     std::vector<transfer_system::PokemonMoveController::SlotRef> targets;
     targets.reserve(static_cast<std::size_t>(multi_pokemon_move_.count()));
     const auto& slots = game_pc_boxes_[static_cast<std::size_t>(box_index)].slots;
@@ -233,7 +279,6 @@ bool TransferSystemScreen::dropHeldMultiPokemonIntoFirstEmptySlotsInBox(int box_
     if (static_cast<int>(targets.size()) != multi_pokemon_move_.count()) {
         return false;
     }
-    const auto entries = multi_pokemon_move_.entries();
     for (std::size_t i = 0; i < entries.size(); ++i) {
         setPokemonAt(targets[i], entries[i].pokemon);
     }
@@ -251,4 +296,3 @@ bool TransferSystemScreen::dropHeldMultiPokemonIntoFirstEmptySlotsInBox(int box_
 }
 
 } // namespace pr
-

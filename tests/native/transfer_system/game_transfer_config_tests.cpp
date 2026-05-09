@@ -53,9 +53,15 @@ void testGameTransferConfigParsesFullScreenStyleSurface() {
     "item_tool": {
       "item_size": 48,
       "grow_smoothing": 21.5,
-        "sprite_mod_color": "#8899aa",
-        "sprite_mod_alpha": 127
-    }
+      "sprite_mod_color": "#8899aa",
+      "sprite_mod_alpha": 127
+    },
+    "disabled_slot_background_enabled": false,
+    "disabled_slot_background_color": "#112233",
+    "disabled_slot_background_alpha": 45,
+    "disabled_sprite_mod_enabled": true,
+    "disabled_sprite_mod_color": "#445566",
+    "disabled_sprite_mod_alpha": 67
   },
   "mini_preview": { "enabled": true, "width": 190, "height": 150, "sprite_scale": 1.6 },
   "pokemon_action_menu": {
@@ -188,6 +194,12 @@ void testGameTransferConfigParsesFullScreenStyleSurface() {
     expect(loaded.box_viewport.item_tool_grow_smoothing == 21.5, "item tool grow smoothing should parse");
     expect(loaded.box_viewport.item_tool_sprite_mod_color.g == 0x99, "item tool sprite mod color should parse");
     expect(loaded.box_viewport.item_tool_sprite_mod_color.a == 127, "item tool sprite mod alpha should parse");
+    expect(!loaded.box_viewport.disabled_slot_background_enabled, "disabled slot background enabled should parse");
+    expect(loaded.box_viewport.disabled_slot_background_color.r == 0x11, "disabled slot background color should parse");
+    expect(loaded.box_viewport.disabled_slot_background_alpha == 45, "disabled slot background alpha should parse");
+    expect(loaded.box_viewport.disabled_sprite_mod_enabled, "disabled sprite mod enabled should parse");
+    expect(loaded.box_viewport.disabled_sprite_mod_color.b == 0x66, "disabled sprite mod color should parse");
+    expect(loaded.box_viewport.disabled_sprite_mod_alpha == 67, "disabled sprite mod alpha should parse");
     expect(loaded.mini_preview.width == 190, "mini preview width should parse");
     expect(loaded.mini_preview.height == 150, "mini preview height should parse");
     expect(loaded.mini_preview.sprite_scale == 1.6, "mini preview sprite scale should parse");
@@ -274,10 +286,23 @@ void testResortPcBoxCountParsesAndClamps() {
     expect(clamp_high.resort_pc_box_count == 512, "resort_pc_box_count above 512 should clamp to 512");
 }
 
+void testDisabledSlotStyleDefaultsStayOnAndGrey() {
+    TempProject temp;
+    writeText(temp.config_dir / "game_transfer.json", R"json({})json");
+    const pr::transfer_system::LoadedGameTransfer loaded = pr::transfer_system::loadGameTransfer(temp.root.string());
+    expect(loaded.box_viewport.disabled_slot_background_enabled, "disabled slot background should default on");
+    expect(loaded.box_viewport.disabled_slot_background_color.r == 188, "disabled slot background color should default gray");
+    expect(loaded.box_viewport.disabled_slot_background_alpha == 180, "disabled slot background alpha should default gray");
+    expect(loaded.box_viewport.disabled_sprite_mod_enabled, "disabled sprite mod should default on");
+    expect(loaded.box_viewport.disabled_sprite_mod_color.r == 142, "disabled sprite mod color should default gray");
+    expect(loaded.box_viewport.disabled_sprite_mod_alpha == 170, "disabled sprite mod alpha should default gray");
+}
+
 } // namespace
 
 int main() {
     testGameTransferConfigParsesFullScreenStyleSurface();
     testResortPcBoxCountParsesAndClamps();
+    testDisabledSlotStyleDefaultsStayOnAndGrey();
     return failures == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }

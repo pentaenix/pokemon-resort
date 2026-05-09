@@ -31,17 +31,19 @@ public:
     int count() const { return static_cast<int>(entries_.size()); }
     InputMode inputMode() const { return input_mode_; }
     SDL_Point pointer() const { return pointer_; }
+    int sourceGridColumns() const { return source_grid_columns_; }
 
-    void pickUp(std::vector<Entry> entries, InputMode input_mode, SDL_Point pointer);
+    void pickUp(std::vector<Entry> entries, InputMode input_mode, SDL_Point pointer, int source_grid_columns);
     void clear();
     void updatePointer(SDL_Point pointer, int screen_w, int screen_h);
 
-    std::optional<std::vector<SlotRef>> targetSlotsFor(const SlotRef& anchor) const;
+    std::optional<std::vector<SlotRef>> targetSlotsFor(const SlotRef& anchor, int target_columns) const;
 
 private:
     std::vector<Entry> entries_{};
     InputMode input_mode_ = InputMode::Keyboard;
     SDL_Point pointer_{0, 0};
+    int source_grid_columns_ = 6;
 };
 
 } // namespace pr::transfer_system

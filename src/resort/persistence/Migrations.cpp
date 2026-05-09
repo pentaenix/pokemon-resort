@@ -220,6 +220,38 @@ CREATE TABLE IF NOT EXISTS pid_transport_registry (
     connection.exec("CREATE INDEX IF NOT EXISTS idx_pid_transport_pkrid ON pid_transport_registry(pkrid)");
 }
 
+void migrateTo5(SqliteConnection& connection) {
+    connection.exec(R"sql(
+CREATE TABLE IF NOT EXISTS openhome_payloads (
+    openhome_id             TEXT PRIMARY KEY,
+    pkrid                   TEXT NOT NULL UNIQUE,
+    payload_format_version  TEXT NOT NULL,
+    ohpkm_bytes             BLOB NOT NULL,
+    updated_at              INTEGER NOT NULL,
+    FOREIGN KEY (pkrid) REFERENCES pokemon(pkrid) ON DELETE CASCADE
+);
+)sql");
+
+    connection.exec(R"sql(
+CREATE TABLE IF NOT EXISTS pokemon_placements (
+    pkrid                   TEXT PRIMARY KEY,
+    placement_kind          TEXT NOT NULL,
+    profile_id              TEXT,
+    game_id                 INTEGER,
+    save_path               TEXT,
+    box_index               INTEGER,
+    slot_index              INTEGER,
+    openhome_id             TEXT,
+    updated_at              INTEGER NOT NULL,
+    FOREIGN KEY (pkrid) REFERENCES pokemon(pkrid) ON DELETE CASCADE,
+    FOREIGN KEY (openhome_id) REFERENCES openhome_payloads(openhome_id) ON DELETE SET NULL
+);
+)sql");
+
+    connection.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_openhome_payloads_pkrid ON openhome_payloads(pkrid)");
+    connection.exec("CREATE INDEX IF NOT EXISTS idx_pokemon_placements_kind ON pokemon_placements(placement_kind)");
+}
+
 } // namespace
 
 void runResortMigrations(SqliteConnection& connection) {
@@ -246,6 +278,11 @@ void runResortMigrations(SqliteConnection& connection) {
     if (version < 4) {
         migrateTo4(connection);
         setVersion(connection, 4);
+        version = 4;
+    }
+    if (version < 5) {
+        migrateTo5(connection);
+        setVersion(connection, 5);
     }
     tx.commit();
 }

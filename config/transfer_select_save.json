@@ -45,6 +45,17 @@
       "scale": 0.5,
       "speed_x": -12,
       "speed_y": -12
+    },
+    "top_wave_banner": {
+      "enabled": true,
+      "animation_enabled": true,
+      "color": "#09AED0",
+      "min_height_from_top_px": 90,
+      "max_height_from_top_px": 120,
+      "amplitude_px": 5,
+      "wavelength_px": 200,
+      "speed_px_per_second": 28,
+      "segments": 160
     }
   },
   "ticket": {

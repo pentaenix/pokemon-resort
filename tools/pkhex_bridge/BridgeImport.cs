@@ -327,6 +327,7 @@ internal static class BridgeImportReader
             },
             pokerus = ReadPokerusDetail(pokemon),
             static_fields = ReadStaticFieldDetail(pokemon),
+            ribbons = ReadRibbonCatalogEntries(pokemon),
             ribbon_flags = ReadRibbonBoolProperties(pokemon),
             memory_fields = ReadIntegralPropertiesMatching(pokemon, static n =>
                 n.Contains("Memory", StringComparison.Ordinal) ||
@@ -412,11 +413,12 @@ internal static class BridgeImportReader
 
     private static object ReadPokerusDetail(PKM pokemon)
     {
-        var state = TryGetIntProperty(pokemon, "PokerusState")
+        var state = TryGetIntProperty(pokemon, "PokerusStrain")
             ?? TryGetIntProperty(pokemon, "PKRS_Strain")
+            ?? TryGetIntProperty(pokemon, "PokerusState")
             ?? 0;
-        var days = TryGetIntProperty(pokemon, "PokerusDays")
-            ?? TryGetIntProperty(pokemon, "PKRS_Days")
+        var days = TryGetIntProperty(pokemon, "PKRS_Days")
+            ?? TryGetIntProperty(pokemon, "PokerusDays")
             ?? 0;
         return new
         {
@@ -455,6 +457,51 @@ internal static class BridgeImportReader
             catch
             {
                 // Skip unreadable ribbon accessors on this entity type.
+            }
+        }
+
+        return dict;
+    }
+
+    /// <summary>
+    /// Canonical Resort ribbon map: <c>true</c> ribbon flags plus integral tier/count fields (e.g. Gen III contest levels).
+    /// </summary>
+    private static SortedDictionary<string, object> ReadRibbonCatalogEntries(PKM pokemon)
+    {
+        var dict = new SortedDictionary<string, object>();
+        foreach (var prop in pokemon.GetType().GetProperties(
+                     System.Reflection.BindingFlags.Instance |
+                     System.Reflection.BindingFlags.Public))
+        {
+            if (!prop.Name.Contains("Ribbon", StringComparison.Ordinal))
+                continue;
+
+            try
+            {
+                if (prop.PropertyType == typeof(bool))
+                {
+                    if (prop.GetValue(pokemon) is true)
+                        dict[prop.Name] = true;
+                    continue;
+                }
+
+                if (prop.PropertyType != typeof(byte) && prop.PropertyType != typeof(sbyte) &&
+                    prop.PropertyType != typeof(short) && prop.PropertyType != typeof(ushort) &&
+                    prop.PropertyType != typeof(int) && prop.PropertyType != typeof(uint))
+                    continue;
+
+                if (!prop.CanRead)
+                    continue;
+                var raw = prop.GetValue(pokemon);
+                if (raw is null)
+                    continue;
+                var n = Convert.ToInt32(raw, System.Globalization.CultureInfo.InvariantCulture);
+                if (n > 0)
+                    dict[prop.Name] = n;
+            }
+            catch
+            {
+                // Skip unreadable accessors on this entity type.
             }
         }
 

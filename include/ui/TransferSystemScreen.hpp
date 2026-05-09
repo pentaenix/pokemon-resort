@@ -5,6 +5,7 @@
 #include "core/assets/Font.hpp"
 #include "core/assets/PokeSpriteAssets.hpp"
 #include "resort/domain/ExportedPokemon.hpp"
+#include "resort/openhome/OpenHomePokemonPayload.hpp"
 #include "ui/BoxViewport.hpp"
 #include "ui/FocusManager.hpp"
 #include "ui/Screen.hpp"
@@ -82,6 +83,8 @@ public:
     bool consumeErrorSfxRequest();
     bool consumeReturnToTicketListRequest();
     bool consumeSuccessfulSaveExitRequest();
+    /// Runs Save+Exit persistence that was deferred until the quick-boat loading screen (see `activateExitSaveModalRow`).
+    bool runDeferredSaveForSuccessfulExit();
     /// Chooses `resort_transfer.message.texts` key for the post-save quick boat transition from this session's moves.
     std::string successfulSaveQuickPassMessageKey() const;
 
@@ -211,6 +214,7 @@ private:
     bool game_boxes_dirty_ = false;
     bool resort_boxes_dirty_ = false;
     bool successful_save_exit_requested_ = false;
+    bool deferred_save_for_successful_exit_pending_ = false;
     int cross_panel_game_to_resort_moves_ = 0;
     int cross_panel_resort_to_game_moves_ = 0;
     struct PendingPreparedMirrorExport {
@@ -222,10 +226,33 @@ private:
         std::optional<std::uint32_t> transport_pid;
     };
     std::vector<PendingPreparedMirrorExport> pending_prepared_mirror_exports_;
+    struct PendingOpenHomePull {
+        int source_box = -1;
+        int source_slot = -1;
+        std::string raw_hash;
+    };
+    std::vector<PendingOpenHomePull> pending_openhome_pulls_;
+    /// When Pokémon move Game → Resort, Save+Exit must enqueue one pull per mon (see `commitPendingOpenHomeMovementBeforeSave`).
+    void enqueuePendingOpenHomePullIfNeededForGameToResort(
+        const transfer_system::PokemonMoveController::SlotRef& resort_target,
+        const transfer_system::PokemonMoveController::SlotRef& game_source);
+    struct PendingOpenHomeImportPayload {
+        int resort_box = -1;
+        int resort_slot = -1;
+        int home_bank = 0;
+        int home_box = 0;
+        int home_slot = 0;
+        resort::openhome::OpenHomePokemonPayload payload;
+    };
+    std::vector<PendingOpenHomeImportPayload> pending_openhome_import_payloads_;
     void noteCrossPanelGameToResortMoves(int count);
     void noteCrossPanelResortToGameMoves(int count);
     void markGameBoxesDirty();
     void markResortBoxesDirty();
+    bool hasPendingOpenHomeMovement() const;
+    // Uses `save_path_override` for OpenHome CLI side effects so we can stage writes and only replace
+    // the user's real save file after all commits succeed.
+    bool commitPendingOpenHomeMovementBeforeSave(const std::string& save_path_override);
     bool preparePendingResortMirrorPayloadsForSave();
     bool commitPendingGameToResortImportsBeforeSave();
     bool commitPendingResortStorageChangesAfterSave();
@@ -270,6 +297,19 @@ private:
     Color carouselFrameColorForIndex(int tool_index) const;
     int carouselScreenY() const;
     int exitButtonScreenY() const;
+
+    // --- Safety: Pokemon conservation (no dup / no drop) ---
+    std::unordered_map<std::string, int> conservationCounts() const;
+    bool verifyConservation(const std::unordered_map<std::string, int>& before, const char* context) const;
+    template <typename F>
+    bool withConservationGuard(const char* context, F&& fn) {
+        const auto before = conservationCounts();
+        const bool ok = static_cast<bool>(fn());
+        if (!ok) {
+            return false;
+        }
+        return verifyConservation(before, context);
+    }
 
     struct BackgroundAnimation {
         bool enabled = false;
@@ -346,6 +386,8 @@ private:
     /// Native PKM storage format for the loaded external save (`pk4`, …), from bridge import `format_name`.
     /// Mirror slots may still show a Pokémon's source format (`pk3`); use this for prepare/export targeting.
     std::string bridge_import_storage_format_name_;
+    std::unordered_map<std::string, bool> target_game_mon_support_by_key_{};
+    bool target_game_mon_support_ready_ = false;
     int resort_pc_box_count_ = 60;
     std::vector<TransferSaveSelection::PcBox> resort_pc_boxes_{};
     resort::PokemonResortService* resort_service_{nullptr};
@@ -506,6 +548,7 @@ private:
     void refreshGameBoxViewportModel();
     std::optional<transfer_system::PokemonMoveController::SlotRef> slotRefForFocus(FocusNodeId focus_id) const;
     std::optional<transfer_system::PokemonMoveController::SlotRef> slotRefAtPointer(int logical_x, int logical_y) const;
+    int multiPokemonTargetColumnsFor(const transfer_system::PokemonMoveController::SlotRef& anchor) const;
     bool pointerOverExpandedGameDropdown(int logical_x, int logical_y) const;
     bool pointerOverExpandedResortDropdown(int logical_x, int logical_y) const;
     PcSlotSpecies* mutablePokemonAt(const transfer_system::PokemonMoveController::SlotRef& ref);
@@ -595,6 +638,7 @@ private:
     bool dropdownAcceptsNavigation() const;
     std::optional<int> focusedGameSlotIndex() const;
     std::optional<int> focusedBoxSpaceBoxIndex() const;
+    bool activateHeldBoxOnAdvance();
     bool swapGamePcBoxes(int a, int b);
     bool swapGameAndResortPcBoxes(int game_box_index, int resort_box_index);
     bool dropHeldPokemonIntoFirstEmptySlotInBox(int box_index);
@@ -603,6 +647,11 @@ private:
     bool gameBoxHasPreviewContent(int box_index) const;
     bool resortBoxHasPreviewContent(int box_index) const;
     bool boxFitsInGameSaveSlots(const TransferSaveSelection::PcBox& box) const;
+    bool boxFitsInTargetGame(const TransferSaveSelection::PcBox& box) const;
+    bool pokemonSupportedByTargetGame(const PcSlotSpecies& slot) const;
+    bool allPokemonSupportedByTargetGame(
+        const std::vector<transfer_system::MultiPokemonMoveController::Entry>& entries) const;
+    void refreshTargetGameMonSupportCache();
     int gameSaveSlotsPerBox() const;
     bool gameSaveSlotAccessible(int slot_index) const;
     bool shouldShowMiniPreviewForBox(int box_index, MiniPreviewContext context) const;

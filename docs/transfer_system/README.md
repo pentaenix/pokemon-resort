@@ -4,7 +4,13 @@ This is the working guide for the post-ticket transfer system screen. Read it be
 
 The purpose of this guide is to keep [`TransferSystemScreen.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/TransferSystemScreen.cpp) from becoming the place where every new transfer idea lands. The screen is still important, but it should mostly adapt SDL input/render state to smaller config, controller, presenter, renderer, and movement seams.
 
-For durable mirror/projection work (Resort as source of truth, lossy generation projections, mirror return matching, and mutable-field merge policy), read [`MIRROR_PROJECTION_ARCHITECTURE.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/transfer_system/MIRROR_PROJECTION_ARCHITECTURE.md) before changing bridge, backend, or transfer UI behavior.
+For transfer persistence/safety (staged Save+Exit, OpenHome movement commits, “no dup / no drop” invariants), read:
+
+- [`SAVE_EXIT_SAFETY.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/transfer_system/SAVE_EXIT_SAFETY.md)
+- [`openhome-first-mirror-retirement.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/openhome-first-mirror-retirement.md)
+- [`openhome-persistent-identity-integration.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/openhome-persistent-identity-integration.md)
+
+`MIRROR_PROJECTION_ARCHITECTURE.md` is now **legacy design history**; do not implement new behavior from it unless the repo explicitly returns to a mirror-first design.
 
 ## Non-negotiable modularity rules
 
@@ -119,6 +125,11 @@ Use this section when you have a symptom and want the fastest landing zone.
 - **Picking up / dropping a single Pokémon misbehaves (wrong source/target, cancel/return rules)**
   - Start in `src/ui/transfer_system/TransferSystemScreenPokemonMoveSingle.cpp` (screen application glue)
   - Then `src/ui/transfer_system/PokemonMoveController.cpp` (pure move state/semantics).
+- **A Resort Pokémon should be greyed out or refused because it does not exist in the loaded game**
+  - Start in `src/ui/transfer_system/TransferSystemScreenSmallQueries.cpp` (`pokemonSupportedByTargetGame`, `allPokemonSupportedByTargetGame`, `boxFitsInTargetGame`, and `refreshTargetGameMonSupportCache`).
+  - The compatibility source of truth is OpenHome save support, queried through `resortBridge supports-mons`; fallback dex ceilings are only a last-resort guard if the bridge query fails.
+  - Resort slots may be disabled/greyed for game compatibility, but they must remain pickable and placeable inside Resort. Game drops, swaps, quick-drops, multi drops, and Box Space box swaps must refuse incompatible Pokémon and keep the held Pokémon/box in hand.
+  - Item movement is intentionally not gated by Pokémon species compatibility.
 
 ### Multi-Pokémon tool (green)
 
@@ -180,6 +191,12 @@ Use this section when you have a symptom and want the fastest landing zone.
   - Start in `config/game_transfer.json` and `src/ui/transfer_system/GameTransferConfig.cpp` (parsing + defaults).
   - If it’s render-only: jump to the relevant renderer shard that uses the style.
 
+### Compatibility gray-out
+
+- **Incompatible Pokemon should still be movable inside Resort, but should visually gray out**
+  - Start in `src/ui/transfer_system/TransferSystemScreenViewportModels.cpp` for the disable flags, then `src/ui/BoxViewport.cpp` for the actual slot/sprite styling.
+  - Config lives under `box_viewport.disabled_slot_*` and `box_viewport.disabled_sprite_mod_*` in `config/game_transfer.json`.
+
 ## Where To Put A Change
 
 Use this section as the first decision point.
@@ -193,6 +210,7 @@ Use this section as the first decision point.
 | Change Pokemon action-menu geometry/rows/navigation | `PokemonActionMenuController.cpp` | `pokemon_action_menu_controller_tests`; harness for accept/pointer flow |
 | Change item modal pages/rows/navigation | `ItemActionMenuController.cpp` | add focused controller coverage if missing; harness for item player flow |
 | Change held Pokemon semantics | `PokemonMoveController.cpp`, then screen application path | focused move/controller tests where possible; `transfer_system_flow_harness_tests` for wiring |
+| Change target-game Pokémon compatibility / grey-out rules | `TransferSystemScreenSmallQueries.cpp`, `TransferSystemScreenViewportModels.cpp`, then each game-drop caller | OpenHome `supports-mons` sanity check; native build; harness for player-visible drop refusal when available |
 | Change multi-Pokemon selection or layout-preserving placement | `MultiPokemonMoveController.cpp`, then screen application path | `multi_pokemon_move_controller_tests`; `transfer_system_flow_harness_tests` for drag/drop wiring |
 | Change held item or held Box Space object semantics | `HeldMoveController.cpp`, gesture helpers, then screen application path | focused tests where possible; `transfer_system_flow_harness_tests` |
 | Change lower-banner data fields, labels, fallback text, or context behavior | `TransferInfoBannerPresenter.cpp` | `transfer_info_banner_presenter_tests`; harness for focus/hover surfacing |
@@ -201,7 +219,7 @@ Use this section as the first decision point.
 | Change box grid chrome or slot rendering model | `BoxViewport.cpp` / `BoxViewportModel` | focused widget/model tests if added; harness if visible |
 | Change save-derived Pokemon/box data | `SaveLibrary.cpp`, `TransferSelectionBuilder.cpp`, `PcSlotSpecies` | `save_library_cache_tests`, `transfer_selection_builder_tests`, bridge tests if output changes |
 | Add durable Resort storage behavior | backend services under `src/resort`, not UI arrays | backend tests first; integration plan before UI mutation |
-| Add mirror/projection, return matching, or mutable-field cross-generation merge behavior | `docs/transfer_system/MIRROR_PROJECTION_ARCHITECTURE.md`, then backend services + bridge command | bridge tests, backend tests, merge-policy tests, then harness only for UI |
+| Change OpenHome-first movement, staged Save+Exit behavior, or conservation invariants | `docs/transfer_system/SAVE_EXIT_SAFETY.md`, then `TransferSystemScreenExitSaveModal.cpp` + OpenHome bridge + persistence | focused backend/bridge tests + `transfer_system_flow_harness_tests` |
 
 ## Anti-Sprawl Checklist
 

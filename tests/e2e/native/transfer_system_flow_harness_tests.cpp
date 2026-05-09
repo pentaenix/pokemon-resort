@@ -148,9 +148,44 @@ pr::TransferSaveSelection makeSelection() {
     return selection;
 }
 
+pr::TransferSaveSelection makeGen12Selection() {
+    pr::TransferSaveSelection selection;
+    selection.game_key = "pokemon_red";
+    selection.game_title = "Pokemon Red";
+    selection.trainer_name = "Test";
+    selection.time = "0:00";
+    selection.pokedex = "0/0";
+    selection.badges = "0";
+
+    for (int i = 0; i < 2; ++i) {
+        pr::TransferSaveSelection::PcBox box;
+        box.name = "BOX " + std::to_string(i + 1);
+        box.native_slot_count = 20;
+        box.slots.resize(20);
+        selection.pc_boxes.push_back(std::move(box));
+    }
+
+    selection.pc_boxes[0].slots[17].present = true;
+    selection.pc_boxes[0].slots[17].slug = "pikachu";
+    selection.pc_boxes[0].slots[17].species_name = "Pikachu";
+    selection.pc_boxes[0].slots[17].nickname = "A";
+    selection.pc_boxes[0].slots[17].species_id = 25;
+    selection.pc_boxes[0].slots[18].present = true;
+    selection.pc_boxes[0].slots[18].slug = "bulbasaur";
+    selection.pc_boxes[0].slots[18].species_name = "Bulbasaur";
+    selection.pc_boxes[0].slots[18].nickname = "B";
+    selection.pc_boxes[0].slots[18].species_id = 1;
+    selection.pc_boxes[0].slots[19].present = true;
+    selection.pc_boxes[0].slots[19].slug = "charmander";
+    selection.pc_boxes[0].slots[19].species_name = "Charmander";
+    selection.pc_boxes[0].slots[19].nickname = "C";
+    selection.pc_boxes[0].slots[19].species_id = 4;
+    return selection;
+}
+
 class TransferSystemHarness {
 public:
-    TransferSystemHarness()
+    explicit TransferSystemHarness(pr::TransferSaveSelection selection = makeSelection())
         : repo_root_(repositoryRoot()),
           project_root_(repo_root_.string()),
           app_config_(pr::loadAppConfigFromJson((repo_root_ / "config" / "app.json").string())),
@@ -164,7 +199,7 @@ public:
               sprite_assets_,
               (repo_root_ / ".test_save").string(),
               nullptr) {
-        screen_.enter(makeSelection(), sdl_.renderer.get(), 0);
+        screen_.enter(selection, sdl_.renderer.get(), 0);
         screen_.update(1.0);
     }
 
@@ -699,6 +734,81 @@ void testMultiToolDragSelectsAndMovesPokemonAsLayout() {
            "multi drop should preserve the selected horizontal layout");
 }
 
+void testMultiToolPreservesGen12ThreeWideLayoutAtRightEdge() {
+    TransferSystemHarness harness(makeGen12Selection());
+    harness.cycleToMultiTool();
+
+    const auto source17 = harness.screen().debugGameSlotBounds(17);
+    const auto source19 = harness.screen().debugGameSlotBounds(19);
+    expect(source17.has_value() && source19.has_value(), "Gen 1/2 edge slots should expose bounds");
+
+    harness.pressPointer(source17->x + 4, source17->y + 4);
+    harness.movePointer(source19->x + source19->w - 4, source19->y + source19->h - 4);
+    harness.releasePointer(source19->x + source19->w - 4, source19->y + source19->h - 4);
+
+    expect(harness.screen().debugMultiPokemonMoveActive(),
+           "selecting three right-edge Gen 1/2 slots should pick up the multi group");
+    expect(harness.screen().debugHeldMultiPokemonCount() == 3,
+           "Gen 1/2 multi selection should keep the three-slot row together");
+
+    harness.pressPointer(source17->x + source17->w / 2, source17->y + source17->h / 2);
+    expect(!harness.screen().debugMultiPokemonMoveActive(),
+           "dropping the Gen 1/2 edge group back onto an empty 20-slot grid should succeed");
+    expect(harness.screen().debugGameSlotPokemonName(17) == "A",
+           "Gen 1/2 multi drop should anchor at the first selected slot");
+    expect(harness.screen().debugGameSlotPokemonName(18) == "B",
+           "Gen 1/2 multi drop should preserve horizontal order");
+    expect(harness.screen().debugGameSlotPokemonName(19) == "C",
+           "Gen 1/2 multi drop should keep the rightmost slot on the same row");
+}
+
+void testMultiToolCanReturnResortGroupToGen12GameBox() {
+    TransferSystemHarness harness(makeGen12Selection());
+    harness.cycleToMultiTool();
+
+    const auto source17 = harness.screen().debugGameSlotBounds(17);
+    const auto source19 = harness.screen().debugGameSlotBounds(19);
+    expect(source17.has_value() && source19.has_value(), "Gen 1/2 source slots should expose bounds");
+
+    harness.pressPointer(source17->x + 4, source17->y + 4);
+    harness.movePointer(source19->x + source19->w - 4, source19->y + source19->h - 4);
+    harness.releasePointer(source19->x + source19->w - 4, source19->y + source19->h - 4);
+
+    const auto resort0 = harness.screen().debugResortSlotBounds(0);
+    expect(resort0.has_value(), "Resort target slot should expose bounds");
+    harness.pressPointer(resort0->x + resort0->w / 2, resort0->y + resort0->h / 2);
+    expect(!harness.screen().debugMultiPokemonMoveActive(),
+           "dropping the Gen 1/2 group into Resort should clear the held multi group");
+    expect(harness.screen().debugResortSlotPokemonName(0) == "A",
+           "Resort should receive the first Pokemon at the anchor slot");
+    expect(harness.screen().debugResortSlotPokemonName(1) == "B",
+           "Resort should preserve the second Pokemon next to the anchor");
+    expect(harness.screen().debugResortSlotPokemonName(2) == "C",
+           "Resort should preserve the third Pokemon on the same row");
+
+    const auto resortSource0 = harness.screen().debugResortSlotBounds(0);
+    const auto resortSource2 = harness.screen().debugResortSlotBounds(2);
+    expect(resortSource0.has_value() && resortSource2.has_value(), "Resort source slots should expose bounds");
+    harness.pressPointer(resortSource0->x + 4, resortSource0->y + 4);
+    harness.movePointer(resortSource2->x + resortSource2->w - 4, resortSource2->y + resortSource2->h - 4);
+    harness.releasePointer(resortSource2->x + resortSource2->w - 4, resortSource2->y + resortSource2->h - 4);
+    expect(harness.screen().debugHeldMultiPokemonCount() == 3,
+           "selecting the Resort group should pick up all three Pokemon");
+
+    const auto gameTarget = harness.screen().debugGameSlotBounds(17);
+    expect(gameTarget.has_value(), "Gen 1/2 game target should expose bounds");
+    harness.pressPointer(gameTarget->x + gameTarget->w / 2, gameTarget->y + gameTarget->h / 2);
+
+    expect(!harness.screen().debugMultiPokemonMoveActive(),
+           "dropping the Resort group back into the Gen 1/2 box should succeed");
+    expect(harness.screen().debugGameSlotPokemonName(17) == "A",
+           "Gen 1/2 return drop should anchor at the requested slot");
+    expect(harness.screen().debugGameSlotPokemonName(18) == "B",
+           "Gen 1/2 return drop should preserve the middle Pokemon");
+    expect(harness.screen().debugGameSlotPokemonName(19) == "C",
+           "Gen 1/2 return drop should preserve the rightmost Pokemon");
+}
+
 void testMultiToolRejectsNonFittingPatternAndCancelRestoresSources() {
     TransferSystemHarness harness;
     harness.cycleToMultiTool();
@@ -1136,6 +1246,8 @@ int main() {
         testSwapToolPointerSwapKeepsTargetInHandAndBackReturnsIt();
         testMultiToolDragSelectsAndMovesPokemonAsLayout();
         testMultiToolRejectsNonFittingPatternAndCancelRestoresSources();
+        testMultiToolPreservesGen12ThreeWideLayoutAtRightEdge();
+        testMultiToolCanReturnResortGroupToGen12GameBox();
         testMultiToolBoxSpaceQuickDropUsesFirstEmptySlots();
         testUnicodeGameBoxNameBuildsTitleTexture();
         testMiniPreviewSpriteScaleCanExceedCellSize();

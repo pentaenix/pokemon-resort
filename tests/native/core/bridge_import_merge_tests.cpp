@@ -1,5 +1,6 @@
 #include "core/bridge/BridgeImportMerge.hpp"
 
+#include "core/domain/PcSlotSpecies.hpp"
 #include "ui/TransferSaveSelection.hpp"
 
 #include <exception>
@@ -101,6 +102,94 @@ void testMergeAttachesPayloadsByBoxSlot() {
     expect(boxes[0].slots[0].bridge_box_payload_base64.empty(), "wrong slot touched");
 }
 
+void testResolveReadsBoxSlotFromHash() {
+    const char* json = R"({
+  "bridge_import_schema": 1,
+  "success": true,
+  "pokemon": [
+    {
+      "source_game": 10,
+      "format_name": "pk6",
+      "source_location": { "area": "party", "box": 9, "slot": 1 },
+      "raw_payload_base64": "QQ==",
+      "raw_hash_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "hot": {}
+    },
+    {
+      "source_game": 10,
+      "format_name": "pk6",
+      "source_location": { "area": "box", "box": 2, "slot": 7, "global_index": 17 },
+      "raw_payload_base64": "Qg==",
+      "raw_hash_sha256": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd",
+      "hot": {}
+    }
+  ]
+})";
+    int bx = -1;
+    int si = -1;
+    std::string err;
+    expect(
+        pr::resolveBridgeImportBoxSlotForRawHash(
+            json,
+            "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd",
+            &bx,
+            &si,
+            &err),
+        err.c_str());
+    expect(bx == 2, "wrong box index");
+    expect(si == 7, "wrong slot index");
+}
+
+void testFallbackMirrorUsesHotIdentity() {
+    const char* json = R"({
+  "bridge_import_schema": 1,
+  "success": true,
+  "pokemon": [
+    {
+      "source_game": 35,
+      "format_name": "pk1",
+      "source_location": { "area": "box", "box": 0, "slot": 0 },
+      "raw_payload_base64": "QQ==",
+      "raw_hash_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "hot": {
+        "species_id": 133,
+        "nickname": "EEVEE",
+        "tid16": 9999,
+        "dv16": 43690,
+        "ot_name": "ALICE"
+      }
+    },
+    {
+      "source_game": 35,
+      "format_name": "pk1",
+      "source_location": { "area": "box", "box": 0, "slot": 3 },
+      "raw_payload_base64": "Qg==",
+      "raw_hash_sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "hot": {
+        "species_id": 25,
+        "nickname": "PIKACHU",
+        "tid16": 54321,
+        "dv16": 13107,
+        "ot_name": "BOB"
+      }
+    }
+  ]
+})";
+    pr::PcSlotSpecies mirror;
+    mirror.species_id = 25;
+    mirror.tid16 = 54321;
+    mirror.nickname = "PIKACHU";
+    mirror.dv16 = static_cast<std::uint16_t>(13107);
+    mirror.ot_name = "BOB";
+
+    int bx = -9;
+    int si = -9;
+    std::string err;
+    expect(pr::resolveBridgeImportBoxSlotFallbackMirror(json, mirror, &bx, &si, &err), err.c_str());
+    expect(bx == 0, "wrong fallback box index");
+    expect(si == 3, "wrong fallback slot index");
+}
+
 } // namespace
 
 int main() {
@@ -108,6 +197,8 @@ int main() {
         testParseReadsFirstFormatName();
         testParseReadsFirstSourceGame();
         testMergeAttachesPayloadsByBoxSlot();
+        testResolveReadsBoxSlotFromHash();
+        testFallbackMirrorUsesHotIdentity();
         std::cout << "bridge_import_merge_tests: OK\n";
         return 0;
     } catch (const TestFailure& ex) {

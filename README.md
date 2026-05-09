@@ -10,6 +10,8 @@ The current codebase is no longer just a title-screen demo. Treat this README as
 - [`tests/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/tests/README.md) is the canonical testing map.
 - [`docs/config/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/config/README.md) explains which JSON files own which UI surfaces.
 - [`docs/transfer_system/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/transfer_system/README.md) is the practical field guide for transfer-system changes.
+- **Transfer safety + movement invariants:** [`docs/transfer_system/SAVE_EXIT_SAFETY.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/transfer_system/SAVE_EXIT_SAFETY.md).
+- **OpenHome-first identity/movement:** [`docs/openhome-first-mirror-retirement.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/openhome-first-mirror-retirement.md) and [`docs/openhome-persistent-identity-integration.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/openhome-persistent-identity-integration.md).
 - [`docs/PKHEX_BRIDGE.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/PKHEX_BRIDGE.md) is the canonical PKHeX bridge contract.
 - [`docs/assets/pokesprite_subsystem.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/assets/pokesprite_subsystem.md) documents Pokemon, item, and misc icon asset resolution.
 - [`docs/backend/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/backend/README.md) documents canonical Resort storage, import, export, and backend-facing services.

@@ -18,6 +18,8 @@ struct TransferSaveSelection {
     };
     std::string source_path;
     std::string source_filename;
+    /// PKHeX bridge probe `saveType` (SaveFile CLR type name, e.g. `SAV7USUM`).
+    std::string pkhex_save_type;
     std::string game_key;
     std::string game_title;
     std::string trainer_name;

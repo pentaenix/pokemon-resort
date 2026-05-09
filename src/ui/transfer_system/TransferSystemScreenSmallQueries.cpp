@@ -1,12 +1,96 @@
 #include "ui/TransferSystemScreen.hpp"
 
+#include "resort/openhome/OpenHomeMovementBridge.hpp"
+
 #include <algorithm>
+#include <filesystem>
+#include <iostream>
+#include <set>
 
 namespace pr {
+
+namespace {
+bool isGen12GameKey(const std::string& game_key) {
+    return game_key == "pokemon_red" || game_key == "pokemon_blue" || game_key == "pokemon_yellow" ||
+           game_key == "pokemon_gold" || game_key == "pokemon_silver" || game_key == "pokemon_crystal";
+}
+
+std::string supportKey(int species_id, int form) {
+    return std::to_string(species_id) + ":" + std::to_string(std::max(0, form));
+}
+
+std::string openHomeSaveTypeIdForGameKey(const std::string& game_key) {
+    if (game_key == "pokemon_red" || game_key == "pokemon_blue" || game_key == "pokemon_yellow" ||
+        game_key == "pokemon_gn") {
+        return "G1SAV";
+    }
+    if (game_key == "pokemon_gold" || game_key == "pokemon_silver" || game_key == "pokemon_crystal" ||
+        game_key == "pokemon_gs") {
+        return "G2SAV";
+    }
+    if (game_key == "pokemon_ruby" || game_key == "pokemon_sapphire" || game_key == "pokemon_emerald" ||
+        game_key == "pokemon_firered" || game_key == "pokemon_leafgreen") {
+        return "G3SAV";
+    }
+    if (game_key == "pokemon_diamond" || game_key == "pokemon_pearl") return "DPSAV";
+    if (game_key == "pokemon_platinum") return "PtSAV";
+    if (game_key == "pokemon_heartgold" || game_key == "pokemon_soulsilver" || game_key == "pokemon_hgss") {
+        return "HGSSSAV";
+    }
+    if (game_key == "pokemon_black" || game_key == "pokemon_white") return "BWSAV";
+    if (game_key == "pokemon_black_2" || game_key == "pokemon_white_2") return "BW2SAV";
+    if (game_key == "pokemon_x" || game_key == "pokemon_y") return "XYSAV";
+    if (game_key == "pokemon_omega_ruby" || game_key == "pokemon_alpha_sapphire") return "ORASSAV";
+    if (game_key == "pokemon_sun" || game_key == "pokemon_moon" ||
+        game_key == "pokemon_ultra_sun" || game_key == "pokemon_ultra_moon") {
+        return "SM/USUM";
+    }
+    if (game_key == "pokemon_lets_go_pikachu" || game_key == "pokemon_lets_go_eevee") return "LGPESAV";
+    if (game_key == "pokemon_sword" || game_key == "pokemon_shield" || game_key == "pokemon_swsh") return "SwShSAV";
+    if (game_key == "pokemon_brilliant_diamond" || game_key == "pokemon_shining_pearl") return "BDSPSAV";
+    if (game_key == "pokemon_legends_arceus") return "LASAV";
+    if (game_key == "pokemon_scarlet" || game_key == "pokemon_violet" || game_key == "pokemon_sv") return "SVSAV";
+    return {};
+}
+
+bool fallbackSpeciesSupportedByGameKey(const std::string& game_key, int species_id) {
+    if (species_id <= 0) return true;
+    if (game_key == "pokemon_red" || game_key == "pokemon_blue" || game_key == "pokemon_yellow" ||
+        game_key == "pokemon_gn") {
+        return species_id <= 151;
+    }
+    if (game_key == "pokemon_gold" || game_key == "pokemon_silver" || game_key == "pokemon_crystal" ||
+        game_key == "pokemon_gs") {
+        return species_id <= 251;
+    }
+    if (game_key == "pokemon_ruby" || game_key == "pokemon_sapphire" || game_key == "pokemon_emerald" ||
+        game_key == "pokemon_firered" || game_key == "pokemon_leafgreen") {
+        return species_id <= 386;
+    }
+    if (game_key == "pokemon_diamond" || game_key == "pokemon_pearl" || game_key == "pokemon_platinum" ||
+        game_key == "pokemon_heartgold" || game_key == "pokemon_soulsilver" || game_key == "pokemon_hgss") {
+        return species_id <= 493;
+    }
+    if (game_key == "pokemon_black" || game_key == "pokemon_white" ||
+        game_key == "pokemon_black_2" || game_key == "pokemon_white_2") {
+        return species_id <= 649;
+    }
+    if (game_key == "pokemon_x" || game_key == "pokemon_y" ||
+        game_key == "pokemon_omega_ruby" || game_key == "pokemon_alpha_sapphire") {
+        return species_id <= 721;
+    }
+    if (game_key == "pokemon_sun" || game_key == "pokemon_moon") return species_id <= 802;
+    if (game_key == "pokemon_ultra_sun" || game_key == "pokemon_ultra_moon") return species_id <= 807;
+    return true;
+}
+} // namespace
 
 bool TransferSystemScreen::dropHeldPokemonIntoFirstEmptySlotInBox(int box_index) {
     using Move = transfer_system::PokemonMoveController;
     if (!pokemon_move_.active()) {
+        return false;
+    }
+    if (const auto* held = pokemon_move_.held(); held && !pokemonSupportedByTargetGame(held->pokemon)) {
         return false;
     }
     if (box_index < 0 || box_index >= static_cast<int>(game_pc_boxes_.size())) {
@@ -91,6 +175,78 @@ bool TransferSystemScreen::boxFitsInGameSaveSlots(const TransferSaveSelection::P
     return true;
 }
 
+bool TransferSystemScreen::boxFitsInTargetGame(const TransferSaveSelection::PcBox& box) const {
+    return std::all_of(box.slots.begin(), box.slots.end(), [this](const PcSlotSpecies& slot) {
+        return !slot.occupied() || pokemonSupportedByTargetGame(slot);
+    });
+}
+
+bool TransferSystemScreen::pokemonSupportedByTargetGame(const PcSlotSpecies& slot) const {
+    if (!slot.occupied() || slot.species_id <= 0) {
+        return true;
+    }
+    if (target_game_mon_support_ready_) {
+        const auto it = target_game_mon_support_by_key_.find(supportKey(slot.species_id, slot.form));
+        if (it != target_game_mon_support_by_key_.end()) {
+            return it->second;
+        }
+    }
+    return fallbackSpeciesSupportedByGameKey(transfer_selection_.game_key, slot.species_id);
+}
+
+bool TransferSystemScreen::allPokemonSupportedByTargetGame(
+    const std::vector<transfer_system::MultiPokemonMoveController::Entry>& entries) const {
+    return std::all_of(entries.begin(), entries.end(), [this](const auto& entry) {
+        return pokemonSupportedByTargetGame(entry.pokemon);
+    });
+}
+
+void TransferSystemScreen::refreshTargetGameMonSupportCache() {
+    target_game_mon_support_by_key_.clear();
+    target_game_mon_support_ready_ = false;
+    if (transfer_selection_.source_path.empty()) {
+        return;
+    }
+
+    std::set<std::pair<int, int>> unique;
+    auto collect = [&](const std::vector<TransferSaveSelection::PcBox>& boxes) {
+        for (const auto& box : boxes) {
+            for (const PcSlotSpecies& slot : box.slots) {
+                if (slot.occupied() && slot.species_id > 0) {
+                    unique.emplace(slot.species_id, std::max(0, slot.form));
+                }
+            }
+        }
+    };
+    collect(game_pc_boxes_);
+    collect(resort_pc_boxes_);
+    if (unique.empty()) {
+        target_game_mon_support_ready_ = true;
+        return;
+    }
+
+    std::vector<resort::openhome::OpenHomePokemonSupportQuery> queries;
+    queries.reserve(unique.size());
+    for (const auto& [species_id, form] : unique) {
+        queries.push_back(resort::openhome::OpenHomePokemonSupportQuery{species_id, form});
+    }
+
+    resort::openhome::OpenHomeCliMovementBridge bridge(
+        std::filesystem::path(project_root_),
+        std::filesystem::path(save_directory_) / "resort-openhome-storage");
+    resort::openhome::OpenHomeSaveSlot save_slot;
+    save_slot.save_path = transfer_selection_.source_path;
+    save_slot.save_type = openHomeSaveTypeIdForGameKey(transfer_selection_.game_key);
+    const auto result = bridge.queryPokemonSupport(save_slot, queries);
+    if (!result.success) {
+        std::cerr << "Warning: could not query OpenHome target-game Pokemon support: "
+                  << (result.error ? result.error->message : std::string("unknown error")) << '\n';
+        return;
+    }
+    target_game_mon_support_by_key_ = result.supported_by_key;
+    target_game_mon_support_ready_ = true;
+}
+
 bool TransferSystemScreen::gameSlotHasHeldItem(int slot_index) const {
     if (!gameSaveSlotAccessible(slot_index)) {
         return false;
@@ -106,6 +262,9 @@ bool TransferSystemScreen::gameSlotHasHeldItem(int slot_index) const {
 }
 
 int TransferSystemScreen::gameSaveSlotsPerBox() const {
+    if (isGen12GameKey(transfer_selection_.game_key)) {
+        return 20;
+    }
     if (!transfer_selection_.pc_boxes.empty()) {
         for (const auto& box : transfer_selection_.pc_boxes) {
             if (box.native_slot_count > 0) {
@@ -228,6 +387,14 @@ std::optional<transfer_system::PokemonMoveController::SlotRef> TransferSystemScr
     return slotRefForFocus(focus_.current());
 }
 
+int TransferSystemScreen::multiPokemonTargetColumnsFor(
+    const transfer_system::PokemonMoveController::SlotRef& anchor) const {
+    if (anchor.panel == transfer_system::PokemonMoveController::Panel::Game) {
+        return gameSaveSlotsPerBox() <= 20 ? 5 : 6;
+    }
+    return 6;
+}
+
 void TransferSystemScreen::refreshHeldMoveSpriteTexture() {
     if (!pokemon_move_.active() || !sprite_assets_ || !renderer_) {
         held_move_sprite_tex_ = {};
@@ -239,4 +406,3 @@ void TransferSystemScreen::refreshHeldMoveSpriteTexture() {
 }
 
 } // namespace pr
-

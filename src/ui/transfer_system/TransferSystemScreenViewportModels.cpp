@@ -107,6 +107,9 @@ BoxViewportModel TransferSystemScreen::resortBoxViewportModelAt(int box_index) c
             incoming.slot_sprites[i] = std::nullopt;
             continue;
         }
+        if (!pokemonSupportedByTargetGame(pc)) {
+            incoming.disabled_slots[i] = true;
+        }
         TextureHandle texture = sprite_assets_->loadPokemonTexture(renderer_, pc);
         incoming.slot_sprites[i] = texture.texture ? std::optional<TextureHandle>(std::move(texture)) : std::nullopt;
         if (pc.held_item_id > 0) {
@@ -174,4 +177,3 @@ BoxViewportModel TransferSystemScreen::resortBoxSpaceViewportModelAt(int row_off
 }
 
 } // namespace pr
-

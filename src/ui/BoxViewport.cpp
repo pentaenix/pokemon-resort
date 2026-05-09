@@ -752,7 +752,10 @@ void BoxViewport::renderBelowNamePlate(SDL_Renderer* renderer) const {
                 const int sy = grid.y + row * (kSlotH + kSlotGapY);
                 Color slot_bg = style_.slot_background_color.a == 0 ? kSlotBg : style_.slot_background_color;
                 if (idx < m.disabled_slots.size() && m.disabled_slots[idx]) {
-                    slot_bg = Color{188, 188, 188, 180};
+                    if (style_.disabled_slot_background_enabled) {
+                        slot_bg = style_.disabled_slot_background_color;
+                        slot_bg.a = static_cast<Uint8>(std::clamp(style_.disabled_slot_background_alpha, 0, 255));
+                    }
                 }
                 fillRoundedRectScanlines(renderer, sx, sy, kSlotW, kSlotH, kSlotCornerRadius, slot_bg);
         }
@@ -781,7 +784,12 @@ void BoxViewport::renderBelowNamePlate(SDL_Renderer* renderer) const {
                     const auto& slot = m.slot_sprites[idx];
                     if (slot.has_value() && slot->texture) {
                         Color sprite_mod{255, 255, 255, 255};
-                        if (grey_pokemon) {
+                        if (idx < m.disabled_slots.size() && m.disabled_slots[idx]) {
+                            if (style_.disabled_sprite_mod_enabled) {
+                                sprite_mod = style_.disabled_sprite_mod_color;
+                                sprite_mod.a = static_cast<Uint8>(std::clamp(style_.disabled_sprite_mod_alpha, 0, 255));
+                            }
+                        } else if (grey_pokemon) {
                             sprite_mod = style_.item_tool_sprite_mod_color;
                         } else if (dim_for_focus &&
                                    (!focus_dimming_slot_.has_value() ||

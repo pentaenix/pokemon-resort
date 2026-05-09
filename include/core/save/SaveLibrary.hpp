@@ -20,6 +20,8 @@ enum class SaveProbeStatus {
 struct TransferSaveSummary {
     /// Present in full bridge JSON (`bridge_probe_schema`). 0 = missing/legacy stub binary.
     int bridge_probe_schema = 0;
+    /// PKHeX `saveType` (`SaveFile`-derived CLR type name) when present on the probe JSON.
+    std::string pkhex_save_type;
     std::string game_id;
     std::string player_name;
     std::vector<std::string> party;

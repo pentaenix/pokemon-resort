@@ -27,6 +27,11 @@ namespace pr::resort {
 /// - Nickname and `is_nicknamed` are immutable on cross-generation mirror return. Same-origin/source-game
 ///   returns may update them only when the incoming format has an explicit nickname flag, or when an
 ///   older-format read is inferred to contain a custom nickname.
+/// - Ribbons in `resort_catalog.ribbons` / `ribbon_flags` are **gain-only** on mirror return: boolean
+///   achievements OR-merge; contest tier / count fields use the maximum. An absent or false value in the
+///   incoming cart import must not remove a ribbon Resort already recorded.
+/// - Pokerus in `resort_catalog.pokerus` is preserved when the incoming cart import is absent or zeroed;
+///   non-zero infection/cure evidence may merge forward, with day counts monotonic.
 ///
 /// **Generation notes**
 /// - Modern gens: IV/EV/nature live primarily in cold/raw blobs; bottle caps / mints imply those bytes

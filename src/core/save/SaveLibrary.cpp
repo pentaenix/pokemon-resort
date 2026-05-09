@@ -856,6 +856,7 @@ std::optional<TransferSaveSummary> parseTransferSummary(const std::string& json_
 
         TransferSaveSummary summary;
         summary.bridge_probe_schema = asIntOrZero(child(root, "bridge_probe_schema"));
+        summary.pkhex_save_type = asStringOrEmpty(child(root, "saveType"));
         summary.game_id = asStringOrEmpty(child(root, "game_id"));
         summary.player_name = asStringOrEmpty(child(root, "player_name"));
         summary.party = parseStringArray(child(root, "party"));
@@ -1010,6 +1011,7 @@ std::string serializeTransferSummary(const TransferSaveSummary& summary, int ind
     std::ostringstream out;
     out << "{\n"
         << child_padding << "\"bridge_probe_schema\": " << summary.bridge_probe_schema << ",\n"
+        << child_padding << "\"saveType\": \"" << escapeJson(summary.pkhex_save_type) << "\",\n"
         << child_padding << "\"game_id\": \"" << escapeJson(summary.game_id) << "\",\n"
         << child_padding << "\"player_name\": \"" << escapeJson(summary.player_name) << "\",\n"
         << child_padding << "\"party\": [";
@@ -1047,6 +1049,7 @@ std::optional<TransferSaveSummary> parseTransferSummaryFromObject(const JsonValu
 
     TransferSaveSummary summary;
     summary.bridge_probe_schema = asIntOrZero(child(object, "bridge_probe_schema"));
+    summary.pkhex_save_type = asStringOrEmpty(child(object, "saveType"));
     summary.game_id = asStringOrEmpty(child(object, "game_id"));
     summary.player_name = asStringOrEmpty(child(object, "player_name"));
     summary.party = parseStringArray(child(object, "party"));

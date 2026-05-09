@@ -74,8 +74,19 @@ bool TransferSystemScreen::beginPokemonMoveFromSlot(
     if (!slot || !slot->occupied()) {
         return false;
     }
-    pokemon_move_.pickUp(*slot, ref, input_mode, source, pointer);
-    clearPokemonAt(ref);
+    PcSlotSpecies grabbed = *slot;
+    const bool ok = withConservationGuard("beginPokemonMoveFromSlot", [&]() {
+        pokemon_move_.pickUp(grabbed, ref, input_mode, source, pointer);
+        clearPokemonAt(ref);
+        return true;
+    });
+    if (!ok) {
+        pokemon_move_.clear();
+        refreshResortBoxViewportModel();
+        refreshGameBoxViewportModel();
+        ui_state_.requestErrorSfx();
+        return false;
+    }
     refreshHeldMoveSpriteTexture();
     refreshResortBoxViewportModel();
     refreshGameBoxViewportModel();
@@ -98,6 +109,9 @@ bool TransferSystemScreen::dropHeldPokemonAt(const transfer_system::PokemonMoveC
     const bool target_occupied = target_slot->occupied();
     PcSlotSpecies held_pokemon = held->pokemon;
     const Move::SlotRef return_slot = held->return_slot;
+    if (target.panel == Move::Panel::Game && !pokemonSupportedByTargetGame(held_pokemon)) {
+        return false;
+    }
     const std::string held_pkrid_snapshot = held_pokemon.resort_pkrid;
     const std::string target_pkrid_before = target_occupied ? target_slot->resort_pkrid : "";
     const bool swap_into_hand =
@@ -105,45 +119,50 @@ bool TransferSystemScreen::dropHeldPokemonAt(const transfer_system::PokemonMoveC
             ? pokemon_action_menu_style_.swap_tool_swaps_into_hand
             : pokemon_action_menu_style_.modal_move_swaps_into_hand;
 
-    if (!target_occupied) {
-        setPokemonAt(target, std::move(held_pokemon));
-        pokemon_move_.clear();
-        held_move_sprite_tex_ = {};
-        requestPutdownSfx();
-    } else if (swap_into_hand) {
-        PcSlotSpecies target_pokemon = *target_slot;
-        setPokemonAt(target, std::move(held_pokemon));
-        pokemon_move_.swapHeldWith(target_pokemon, return_slot);
-        requestPickupSfx();
-    } else {
-        if (target != return_slot) {
-            const PcSlotSpecies* return_pokemon = pokemonAt(return_slot);
-            if (return_pokemon && return_pokemon->occupied()) {
-                // Keep both Pokemon safe: if the configured return slot is unexpectedly occupied,
-                // fall back to hand-swap semantics rather than overwriting anything.
-                PcSlotSpecies target_pokemon = *target_slot;
-                setPokemonAt(target, std::move(held_pokemon));
-                pokemon_move_.swapHeldWith(target_pokemon, return_slot);
-                requestPickupSfx();
-                refreshResortBoxViewportModel();
-                refreshGameBoxViewportModel();
-                refreshHeldMoveSpriteTexture();
-                if (!game_box_browser_.gameBoxSpaceMode()) {
-                    if (target.panel == Move::Panel::Game) {
-                        focus_.setCurrent(2000 + target.slot_index);
-                    } else {
-                        focus_.setCurrent(1000 + target.slot_index);
+    const bool drop_ok = withConservationGuard("dropHeldPokemonAt", [&]() {
+        if (!target_occupied) {
+            setPokemonAt(target, std::move(held_pokemon));
+            pokemon_move_.clear();
+            held_move_sprite_tex_ = {};
+            requestPutdownSfx();
+        } else if (swap_into_hand) {
+            PcSlotSpecies target_pokemon = *target_slot;
+            setPokemonAt(target, std::move(held_pokemon));
+            pokemon_move_.swapHeldWith(target_pokemon, return_slot);
+            requestPickupSfx();
+        } else {
+            if (target != return_slot) {
+                const PcSlotSpecies* return_pokemon = pokemonAt(return_slot);
+                if (return_pokemon && return_pokemon->occupied()) {
+                    PcSlotSpecies target_pokemon = *target_slot;
+                    setPokemonAt(target, std::move(held_pokemon));
+                    pokemon_move_.swapHeldWith(target_pokemon, return_slot);
+                    requestPickupSfx();
+                    refreshResortBoxViewportModel();
+                    refreshGameBoxViewportModel();
+                    refreshHeldMoveSpriteTexture();
+                    if (!game_box_browser_.gameBoxSpaceMode()) {
+                        if (target.panel == Move::Panel::Game) {
+                            focus_.setCurrent(2000 + target.slot_index);
+                        } else {
+                            focus_.setCurrent(1000 + target.slot_index);
+                        }
+                        selection_cursor_hidden_after_mouse_ = false;
                     }
-                    selection_cursor_hidden_after_mouse_ = false;
+                    return true;
                 }
-                return true;
+                setPokemonAt(return_slot, *target_slot);
             }
-            setPokemonAt(return_slot, *target_slot);
+            setPokemonAt(target, std::move(held_pokemon));
+            pokemon_move_.clear();
+            held_move_sprite_tex_ = {};
+            requestPutdownSfx();
         }
-        setPokemonAt(target, std::move(held_pokemon));
-        pokemon_move_.clear();
-        held_move_sprite_tex_ = {};
-        requestPutdownSfx();
+        return true;
+    });
+    if (!drop_ok) {
+        ui_state_.requestErrorSfx();
+        return false;
     }
 
     const bool persist_ok = persistResortPokemonDropToStorage(
@@ -210,9 +229,16 @@ bool TransferSystemScreen::cancelHeldPokemonMove() {
     if (occupant && occupant->occupied()) {
         return false;
     }
-    setPokemonAt(return_slot, held->pokemon);
-    pokemon_move_.clear();
-    held_move_sprite_tex_ = {};
+    const bool ok = withConservationGuard("cancelHeldPokemonMove", [&]() {
+        setPokemonAt(return_slot, held->pokemon);
+        pokemon_move_.clear();
+        held_move_sprite_tex_ = {};
+        return true;
+    });
+    if (!ok) {
+        ui_state_.requestErrorSfx();
+        return false;
+    }
     refreshResortBoxViewportModel();
     refreshGameBoxViewportModel();
     requestPutdownSfx();
@@ -220,4 +246,3 @@ bool TransferSystemScreen::cancelHeldPokemonMove() {
 }
 
 } // namespace pr
-

@@ -72,6 +72,7 @@ internal static class BridgeProjectPastProjection
 
     private static void SetTrainerName(PKM source, PKM projected, string otName)
     {
+        otName = NormalizeTrainerName(projected, otName);
         if (projected.Format == 3)
         {
             try
@@ -104,6 +105,15 @@ internal static class BridgeProjectPastProjection
         }
 
         projected.OriginalTrainerName = otName;
+    }
+
+    private static string NormalizeTrainerName(PKM pk, string otName)
+    {
+        var maxLength = pk.MaxStringLengthTrainer;
+        if (maxLength <= 0 || otName.Length <= maxLength)
+            return otName;
+
+        return otName[..maxLength];
     }
 
     /// <summary>
@@ -170,6 +180,42 @@ internal static class BridgeProjectPastProjection
 
     private static void CopyNickname(PKM source, PKM projected)
     {
+        // Gen I–II: PKHeX treats "unset" nickname as precise Game Boy default spelling (typically ALL CAPS).
+        // Modern formats often keep `IsNicknamed=true` together with canonical species capitalization ("Poliwhirl");
+        // blindly copying looks like an illegal nickname in Red/Blue or Gold/Silver byte-for-byte comparisons.
+        if (projected.Format <= 2 && !string.IsNullOrWhiteSpace(source.Nickname))
+        {
+            var speciesName = GetSpeciesName(projected.Species);
+            if (!string.IsNullOrWhiteSpace(speciesName) &&
+                string.Equals(
+                    source.Nickname.Trim(),
+                    speciesName.Trim(),
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    projected.SetDefaultNickname();
+                    projected.IsNicknamed = false;
+                    return;
+                }
+                catch
+                {
+                    try
+                    {
+                        CommonEdits.ClearNickname(projected);
+                        TrySetBoolProperty(projected, "IsNicknamed", false);
+                        return;
+                    }
+                    catch
+                    {
+                        projected.Nickname = speciesName;
+                        projected.IsNicknamed = false;
+                        return;
+                    }
+                }
+            }
+        }
+
         if (source.IsNicknamed && !string.IsNullOrWhiteSpace(source.Nickname))
         {
             projected.Nickname = source.Nickname;

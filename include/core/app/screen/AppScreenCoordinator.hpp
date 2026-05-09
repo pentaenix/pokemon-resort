@@ -6,6 +6,7 @@
 #include "core/app/loading/AppLoadingCoordinator.hpp"
 #include "core/app/transition/AppTransitionController.hpp"
 
+#include <future>
 #include <optional>
 
 namespace pr {
@@ -61,6 +62,12 @@ private:
     AppTransitionController transition_controller_;
     ActiveScreen active_screen_ = ActiveScreen::Title;
     LoadingReturnTarget loading_return_target_ = LoadingReturnTarget::ResortTitle;
+    /// First `updateLoading` after `beginSuccessfulSaveLoadingScreen` runs deferred Save+Exit IO and unblocks the boat.
+    bool pending_successful_save_quick_pass_work_ = false;
+    int successful_save_deferred_io_frames_remaining_ = 0;
+    bool deferred_successful_save_exit_failed_ = false;
+    /// `runDeferredSaveForSuccessfulExit` on a worker; main thread polls so the boat keeps animating.
+    std::optional<std::future<bool>> successful_save_async_io_;
 };
 
 } // namespace pr

@@ -12,8 +12,15 @@ find_package(SQLite3)
 
 set(RESORT_STORAGE_SOURCES
     src/core/crypto/Sha256.cpp
+    src/resort/domain/ResortRibbonCatalogMerge.cpp
+    src/resort/domain/ResortPokemonRecord.cpp
     src/resort/domain/Ids.cpp
     src/resort/domain/PokemonMergeFieldPolicy.cpp
+    src/resort/openhome/OpenHomePokemonPayload.cpp
+    src/resort/openhome/OpenHomeMovementBridge.cpp
+    src/resort/openhome/OpenHomeStorageBridge.cpp
+    src/resort/transfer/LegacyPkhexTransferCore.cpp
+    src/resort/transfer/OpenHomeTransferCore.cpp
     src/resort/diagnostics/ResortTransferLog.cpp
     src/resort/persistence/SqliteConnection.cpp
     src/resort/persistence/Migrations.cpp
@@ -22,6 +29,7 @@ set(RESORT_STORAGE_SOURCES
     src/resort/persistence/SnapshotRepository.cpp
     src/resort/persistence/HistoryRepository.cpp
     src/resort/persistence/MirrorSessionRepository.cpp
+    src/resort/persistence/OpenHomeLinkRepository.cpp
     src/resort/persistence/PidTransportRegistryRepository.cpp
     src/resort/services/BoxViewService.cpp
     src/resort/services/MirrorSessionService.cpp
@@ -80,6 +88,7 @@ add_executable(title_screen_demo
     src/ui/transfer_flow/TransferFlowController.cpp
     src/ui/transfer_flow/TransferSelectionBuilder.cpp
     src/ui/transfer_ticket/TransferTicketListController.cpp
+    src/ui/transfer_ticket/TransferTicketWaveBanner.cpp
     src/ui/title_screen/TitleScreenRender.cpp
     src/ui/TransferTicketScreen.cpp
     src/ui/TransferSystemScreen.cpp
@@ -98,6 +107,7 @@ add_executable(title_screen_demo
     src/ui/transfer_system/TransferSystemScreenPokemonMoveSingle.cpp
     src/ui/transfer_system/TransferSystemScreenPokemonMoveMulti.cpp
     src/ui/transfer_system/TransferSystemScreenPointerHitTest.cpp
+    src/ui/transfer_system/TransferSystemScreenAdvanceHeldBox.cpp
     src/ui/transfer_system/TransferSystemScreenAdvancePressed.cpp
     src/ui/transfer_system/TransferSystemScreenBackPressed.cpp
     src/ui/transfer_system/TransferSystemScreenUnroutedEvents.cpp
@@ -175,10 +185,21 @@ else()
 endif()
 add_test(NAME resort_storage_tests COMMAND resort_storage_tests)
 
+add_executable(openhome_bridge_tests
+    tests/native/resort/openhome_bridge_tests.cpp
+    src/core/config/Json.cpp
+    src/resort/openhome/OpenHomePokemonPayload.cpp
+    src/resort/openhome/OpenHomeMovementBridge.cpp
+    src/resort/openhome/OpenHomeStorageBridge.cpp
+)
+target_include_directories(openhome_bridge_tests PRIVATE include)
+add_test(NAME openhome_bridge_tests COMMAND openhome_bridge_tests)
+
 add_executable(mutable_merge_policy_tests
     tests/native/resort/mutable_merge_policy_tests.cpp
     src/resort/services/MirrorReturnAnalysis.cpp
     src/resort/services/PokemonMergeService.cpp
+    src/resort/domain/ResortRibbonCatalogMerge.cpp
     src/resort/domain/PokemonMergeFieldPolicy.cpp
     src/resort/integration/Gen12DvBytes.cpp
     src/core/config/Json.cpp
@@ -448,6 +469,7 @@ add_executable(transfer_system_flow_harness_tests
     src/ui/transfer_system/TransferSystemScreenPokemonMoveSingle.cpp
     src/ui/transfer_system/TransferSystemScreenPokemonMoveMulti.cpp
     src/ui/transfer_system/TransferSystemScreenPointerHitTest.cpp
+    src/ui/transfer_system/TransferSystemScreenAdvanceHeldBox.cpp
     src/ui/transfer_system/TransferSystemScreenAdvancePressed.cpp
     src/ui/transfer_system/TransferSystemScreenBackPressed.cpp
     src/ui/transfer_system/TransferSystemScreenUnroutedEvents.cpp
@@ -514,6 +536,7 @@ add_executable(transfer_ticket_unicode_harness_tests
     src/core/assets/PokeSpriteAssets.cpp
     src/ui/TransferTicketScreen.cpp
     src/ui/transfer_ticket/TransferTicketListController.cpp
+    src/ui/transfer_ticket/TransferTicketWaveBanner.cpp
 )
 target_compile_definitions(transfer_ticket_unicode_harness_tests PRIVATE PR_ENABLE_TEST_HOOKS)
 target_include_directories(transfer_ticket_unicode_harness_tests PRIVATE include)

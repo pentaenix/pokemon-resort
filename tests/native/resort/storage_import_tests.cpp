@@ -1,7 +1,10 @@
 #include "core/crypto/Sha256.hpp"
 #include "resort/domain/Ids.hpp"
 #include "resort/domain/PkmFormat.hpp"
+#include "resort/domain/ResortPokemonRecord.hpp"
 #include "resort/integration/BridgeImportAdapter.hpp"
+#include "resort/openhome/OpenHomeStorageBridge.hpp"
+#include "resort/openhome/OpenHomeMovementBridge.hpp"
 #include "resort/integration/Gen12DvBytes.hpp"
 #include "resort/persistence/BoxRepository.hpp"
 #include "resort/persistence/Migrations.hpp"
@@ -13,6 +16,7 @@
 #include "resort/services/PokemonResortService.hpp"
 
 #include <filesystem>
+#include <algorithm>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -1518,11 +1522,218 @@ void testBackendBridgeImportFromRealSave() {
     expect(views.size() == 1, "bridge-imported Pokemon should be placed in box 0");
 }
 
+void testOpenHomePayloadCoexistsWithResortMetadata() {
+    pr::resort::ResortPokemonRecord record;
+    record.openhome_id = "0025-04d2162e-78563412-03";
+    record.legacy_canonical.id.pkrid = record.openhome_id;
+    record.openhome_payload.openhome_format_version = "OHPKM";
+    record.openhome_payload.openhome_id = record.openhome_id;
+    record.openhome_payload.serialized_identity_or_ohpkm = {0x4f, 0x48, 0x50, 0x4b, 0x4d};
+    record.memories_json = "{\"first_resort_memory\":\"arrived\"}";
+    record.visited_games.push_back("emerald");
+    record.relationships_json = "{\"buddy\":\"azurill\"}";
+
+    expect(record.hasOpenHomePayload(), "record should retain opaque OpenHome OHPKM bytes");
+    expect(record.openhome_payload.hasIdentityKey(), "record should expose OpenHome identity key");
+    expect(record.visibleInNormalBoxes(), "available record should be visible in normal boxes");
+    expect(record.memories_json.find("arrived") != std::string::npos, "Resort memories should stay outside OpenHome payload");
+}
+
+void testPresenceStateHidesAwayPokemonButKeepsInternalLookup() {
+    pr::resort::ResortPokemonRecord record;
+    record.openhome_id = "0001-00010002-00000003-03";
+    record.legacy_canonical.id.pkrid = record.openhome_id;
+    record.openhome_payload.openhome_id = record.openhome_id;
+    record.openhome_payload.serialized_identity_or_ohpkm = {1, 2, 3};
+    record.presence = pr::resort::PokemonPresenceState::AwayInGame;
+    record.away_location.game_id = "emerald";
+    record.away_location.save_id = "emerald-main";
+    record.away_location.generation = "3";
+    record.away_location.export_session_id = "mirror_session_1";
+
+    expect(!record.visibleInNormalBoxes(), "away Pokemon should be excluded from normal box display");
+    expect(record.hasOpenHomePayload(), "away Pokemon should keep canonical OpenHome payload");
+    expect(record.openhome_id == "0001-00010002-00000003-03",
+           "away Pokemon should remain internally addressable by OpenHome ID");
+
+    record.presence = pr::resort::PokemonPresenceState::AvailableInResort;
+    expect(record.visibleInNormalBoxes(), "returned Pokemon should become visible again");
+    expect(record.openhome_id == "0001-00010002-00000003-03",
+           "return should not create a duplicate OpenHome ID");
+    expect(record.memories_json == "{}", "Resort metadata should survive presence transitions");
+}
+
+void testOpenHomeStorageBridgeWritesOhpkmStoreAndBanksByOpenHomeId() {
+    const fs::path root = fs::temp_directory_path() / "pokemon_resort_openhome_bridge";
+    fs::remove_all(root);
+    pr::resort::openhome::OpenHomeStorageBridge bridge(root);
+
+    pr::resort::openhome::OpenHomePokemonPayload payload;
+    payload.openhome_id = "0025-04d2162e-78563412-03";
+    payload.openhome_format_version = "OHPKM";
+    payload.serialized_identity_or_ohpkm = {0x4f, 0x48, 0x50, 0x4b, 0x4d};
+
+    bridge.upsertOhpkm(payload);
+    bridge.placeInHomeBox(payload.openhome_id, 0, 0, 7);
+
+    const auto stored = bridge.loadOhpkmStore();
+    expect(stored.size() == 1, "OpenHome bridge should load one OHPKM payload");
+    expect(stored[0].openhome_id == payload.openhome_id, "OHPKM store should be keyed by OpenHome ID");
+    expect(stored[0].payload.serialized_identity_or_ohpkm == payload.serialized_identity_or_ohpkm,
+           "OHPKM bytes should round trip through bridge storage");
+
+    const auto banks = bridge.loadHomeBanks();
+    expect(!banks.banks.empty() && !banks.banks[0].boxes.empty(), "OpenHome banks should exist");
+    const auto slot = banks.banks[0].boxes[0].identifiers_by_slot.find(7);
+    expect(slot != banks.banks[0].boxes[0].identifiers_by_slot.end(), "OpenHome box slot should be occupied");
+    expect(slot->second == payload.openhome_id, "OpenHome box slot should store OpenHome ID, not pkrid");
+
+    bridge.placeInHomeBox(payload.openhome_id, 0, 1, 3);
+    const auto moved = bridge.loadHomeBanks();
+    expect(moved.banks[0].boxes[0].identifiers_by_slot.empty(),
+           "moving an OpenHome ID should remove the old box placement");
+    expect(moved.banks[0].boxes[1].identifiers_by_slot.at(3) == payload.openhome_id,
+           "moving an OpenHome ID should write the new placement");
+
+    expect(bridge.removeOhpkm(payload.openhome_id), "OpenHome bridge should delete OHPKM payload by OpenHome ID");
+    expect(bridge.loadOhpkmStore().empty(), "OpenHome bridge payload store should be empty after delete");
+    fs::remove_all(root);
+}
+
+void testOpenHomePullToHomePlanMatchesUiTrackingFlow() {
+    pr::resort::openhome::OpenHomePullToHomeRequest request;
+    request.source.save_path = "/tmp/emerald.sav";
+    request.source.save_type = "SAV3";
+    request.source.box = 0;
+    request.source.slot = 4;
+    request.destination.bank = 0;
+    request.destination.box = 2;
+    request.destination.slot = 17;
+
+    const auto steps = pr::resort::openhome::planOpenHomePullToHome(request);
+    const std::vector<pr::resort::openhome::OpenHomeMovementStep> expected{
+        pr::resort::openhome::OpenHomeMovementStep::LoadSourceSave,
+        pr::resort::openhome::OpenHomeMovementStep::SyncTrackedPokemonWithSaveData,
+        pr::resort::openhome::OpenHomeMovementStep::LoadTrackedPokemonOrStartTracking,
+        pr::resort::openhome::OpenHomeMovementStep::ClearSourceSaveSlot,
+        pr::resort::openhome::OpenHomeMovementStep::UpsertOhpkmStore,
+        pr::resort::openhome::OpenHomeMovementStep::PlaceOpenHomeIdInHomeBank,
+        pr::resort::openhome::OpenHomeMovementStep::WriteOpenHomeBanks,
+        pr::resort::openhome::OpenHomeMovementStep::PrepareSaveWriter,
+        pr::resort::openhome::OpenHomeMovementStep::WriteSaveFile,
+    };
+
+    expect(steps == expected, "OpenHome pull-to-home plan should mirror moveMonToHome/moveBoxToBank UI flow");
+    expect(
+        std::string(pr::resort::openhome::openHomeMovementStepName(steps[2])) ==
+            "load_tracked_pokemon_or_start_tracking",
+        "movement step names should be stable for bridge diagnostics");
+}
+
+void testOpenHomePushToGamePlanUsesOpenHomeIdAndSaveWriter() {
+    pr::resort::openhome::OpenHomePushToGameRequest request;
+    request.openhome_id = "0025-04d2162e-78563412-03";
+    request.destination.save_path = "/tmp/platinum.sav";
+    request.destination.save_type = "SAV4";
+    request.destination.box = 1;
+    request.destination.slot = 9;
+
+    const auto steps = pr::resort::openhome::planOpenHomePushToGame(request);
+    const std::vector<pr::resort::openhome::OpenHomeMovementStep> expected{
+        pr::resort::openhome::OpenHomeMovementStep::LoadTargetSave,
+        pr::resort::openhome::OpenHomeMovementStep::LoadTrackedPokemonOrStartTracking,
+        pr::resort::openhome::OpenHomeMovementStep::ConvertOhpkmForTargetSave,
+        pr::resort::openhome::OpenHomeMovementStep::WriteTargetSaveSlot,
+        pr::resort::openhome::OpenHomeMovementStep::UpsertOhpkmStore,
+        pr::resort::openhome::OpenHomeMovementStep::PrepareSaveWriter,
+        pr::resort::openhome::OpenHomeMovementStep::WriteSaveFile,
+    };
+
+    expect(steps == expected, "OpenHome push-to-game plan should mirror moveOhpkmToSave UI flow");
+    expect(request.openhome_id.find("PKR") == std::string::npos, "OpenHome push should use OpenHome ID, not pkrid");
+}
+
+void testOpenHomeMoveBetweenGamesPlanDoesNotPromotePkFilesToCanonical() {
+    pr::resort::openhome::OpenHomeMoveBetweenGamesRequest request;
+    request.source.save_path = "/tmp/emerald.sav";
+    request.source.save_type = "SAV3";
+    request.source.box = 0;
+    request.source.slot = 1;
+    request.destination.save_path = "/tmp/black.sav";
+    request.destination.save_type = "SAV5";
+    request.destination.box = 3;
+    request.destination.slot = 2;
+
+    const auto steps = pr::resort::openhome::planOpenHomeMoveBetweenGames(request);
+    expect(
+        std::find(
+            steps.begin(),
+            steps.end(),
+            pr::resort::openhome::OpenHomeMovementStep::ConvertOhpkmForTargetSave) != steps.end(),
+        "game-to-game moves should project from OHPKM, not use PK files as canonical records");
+    expect(
+        std::find(
+            steps.begin(),
+            steps.end(),
+            pr::resort::openhome::OpenHomeMovementStep::UpsertOhpkmStore) != steps.end(),
+        "game-to-game moves should update the OpenHome OHPKM store");
+}
+
+void testManagedExportPresenceMapsToAwayAndKeepsCanonicalPayload() {
+    const fs::path path = tempDbPath("openhome_presence_export");
+    pr::resort::PokemonResortService service(path);
+    auto created = service.importParsedPokemon(makeImported(25, "Pika", kHashA), placeAt(0, 0));
+    expect(created.success, "import failed: " + created.error);
+
+    pr::resort::ResortPokemonRecord record;
+    record.openhome_payload.openhome_format_version = "OHPKM";
+    record.openhome_id = "0025-04d2162e-78563412-03";
+    record.openhome_payload.openhome_id = record.openhome_id;
+    record.openhome_payload.serialized_identity_or_ohpkm = {0xaa, 0xbb, 0xcc};
+    record.memories_json = "{\"resort_memory\":\"met at the dock\"}";
+
+    record.presence = pr::resort::inferPresenceFromPlacement(
+        service.getPokemonLocation("default", created.pkrid).has_value(),
+        service.getActiveMirrorForPokemon(created.pkrid).has_value());
+    expect(record.presence == pr::resort::PokemonPresenceState::AvailableInResort,
+           "boxed Pokemon should start available");
+
+    pr::resort::ExportContext context;
+    context.target_game = 3;
+    context.target_format_name = "pk3";
+    auto exported = service.exportPokemon(created.pkrid, context);
+    expect(exported.success, "export failed: " + exported.error);
+
+    record.presence = pr::resort::inferPresenceFromPlacement(
+        service.getPokemonLocation("default", created.pkrid).has_value(),
+        service.getActiveMirrorForPokemon(created.pkrid).has_value());
+    record.away_location.game_id = std::to_string(context.target_game);
+    record.away_location.generation = "3";
+    record.away_location.export_session_id = exported.mirror_session_id;
+
+    expect(record.presence == pr::resort::PokemonPresenceState::AwayInGame,
+           "managed export should map to away presence");
+    expect(!record.visibleInNormalBoxes(), "away presence should hide normal box rows");
+    expect(service.getPokemonById(created.pkrid).has_value(), "export must keep canonical row internally accessible");
+    expect(record.hasOpenHomePayload(), "export should not delete OpenHome payload");
+    expect(record.memories_json.find("dock") != std::string::npos, "Resort memories should survive move");
+}
+
 } // namespace
 
 int main() {
     const std::vector<std::pair<const char*, void (*)()>> tests{
         {"migrations create expected schema", testMigrationsCreateExpectedSchema},
+        {"OpenHome payload coexists with Resort metadata", testOpenHomePayloadCoexistsWithResortMetadata},
+        {"presence state hides away Pokemon but keeps internal lookup", testPresenceStateHidesAwayPokemonButKeepsInternalLookup},
+        {"OpenHome storage bridge writes OHPKM store and banks by OpenHome ID",
+         testOpenHomeStorageBridgeWritesOhpkmStoreAndBanksByOpenHomeId},
+        {"OpenHome pull-to-home plan matches UI tracking flow", testOpenHomePullToHomePlanMatchesUiTrackingFlow},
+        {"OpenHome push-to-game plan uses OpenHome ID and save writer", testOpenHomePushToGamePlanUsesOpenHomeIdAndSaveWriter},
+        {"OpenHome move-between-games plan does not promote PK files to canonical",
+         testOpenHomeMoveBetweenGamesPlanDoesNotPromotePkFilesToCanonical},
+        {"managed export presence maps to away and keeps canonical payload",
+         testManagedExportPresenceMapsToAwayAndKeepsCanonicalPayload},
         {"ensureProfile is idempotent", testEnsureProfileIsIdempotent},
         {"listProfileBoxes matches boxes table", testListProfileBoxesMatchesBoxTable},
         {"rename Resort box persists name", testRenameResortBoxPersistsName},

@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using System.Globalization;
+using System.Reflection;
 using System.Text.Json;
 using PKHeX.Core;
 
@@ -10,6 +12,16 @@ namespace PKHeXBridge;
 /// </summary>
 internal static class BridgeProjectReconcile
 {
+    /// <summary>
+    /// Optional catalog keys that are not identical to PKHeX property names. Values are tried in order
+    /// after the JSON key itself (e.g. warm JSON may use <c>RibbonChampion</c> for Hoenn Champion).
+    /// </summary>
+    private static readonly IReadOnlyDictionary<string, string[]> RibbonCatalogToPkHeXPropertyAliases =
+        new Dictionary<string, string[]>(StringComparer.Ordinal)
+        {
+            ["RibbonChampion"] = new[] { "RibbonChampionG3" },
+        };
+
     internal static void TryConfigureStringsForPokemon(PKM pk)
     {
         _ = pk;
@@ -144,15 +156,16 @@ internal static class BridgeProjectReconcile
 
         if (review.TryGetProperty("pokerus_strain", out var ps) && ps.ValueKind == JsonValueKind.Number)
         {
-            TrySetIntProperty(pk, "PKRS_Strain", ClampByte(ps.GetInt32()));
             TrySetIntProperty(pk, "PokerusState", ClampByte(ps.GetInt32()));
+            TrySetIntProperty(pk, "PokerusStrain", ClampByte(ps.GetInt32()));
+            TrySetIntProperty(pk, "PKRS_Strain", ClampByte(ps.GetInt32()));
             touched = true;
         }
 
         if (review.TryGetProperty("pokerus_days", out var pd) && pd.ValueKind == JsonValueKind.Number)
         {
-            TrySetIntProperty(pk, "PKRS_Days", ClampByte(pd.GetInt32()));
             TrySetIntProperty(pk, "PokerusDays", ClampByte(pd.GetInt32()));
+            TrySetIntProperty(pk, "PKRS_Days", ClampByte(pd.GetInt32()));
             touched = true;
         }
 
@@ -469,27 +482,72 @@ internal static class BridgeProjectReconcile
         IList<string> notes)
     {
         var nicknameFlag = ReadBool(hotMutableOverlay, "is_nicknamed") ?? ReadBool(preSaveReview, "is_nicknamed");
-        if (nicknameFlag is null)
-            return;
 
-        if (nicknameFlag.Value)
+        if (nicknameFlag is not null)
         {
-            var nickname = ReadString(hotMutableOverlay, "nickname") ?? ReadString(preSaveReview, "nickname") ?? pk.Nickname;
-            CommonEdits.SetNickname(pk, nickname);
-            TrySetBoolProperty(pk, "IsNicknamed", true);
-            notes.Add("[finalize_nickname] applied canonical nickname before serialization.");
-            return;
+            if (nicknameFlag.Value)
+            {
+                var nickname =
+                    ReadString(hotMutableOverlay, "nickname") ?? ReadString(preSaveReview, "nickname") ?? pk.Nickname;
+
+                // Gen I–II store only a nickname string (no cartridge bit). PKHeX decides "nicknamed" by comparing
+                // that string (after encoding) to the game's default species spelling (Red/Blue use ALL CAPS).
+                // Resort `PokemonHot` can still carry `is_nicknamed: true` with plain species spelling (e.g. title case
+                // from OHPKM) while the in-resort UI looks "unnamed" — finalize must clear like the cartridge would.
+                if (ShouldClearGen12SpeciesDefaultNickname(pk, nickname))
+                {
+                    CommonEdits.ClearNickname(pk);
+                    TrySetBoolProperty(pk, "IsNicknamed", false);
+                    notes.Add("[finalize_nickname] gen1/2: species-name nickname with nicknamed flag; cleared to default.");
+                    return;
+                }
+                else
+                {
+                    CommonEdits.SetNickname(pk, nickname);
+                    TrySetBoolProperty(pk, "IsNicknamed", true);
+                    notes.Add("[finalize_nickname] applied canonical nickname before serialization.");
+                    return;
+                }
+            }
+            else
+            {
+                CommonEdits.ClearNickname(pk);
+                TrySetBoolProperty(pk, "IsNicknamed", false);
+                notes.Add("[finalize_nickname] cleared nickname to target-format species default before serialization.");
+            }
         }
 
+        // Bridge requests often omit `is_nicknamed` for gen ≤2 (no cartridge bit); past projection / converters can
+        // still leave title-case species text that differs from PKHeX's Game Boy encoded default spelling.
+        CoerceGen12SpeciesDefaultNicknameForLegality(pk, notes);
+    }
+
+    /// <summary>
+    /// Ensures Game Boy party/box nicknames use the same capitalization/encoding as PKHeX's unset default.
+    /// Applies when the decoded display string is still just the species name (e.g. "Poliwhirl" vs stored "POLIWHIRL").
+    /// </summary>
+    private static void CoerceGen12SpeciesDefaultNicknameForLegality(PKM pk, IList<string> notes)
+    {
+        if (pk.Format > 2 || !ShouldClearGen12SpeciesDefaultNickname(pk, pk.Nickname))
+            return;
+
+        var before = pk.Nickname;
+        var markedNicknamed = pk.IsNicknamed;
         CommonEdits.ClearNickname(pk);
         TrySetBoolProperty(pk, "IsNicknamed", false);
-        notes.Add("[finalize_nickname] cleared nickname to target-format species default before serialization.");
+
+        if (!string.Equals(before, pk.Nickname, StringComparison.Ordinal) || markedNicknamed)
+        {
+            notes.Add(
+                "[finalize_nickname] gen1/2: coerced species-default nickname (overlay omitted `is_nicknamed` or wrong casing / flag).");
+        }
     }
 
     private static void ApplyTrainerName(PKM pk, string otName)
     {
         if (string.IsNullOrWhiteSpace(otName))
             return;
+        otName = NormalizeTrainerName(pk, otName);
         if (pk.Format == 3)
         {
             try
@@ -507,6 +565,15 @@ internal static class BridgeProjectReconcile
             }
         }
         pk.OriginalTrainerName = otName;
+    }
+
+    private static string NormalizeTrainerName(PKM pk, string otName)
+    {
+        var maxLength = pk.MaxStringLengthTrainer;
+        if (maxLength <= 0 || otName.Length <= maxLength)
+            return otName;
+
+        return otName[..maxLength];
     }
 
     private static byte ClampByte(int v) => (byte)Math.Clamp(v, 0, 255);
@@ -728,6 +795,114 @@ internal static class BridgeProjectReconcile
         return "move_" + moveId.ToString(CultureInfo.InvariantCulture);
     }
 
+    /// <summary>
+    /// Replays Resort canonical ribbon catalog onto the projected PKM after conversion and overlays.
+    /// Booleans (true) map to writable ribbon bool properties; numbers use max(existing, catalog) for
+    /// tier/count fields. Unknown keys or formats without the property are skipped.
+    /// </summary>
+    internal static int ApplyCanonicalRibbonCatalog(PKM pk, JsonElement ribbonCatalog, IList<string> notes)
+    {
+        var t = pk.GetType();
+        var applied = 0;
+        foreach (var prop in ribbonCatalog.EnumerateObject())
+        {
+            if (prop.Value.ValueKind == JsonValueKind.True)
+            {
+                if (TrySetRibbonBoolProperty(t, pk, prop.Name))
+                {
+                    applied++;
+                    continue;
+                }
+
+                if (RibbonCatalogToPkHeXPropertyAliases.TryGetValue(prop.Name, out var aliases))
+                {
+                    foreach (var alt in aliases)
+                    {
+                        if (TrySetRibbonBoolProperty(t, pk, alt))
+                        {
+                            applied++;
+                            break;
+                        }
+                    }
+                }
+
+                continue;
+            }
+
+            if (prop.Value.ValueKind == JsonValueKind.Number &&
+                TryApplyRibbonIntegralMax(t, pk, prop.Name, prop.Value.GetInt32()))
+            {
+                applied++;
+            }
+        }
+
+        if (applied > 0)
+        {
+            notes.Add(
+                $"[ribbon_catalog] replayed {applied.ToString(CultureInfo.InvariantCulture)} canonical ribbon catalog field(s) onto {t.Name}.");
+        }
+
+        return applied;
+    }
+
+    private static bool TryApplyRibbonIntegralMax(Type t, PKM pk, string propertyName, int incoming)
+    {
+        var pi = t.GetProperty(propertyName, BindingFlags.Public | BindingFlags.Instance);
+        if (pi?.CanWrite != true)
+            return false;
+
+        var pt = pi.PropertyType;
+        if (pt != typeof(byte) && pt != typeof(sbyte) && pt != typeof(short) && pt != typeof(ushort) &&
+            pt != typeof(int) && pt != typeof(uint))
+            return false;
+
+        try
+        {
+            var cur = 0;
+            if (pi.CanRead)
+            {
+                var raw = pi.GetValue(pk);
+                if (raw is not null)
+                    cur = Convert.ToInt32(raw, CultureInfo.InvariantCulture);
+            }
+
+            var v = Math.Max(cur, incoming);
+            object converted = pt switch
+            {
+                _ when pt == typeof(byte) => (byte)Math.Clamp(v, byte.MinValue, byte.MaxValue),
+                _ when pt == typeof(sbyte) => (sbyte)Math.Clamp(v, sbyte.MinValue, sbyte.MaxValue),
+                _ when pt == typeof(short) => (short)Math.Clamp(v, short.MinValue, short.MaxValue),
+                _ when pt == typeof(ushort) => (ushort)Math.Clamp(v, ushort.MinValue, ushort.MaxValue),
+                _ when pt == typeof(uint) => (uint)Math.Clamp((long)v, uint.MinValue, uint.MaxValue),
+                _ => Math.Clamp(v, int.MinValue, int.MaxValue)
+            };
+            pi.SetValue(pk, converted);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool TrySetRibbonBoolProperty(Type t, PKM pk, string propertyName)
+    {
+        var pi = t.GetProperty(propertyName, BindingFlags.Public | BindingFlags.Instance);
+        if (pi?.PropertyType != typeof(bool) || !pi.CanWrite)
+            return false;
+
+        try
+        {
+            pi.SetValue(pk, true);
+            return true;
+        }
+        catch
+        {
+            // Ribbon accessors may throw on illegal combinations for this format; skip.
+            return false;
+        }
+    }
+
     private static void ClearNicknameToSpeciesName(PKM pk)
     {
         try
@@ -739,6 +914,20 @@ internal static class BridgeProjectReconcile
         {
             TrySetBoolProperty(pk, "IsNicknamed", false);
         }
+    }
+
+    private static bool ShouldClearGen12SpeciesDefaultNickname(PKM pk, string nickname)
+    {
+        if (pk.Format > 2)
+            return false;
+        if (string.IsNullOrWhiteSpace(nickname))
+            return false;
+
+        var speciesName = GetSpeciesName(pk.Species);
+        if (string.IsNullOrWhiteSpace(speciesName))
+            return false;
+
+        return string.Equals(nickname.Trim(), speciesName.Trim(), StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool MatchesFinalIdentity(
