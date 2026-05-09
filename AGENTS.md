@@ -85,6 +85,11 @@ tests/run_all_tests.sh
 - Update [`docs/ARCHITECTURE.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/ARCHITECTURE.md) whenever module boundaries, runtime flow, or extension guidance changes.
 - Update config docs when adding or moving JSON fields.
 - If you add another recurring contributor-facing guide, keep it short, link it from the nearest higher-level doc, and identify its source-of-truth scope.
+- Keep scripts and one-off utilities small: **no script should grow beyond 500 lines**. Split large automation into modules or dedicated tools with clear contracts.
+- When touching transfer persistence or movement, treat these docs as hard constraints:
+  - `docs/openhome-first-mirror-retirement.md`
+  - `docs/openhome-persistent-identity-integration.md`
+  - `docs/transfer_system/SAVE_EXIT_SAFETY.md`
 
 ## Current Gaps
 

@@ -37,64 +37,7 @@ void TransferSystemScreen::onAdvancePressed() {
         return;
     }
     if (held_move_.heldBox() && !pokemon_move_.active()) {
-        if (dropdownAcceptsNavigation()) {
-            // While holding a Box Space box, Accept should still confirm dropdown choices.
-            applyActiveDropdownSelection();
-            return;
-        }
-        const auto* hb = held_move_.heldBox();
-        const int from = hb->source_box_index;
-        const auto src_panel = hb->source_panel;
-        const auto game_tgt = focusedBoxSpaceBoxIndex();
-        const auto resort_tgt = focusedResortBoxSpaceBoxIndex();
-
-        if (src_panel == transfer_system::move::HeldMoveController::PokemonSlotRef::Panel::Game) {
-            if (game_tgt.has_value()) {
-                held_move_.clear();
-                (void)swapGamePcBoxes(from, *game_tgt);
-                refreshGameBoxViewportModel();
-                refreshResortBoxViewportModel();
-                requestPutdownSfx();
-                return;
-            }
-            if (resort_tgt.has_value()) {
-                if (!swapGameAndResortPcBoxes(from, *resort_tgt)) {
-                    held_move_.clear();
-                    refreshGameBoxViewportModel();
-                    refreshResortBoxViewportModel();
-                    triggerHeldSpriteRejectFeedback();
-                    return;
-                }
-                held_move_.clear();
-                refreshGameBoxViewportModel();
-                refreshResortBoxViewportModel();
-                requestPutdownSfx();
-                return;
-            }
-        } else {
-            if (resort_tgt.has_value()) {
-                held_move_.clear();
-                (void)swapResortPcBoxes(from, *resort_tgt);
-                refreshGameBoxViewportModel();
-                refreshResortBoxViewportModel();
-                requestPutdownSfx();
-                return;
-            }
-            if (game_tgt.has_value()) {
-                if (!swapGameAndResortPcBoxes(*game_tgt, from)) {
-                    held_move_.clear();
-                    refreshGameBoxViewportModel();
-                    refreshResortBoxViewportModel();
-                    triggerHeldSpriteRejectFeedback();
-                    return;
-                }
-                held_move_.clear();
-                refreshGameBoxViewportModel();
-                refreshResortBoxViewportModel();
-                requestPutdownSfx();
-                return;
-            }
-        }
+        (void)activateHeldBoxOnAdvance();
         return;
     }
     if (multi_pokemon_move_.active()) {
@@ -182,7 +125,9 @@ void TransferSystemScreen::onAdvancePressed() {
             return;
         }
         if (const auto target = slotRefForFocus(focus_.current())) {
-            (void)dropHeldPokemonAt(*target);
+            if (!dropHeldPokemonAt(*target)) {
+                triggerHeldSpriteRejectFeedback();
+            }
             return;
         }
         if (game_box_browser_.gameBoxSpaceMode()) {
@@ -511,4 +456,3 @@ void TransferSystemScreen::onAdvancePressed() {
 }
 
 } // namespace pr
-

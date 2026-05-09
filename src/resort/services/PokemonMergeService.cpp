@@ -3,10 +3,12 @@
 #include "core/config/Json.hpp"
 #include "resort/domain/PkmFormat.hpp"
 #include "resort/domain/PokemonMergeFieldPolicy.hpp"
+#include "resort/domain/ResortRibbonCatalogMerge.hpp"
 #include "resort/integration/Gen12DvBytes.hpp"
 
 #include <string>
 
+#include <algorithm>
 #include <iomanip>
 #include <sstream>
 #include <stdexcept>
@@ -133,6 +135,118 @@ pr::JsonValue mergeJsonValue(const pr::JsonValue& existing, const pr::JsonValue&
     return incoming;
 }
 
+bool hasPositiveNumberField(const pr::JsonValue& object, const std::string& key) {
+    const auto* value = object.get(key);
+    return value && value->isNumber() && value->asNumber() > 0.0;
+}
+
+bool pokerusHasMeaningfulEvidence(const pr::JsonValue& value) {
+    if (!value.isObject()) {
+        return false;
+    }
+    if (hasPositiveNumberField(value, "strain_or_state") || hasPositiveNumberField(value, "days")) {
+        return true;
+    }
+    const auto* status = value.get("status");
+    return status && status->isString() && !status->asString().empty();
+}
+
+pr::JsonValue mergePokerusForMirrorReturn(const pr::JsonValue& existing, const pr::JsonValue& incoming) {
+    if (!pokerusHasMeaningfulEvidence(incoming)) {
+        return existing;
+    }
+    if (!existing.isObject()) {
+        return incoming;
+    }
+
+    pr::JsonValue::Object merged = existing.asObject();
+    const auto& incoming_obj = incoming.asObject();
+    const auto set_positive_number = [&](const std::string& key, bool max_with_existing) {
+        auto it = incoming_obj.find(key);
+        if (it == incoming_obj.end() || !it->second.isNumber() || it->second.asNumber() <= 0.0) {
+            return;
+        }
+        if (max_with_existing) {
+            auto existing_it = merged.find(key);
+            if (existing_it != merged.end() && existing_it->second.isNumber()) {
+                merged[key] = pr::JsonValue(std::max(existing_it->second.asNumber(), it->second.asNumber()));
+                return;
+            }
+        }
+        merged[key] = it->second;
+    };
+
+    set_positive_number("strain_or_state", false);
+    set_positive_number("days", true);
+
+    auto status_it = incoming_obj.find("status");
+    if (status_it != incoming_obj.end() && status_it->second.isString() &&
+        !status_it->second.asString().empty()) {
+        merged["status"] = status_it->second;
+    }
+
+    return pr::JsonValue(merged);
+}
+
+pr::JsonValue mergeResortCatalogForMirrorReturn(const pr::JsonValue& existing, const pr::JsonValue& incoming) {
+    if (!existing.isObject() || !incoming.isObject()) {
+        return mergeJsonValue(existing, incoming);
+    }
+    pr::JsonValue::Object merged = existing.asObject();
+    for (const auto& [key, inc_val] : incoming.asObject()) {
+        if (key == "ribbon_flags" || key == "ribbons") {
+            auto it = merged.find(key);
+            if (it == merged.end()) {
+                merged.emplace(key, inc_val);
+            } else {
+                it->second = mergeRibbonCatalogMapsGainOnly(it->second, inc_val);
+            }
+        } else if (key == "pokerus") {
+            auto it = merged.find(key);
+            if (it == merged.end()) {
+                if (pokerusHasMeaningfulEvidence(inc_val)) {
+                    merged.emplace(key, inc_val);
+                }
+            } else {
+                it->second = mergePokerusForMirrorReturn(it->second, inc_val);
+            }
+        } else {
+            auto it = merged.find(key);
+            if (it == merged.end()) {
+                merged.emplace(key, inc_val);
+            } else {
+                it->second = mergeJsonValue(it->second, inc_val);
+            }
+        }
+    }
+    return pr::JsonValue(merged);
+}
+
+pr::JsonValue mergeWarmJsonRootMirrorReturn(const pr::JsonValue& existing, const pr::JsonValue& incoming) {
+    if (!existing.isObject() || !incoming.isObject()) {
+        return mergeJsonValue(existing, incoming);
+    }
+    pr::JsonValue::Object merged = existing.asObject();
+    for (const auto& [key, inc_val] : incoming.asObject()) {
+        if (key == "resort_catalog" && inc_val.isObject()) {
+            auto it = merged.find(key);
+            if (it == merged.end()) {
+                merged.emplace(key, inc_val);
+            } else {
+                it->second = mergeResortCatalogForMirrorReturn(it->second, inc_val);
+            }
+        } else {
+            auto it = merged.find(key);
+            if (it == merged.end()) {
+                merged.emplace(key, inc_val);
+            } else {
+                it->second = mergeJsonValue(it->second, inc_val);
+            }
+        }
+    }
+    return pr::JsonValue(merged);
+}
+
 pr::JsonValue stripIncomingWarmMirrorStaticKeys(const pr::JsonValue& incoming) {
     if (!incoming.isObject()) {
         return incoming;
@@ -147,9 +261,13 @@ pr::JsonValue stripIncomingWarmMirrorStaticKeys(const pr::JsonValue& incoming) {
         // `static_fields` describes the projected/cart format read. On mirror return, keep Resort's
         // original static catalog instead of letting Pal Park / transfer metadata replace it.
         catalog.erase("static_fields");
-        // Cart friendship / pokerus blocks must not overwrite Resort warm catalog on return.
+        // Cart friendship must not overwrite Resort warm catalog on return. Pokerus is allowed
+        // through only when the cart read contains positive infection/cure evidence.
         catalog.erase("friendship");
-        catalog.erase("pokerus");
+        auto pokerus_it = catalog.find("pokerus");
+        if (pokerus_it != catalog.end() && !pokerusHasMeaningfulEvidence(pokerus_it->second)) {
+            catalog.erase(pokerus_it);
+        }
         catalog_it->second = pr::JsonValue(catalog);
     }
     return pr::JsonValue(obj);
@@ -172,7 +290,7 @@ std::string mergeWarmJsonMirrorReturn(const std::string& existing, const std::st
         const pr::JsonValue existing_json = pr::parseJsonText(existing);
         const pr::JsonValue stripped_incoming =
             stripIncomingWarmMirrorStaticKeys(pr::parseJsonText(incoming));
-        return serializeJson(mergeJsonValue(existing_json, stripped_incoming));
+        return serializeJson(mergeWarmJsonRootMirrorReturn(existing_json, stripped_incoming));
     } catch (const std::exception&) {
         return existing;
     }

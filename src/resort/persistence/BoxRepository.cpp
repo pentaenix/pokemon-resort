@@ -302,6 +302,7 @@ SELECT
     p.ability_slot,
     p.ot_name,
     p.origin_game,
+    p.home_tracker,
     (
         SELECT ps.game_id
         FROM pokemon_snapshots ps
@@ -348,9 +349,12 @@ ORDER BY s.slot_index
         view.ot_name = stmt.columnText(11);
         view.origin_game = static_cast<unsigned short>(stmt.columnInt(12));
         if (!stmt.columnIsNull(13)) {
-            view.source_game = static_cast<unsigned short>(stmt.columnInt(13));
+            view.home_tracker = stmt.columnText(13);
         }
-        const SlotWarmMetadata warm = slotWarmMetadataFromJson(stmt.columnBlobAsString(14));
+        if (!stmt.columnIsNull(14)) {
+            view.source_game = static_cast<unsigned short>(stmt.columnInt(14));
+        }
+        const SlotWarmMetadata warm = slotWarmMetadataFromJson(stmt.columnBlobAsString(15));
         view.source_game_key = warm.source_game_key;
         view.species_slug = warm.species_slug;
         view.species_name = warm.species_name;
@@ -366,12 +370,12 @@ ORDER BY s.slot_index
         view.is_alpha = warm.is_alpha;
         view.is_gigantamax = warm.is_gigantamax;
         view.markings = warm.markings;
-        if (!stmt.columnIsNull(15)) {
-            view.ball_id = static_cast<unsigned short>(stmt.columnInt(15));
+        if (!stmt.columnIsNull(16)) {
+            view.ball_id = static_cast<unsigned short>(stmt.columnInt(16));
         }
-        view.hp_current = static_cast<unsigned short>(stmt.columnInt(16));
-        view.hp_max = static_cast<unsigned short>(stmt.columnInt(17));
-        view.status_icon = static_cast<unsigned char>(stmt.columnInt(18) & 0xff);
+        view.hp_current = static_cast<unsigned short>(stmt.columnInt(17));
+        view.hp_max = static_cast<unsigned short>(stmt.columnInt(18));
+        view.status_icon = static_cast<unsigned char>(stmt.columnInt(19) & 0xff);
         views.push_back(std::move(view));
     }
     return views;

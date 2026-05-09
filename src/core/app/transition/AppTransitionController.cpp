@@ -5,8 +5,9 @@
 namespace pr {
 namespace {
 
-constexpr double kSaveSoundPreTransitionDelaySeconds = 0.5;
-constexpr double kQuickTransitionFadeSeconds = 0.25;
+/// Save+exit plays the save SFX immediately, then shows the quick boat; no idle pause or dim fade before the boat.
+constexpr double kSaveSoundPreTransitionDelaySeconds = 0.0;
+constexpr double kQuickTransitionFadeSeconds = 0.0;
 
 double clamp01(double value) {
     return std::max(0.0, std::min(1.0, value));

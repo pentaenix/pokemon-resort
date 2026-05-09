@@ -46,8 +46,16 @@ Controls shared game/resort box viewport presentation:
 - footer arrow offset
 - content slide smoothing
 - Pokemon sprite scale/offset
+- disabled-slot styling for species that cannot exist in the loaded target game
 - held-item overlay size and tint under `item_tool`
 - Box Space preview sprite scale/offset under `box_space_sprites`
+
+Disabled-slot styling is split into two independent effects so you can keep the current look or tune it separately:
+
+- `disabled_slot_background_enabled`, `disabled_slot_background_color`, `disabled_slot_background_alpha`
+- `disabled_sprite_mod_enabled`, `disabled_sprite_mod_color`, `disabled_sprite_mod_alpha`
+
+The current default remains the gray tile and gray sprite tint used by the compatibility gray-out.
 
 Pokemon and item textures should still resolve through `PokeSpriteAssets`.
 

@@ -4,7 +4,7 @@
 
 namespace pr::resort {
 
-constexpr int kCurrentResortSchemaVersion = 4;
+constexpr int kCurrentResortSchemaVersion = 5;
 
 void runResortMigrations(SqliteConnection& connection);
 

@@ -201,6 +201,13 @@ public static class BridgeProject
                     BridgeProjectReconcile.ApplyHotMutableOverlay(converted, hotOverlay, extraNotes);
                 }
 
+                if (preSaveForFinalize is { } preSaveRibbon &&
+                    preSaveRibbon.TryGetProperty("ribbon_flags", out var ribbonCatalog) &&
+                    ribbonCatalog.ValueKind == JsonValueKind.Object)
+                {
+                    BridgeProjectReconcile.ApplyCanonicalRibbonCatalog(converted, ribbonCatalog, extraNotes);
+                }
+
                 BridgeProjectReconcile.FinalizeProjectedIdentity(
                     pk,
                     converted,

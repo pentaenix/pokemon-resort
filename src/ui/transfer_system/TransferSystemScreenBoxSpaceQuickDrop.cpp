@@ -335,6 +335,7 @@ bool TransferSystemScreen::tryGiveHeldItemToFirstEligiblePokemonInResortBox(int 
 }
 
 bool TransferSystemScreen::completeBoxSpaceQuickDrop(int target_box) {
+    const bool ok = withConservationGuard("completeBoxSpaceQuickDrop", [&]() {
     BoxSpaceQuickDropKind kind = box_space_quick_drop_kind_;
     if (kind == BoxSpaceQuickDropKind::None) {
         if (multi_pokemon_move_.active()) {
@@ -359,6 +360,12 @@ bool TransferSystemScreen::completeBoxSpaceQuickDrop(int target_box) {
         default:
             return false;
     }
+    });
+    if (!ok) {
+        triggerHeldSpriteRejectFeedback();
+        return false;
+    }
+    return true;
 }
 
 void TransferSystemScreen::updateBoxSpaceQuickDropVisuals(double dt) {

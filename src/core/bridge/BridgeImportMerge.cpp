@@ -248,6 +248,246 @@ bool mergeBridgeImportIntoGamePcBoxes(
     }
 }
 
+bool resolveBridgeImportBoxSlotForRawHash(
+    const std::string& bridge_import_stdout_json,
+    const std::string& raw_hash_sha256,
+    int* out_box_index,
+    int* out_slot_index,
+    std::string* error_message) {
+    if (!out_box_index || !out_slot_index) {
+        if (error_message) {
+            *error_message = "resolveBridgeImportBoxSlotForRawHash: null out parameter";
+        }
+        return false;
+    }
+    if (error_message) {
+        error_message->clear();
+    }
+    if (raw_hash_sha256.empty() || !looksLikeSha256(raw_hash_sha256)) {
+        if (error_message) {
+            *error_message = "missing or invalid raw_hash_sha256 for resolve";
+        }
+        return false;
+    }
+    try {
+        const JsonValue root = parseJsonText(bridge_import_stdout_json);
+        if (!root.isObject()) {
+            if (error_message) {
+                *error_message = "bridge import root must be an object";
+            }
+            return false;
+        }
+        const JsonValue* schema_val = child(root, "bridge_import_schema");
+        if (!schema_val || !schema_val->isNumber() || static_cast<int>(schema_val->asNumber()) != 1) {
+            if (error_message) {
+                *error_message = "unsupported bridge_import_schema";
+            }
+            return false;
+        }
+        const JsonValue* ok = child(root, "success");
+        if (ok && ok->isBool() && !ok->asBool()) {
+            if (error_message) {
+                *error_message = "bridge import success=false";
+            }
+            return false;
+        }
+        const JsonValue* pokemon_arr = child(root, "pokemon");
+        if (!pokemon_arr || !pokemon_arr->isArray()) {
+            if (error_message) {
+                *error_message = "bridge import missing pokemon array";
+            }
+            return false;
+        }
+        for (const JsonValue& item : pokemon_arr->asArray()) {
+            if (!item.isObject()) {
+                continue;
+            }
+            const std::string hash = asStringOrEmpty(child(item, "raw_hash_sha256"));
+            if (hash != raw_hash_sha256) {
+                continue;
+            }
+            const JsonValue* loc = child(item, "source_location");
+            if (!loc || !loc->isObject()) {
+                continue;
+            }
+            const std::string area = asStringOrEmpty(child(*loc, "area"));
+            if (area != "box") {
+                continue;
+            }
+            const JsonValue* box_v = child(*loc, "box");
+            const JsonValue* slot_v = child(*loc, "slot");
+            if (!box_v || !box_v->isNumber() || !slot_v || !slot_v->isNumber()) {
+                continue;
+            }
+            *out_box_index = static_cast<int>(box_v->asNumber());
+            *out_slot_index = static_cast<int>(slot_v->asNumber());
+            return true;
+        }
+        if (error_message) {
+            *error_message = "Pokemon hash not present in staged save bridge import snapshot";
+        }
+        return false;
+    } catch (const std::exception& ex) {
+        if (error_message) {
+            *error_message = ex.what();
+        }
+        return false;
+    }
+}
+
+namespace {
+
+bool asciiEqualsInsensitive(const std::string& a, const std::string& b) {
+    if (a.size() != b.size()) {
+        return false;
+    }
+    for (std::size_t i = 0; i < a.size(); ++i) {
+        if (std::tolower(static_cast<unsigned char>(a[i])) !=
+            std::tolower(static_cast<unsigned char>(b[i]))) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool hotObjectMatchesMirrorPcSlot(const JsonValue& hot_obj, const PcSlotSpecies& mirror) {
+    if (!hot_obj.isObject()) {
+        return false;
+    }
+    if (mirror.species_id >= 0) {
+        const int species = asIntOrDefault(child(hot_obj, "species_id"), -1);
+        if (species != mirror.species_id) {
+            return false;
+        }
+    } else {
+        return false;
+    }
+    if (mirror.pid.has_value() && *mirror.pid != 0) {
+        const JsonValue* pid_v = child(hot_obj, "pid");
+        if (!pid_v || !pid_v->isNumber()) {
+            return false;
+        }
+        const double pv = pid_v->asNumber();
+        if (pv < 0.0 || pv > 4294967295.0) {
+            return false;
+        }
+        if (static_cast<std::uint32_t>(pv) != *mirror.pid) {
+            return false;
+        }
+    }
+    if (mirror.tid16 >= 0) {
+        const int tid = asIntOrDefault(child(hot_obj, "tid16"), -1);
+        if (tid != mirror.tid16) {
+            return false;
+        }
+    }
+    if (!mirror.ot_name.empty()) {
+        const std::string ot = asStringOrEmpty(child(hot_obj, "ot_name"));
+        if (!ot.empty() && !asciiEqualsInsensitive(mirror.ot_name, ot)) {
+            return false;
+        }
+    }
+    if (!mirror.nickname.empty()) {
+        const std::string nk = asStringOrEmpty(child(hot_obj, "nickname"));
+        if (!nk.empty() && !asciiEqualsInsensitive(mirror.nickname, nk)) {
+            return false;
+        }
+    }
+    if (mirror.dv16.has_value()) {
+        const int dv = asIntOrDefault(child(hot_obj, "dv16"), -1);
+        if (dv < 0 || static_cast<std::uint16_t>(dv) != *mirror.dv16) {
+            return false;
+        }
+    }
+    return true;
+}
+
+} // namespace
+
+bool resolveBridgeImportBoxSlotFallbackMirror(
+    const std::string& bridge_import_stdout_json,
+    const PcSlotSpecies& mirror,
+    int* out_box_index,
+    int* out_slot_index,
+    std::string* error_message) {
+    if (!out_box_index || !out_slot_index) {
+        if (error_message) {
+            *error_message = "resolveBridgeImportBoxSlotFallbackMirror: null out parameter";
+        }
+        return false;
+    }
+    if (error_message) {
+        error_message->clear();
+    }
+    try {
+        const JsonValue root = parseJsonText(bridge_import_stdout_json);
+        if (!root.isObject()) {
+            if (error_message) {
+                *error_message = "bridge import root must be an object";
+            }
+            return false;
+        }
+        const JsonValue* schema_val = child(root, "bridge_import_schema");
+        if (!schema_val || !schema_val->isNumber() || static_cast<int>(schema_val->asNumber()) != 1) {
+            if (error_message) {
+                *error_message = "unsupported bridge_import_schema";
+            }
+            return false;
+        }
+        const JsonValue* ok = child(root, "success");
+        if (ok && ok->isBool() && !ok->asBool()) {
+            if (error_message) {
+                *error_message = "bridge import success=false";
+            }
+            return false;
+        }
+        const JsonValue* pokemon_arr = child(root, "pokemon");
+        if (!pokemon_arr || !pokemon_arr->isArray()) {
+            if (error_message) {
+                *error_message = "bridge import missing pokemon array";
+            }
+            return false;
+        }
+        for (const JsonValue& item : pokemon_arr->asArray()) {
+            if (!item.isObject()) {
+                continue;
+            }
+            const JsonValue* loc = child(item, "source_location");
+            if (!loc || !loc->isObject()) {
+                continue;
+            }
+            const std::string area = asStringOrEmpty(child(*loc, "area"));
+            if (area != "box") {
+                continue;
+            }
+            const JsonValue* hot = child(item, "hot");
+            if (!hot || !hot->isObject()) {
+                continue;
+            }
+            if (!hotObjectMatchesMirrorPcSlot(*hot, mirror)) {
+                continue;
+            }
+            const JsonValue* box_v = child(*loc, "box");
+            const JsonValue* slot_v = child(*loc, "slot");
+            if (!box_v || !box_v->isNumber() || !slot_v || !slot_v->isNumber()) {
+                continue;
+            }
+            *out_box_index = static_cast<int>(box_v->asNumber());
+            *out_slot_index = static_cast<int>(slot_v->asNumber());
+            return true;
+        }
+        if (error_message) {
+            *error_message = "Pokemon identity (hot mirror) not present in staged save bridge import snapshot";
+        }
+        return false;
+    } catch (const std::exception& ex) {
+        if (error_message) {
+            *error_message = ex.what();
+        }
+        return false;
+    }
+}
+
 bool parseBridgeImportFirstPokemonSourceGame(
     const std::string& bridge_import_stdout_json,
     std::uint16_t* out_source_game,

@@ -60,8 +60,16 @@ bool TransferSystemScreen::swapGamePcBoxes(int a, int b) {
     if (a == b) {
         return true;
     }
-    std::swap(game_pc_boxes_[static_cast<std::size_t>(a)], game_pc_boxes_[static_cast<std::size_t>(b)]);
-    markGameBoxesDirty();
+    const bool ok = withConservationGuard("swapGamePcBoxes", [&]() {
+        std::swap(game_pc_boxes_[static_cast<std::size_t>(a)], game_pc_boxes_[static_cast<std::size_t>(b)]);
+        markGameBoxesDirty();
+        return true;
+    });
+    if (!ok) {
+        std::swap(game_pc_boxes_[static_cast<std::size_t>(a)], game_pc_boxes_[static_cast<std::size_t>(b)]);
+        ui_state_.requestErrorSfx();
+        return false;
+    }
     if (game_save_box_viewport_ && game_box_browser_.gameBoxSpaceMode()) {
         const bool show_down = gameBoxSpaceMaxRowOffset() > 0;
         game_save_box_viewport_->setHeaderMode(BoxViewport::HeaderMode::BoxSpace, show_down);
@@ -82,14 +90,26 @@ bool TransferSystemScreen::swapGameAndResortPcBoxes(int game_box_index, int reso
     if (!boxFitsInGameSaveSlots(resort_pc_boxes_[static_cast<std::size_t>(resort_box_index)])) {
         return false;
     }
+    if (!boxFitsInTargetGame(resort_pc_boxes_[static_cast<std::size_t>(resort_box_index)])) {
+        return false;
+    }
     const int game_occ = countOccupiedSlots(game_pc_boxes_[static_cast<std::size_t>(game_box_index)]);
     const int resort_occ = countOccupiedSlots(resort_pc_boxes_[static_cast<std::size_t>(resort_box_index)]);
-    std::swap(game_pc_boxes_[static_cast<std::size_t>(game_box_index)],
-              resort_pc_boxes_[static_cast<std::size_t>(resort_box_index)]);
-    noteCrossPanelGameToResortMoves(game_occ);
-    noteCrossPanelResortToGameMoves(resort_occ);
-    markGameBoxesDirty();
-    markResortBoxesDirty();
+    const bool ok = withConservationGuard("swapGameAndResortPcBoxes", [&]() {
+        std::swap(game_pc_boxes_[static_cast<std::size_t>(game_box_index)],
+                  resort_pc_boxes_[static_cast<std::size_t>(resort_box_index)]);
+        noteCrossPanelGameToResortMoves(game_occ);
+        noteCrossPanelResortToGameMoves(resort_occ);
+        markGameBoxesDirty();
+        markResortBoxesDirty();
+        return true;
+    });
+    if (!ok) {
+        std::swap(game_pc_boxes_[static_cast<std::size_t>(game_box_index)],
+                  resort_pc_boxes_[static_cast<std::size_t>(resort_box_index)]);
+        ui_state_.requestErrorSfx();
+        return false;
+    }
     mini_preview_box_index_ = -1;
     mouse_hover_mini_preview_box_index_ = -1;
     mini_preview_model_from_resort_ = false;
@@ -183,11 +203,18 @@ bool TransferSystemScreen::swapResortPcBoxes(int a, int b) {
     if (a == b) {
         return true;
     }
-    std::swap(resort_pc_boxes_[static_cast<std::size_t>(a)], resort_pc_boxes_[static_cast<std::size_t>(b)]);
-    markResortBoxesDirty();
-    if (resort_service_) {
-        resort_service_->swapResortBoxContents(kDefaultResortProfileId, a, b);
+    const bool ok = withConservationGuard("swapResortPcBoxes", [&]() {
+        std::swap(resort_pc_boxes_[static_cast<std::size_t>(a)], resort_pc_boxes_[static_cast<std::size_t>(b)]);
+        markResortBoxesDirty();
+        return true;
+    });
+    if (!ok) {
+        std::swap(resort_pc_boxes_[static_cast<std::size_t>(a)], resort_pc_boxes_[static_cast<std::size_t>(b)]);
+        ui_state_.requestErrorSfx();
+        return false;
     }
+    // Do not persist immediately while the player is still in transfer operations.
+    // Resort storage must only commit from Save+Exit, so "Exit without saving" is a true rollback.
     if (resort_box_viewport_ && resort_box_browser_.gameBoxSpaceMode()) {
         const bool show_down = resortBoxSpaceMaxRowOffset() > 0;
         resort_box_viewport_->setHeaderMode(BoxViewport::HeaderMode::BoxSpace, show_down);
@@ -240,4 +267,3 @@ void TransferSystemScreen::setGameBoxSpaceMode(bool enabled) {
 }
 
 } // namespace pr
-

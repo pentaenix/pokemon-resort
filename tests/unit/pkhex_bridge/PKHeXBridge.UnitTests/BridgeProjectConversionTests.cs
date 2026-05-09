@@ -1,4 +1,6 @@
+using System.Reflection;
 using System.Security.Cryptography;
+using System.Text.Json;
 using PKHeX.Core;
 using PKHeXBridge;
 using Xunit;
@@ -952,6 +954,183 @@ public class BridgeProjectConversionTests
     }
 
     [Fact]
+    public void Project_PreSaveReview_ReplaysCanonicalRibbonFlagsOntoPk3Mirror()
+    {
+        var pk5 = CreatePk5(Species.Pikachu, Nature.Hardy);
+        pk5.RefreshChecksum();
+
+        var pk3 = ProjectAndDecode(pk5, 3, "PK3", $$"""
+          "pre_save_review": {
+            "enabled": true,
+            "apply_static_fields": true,
+            "ot_name": "Ray",
+            "tid16": 2222,
+            "sid16": 3333,
+            "origin_game": 3,
+            "language": {{(int)LanguageID.English}},
+            "ribbon_flags": {
+              "RibbonChampion": true
+            }
+          },
+          "hot_mutable_overlay": {
+            "enabled": true,
+            "species_id": {{(int)Species.Pikachu}},
+            "form_id": 0,
+            "level": 20,
+            "exp": 8000,
+            "nickname": "Pikachu",
+            "is_nicknamed": false,
+            "gender": 0,
+            "shiny": false,
+            "moves": [{"slot_index":0,"move_id":33,"current_pp":35,"pp_ups":0}]
+          }
+        """);
+
+        // PKHeX names Hoenn Champion RibbonChampionG3; catalog shorthand RibbonChampion maps via bridge aliases.
+        var prop = pk3.GetType().GetProperty("RibbonChampionG3", BindingFlags.Public | BindingFlags.Instance);
+        Assert.NotNull(prop);
+        Assert.Equal(typeof(bool), prop!.PropertyType);
+        Assert.True((bool)prop.GetValue(pk3)!);
+    }
+
+    [Fact]
+    public void Project_PreSaveReview_ReplaysCanonicalRibbonFlagsOntoPk5Return()
+    {
+        var pk3 = EntityBlank.GetBlank(typeof(PK3));
+        pk3.Species = (ushort)Species.Pikachu;
+        pk3.Version = GameVersion.E;
+        pk3.Language = (int)LanguageID.English;
+        pk3.OriginalTrainerName = "Ray";
+        pk3.TID16 = 2222;
+        pk3.SID16 = 3333;
+        pk3.Move1 = (ushort)Move.Tackle;
+        pk3.RefreshChecksum();
+
+        var pk5 = ProjectAndDecode(pk3, 15, "PK5", $$"""
+          "pre_save_review": {
+            "enabled": true,
+            "apply_static_fields": true,
+            "ot_name": "Ray",
+            "tid16": 2222,
+            "sid16": 3333,
+            "origin_game": 21,
+            "language": {{(int)LanguageID.English}},
+            "ribbon_flags": {
+              "RibbonChampion": true,
+              "RibbonEffort": true
+            }
+          },
+          "hot_mutable_overlay": {
+            "enabled": true,
+            "species_id": {{(int)Species.Pikachu}},
+            "form_id": 0,
+            "level": 20,
+            "exp": 8000,
+            "nickname": "Pikachu",
+            "is_nicknamed": false,
+            "gender": 0,
+            "shiny": false,
+            "moves": [{"slot_index":0,"move_id":33,"current_pp":35,"pp_ups":0}]
+          }
+        """);
+
+        Assert.True((bool)pk5.GetType().GetProperty("RibbonChampionG3")!.GetValue(pk5)!);
+        Assert.True((bool)pk5.GetType().GetProperty("RibbonEffort")!.GetValue(pk5)!);
+    }
+
+    [Fact]
+    public void Project_PreSaveReview_RibbonCatalogNumeric_AppliesRibbonCountOnPk3Mirror()
+    {
+        var pk5 = CreatePk5(Species.Pikachu, Nature.Hardy);
+        pk5.RefreshChecksum();
+
+        var pk3 = ProjectAndDecode(pk5, 3, "PK3", $$"""
+          "pre_save_review": {
+            "enabled": true,
+            "apply_static_fields": true,
+            "ot_name": "Ray",
+            "tid16": 2222,
+            "sid16": 3333,
+            "origin_game": 3,
+            "language": {{(int)LanguageID.English}},
+            "ribbon_flags": {
+              "RibbonCountG3Cool": 2
+            }
+          },
+          "hot_mutable_overlay": {
+            "enabled": true,
+            "species_id": {{(int)Species.Pikachu}},
+            "form_id": 0,
+            "level": 20,
+            "exp": 8000,
+            "nickname": "Pikachu",
+            "is_nicknamed": false,
+            "gender": 0,
+            "shiny": false,
+            "moves": [{"slot_index":0,"move_id":33,"current_pp":35,"pp_ups":0}]
+          }
+        """);
+
+        var prop = pk3.GetType().GetProperty("RibbonCountG3Cool");
+        Assert.NotNull(prop);
+        Assert.Equal(2, Convert.ToInt32(prop!.GetValue(pk3)!, System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    [Fact]
+    public void Project_PreSaveReview_AppliesCanonicalPokerusOntoPk3Mirror()
+    {
+        var pk5 = CreatePk5(Species.Pikachu, Nature.Hardy);
+        pk5.RefreshChecksum();
+
+        var pk3 = ProjectAndDecode(pk5, 3, "PK3", $$"""
+          "pre_save_review": {
+            "enabled": true,
+            "pokerus_strain": 7,
+            "pokerus_days": 3
+          },
+          "hot_mutable_overlay": {
+            "enabled": true,
+            "species_id": {{(int)Species.Pikachu}},
+            "form_id": 0,
+            "level": 20,
+            "exp": 8000,
+            "nickname": "Pikachu",
+            "is_nicknamed": false,
+            "gender": 0,
+            "shiny": false,
+            "moves": [{"slot_index":0,"move_id":33,"current_pp":35,"pp_ups":0}]
+          }
+        """);
+
+        Assert.Equal(7, GetIntProperty(pk3, "PokerusStrain", "PKRS_Strain", "PokerusState"));
+        Assert.Equal(3, GetIntProperty(pk3, "PKRS_Days", "PokerusDays"));
+    }
+
+    [Fact]
+    public void Import_ReadPokerusDetail_ReportsNonZeroPk3Pokerus()
+    {
+        var pk3 = EntityBlank.GetBlank(typeof(PK3));
+        pk3.Species = (ushort)Species.Pikachu;
+        pk3.Version = GameVersion.E;
+        pk3.Language = (int)LanguageID.English;
+        pk3.OriginalTrainerName = "Ray";
+        pk3.TID16 = 2222;
+        pk3.SID16 = 3333;
+        SetIntProperty(pk3, 7, "PokerusStrain", "PKRS_Strain", "PokerusState");
+        SetIntProperty(pk3, 3, "PKRS_Days", "PokerusDays");
+
+        var reader = typeof(BridgeProject).Assembly.GetType("PKHeXBridge.BridgeImportReader", throwOnError: true)!;
+        var method = reader.GetMethod("ReadPokerusDetail", BindingFlags.Static | BindingFlags.NonPublic)!;
+        var detail = method.Invoke(null, new object[] { pk3 })!;
+        using var json = JsonDocument.Parse(JsonSerializer.Serialize(detail));
+        var root = json.RootElement;
+
+        Assert.Equal(7, root.GetProperty("strain_or_state").GetInt32());
+        Assert.Equal(3, root.GetProperty("days").GetInt32());
+        Assert.Equal("infected", root.GetProperty("status").GetString());
+    }
+
+    [Fact]
     public void Project_FinalNickname_RealNicknameIsPreservedInPk5Projection()
     {
         var pk5 = CreatePk5(Species.Pikachu, Nature.Hardy);
@@ -1329,4 +1508,29 @@ public class BridgeProjectConversionTests
         "PK5" => new PK5(decoded),
         _ => EntityFormat.GetFromBytes(decoded)
     };
+
+    private static int GetIntProperty(PKM pk, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            var prop = pk.GetType().GetProperty(name, BindingFlags.Public | BindingFlags.Instance);
+            if (prop is not null && prop.GetValue(pk) is { } value)
+                return Convert.ToInt32(value, System.Globalization.CultureInfo.InvariantCulture);
+        }
+        throw new InvalidOperationException($"None of these properties exist on {pk.GetType().Name}: {string.Join(", ", names)}");
+    }
+
+    private static void SetIntProperty(PKM pk, int value, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            var prop = pk.GetType().GetProperty(name, BindingFlags.Public | BindingFlags.Instance);
+            if (prop is not null && prop.CanWrite)
+            {
+                prop.SetValue(pk, Convert.ChangeType(value, prop.PropertyType, System.Globalization.CultureInfo.InvariantCulture));
+                return;
+            }
+        }
+        throw new InvalidOperationException($"None of these properties are writable on {pk.GetType().Name}: {string.Join(", ", names)}");
+    }
 }

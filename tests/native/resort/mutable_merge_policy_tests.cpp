@@ -1,5 +1,7 @@
+#include "core/config/Json.hpp"
 #include "resort/domain/ImportedPokemon.hpp"
 #include "resort/domain/PokemonMergeFieldPolicy.hpp"
+#include "resort/domain/ResortRibbonCatalogMerge.hpp"
 #include "resort/domain/ResortTypes.hpp"
 #include "resort/services/MirrorReturnAnalysis.hpp"
 #include "resort/services/PokemonMergeService.hpp"
@@ -393,6 +395,137 @@ void testMirrorReturnPreservesCanonicalShinyWhenEvolvedCartNonShiny() {
     expect(canon.hot.shiny == true, "canonical shiny must remain after evolved mirror return");
 }
 
+void testRibbonCatalogGainOnlyMergesBoolOrAndMaxNumber() {
+    const pr::JsonValue a = pr::parseJsonText(R"json({"RibbonChampionG3":true,"RibbonCountG3Cool":1})json");
+    const pr::JsonValue b = pr::parseJsonText(R"json({"RibbonEffort":true,"RibbonCountG3Cool":3})json");
+    const pr::JsonValue m = pr::resort::mergeRibbonCatalogMapsGainOnly(a, b);
+    expect(m.isObject(), "merged ribbons should be an object");
+    const auto* c = m.get("RibbonChampionG3");
+    const auto* e = m.get("RibbonEffort");
+    const auto* k = m.get("RibbonCountG3Cool");
+    expect(c && c->isBool() && c->asBool(), "Champion should stay true");
+    expect(e && e->isBool() && e->asBool(), "Effort should be gained");
+    expect(k && k->isNumber() && static_cast<int>(k->asNumber()) == 3, "contest count should be max()");
+
+    const pr::JsonValue wipe = pr::parseJsonText(R"json({"RibbonChampionG3":false})json");
+    const pr::JsonValue keep = pr::resort::mergeRibbonCatalogMapsGainOnly(a, wipe);
+    const auto* ck = keep.get("RibbonChampionG3");
+    expect(ck && ck->isBool() && ck->asBool(), "incoming false must not clear existing true");
+}
+
+void testMirrorReturnRibbonCatalogUnionsKeys() {
+    pr::resort::ResortPokemon canon{};
+    canon.id.pkrid = "pkr_ribbon";
+    canon.hot.species_id = 25;
+    canon.hot.level = 20;
+    canon.hot.exp = 8000u;
+    canon.warm.json = R"json({"schema_version":1,"resort_catalog":{"ribbons":{"RibbonChampionG3":true}}})json";
+
+    pr::resort::ImportedPokemon imp{};
+    imp.source_game = 3;
+    imp.format_name = "pk3";
+    imp.hot = canon.hot;
+    imp.warm_json =
+        R"json({"schema_version":1,"resort_catalog":{"ribbon_flags":{"RibbonEffort":true}}})json";
+
+    pr::resort::PokemonMergeService merge;
+    const auto r = merge.mergeImported(
+        canon,
+        imp,
+        1,
+        pr::resort::ImportMergeKind::MirrorReturnGameplaySync);
+    expect(r.changed, "expected warm merge");
+    expect(canon.warm.json.find("RibbonChampionG3") != std::string::npos, "canonical champion retained");
+    expect(canon.warm.json.find("RibbonEffort") != std::string::npos, "incoming effort merged in");
+}
+
+void testMirrorReturnIncomingRibbonFalseDoesNotEraseCanonical() {
+    pr::resort::ResortPokemon canon{};
+    canon.id.pkrid = "pkr_ribbon2";
+    canon.hot.species_id = 25;
+    canon.hot.level = 20;
+    canon.hot.exp = 8000u;
+    canon.warm.json =
+        R"json({"schema_version":1,"resort_catalog":{"ribbon_flags":{"RibbonChampionG3":true}}})json";
+
+    pr::resort::ImportedPokemon imp{};
+    imp.hot = canon.hot;
+    imp.warm_json = R"json({"schema_version":1,"resort_catalog":{"ribbon_flags":{"RibbonChampionG3":false,"RibbonEffort":true}}})json";
+
+    pr::resort::PokemonMergeService merge;
+    merge.mergeImported(canon, imp, 1, pr::resort::ImportMergeKind::MirrorReturnGameplaySync);
+    expect(canon.warm.json.find("\"RibbonChampionG3\":true") != std::string::npos,
+           "gain-only merge must keep champion when cart omits or sends false in warm JSON");
+    expect(canon.warm.json.find("RibbonEffort") != std::string::npos, "new ribbon from incoming");
+}
+
+void testMirrorReturnIncomingZeroPokerusDoesNotEraseCanonical() {
+    pr::resort::ResortPokemon canon{};
+    canon.id.pkrid = "pkr_pokerus";
+    canon.hot.species_id = 25;
+    canon.hot.level = 20;
+    canon.hot.exp = 8000u;
+    canon.warm.json =
+        R"json({"schema_version":1,"resort_catalog":{"pokerus":{"strain_or_state":5,"days":2,"status":"infected"}}})json";
+
+    pr::resort::ImportedPokemon imp{};
+    imp.hot = canon.hot;
+    imp.warm_json =
+        R"json({"schema_version":1,"resort_catalog":{"pokerus":{"strain_or_state":0,"days":0,"status":""}}})json";
+
+    pr::resort::PokemonMergeService merge;
+    merge.mergeImported(canon, imp, 1, pr::resort::ImportMergeKind::MirrorReturnGameplaySync);
+    expect(canon.warm.json.find("\"strain_or_state\":5") != std::string::npos,
+           "incoming zero Pokerus must not clear canonical strain/state");
+    expect(canon.warm.json.find("\"days\":2") != std::string::npos,
+           "incoming zero Pokerus must not clear canonical days");
+    expect(canon.warm.json.find("\"status\":\"infected\"") != std::string::npos,
+           "incoming zero Pokerus must not clear canonical status");
+}
+
+void testMirrorReturnIncomingNonZeroPokerusMergesCanonical() {
+    pr::resort::ResortPokemon canon{};
+    canon.id.pkrid = "pkr_pokerus_gain";
+    canon.hot.species_id = 25;
+    canon.hot.level = 20;
+    canon.hot.exp = 8000u;
+    canon.warm.json = R"json({"schema_version":1,"resort_catalog":{"schema":1}})json";
+
+    pr::resort::ImportedPokemon imp{};
+    imp.hot = canon.hot;
+    imp.warm_json =
+        R"json({"schema_version":1,"resort_catalog":{"pokerus":{"strain_or_state":7,"days":3,"status":"infected"}}})json";
+
+    pr::resort::PokemonMergeService merge;
+    merge.mergeImported(canon, imp, 1, pr::resort::ImportMergeKind::MirrorReturnGameplaySync);
+    expect(canon.warm.json.find("\"strain_or_state\":7") != std::string::npos,
+           "incoming non-zero Pokerus strain/state should merge into canonical catalog");
+    expect(canon.warm.json.find("\"days\":3") != std::string::npos,
+           "incoming non-zero Pokerus days should merge into canonical catalog");
+    expect(canon.warm.json.find("\"status\":\"infected\"") != std::string::npos,
+           "incoming non-zero Pokerus status should merge into canonical catalog");
+}
+
+void testMirrorReturnIncomingPokerusDaysDoNotRegress() {
+    pr::resort::ResortPokemon canon{};
+    canon.id.pkrid = "pkr_pokerus_days";
+    canon.hot.species_id = 25;
+    canon.hot.level = 20;
+    canon.hot.exp = 8000u;
+    canon.warm.json =
+        R"json({"schema_version":1,"resort_catalog":{"pokerus":{"strain_or_state":5,"days":4,"status":"infected"}}})json";
+
+    pr::resort::ImportedPokemon imp{};
+    imp.hot = canon.hot;
+    imp.warm_json =
+        R"json({"schema_version":1,"resort_catalog":{"pokerus":{"strain_or_state":5,"days":1,"status":"infected"}}})json";
+
+    pr::resort::PokemonMergeService merge;
+    merge.mergeImported(canon, imp, 1, pr::resort::ImportMergeKind::MirrorReturnGameplaySync);
+    expect(canon.warm.json.find("\"days\":4") != std::string::npos,
+           "incoming lower Pokerus day count should not regress canonical catalog");
+}
+
 void testPidChangeQuarantines() {
     pr::resort::ResortPokemon canon{};
     canon.id.pkrid = "pkr_test";
@@ -426,6 +559,12 @@ int main() {
         testMirrorReturnPreservesGen12DvEvenWhenEvolved();
         testMirrorReturnWarmMergeStripsCartFormatKey();
         testMirrorReturnWarmMergePreservesStaticFieldCatalog();
+        testRibbonCatalogGainOnlyMergesBoolOrAndMaxNumber();
+        testMirrorReturnRibbonCatalogUnionsKeys();
+        testMirrorReturnIncomingRibbonFalseDoesNotEraseCanonical();
+        testMirrorReturnIncomingZeroPokerusDoesNotEraseCanonical();
+        testMirrorReturnIncomingNonZeroPokerusMergesCanonical();
+        testMirrorReturnIncomingPokerusDaysDoNotRegress();
         testStableIdentityMatchReasonRecognized();
         testMirrorReturnWarmMergeIgnoresReturningFriendshipCatalog();
         testMirrorReturnSanitizesIllegalMovesForOriginGeneration();

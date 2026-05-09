@@ -23,6 +23,7 @@ public:
     void beginResortTransfer();
     void beginTradeDemo();
     void beginSuccessfulSaveQuickPass(const std::string& message_key = {});
+    void markSuccessfulSaveQuickPassWorkComplete();
     void update(double dt);
 
     bool consumeReturnToMenuRequest();
@@ -44,6 +45,7 @@ private:
     double temporal_simulated_load_duration_seconds_ = 0.0;
     double temporal_loading_elapsed_seconds_ = 0.0;
     bool temporal_loading_completion_sent_ = false;
+    bool successful_save_quick_pass_waits_for_external_complete_ = false;
 };
 
 } // namespace pr

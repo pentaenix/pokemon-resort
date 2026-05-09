@@ -7,6 +7,10 @@ REPO_ROOT="$SCRIPT_DIR"
 PR_DIR="${PKR_PROJECT_DIR:-$REPO_ROOT}"
 BUILD_DIR="$PR_DIR/build"
 BRIDGE_DIR="$REPO_ROOT/tools/pkhex_bridge"
+OPENHOME_DIR="$REPO_ROOT/tools/OpenHome"
+
+# Prepended when invoking OpenHome's pnpm scripts (wasm-pack, node).
+PKR_OPENHOME_PATH_DEFAULT="/opt/homebrew/opt/rustup/bin:/opt/homebrew/opt/node@22/bin:/opt/homebrew/bin:/usr/bin:/bin"
 
 warn_if_stray_repo_root_build() {
     local stray="$REPO_ROOT/build"
@@ -32,16 +36,22 @@ usage() {
         Pokemon Resort — pkr
 
         pkr run              Configure (if needed), incremental build, run the game
-        pkr run --bridge     Same, but build + publish PKHeX bridge first (recommended if you changed tools/pkhex_bridge)
-        pkr run --clean      Clear transfer cache, clean rebuild everything, rebuild + publish bridge, then run
+        pkr run --bridge     Same, but build PKHeX bridge + OpenHome resort-bridge first (recommended if you changed either bridge)
+        pkr run --clean      Clear transfer cache, clean PKHeX bridge, clean CMake rebuild, build OpenHome resort-bridge, run the game
+        pkr run --clean --chlorine   Same as --clean, then: replace ../saves with ../saves_backup (mirrors SaveLibrary),
+                              then reset Resort DB like "pkr newgame --confirm" (repeatable test harness)
+        pkr run --openhome   Build (same as pkr run), then launch OpenHome UI instead of the game (see pkr openhome)
         pkr dev              Same as pkr run
         pkr build            Incremental CMake build only
-        pkr build --bridge   CMake build, then dotnet build + publish for PKHeX bridge (keeps transfer sprites in sync)
+        pkr build --bridge   CMake build, then PKHeX publish + OpenHome resort-bridge build
         pkr build --all      Full clean rebuild (removes build/, reconfigure, rebuild all)
-        pkr build --all --bridge   Clean rebuild game + publish bridge
+        pkr build --all --bridge   Clean rebuild game + both bridges
         pkr build -all       Same as --all
         pkr bridge           dotnet build + dotnet publish for tools/pkhex_bridge (updates publish/<rid>/ for releases)
+        pkr bridge-openhome  Build only the headless OpenHome CLI (tools/OpenHome/dist/resort-bridge/resortBridge.mjs)
+        pkr openhome         Run OpenHome desktop UI (pnpm tauri dev). Optional: pkr openhome web  (browser-only vite dev)
         pkr clear            Delete transfer probe cache (same as game --clear-save-cache); needs a built binary
+        pkr clear --openhome Remove OpenHome UI build outputs under tools/OpenHome/dist/ except dist/resort-bridge/ (headless bridge kept)
         pkr recover <pkrid>  Emergency recovery: put a canonical Pokemon in the first available Resort slot
         pkr reset-resort     DANGEROUS: wipe Resort profile (requires --confirm RESET)
         pkr --newgame --confirm   Same as reset-resort; shorthand for testing (order: --newgame --confirm or --confirm --newgame)
@@ -55,13 +65,24 @@ usage() {
           matches bin/Release. The game prefers bin/Release/net10.0 over publish/ when both exist; stale publish/ alone
           used to emit minimal JSON and break box sprites. Override binary: PKHEX_BRIDGE_EXECUTABLE=/path/to/PKHeXBridge
 
+        OpenHome (headless resort bridge + optional UI):
+          Native code calls tools/OpenHome/dist/resort-bridge/resortBridge.mjs. Use pkr bridge-openhome or
+          pkr run --bridge / pkr run --clean to rebuild it. Override node: OPENHOME_NODE_EXECUTABLE.
+          Path for pnpm scripts: PKR_OPENHOME_PATH (default prepends common Homebrew rust + node@22 when present)
+
         Environment:
           PKR_PROJECT_DIR     Override path to pokemon-resort (default: this repo root)
           PKR_RESORT_DB       Override Resort SQLite DB path for pkr recover
           PKHEX_BRIDGE_RID    dotnet publish runtime id (default: osx-arm64 on Apple silicon, osx-x64 on Intel Mac,
                               linux-x64 on Linux, win-x64 on Windows MSYS)
 
-        Extra args after pkr run / pkr dev are passed to title_screen_demo (e.g. config path), except --bridge is consumed by pkr.
+        Chlorine / saves (with pkr run --clean --chlorine):
+          PKR_SAVES_DIR             Target saves folder (default: <repo>/../saves, same as SaveLibrary)
+          PKR_CHLORINE_SAVES_BACKUP Source folder to copy from (default: <repo>/../saves_backup)
+          PKR_CHLORINE_PROFILE      Resort profile id for reset (default: default)
+
+        Extra args after pkr run / pkr dev are passed to title_screen_demo (e.g. config path), except --bridge, --clean,
+        --chlorine, and --openhome are consumed by pkr.
 EOF
 }
 
@@ -178,6 +199,83 @@ pkr_bridge_clean() {
     )
 }
 
+pkr_openhome_path_for_pnpm() {
+    if [[ -n "${PKR_OPENHOME_PATH:-}" ]]; then
+        export PATH="$PKR_OPENHOME_PATH:$PATH"
+    else
+        export PATH="$PKR_OPENHOME_PATH_DEFAULT:$PATH"
+    fi
+}
+
+pkr_ensure_openhome_dir() {
+    if [[ ! -f "$OPENHOME_DIR/package.json" ]]; then
+        echo "pkr: missing OpenHome: $OPENHOME_DIR/package.json" >&2
+        exit 1
+    fi
+}
+
+pkr_bridge_openhome() {
+    pkr_ensure_openhome_dir
+    if ! command -v pnpm >/dev/null 2>&1; then
+        echo "pkr: pnpm not found; install pnpm to build OpenHome resort-bridge" >&2
+        exit 1
+    fi
+    pkr_openhome_path_for_pnpm
+    echo "pkr: OpenHome resort-bridge (pnpm run resort-bridge:build -> tools/OpenHome/dist/resort-bridge/)"
+    (
+        cd "$OPENHOME_DIR"
+        pnpm run resort-bridge:build
+    )
+}
+
+pkr_clear_openhome_ui() {
+    local d="$OPENHOME_DIR/dist"
+    if [[ ! -d "$d" ]]; then
+        echo "pkr: no OpenHome dist/ to clear -> $d"
+        return 0
+    fi
+    local removed=false
+    local item base
+    shopt -s nullglob
+    for item in "$d"/*; do
+        [[ -e "$item" ]] || continue
+        base=$(basename "$item")
+        if [[ "$base" == "resort-bridge" ]]; then
+            continue
+        fi
+        echo "pkr: removing $item"
+        rm -rf "$item"
+        removed=true
+    done
+    shopt -u nullglob
+    if ! $removed; then
+        echo "pkr: OpenHome dist/ had no UI artifacts to remove (resort-bridge/ kept)"
+    fi
+    echo "pkr: OpenHome UI artifacts cleared (kept dist/resort-bridge/ for headless bridge)"
+}
+
+pkr_openhome_ui_launch() {
+    pkr_ensure_openhome_dir
+    if [[ ! -d "$OPENHOME_DIR/node_modules" ]]; then
+        echo "pkr: OpenHome has no node_modules; run: cd $OPENHOME_DIR && pnpm install" >&2
+        exit 1
+    fi
+    if ! command -v pnpm >/dev/null 2>&1; then
+        echo "pkr: pnpm not found" >&2
+        exit 1
+    fi
+    pkr_openhome_path_for_pnpm
+    local mode="${1:-}"
+    if [[ "$mode" == "web" ]]; then
+        shift
+        echo "pkr: OpenHome web UI (pnpm run dev)"
+        (cd "$OPENHOME_DIR" && exec pnpm run dev "$@")
+    else
+        echo "pkr: OpenHome desktop UI (pnpm run tauri dev)"
+        (cd "$OPENHOME_DIR" && exec pnpm run tauri dev "$@")
+    fi
+}
+
 configure_if_needed() {
     if [[ ! -f "$BUILD_DIR/CMakeCache.txt" ]]; then
         echo "pkr: configuring CMake -> $BUILD_DIR"
@@ -204,9 +302,66 @@ pkr_build_all() {
     cmake --build "$BUILD_DIR" "$(cmake_jobs)"
 }
 
+# Same path resolution as SaveLibrary::savesDirectory() (project root parent / saves).
+pkr_saves_dir() {
+    echo "${PKR_SAVES_DIR:-$PR_DIR/../saves}"
+}
+
+pkr_chlorine_saves_backup_dir() {
+    echo "${PKR_CHLORINE_SAVES_BACKUP:-$PR_DIR/../saves_backup}"
+}
+
+pkr_chlorine_restore_saves() {
+    local saves_dir backup_dir
+    saves_dir="$(pkr_saves_dir)"
+    backup_dir="$(pkr_chlorine_saves_backup_dir)"
+    if [[ ! -d "$backup_dir" ]]; then
+        echo "pkr: --chlorine: backup saves directory not found: $backup_dir" >&2
+        echo "pkr: create it (e.g. copy your golden saves there) or set PKR_CHLORINE_SAVES_BACKUP" >&2
+        exit 1
+    fi
+    mkdir -p "$saves_dir"
+    echo "pkr: --chlorine: replacing $(readlink -f "$saves_dir" 2>/dev/null || echo "$saves_dir")"\
+         "with contents of $(readlink -f "$backup_dir" 2>/dev/null || echo "$backup_dir")"
+    if command -v rsync >/dev/null 2>&1; then
+        rsync -a --delete "$backup_dir"/ "$saves_dir"/
+    else
+        find "$saves_dir" -mindepth 1 -exec rm -rf {} +
+        shopt -s dotglob nullglob
+        local f
+        for f in "$backup_dir"/* "$backup_dir"/.[!.]* "$backup_dir"/..?*; do
+            [[ -e "$f" ]] || continue
+            cp -a "$f" "$saves_dir"/
+        done
+        shopt -u dotglob nullglob
+    fi
+}
+
+# Same as pkr newgame --confirm (Resort DB reset); expects resort_backend_tool already built.
+pkr_chlorine_reset_resort_newgame() {
+    ensure_pr_dir
+    local profile="${PKR_CHLORINE_PROFILE:-default}"
+    local db
+    db="$(pkr_resort_db_path)"
+    if [[ ! -f "$db" ]]; then
+        echo "pkr: --chlorine: Resort database not found: $db" >&2
+        echo "pkr: run the game once or pass PKR_RESORT_DB" >&2
+        exit 1
+    fi
+    local tool="$BUILD_DIR/resort_backend_tool"
+    if [[ ! -x "$tool" && ! -f "$tool" ]]; then
+        echo "pkr: --chlorine: expected resort_backend_tool after build: $tool" >&2
+        exit 1
+    fi
+    echo "pkr: --chlorine: Resort newgame reset (same as pkr newgame --confirm, profile=$profile)"
+    "$tool" reset --db "$db" --profile "$profile" --confirm RESET
+}
+
 pkr_run() {
     local with_bridge=false
     local clean=false
+    local run_openhome=false
+    local chlorine=false
     local forward=()
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -217,6 +372,14 @@ pkr_run() {
             --clean)
                 clean=true
                 with_bridge=true
+                shift
+                ;;
+            --chlorine)
+                chlorine=true
+                shift
+                ;;
+            --openhome)
+                run_openhome=true
                 shift
                 ;;
             *)
@@ -233,16 +396,33 @@ pkr_run() {
         set --
     fi
 
+    if $chlorine && ! $clean; then
+        echo "pkr: --chlorine requires --clean (e.g. pkr run --clean --chlorine)" >&2
+        exit 2
+    fi
+
     if $clean; then
         clear_transfer_cache_best_effort
         pkr_bridge_clean
+        pkr_bridge_openhome
         pkr_build_all
+        if $chlorine; then
+            pkr_chlorine_restore_saves
+            pkr_chlorine_reset_resort_newgame
+        fi
     else
         if $with_bridge; then
             pkr_bridge
+            pkr_bridge_openhome
         fi
         pkr_build_incremental
     fi
+
+    if $run_openhome; then
+        pkr_openhome_ui_launch "$@"
+        return
+    fi
+
     local exe="$BUILD_DIR/title_screen_demo"
     if [[ ! -x "$exe" ]] && [[ ! -f "$exe" ]]; then
         echo "pkr: expected executable not found: $exe" >&2
@@ -253,6 +433,28 @@ pkr_run() {
 }
 
 pkr_clear() {
+    local openhome=false
+    local forward=()
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --openhome)
+                openhome=true
+                shift
+                ;;
+            *)
+                forward+=("$1")
+                shift
+                ;;
+        esac
+    done
+    if $openhome; then
+        if ((${#forward[@]})); then
+            echo "pkr: clear --openhome does not take extra args (got: ${forward[*]})" >&2
+            exit 1
+        fi
+        pkr_clear_openhome_ui
+        return 0
+    fi
     ensure_pr_dir
     local exe="$BUILD_DIR/title_screen_demo"
     if [[ ! -f "$exe" ]]; then
@@ -260,7 +462,11 @@ pkr_clear() {
         exit 1
     fi
     echo "pkr: clearing transfer_save_cache (via title_screen_demo --clear-save-cache)"
-    (cd "$PR_DIR" && exec "$exe" --clear-save-cache "$@")
+    if ((${#forward[@]})); then
+        (cd "$PR_DIR" && exec "$exe" --clear-save-cache "${forward[@]}")
+    else
+        (cd "$PR_DIR" && exec "$exe" --clear-save-cache)
+    fi
 }
 
 pkr_resort_db_path() {
@@ -400,10 +606,13 @@ pkr_reset_resort() {
     cmake --build "$BUILD_DIR" --target resort_backend_tool "$(cmake_jobs)"
     local tool="$BUILD_DIR/resort_backend_tool"
     echo "pkr: resetting Resort profile (profile=$profile)"
+    local ec=0
     if [[ -n "$backup" ]]; then
-        exec "$tool" reset --db "$db" --profile "$profile" --backup "$backup" --confirm RESET
+        "$tool" reset --db "$db" --profile "$profile" --backup "$backup" --confirm RESET || ec=$?
+    else
+        "$tool" reset --db "$db" --profile "$profile" --confirm RESET || ec=$?
     fi
-    exec "$tool" reset --db "$db" --profile "$profile" --confirm RESET
+    exit "$ec"
 }
 
 pkr_newgame() {
@@ -484,7 +693,16 @@ case "$cmd" in
         fi
         if $with_bridge; then
             pkr_bridge
+            pkr_bridge_openhome
         fi
+        ;;
+    bridge-openhome)
+        shift
+        if [[ $# -gt 0 ]]; then
+            echo "pkr: unknown arguments for bridge-openhome: $*" >&2
+            exit 1
+        fi
+        pkr_bridge_openhome
         ;;
     bridge)
         shift
@@ -493,6 +711,10 @@ case "$cmd" in
             exit 1
         fi
         pkr_bridge
+        ;;
+    openhome)
+        shift
+        pkr_openhome_ui_launch "$@"
         ;;
     run|dev)
         shift

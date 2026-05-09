@@ -8,8 +8,8 @@
 
 namespace pr::resort {
 
-/// Heuristic conflict flags for a mirror return or merge-from-import (see
-/// `docs/transfer_system/MIRROR_PROJECTION_ARCHITECTURE.md` — suspicious changes).
+/// Heuristic conflict flags for a legacy mirror return or merge-from-import.
+/// Mirror-first guidance lives in `docs/transfer_system/MIRROR_PROJECTION_ARCHITECTURE.md` (legacy design history).
 struct ImportConflictReport {
     std::vector<std::string> flags;
     bool quarantine_recommended = false;

@@ -290,6 +290,37 @@ LoadedGameTransfer loadGameTransfer(const std::string& project_root) {
                         parseColorString(c->asString(), out.box_viewport.slot_background_color, design_tokens);
                 }
             }
+            out.box_viewport.disabled_slot_background_enabled = boolFromObjectOrDefault(
+                o,
+                "disabled_slot_background_enabled",
+                out.box_viewport.disabled_slot_background_enabled);
+            if (const JsonValue* c = o.get("disabled_slot_background_color")) {
+                if (c->isString()) {
+                    out.box_viewport.disabled_slot_background_color =
+                        parseColorString(c->asString(), out.box_viewport.disabled_slot_background_color, design_tokens);
+                }
+            }
+            out.box_viewport.disabled_slot_background_alpha = std::clamp(
+                intFromObjectOrDefault(
+                    o,
+                    "disabled_slot_background_alpha",
+                    out.box_viewport.disabled_slot_background_alpha),
+                0,
+                255);
+            out.box_viewport.disabled_sprite_mod_enabled = boolFromObjectOrDefault(
+                o,
+                "disabled_sprite_mod_enabled",
+                out.box_viewport.disabled_sprite_mod_enabled);
+            if (const JsonValue* c = o.get("disabled_sprite_mod_color")) {
+                if (c->isString()) {
+                    out.box_viewport.disabled_sprite_mod_color =
+                        parseColorString(c->asString(), out.box_viewport.disabled_sprite_mod_color, design_tokens);
+                }
+            }
+            out.box_viewport.disabled_sprite_mod_alpha = std::clamp(
+                intFromObjectOrDefault(o, "disabled_sprite_mod_alpha", out.box_viewport.disabled_sprite_mod_alpha),
+                0,
+                255);
             if (const JsonValue* c = o.get("footer_button_fill_color")) {
                 if (c->isString()) {
                     out.box_viewport.footer_button_fill_color =

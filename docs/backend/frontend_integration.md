@@ -81,7 +81,11 @@ Deferred UI-facing work includes richer conflict prompts, native Gen 1/2 ambiguo
 
 ## Transition plan: transfer screen as Resort source of truth
 
-The transfer system still mixes **bridge preview models** with **in-memory** game/resort slot arrays. Cross-generational travel requires the architecture in [`../transfer_system/MIRROR_PROJECTION_ARCHITECTURE.md`](../transfer_system/MIRROR_PROJECTION_ARCHITECTURE.md): Resort holds canonical state; the bridge `project` command produces target-generation PC payloads; write-back uses import-grade encrypted slots.
+The transfer system still mixes **bridge preview models** with **in-memory** game/resort slot arrays. The current repo direction for cross-generational travel is **OpenHome-first movement** plus **placement state** plus **staged Save+Exit** safety. Read:
+
+- [`../openhome-first-mirror-retirement.md`](../openhome-first-mirror-retirement.md)
+- [`../openhome-persistent-identity-integration.md`](../openhome-persistent-identity-integration.md)
+- [`../transfer_system/SAVE_EXIT_SAFETY.md`](../transfer_system/SAVE_EXIT_SAFETY.md)
 
 Concrete integration order:
 

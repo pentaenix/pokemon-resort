@@ -1,5 +1,18 @@
 # Mirror Projection Architecture
 
+> Status: **LEGACY DESIGN HISTORY**
+>
+> This document describes the older mirror-first architecture where Resort owns canonical bytes and “mirrors” are projected into games and merged back on return.
+>
+> The current repo direction is **OpenHome-first** movement + **placement state** + **staged Save+Exit** + **no-dup/no-drop invariants**.
+> Do not implement new behavior using this document unless the repository explicitly decides to return to a mirror-first model.
+>
+> Current source-of-truth docs for movement/safety:
+>
+> - `docs/openhome-first-mirror-retirement.md`
+> - `docs/openhome-persistent-identity-integration.md`
+> - `docs/transfer_system/SAVE_EXIT_SAFETY.md`
+
 This document is the design target for making Pokemon Resort behave like canonical storage while allowing Pokemon to travel to any supported game. It is intentionally policy-heavy: PKHeX can do format work, but the product promise is ours.
 
 ## Product Promise
@@ -139,7 +152,7 @@ Active mirror placement rule:
 
 ### Temporary PID Mapping
 
-PID equality is not identity. Resort identity is always `pkrid`.
+PID equality is not identity. New Resort/OpenHome storage should use OpenHome's `openhomeId` as Pokemon identity. Existing `pkrid` references are legacy compatibility anchors for the current PKHeX-backed database and should be migrated out incrementally.
 
 When a future-generation Pokemon is projected into an older generation whose PID rules affect shiny, nature, gender, or ability slot, the bridge may generate a target-compatible transport PID. That PID belongs only to the projection. Export must record it in `mirror_sessions.transport_pid`, `pid_transport_registry`, and `pokemon.pid_history_json` while preserving `pokemon.original_pid` and canonical `hot.pid`.
 

@@ -2,12 +2,14 @@
 
 #include "core/bridge/BridgeImportMerge.hpp"
 #include "core/bridge/SaveBridgeClient.hpp"
+#include "core/config/Json.hpp"
 #include "core/save/TransferBoxEditsStore.hpp"
 #include "core/assets/PokeSpriteAssets.hpp"
 #include "resort/domain/ImportedPokemon.hpp"
 #include "resort/domain/ExportedPokemon.hpp"
 #include "resort/domain/ResortTypes.hpp"
 #include "resort/integration/BridgeImportAdapter.hpp"
+#include "resort/openhome/OpenHomeMovementBridge.hpp"
 #include "resort/services/PokemonResortService.hpp"
 #include "ui/transfer_system/TransferSystemFocusGraph.hpp"
 
@@ -16,7 +18,10 @@
 #include <array>
 #include <algorithm>
 #include <exception>
+#include <filesystem>
+#include <fstream>
 #include <iostream>
+#include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -28,6 +33,11 @@ constexpr const char* kDefaultResortProfileId = "default";
 constexpr int kBoxViewportY = 100;
 constexpr char kBase64Alphabet[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 constexpr const char* kTempTransferLog = "[TEMP_TRANSFER_LOG_DELETE]";
+
+bool isGen12GameKey(const std::string& game_key) {
+    return game_key == "pokemon_red" || game_key == "pokemon_blue" || game_key == "pokemon_yellow" ||
+           game_key == "pokemon_gold" || game_key == "pokemon_silver" || game_key == "pokemon_crystal";
+}
 
 std::string encodeBase64(const std::vector<unsigned char>& bytes) {
     std::string out;
@@ -53,6 +63,107 @@ std::string firstNonEmptyGameSlotFormat(const std::vector<TransferSaveSelection:
         }
     }
     return {};
+}
+
+constexpr const char* kOpenHomeJournalFileName = "pkr_openhome_journal.json";
+
+std::filesystem::path openHomeJournalPath(const std::string& save_directory) {
+    namespace fs = std::filesystem;
+    return fs::path(save_directory) / "resort-openhome-storage" / kOpenHomeJournalFileName;
+}
+
+struct OpenHomeJournalPull {
+    int source_box = -1;
+    int source_slot = -1;
+    std::string openhome_id;
+};
+
+std::vector<OpenHomeJournalPull> readOpenHomeJournalPulls(
+    const std::string& save_directory,
+    std::string* out_source_save_path) {
+    namespace fs = std::filesystem;
+    std::vector<OpenHomeJournalPull> out;
+    const fs::path p = openHomeJournalPath(save_directory);
+    std::ifstream f(p, std::ios::binary);
+    if (!f) return out;
+    std::stringstream buffer;
+    buffer << f.rdbuf();
+    try {
+        const pr::JsonValue root = pr::parseJsonText(buffer.str());
+        if (out_source_save_path) {
+            if (const pr::JsonValue* s = root.get("sourceSavePath"); s && s->isString()) {
+                *out_source_save_path = s->asString();
+            }
+        }
+        const pr::JsonValue* pulls = root.get("pulls");
+        if (!pulls || !pulls->isArray()) return out;
+        for (const pr::JsonValue& item : pulls->asArray()) {
+            if (!item.isObject()) continue;
+            OpenHomeJournalPull pull;
+            if (const pr::JsonValue* b = item.get("sourceBox"); b && b->isNumber()) {
+                pull.source_box = static_cast<int>(b->asNumber());
+            }
+            if (const pr::JsonValue* s = item.get("sourceSlot"); s && s->isNumber()) {
+                pull.source_slot = static_cast<int>(s->asNumber());
+            }
+            if (const pr::JsonValue* id = item.get("openhomeId"); id && id->isString()) {
+                pull.openhome_id = id->asString();
+            }
+            if (pull.source_box >= 0 && pull.source_slot >= 0 && !pull.openhome_id.empty()) {
+                out.push_back(std::move(pull));
+            }
+        }
+    } catch (...) {
+        // best effort
+    }
+    return out;
+}
+
+void clearOpenHomeJournalBestEffort(const std::string& save_directory) {
+    namespace fs = std::filesystem;
+    std::error_code rm_error;
+    fs::remove(openHomeJournalPath(save_directory), rm_error);
+}
+
+void reconcileOpenHomeJournalBestEffort(
+    const std::string& project_root,
+    const std::string& save_directory,
+    const std::string& source_save_path) {
+    namespace fs = std::filesystem;
+    std::string journal_save_path;
+    const std::vector<OpenHomeJournalPull> pulls = readOpenHomeJournalPulls(save_directory, &journal_save_path);
+    if (pulls.empty()) return;
+    if (!journal_save_path.empty() && journal_save_path != source_save_path) return;
+
+    std::cerr << "Warning: found incomplete OpenHome transfer journal; attempting automatic rollback.\n";
+    resort::openhome::OpenHomeCliMovementBridge bridge(
+        fs::path(project_root),
+        fs::path(save_directory) / "resort-openhome-storage");
+
+    for (const auto& pull : pulls) {
+        const fs::path reconcile_path = fs::path(source_save_path).string() + ".pkr_openhome_reconcile";
+        std::error_code copy_error;
+        fs::copy_file(source_save_path, reconcile_path, fs::copy_options::overwrite_existing, copy_error);
+        if (copy_error) {
+            std::cerr << "Warning: OpenHome rollback could not stage save: " << copy_error.message() << '\n';
+            return;
+        }
+        resort::openhome::OpenHomePushToGameRequest request;
+        request.openhome_id = pull.openhome_id;
+        request.destination.save_path = reconcile_path;
+        request.destination.box = pull.source_box;
+        request.destination.slot = pull.source_slot;
+        const resort::openhome::OpenHomePushToGameResult result = bridge.pushPokemonToGame(request);
+        std::error_code rm_error;
+        fs::remove(reconcile_path, rm_error);
+        if (!result.success) {
+            std::cerr << "Warning: OpenHome rollback push-to-game failed for " << pull.openhome_id << ": "
+                      << (result.error ? result.error->message : std::string("unknown error")) << '\n';
+            return;
+        }
+    }
+    clearOpenHomeJournalBestEffort(save_directory);
+    std::cerr << "Warning: OpenHome rollback completed; you may re-attempt the transfer.\n";
 }
 
 void getPillTrackBounds(const GameTransferPillToggleStyle& st, int screen_w, int& tx, int& ty, int& tw, int& th) {
@@ -147,6 +258,7 @@ PcSlotSpecies TransferSystemScreen::pcSlotFromResortSlotView(
     s.is_shiny = view.shiny;
     s.gender = static_cast<int>(view.gender);
     s.ot_name = view.ot_name;
+    s.home_tracker = view.home_tracker;
     s.origin_game_id = static_cast<int>(view.origin_game);
     if (view.source_game.has_value()) {
         s.source_game_id = static_cast<int>(*view.source_game);
@@ -199,6 +311,23 @@ PcSlotSpecies TransferSystemScreen::pcSlotFromResortSlotView(
     return s;
 }
 
+void TransferSystemScreen::enqueuePendingOpenHomePullIfNeededForGameToResort(
+    const transfer_system::PokemonMoveController::SlotRef& resort_target,
+    const transfer_system::PokemonMoveController::SlotRef& game_source) {
+    using Move = transfer_system::PokemonMoveController;
+    if (resort_target.panel != Move::Panel::Resort || game_source.panel != Move::Panel::Game) {
+        return;
+    }
+    const PcSlotSpecies* target_slot = pokemonAt(resort_target);
+    if (target_slot && !target_slot->bridge_box_payload_hash_sha256.empty()) {
+        pending_openhome_pulls_.push_back(PendingOpenHomePull{
+            game_source.box_index,
+            game_source.slot_index,
+            target_slot->bridge_box_payload_hash_sha256
+        });
+    }
+}
+
 bool TransferSystemScreen::persistResortPokemonDropToStorage(
     const transfer_system::PokemonMoveController::SlotRef& target,
     const transfer_system::PokemonMoveController::SlotRef& return_slot,
@@ -211,6 +340,7 @@ bool TransferSystemScreen::persistResortPokemonDropToStorage(
         return true;
     }
     if (target.panel == Move::Panel::Resort && return_slot.panel == Move::Panel::Game) {
+        enqueuePendingOpenHomePullIfNeededForGameToResort(target, return_slot);
         std::cerr << kTempTransferLog
                   << " UI Game->Resort drop deferred until Save+Exit source_box=" << return_slot.box_index
                   << " source_slot=" << return_slot.slot_index
@@ -251,6 +381,13 @@ void TransferSystemScreen::enter(const TransferSaveSelection& selection, SDL_Ren
     closeBoxRenameModal(false);
     ui_state_.enter();
     transfer_selection_ = selection;
+
+    // Crash-safety: if a previous Save+Exit died after OpenHome side effects, clear any stranded Home placements
+    // before we let the user move Pokémon again.
+    if (!save_directory_.empty() && !selection.source_path.empty()) {
+        reconcileOpenHomeJournalBestEffort(project_root_, save_directory_, selection.source_path);
+    }
+
     bridge_import_source_game_.reset();
     bridge_import_storage_format_name_.clear();
     initializeResortPcBoxesFromStorage(renderer);
@@ -261,8 +398,11 @@ void TransferSystemScreen::enter(const TransferSaveSelection& selection, SDL_Ren
     pickup_sfx_requested_ = false;
     putdown_sfx_requested_ = false;
     successful_save_exit_requested_ = false;
+    deferred_save_for_successful_exit_pending_ = false;
     cross_panel_game_to_resort_moves_ = 0;
     cross_panel_resort_to_game_moves_ = 0;
+    pending_openhome_pulls_.clear();
+    pending_openhome_import_payloads_.clear();
     selection_cursor_hidden_after_mouse_ = false;
     speech_hover_active_ = false;
     dropdown_lmb_down_in_panel_ = false;
@@ -304,7 +444,9 @@ void TransferSystemScreen::enter(const TransferSaveSelection& selection, SDL_Ren
     if (!selection.pc_boxes.empty()) {
         game_pc_boxes_ = selection.pc_boxes;
         for (auto& b : game_pc_boxes_) {
-            if (b.native_slot_count <= 0) {
+            if (isGen12GameKey(selection.game_key)) {
+                b.native_slot_count = 20;
+            } else if (b.native_slot_count <= 0) {
                 b.native_slot_count = static_cast<int>(std::min<std::size_t>(30, b.slots.size()));
             }
             if (b.slots.size() < 30) {
@@ -342,7 +484,9 @@ void TransferSystemScreen::enter(const TransferSaveSelection& selection, SDL_Ren
                 game_pc_boxes_ = overlay->pc_boxes;
                 for (std::size_t i = 0; i < game_pc_boxes_.size(); ++i) {
                     auto& box = game_pc_boxes_[i];
-                    if (box.native_slot_count <= 0 && i < native_slot_counts.size()) {
+                    if (isGen12GameKey(selection.game_key)) {
+                        box.native_slot_count = 20;
+                    } else if (box.native_slot_count <= 0 && i < native_slot_counts.size()) {
                         box.native_slot_count = native_slot_counts[i];
                     }
                     if (box.native_slot_count <= 0) {
@@ -408,6 +552,8 @@ void TransferSystemScreen::enter(const TransferSaveSelection& selection, SDL_Ren
             }
         }
     }
+    refreshTargetGameMonSupportCache();
+    refreshResortBoxViewportModel();
 
     game_box_browser_.enter(static_cast<int>(game_pc_boxes_.size()), initial_game_box_index);
 

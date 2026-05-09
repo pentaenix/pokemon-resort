@@ -229,6 +229,12 @@ struct GameTransferBoxViewportStyle {
     Color footer_button_underline_color{175, 175, 175, 255};
     Color footer_button_active_fill_color{46, 176, 92, 255};
     Color footer_button_active_underline_color{36, 150, 78, 255};
+    bool disabled_slot_background_enabled = true;
+    Color disabled_slot_background_color{188, 188, 188, 255};
+    int disabled_slot_background_alpha = 180;
+    bool disabled_sprite_mod_enabled = true;
+    Color disabled_sprite_mod_color{142, 142, 142, 255};
+    int disabled_sprite_mod_alpha = 170;
 
     // --- Item tool overlays ---
     int item_tool_item_size = 42;

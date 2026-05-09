@@ -54,6 +54,13 @@ public static class PcBoxProjectionApplier
                 }
                 else if (slotEl.ValueKind == JsonValueKind.Object)
                 {
+                    if (slotEl.TryGetProperty("preserve_box_slot", out var preserveEl) &&
+                        preserveEl.ValueKind == JsonValueKind.True)
+                    {
+                        si++;
+                        continue;
+                    }
+
                     var b64 = RequireString(slotEl, "raw_payload_base64");
                     var hexHash = RequireString(slotEl, "raw_hash_sha256");
                     var raw = Convert.FromBase64String(b64);

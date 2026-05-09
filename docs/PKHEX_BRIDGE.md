@@ -68,7 +68,9 @@ dotnet run --project /Users/vanta/Desktop/title_screen_demo/pokemon-resort/tools
 
 Output includes `bridge_pkm_inspect_schema: 1` and a compatible `bridge_import_schema: 1` Pokemon array. The optional numeric source game is copied into the import-style payload when known.
 
-Cross-generation PKM projection (request JSON file; see `MIRROR_PROJECTION_ARCHITECTURE.md`):
+Cross-generation PKM projection (request JSON file).
+
+Note: mirror-first “projection architecture” is legacy design history now; current movement is migrating to OpenHome-first (see `docs/openhome-first-mirror-retirement.md` and `docs/transfer_system/SAVE_EXIT_SAFETY.md`).
 
 ```bash
 dotnet run --project /Users/vanta/Desktop/title_screen_demo/pokemon-resort/tools/pkhex_bridge/PKHeXBridge.csproj -- project "/path/to/bridge_project_request.json"

@@ -118,7 +118,11 @@ bool TransferSystemScreen::handlePointerPressed(int logical_x, int logical_y) {
             return true;
         }
         if (const auto target = slotRefAtPointer(logical_x, logical_y)) {
-            return dropHeldPokemonAt(*target);
+            const bool dropped = dropHeldPokemonAt(*target);
+            if (!dropped) {
+                triggerHeldSpriteRejectFeedback();
+            }
+            return true;
         }
         return true;
     }
@@ -358,4 +362,3 @@ bool TransferSystemScreen::handlePointerPressed(int logical_x, int logical_y) {
 }
 
 } // namespace pr
-

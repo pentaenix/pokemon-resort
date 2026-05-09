@@ -47,6 +47,10 @@ public:
     bool consumeSuccessfulSaveReturnToTicketsRequest();
     void completeSuccessfulSaveReturnToTickets();
     std::string takeSuccessfulSaveQuickPassMessageKey();
+    /// Persists PC/Resort edits after the quick boat is on-screen (Save+Exit path).
+    bool runDeferredSaveForSuccessfulExit();
+    std::future<bool> launchDeferredSaveForSuccessfulExitAsync();
+    void notifyDeferredSuccessfulSaveLoadingAborted();
 
     bool hasTransferMusic() const;
     const std::string& musicPath() const;

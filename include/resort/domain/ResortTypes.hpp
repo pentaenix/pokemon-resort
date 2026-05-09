@@ -117,6 +117,7 @@ struct PokemonSlotView {
     std::uint32_t markings = 0;
     std::string ot_name;
     std::uint16_t origin_game = 0;
+    std::string home_tracker;
     std::optional<std::uint16_t> source_game;
     std::string source_game_key;
     std::optional<std::uint16_t> ball_id;

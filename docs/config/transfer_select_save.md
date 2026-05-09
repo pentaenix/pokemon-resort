@@ -11,6 +11,7 @@ The screen renders in the app's `1280x800` logical/design coordinate system. Tic
 - `transfer_screen.list`: first ticket position, vertical separation, scroll speed, and viewport clipping rectangle.
 - `transfer_screen.audio`: transfer lobby music and fade/silence timing.
 - `transfer_screen.background_animation`: shared scrolling background tuning.
+- `transfer_screen.top_wave_banner`: generated top banner wave visibility, animation toggle, color, height range, amplitude, fixed wavelength, speed, and segment count.
 - `ticket.font_sizes`: text sizing for ticket labels and values.
 - `ticket.layout`: ticket-local positions for boarding pass text, game title, trainer name, party sprites, and stats.
 - `ticket.selection`: selected-ticket border style and beat animation.

@@ -4,16 +4,22 @@
 
 namespace pr::transfer_system {
 
-void MultiPokemonMoveController::pickUp(std::vector<Entry> entries, InputMode input_mode, SDL_Point pointer) {
+void MultiPokemonMoveController::pickUp(
+    std::vector<Entry> entries,
+    InputMode input_mode,
+    SDL_Point pointer,
+    int source_grid_columns) {
     entries_ = std::move(entries);
     input_mode_ = input_mode;
     pointer_ = pointer;
+    source_grid_columns_ = std::clamp(source_grid_columns, 1, 6);
 }
 
 void MultiPokemonMoveController::clear() {
     entries_.clear();
     input_mode_ = InputMode::Keyboard;
     pointer_ = SDL_Point{0, 0};
+    source_grid_columns_ = 6;
 }
 
 void MultiPokemonMoveController::updatePointer(SDL_Point pointer, int screen_w, int screen_h) {
@@ -24,12 +30,13 @@ void MultiPokemonMoveController::updatePointer(SDL_Point pointer, int screen_w, 
 }
 
 std::optional<std::vector<MultiPokemonMoveController::SlotRef>> MultiPokemonMoveController::targetSlotsFor(
-    const SlotRef& anchor) const {
+    const SlotRef& anchor,
+    int target_columns) const {
     if (entries_.empty()) {
         return std::nullopt;
     }
 
-    constexpr int kCols = 6;
+    const int kCols = std::clamp(target_columns, 1, 6);
     constexpr int kRows = 5;
     const int anchor_row = anchor.slot_index / kCols;
     const int anchor_col = anchor.slot_index % kCols;

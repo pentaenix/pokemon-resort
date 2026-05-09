@@ -5,6 +5,7 @@
 #include "ui/transfer_flow/TransferSelectionBuilder.hpp"
 
 #include <chrono>
+#include <future>
 #include <iostream>
 #include <utility>
 
@@ -90,6 +91,23 @@ std::string TransferFlowCoordinator::takeSuccessfulSaveQuickPassMessageKey() {
     out.swap(pending_successful_save_quick_pass_message_key_);
     return out;
 }
+
+bool TransferFlowCoordinator::runDeferredSaveForSuccessfulExit() {
+    if (!transfer_system_screen_) {
+        return true;
+    }
+    return transfer_system_screen_->runDeferredSaveForSuccessfulExit();
+}
+
+std::future<bool> TransferFlowCoordinator::launchDeferredSaveForSuccessfulExitAsync() {
+    if (!transfer_system_screen_) {
+        return std::async(std::launch::deferred, [] { return true; });
+    }
+    TransferSystemScreen* screen = transfer_system_screen_.get();
+    return std::async(std::launch::async, [screen]() { return screen->runDeferredSaveForSuccessfulExit(); });
+}
+
+void TransferFlowCoordinator::notifyDeferredSuccessfulSaveLoadingAborted() {}
 
 void TransferFlowCoordinator::completeSuccessfulSaveReturnToTickets() {
     if (!transfer_system_screen_) {

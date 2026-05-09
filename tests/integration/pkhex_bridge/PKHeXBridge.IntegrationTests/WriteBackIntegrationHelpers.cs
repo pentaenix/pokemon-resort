@@ -257,6 +257,98 @@ internal static class WriteBackIntegrationHelpers
         writer.WriteEndObject();
     }
 
+    /// <summary>
+    /// Schema 2: one occupied slot is <c>preserve_box_slot</c>; another slot receives a copy of that slot's payload
+    /// (all other slots follow <paramref name="payloadGrid"/>). Used to verify the applier leaves the preserved
+    /// slot unchanged while still applying other edits.
+    /// </summary>
+    public static void WriteProjectionSchema2PreserveSlotAndCloneInto(
+        string path,
+        IReadOnlyList<string> boxNames,
+        byte[]?[,] payloadGrid,
+        int preserveBox,
+        int preserveSlot,
+        int cloneIntoBox,
+        int cloneIntoSlot)
+    {
+        if (preserveBox == cloneIntoBox && preserveSlot == cloneIntoSlot)
+        {
+            throw new ArgumentException("preserve slot must differ from clone destination");
+        }
+
+        var cloneRaw = payloadGrid[preserveBox, preserveSlot];
+        if (cloneRaw is null || cloneRaw.Length == 0)
+        {
+            throw new ArgumentException("preserve slot must be occupied");
+        }
+
+        var boxes = payloadGrid.GetLength(0);
+        var slots = payloadGrid.GetLength(1);
+        if (boxNames.Count != boxes)
+        {
+            throw new ArgumentException("box_names length must match payload grid box count");
+        }
+
+        using var stream = File.Create(path);
+        using var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = false });
+        writer.WriteStartObject();
+        writer.WriteNumber("projection_schema", 2);
+        writer.WriteStartArray("box_names");
+        foreach (var n in boxNames)
+        {
+            writer.WriteStringValue(n);
+        }
+
+        writer.WriteEndArray();
+        writer.WriteStartArray("pc_boxes");
+        for (var b = 0; b < boxes; b++)
+        {
+            writer.WriteStartObject();
+            writer.WriteStartArray("slots");
+            for (var s = 0; s < slots; s++)
+            {
+                if (b == preserveBox && s == preserveSlot)
+                {
+                    writer.WriteStartObject();
+                    writer.WriteBoolean("preserve_box_slot", true);
+                    writer.WriteEndObject();
+                }
+                else if (b == cloneIntoBox && s == cloneIntoSlot)
+                {
+                    writer.WriteStartObject();
+                    writer.WriteString("raw_payload_base64", Convert.ToBase64String(cloneRaw));
+                    writer.WriteString(
+                        "raw_hash_sha256",
+                        Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(cloneRaw)).ToLowerInvariant());
+                    writer.WriteEndObject();
+                }
+                else
+                {
+                    var raw = payloadGrid[b, s];
+                    if (raw is null || raw.Length == 0)
+                    {
+                        writer.WriteNullValue();
+                    }
+                    else
+                    {
+                        writer.WriteStartObject();
+                        writer.WriteString("raw_payload_base64", Convert.ToBase64String(raw));
+                        writer.WriteString(
+                            "raw_hash_sha256",
+                            Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(raw)).ToLowerInvariant());
+                        writer.WriteEndObject();
+                    }
+                }
+            }
+
+            writer.WriteEndArray();
+            writer.WriteEndObject();
+        }
+
+        writer.WriteEndArray();
+        writer.WriteEndObject();
+    }
+
     public static void WritePcBoxesOnlyProjectionSchema2(string path, byte[]?[,] payloadGrid)
     {
         var boxes = payloadGrid.GetLength(0);

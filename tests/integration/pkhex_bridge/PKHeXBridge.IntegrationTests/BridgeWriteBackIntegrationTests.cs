@@ -103,6 +103,71 @@ public class BridgeWriteBackIntegrationTests
     }
 
     [Fact]
+    public void WriteBack_PreserveBoxSlot_KeepsOriginalSpeciesWhileOtherSlotsStillApply()
+    {
+        var fixture = WriteBackIntegrationHelpers.RequireFixturePath();
+        var tempDir = Path.Combine(Path.GetTempPath(), "pkr_wb_preserve_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var savePath = Path.Combine(tempDir, "preserve.sav");
+            File.Copy(fixture, savePath);
+
+            var sav = SaveUtil.GetVariantSAV(savePath);
+            Assert.NotNull(sav);
+
+            if (!WriteBackIntegrationHelpers.TryFindTwoOccupiedSlots(sav, out var ba, out var sa, out var bb, out var sb))
+            {
+                Assert.Fail(
+                    "Fixture needs at least two Pokémon in PC boxes. Add PC Pokémon or use a different save.");
+            }
+
+            var pkA = sav.GetBoxSlotAtIndex(ba, sa);
+            var pkB = sav.GetBoxSlotAtIndex(bb, sb);
+            Assert.True(WriteBackIntegrationHelpers.IsPresent(pkA));
+            Assert.True(WriteBackIntegrationHelpers.IsPresent(pkB));
+            var speciesA = pkA!.Species;
+            var speciesB = pkB!.Species;
+            if (speciesA == speciesB)
+            {
+                Assert.Fail("Fixture needs two PC Pokémon with different species for preserve regression test.");
+            }
+
+            var grid = WriteBackIntegrationHelpers.CaptureBoxPayloadGrid(sav);
+            var names = Enumerable.Range(0, sav.BoxCount)
+                .Select(i => WriteBackIntegrationHelpers.GetBoxName(sav, i))
+                .ToArray();
+
+            var projPath = Path.Combine(tempDir, "projection.json");
+            WriteBackIntegrationHelpers.WriteProjectionSchema2PreserveSlotAndCloneInto(
+                projPath,
+                names,
+                grid,
+                ba,
+                sa,
+                bb,
+                sb);
+
+            var result = BridgeWriteBack.WriteProjection(savePath, projPath);
+            Assert.True(result.Success, $"{result.Error} {result.Details}");
+
+            var sav2 = SaveUtil.GetVariantSAV(savePath);
+            Assert.NotNull(sav2);
+
+            var afterA = sav2.GetBoxSlotAtIndex(ba, sa);
+            var afterB = sav2.GetBoxSlotAtIndex(bb, sb);
+            Assert.True(WriteBackIntegrationHelpers.IsPresent(afterA));
+            Assert.True(WriteBackIntegrationHelpers.IsPresent(afterB));
+            Assert.Equal(speciesA, afterA!.Species);
+            Assert.Equal(speciesA, afterB!.Species);
+        }
+        finally
+        {
+            TryDeleteDirectory(tempDir);
+        }
+    }
+
+    [Fact]
     public void WriteBack_Schema2_RoundTripsAllCompatibilityFixtures()
     {
         var fixtures = WriteBackIntegrationHelpers.ResolveCompatibilityFixturePaths();

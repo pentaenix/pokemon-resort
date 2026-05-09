@@ -8,7 +8,7 @@
 
 namespace {
 
-struct TestFailure : std::runtime_error {
+struct TestFailure : public std::runtime_error {
     using std::runtime_error::runtime_error;
 };
 
@@ -18,37 +18,46 @@ void expect(bool condition, const std::string& message) {
     }
 }
 
-void testSuccessfulSaveTransitionBlocksInputAndRequestsLoading() {
+void testSuccessfulSaveTransitionBlocksInputAndRequestsLoadingQuickly() {
     pr::AppTransitionController controller;
     controller.startSuccessfulSaveQuickTransition();
 
     expect(controller.active(), "transition should be active after start");
     expect(controller.blocksInput(), "transition should block input while active");
 
-    auto step = controller.update(0.5, false);
-    expect(!step.begin_loading, "delay step should not begin loading yet");
-    step = controller.update(0.25, false);
-    expect(step.begin_loading, "fade-out completion should request loading screen entry");
-    expect(controller.overlayAlpha() == 1.0, "loading entry should happen under full overlay");
+    pr::AppTransitionController::StepResult step{};
+    int n = 0;
+    while (!step.begin_loading && n < 30) {
+        step = controller.update(0.05, false);
+        ++n;
+    }
+    expect(step.begin_loading, "zero-delay transition should request loading within a few updates");
 }
 
 void testSuccessfulSaveTransitionFinishesDestinationAfterLoadingCompletes() {
     pr::AppTransitionController controller;
     controller.startSuccessfulSaveQuickTransition();
 
-    controller.update(0.5, false);
-    controller.update(0.25, false);
-    controller.update(0.25, false);
+    pr::AppTransitionController::StepResult step{};
+    while (!step.begin_loading) {
+        step = controller.update(0.05, false);
+    }
+    controller.update(0.05, false);
+    controller.update(0.05, false);
 
-    auto step = controller.update(0.1, false);
+    step = controller.update(0.05, false);
     expect(!step.finish_destination, "loading-active phase should wait for loading completion");
 
-    step = controller.update(0.1, true);
+    step = controller.update(0.05, true);
     expect(!step.finish_destination, "loading completion should start fade-out before destination switch");
-    step = controller.update(0.25, true);
+    int m = 0;
+    while (!step.finish_destination && m < 30) {
+        step = controller.update(0.05, true);
+        ++m;
+    }
     expect(step.finish_destination, "fade-out completion should request destination switch");
 
-    controller.update(0.25, true);
+    controller.update(0.05, true);
     expect(!controller.active(), "transition should become inactive after destination fade-in");
     expect(controller.overlayAlpha() == 0.0, "inactive transition should leave overlay transparent");
 }
@@ -57,7 +66,7 @@ void testSuccessfulSaveTransitionFinishesDestinationAfterLoadingCompletes() {
 
 int main() {
     try {
-        testSuccessfulSaveTransitionBlocksInputAndRequestsLoading();
+        testSuccessfulSaveTransitionBlocksInputAndRequestsLoadingQuickly();
         testSuccessfulSaveTransitionFinishesDestinationAfterLoadingCompletes();
         std::cout << "app_transition_controller_tests: OK\n";
         return EXIT_SUCCESS;

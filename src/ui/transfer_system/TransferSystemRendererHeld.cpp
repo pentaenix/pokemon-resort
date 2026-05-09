@@ -65,7 +65,8 @@ void TransferSystemScreen::drawHeldMultiPokemon(SDL_Renderer* renderer) {
     }
 
     const auto anchor = heldMultiPokemonAnchorSlot();
-    const auto target_slots = anchor ? multi_pokemon_move_.targetSlotsFor(*anchor) : std::nullopt;
+    const auto target_slots =
+        anchor ? multi_pokemon_move_.targetSlotsFor(*anchor, multiPokemonTargetColumnsFor(*anchor)) : std::nullopt;
 
     constexpr int kFallbackSlotW = 76;
     constexpr int kFallbackSlotH = 76;
@@ -318,4 +319,3 @@ void TransferSystemScreen::drawHeldBoxSpaceBox(SDL_Renderer* renderer) {
 }
 
 } // namespace pr
-

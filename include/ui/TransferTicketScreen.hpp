@@ -6,6 +6,7 @@
 #include "ui/Screen.hpp"
 #include "ui/TransferSaveSelection.hpp"
 #include "ui/transfer_ticket/TransferTicketListController.hpp"
+#include "ui/transfer_ticket/TransferTicketWaveBanner.hpp"
 
 #include <SDL.h>
 #include <map>
@@ -63,7 +64,6 @@ public:
 private:
     struct TicketAssets {
         TextureHandle background;
-        TextureHandle banner;
         TextureHandle backdrop;
         TextureHandle stamp;
         TextureHandle main_left;
@@ -253,6 +253,7 @@ private:
     SelectionTransition selection_transition_;
     TransferMusic music_;
     BackgroundAnimation background_animation_;
+    TransferTicketWaveBannerConfig wave_banner_;
     ScreenText screen_text_;
     std::vector<TicketEntry> tickets_;
     std::map<std::string, Color> game_palette_;
