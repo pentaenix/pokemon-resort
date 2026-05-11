@@ -64,7 +64,7 @@ public static class BridgePkmInspect
 
     private static BridgeImportPokemon ReadPokemon(PKM pokemon, byte[] raw, int sourceGame)
     {
-        var exported = raw.Length > 0 ? raw : pokemon.EncryptedBoxData;
+        var exported = raw.Length > 0 ? raw : PkmEncryptedExport.GetStored(pokemon);
         var hash = SHA256.HashData(exported);
         var formatName = pokemon.GetType().Name.ToLowerInvariant();
         var location = new BridgeImportLocation("snapshot", -1, -1, -1);

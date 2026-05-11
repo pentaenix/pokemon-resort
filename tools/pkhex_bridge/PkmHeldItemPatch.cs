@@ -15,7 +15,7 @@ public sealed class PkmHeldItemPatchResult
 
 /// <summary>
 /// Mutates import-grade PC encrypted PKM bytes by changing <see cref="PKM.HeldItem"/> and re-exporting
-/// <see cref="PKM.EncryptedBoxData"/> for write-back consistency.
+/// encrypted stored-format PKM bytes (<see cref="PkmEncryptedExport.GetStored"/>) for write-back consistency.
 /// </summary>
 public static class PkmHeldItemPatch
 {
@@ -126,7 +126,7 @@ public static class PkmHeldItemPatch
         byte[] newRaw;
         try
         {
-            newRaw = pkm.EncryptedBoxData;
+            newRaw = PkmEncryptedExport.GetStored(pkm);
         }
         catch (Exception ex)
         {

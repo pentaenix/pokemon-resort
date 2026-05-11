@@ -15,7 +15,7 @@ public class PkmHeldItemPatchTests
             HeldItem = 0,
         };
 
-        var raw = pk.EncryptedBoxData;
+        var raw = PkmEncryptedExport.GetStored(pk);
         Assert.NotEmpty(raw);
 
         var b64 = Convert.ToBase64String(raw);

@@ -40,7 +40,7 @@ public class BridgeProbeIntegrationTests
     }
 
     [Theory]
-    [InlineData("Pokemonheartgold.sav", "SAV4HGSS", "HGSS", "pokemon_heartgold", "Ethan")]
+    [InlineData("Pokemonheartgold.sav", "SAV4HGSS", "HG", "pokemon_heartgold", "Ethan")]
     public void Probe_LoadsKnownSaves(string fileName, string expectedType, string expectedGame, string expectedGameId, string expectedTrainer)
     {
         var savePath = WriteBackIntegrationHelpers.CommittedSaveFixture(fileName);

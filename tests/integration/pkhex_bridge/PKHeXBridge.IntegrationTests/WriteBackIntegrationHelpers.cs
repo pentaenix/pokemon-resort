@@ -2,6 +2,7 @@ using System.Linq;
 using System.Reflection;
 using System.Text.Json;
 using PKHeX.Core;
+using PKHeXBridge;
 using Xunit;
 
 namespace PKHeXBridge.IntegrationTests;
@@ -184,7 +185,7 @@ internal static class WriteBackIntegrationHelpers
                     // leave null
                 }
 
-                grid[b, s] = IsPresent(pkm) ? pkm!.EncryptedBoxData : null;
+                grid[b, s] = IsPresent(pkm) ? PkmEncryptedExport.GetStored(pkm!) : null;
             }
         }
 
