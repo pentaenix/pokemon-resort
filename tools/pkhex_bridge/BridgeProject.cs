@@ -168,7 +168,16 @@ public static class BridgeProject
                 }
                 else
                 {
-                    converted = EntityConverter.ConvertToType(pk, destType, out convResult);
+                    if (BridgeProjectFutureProjection.ShouldUseManualFutureProjection(pk, destType))
+                    {
+                        converted = BridgeProjectFutureProjection.ProjectToFutureGeneration(pk, destType, targetGame);
+                        extraLost.Add("manual_future_projection");
+                        extraNotes.Add("[future_projection] manually built future-generation payload because PKHeX converter cannot safely bridge this source/target pair.");
+                    }
+                    else
+                    {
+                        converted = EntityConverter.ConvertToType(pk, destType, out convResult);
+                    }
                 }
 
                 if (converted is null)
@@ -208,6 +217,7 @@ public static class BridgeProject
                     BridgeProjectReconcile.ApplyCanonicalRibbonCatalog(converted, ribbonCatalog, extraNotes);
                 }
 
+                BridgeProjectReconcile.NormalizeProjectedTransferFields(pk, converted, preSaveForFinalize, extraNotes);
                 BridgeProjectReconcile.FinalizeProjectedIdentity(
                     pk,
                     converted,

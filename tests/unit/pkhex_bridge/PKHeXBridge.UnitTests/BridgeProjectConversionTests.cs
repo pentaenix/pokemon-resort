@@ -14,12 +14,21 @@ public class BridgeProjectConversionTests
     {
         var pk3 = EntityBlank.GetBlank(typeof(PK3));
         pk3.Species = (int)Species.Bulbasaur;
-        pk3.EXP = 125;
+        pk3.EXP = 135;
         pk3.Version = GameVersion.FR;
         pk3.Language = (int)LanguageID.English;
         pk3.OriginalTrainerName = "RESORT";
         pk3.TID16 = 12345;
         pk3.SID16 = 54321;
+        pk3.Ball = 4;
+        pk3.Move1 = (ushort)Move.Tackle;
+        pk3.Move1_PP = 35;
+        pk3.EV_HP = 120;
+        pk3.EV_ATK = 120;
+        pk3.EV_DEF = 120;
+        pk3.EV_SPA = 120;
+        pk3.EV_SPD = 120;
+        pk3.EV_SPE = 120;
         pk3.RefreshChecksum();
 
         var raw = pk3.EncryptedBoxData;
@@ -51,11 +60,415 @@ public class BridgeProjectConversionTests
             Assert.NotNull(pk4);
             Assert.Equal(typeof(PK4), pk4!.GetType());
             Assert.Equal((int)Species.Bulbasaur, pk4.Species);
+            Assert.Equal(55, pk4.MetLocation);
+            Assert.Equal(pk4.PIDAbility, pk4.AbilityNumber >> 1);
+            Assert.True(pk4.EVTotal <= 510);
+            Assert.InRange(pk4.Language, (int)LanguageID.Japanese, (int)LanguageID.Spanish);
+            Assert.True(pk4.MetDate is { Year: >= 2000 and <= 2099 });
+            var legality = new LegalityAnalysis(pk4);
+            Assert.True(
+                legality.Valid,
+                $"{legality.Report()}\nversion={pk4.Version} met={pk4.MetLocation} egg={pk4.EggLocation} metLevel={pk4.MetLevel} level={pk4.CurrentLevel} pid={pk4.PID} ability={pk4.AbilityNumber} gender={pk4.Gender} language={pk4.Language} date={pk4.MetDate}");
         }
         finally
         {
             File.Delete(requestPath);
         }
+    }
+
+    [Fact]
+    public void Project_NormalizesGen2OriginEvs_WhenProjectingToPk4()
+    {
+        var pk2 = EntityBlank.GetBlank(typeof(PK2));
+        pk2.Species = (int)Species.Bulbasaur;
+        pk2.EXP = 125;
+        pk2.Version = GameVersion.GS;
+        pk2.Language = (int)LanguageID.English;
+        pk2.OriginalTrainerName = "RESORT";
+        pk2.TID16 = 12345;
+        pk2.EV_HP = 120;
+        pk2.EV_ATK = 120;
+        pk2.EV_DEF = 120;
+        pk2.EV_SPA = 120;
+        pk2.EV_SPD = 120;
+        pk2.EV_SPE = 120;
+        pk2.RefreshChecksum();
+
+        var raw = pk2.EncryptedBoxData;
+        var hash = Convert.ToHexString(SHA256.HashData(raw)).ToLowerInvariant();
+
+        var requestPath = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllText(requestPath, $$"""
+                {
+                  "bridge_project_schema": 1,
+                  "source_format_name": "{{pk2.GetType().Name}}",
+                  "source_raw_payload_base64": "{{Convert.ToBase64String(raw)}}",
+                  "source_raw_hash_sha256": "{{hash}}",
+                  "target_game": 10,
+                  "target_format_name": "PK4",
+                  "projection_policy": { "allow_lossy_projection": true }
+                }
+                """);
+
+            var result = BridgeProject.ProjectFromJsonFile(requestPath);
+            Assert.True(result.Success, result.Details ?? result.Error);
+
+            var decoded = Convert.FromBase64String(result.TargetRawPayloadBase64!);
+            var pk4 = EntityFormat.GetFromBytes(decoded);
+            Assert.NotNull(pk4);
+            Assert.Equal(typeof(PK4), pk4!.GetType());
+            Assert.True(pk4.EV_HP <= 100);
+            Assert.True(pk4.EV_ATK <= 100);
+            Assert.True(pk4.EV_DEF <= 100);
+            Assert.True(pk4.EV_SPA <= 100);
+            Assert.True(pk4.EV_SPD <= 100);
+            Assert.True(pk4.EV_SPE <= 100);
+            Assert.True(pk4.EVTotal <= 510);
+        }
+        finally
+        {
+            File.Delete(requestPath);
+        }
+    }
+
+    [Fact]
+    public void Project_BumpsMinimumExpByOne_WhenGen2DirectTransferAtLevelFloor_ToPk4()
+    {
+        var pk2 = EntityBlank.GetBlank(typeof(PK2));
+        pk2.Species = (int)Species.Bulbasaur;
+        pk2.Version = GameVersion.GS;
+        pk2.Language = (int)LanguageID.English;
+        pk2.OriginalTrainerName = "RESORT";
+        pk2.TID16 = 12345;
+        pk2.CurrentLevel = 14;
+        var g2Growth = pk2.PersonalInfo.EXPGrowth;
+        pk2.EXP = Experience.GetEXP((byte)pk2.CurrentLevel, g2Growth);
+        pk2.RefreshChecksum();
+
+        var raw = pk2.EncryptedBoxData;
+        var hash = Convert.ToHexString(SHA256.HashData(raw)).ToLowerInvariant();
+
+        var requestPath = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllText(requestPath, $$"""
+                {
+                  "bridge_project_schema": 1,
+                  "source_format_name": "{{pk2.GetType().Name}}",
+                  "source_raw_payload_base64": "{{Convert.ToBase64String(raw)}}",
+                  "source_raw_hash_sha256": "{{hash}}",
+                  "target_game": 10,
+                  "target_format_name": "PK4",
+                  "projection_policy": { "allow_lossy_projection": true }
+                }
+                """);
+
+            var result = BridgeProject.ProjectFromJsonFile(requestPath);
+            Assert.True(result.Success, result.Details ?? result.Error);
+
+            var decoded = Convert.FromBase64String(result.TargetRawPayloadBase64!);
+            var pk4 = EntityFormat.GetFromBytes(decoded);
+            Assert.NotNull(pk4);
+            Assert.Equal(typeof(PK4), pk4!.GetType());
+
+            var g4Growth = pk4.PersonalInfo.EXPGrowth;
+            var floor = Experience.GetEXP((byte)pk4.CurrentLevel, g4Growth);
+            Assert.Equal(floor + 1, pk4.EXP);
+            Assert.Contains(
+                "gb_origin: bumped EXP",
+                string.Join('\n', result.LossManifest?.Notes ?? []),
+                StringComparison.Ordinal);
+        }
+        finally
+        {
+            File.Delete(requestPath);
+        }
+    }
+
+    [Fact]
+    public void Project_NormalizesCanonicalGbOriginEvs_WhenSourceSnapshotIsAlreadyPk4()
+    {
+        var pk4Source = EntityBlank.GetBlank(typeof(PK4));
+        pk4Source.Species = (int)Species.Jigglypuff;
+        pk4Source.EXP = 1000;
+        pk4Source.Version = GameVersion.FR;
+        pk4Source.Language = (int)LanguageID.English;
+        pk4Source.OriginalTrainerName = "RESORT";
+        pk4Source.TID16 = 12345;
+        pk4Source.MetLocation = 55;
+        pk4Source.MetLevel = 10;
+        pk4Source.EV_HP = 120;
+        pk4Source.EV_ATK = 120;
+        pk4Source.EV_DEF = 120;
+        pk4Source.EV_SPA = 120;
+        pk4Source.EV_SPD = 120;
+        pk4Source.EV_SPE = 120;
+        pk4Source.RefreshChecksum();
+
+        var raw = pk4Source.EncryptedBoxData;
+        var hash = Convert.ToHexString(SHA256.HashData(raw)).ToLowerInvariant();
+
+        var requestPath = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllText(requestPath, $$"""
+                {
+                  "bridge_project_schema": 1,
+                  "source_format_name": "{{pk4Source.GetType().Name}}",
+                  "source_raw_payload_base64": "{{Convert.ToBase64String(raw)}}",
+                  "source_raw_hash_sha256": "{{hash}}",
+                  "target_game": 10,
+                  "target_format_name": "PK4",
+                  "projection_policy": { "allow_lossy_projection": true },
+                  "pre_save_review": {
+                    "enabled": true,
+                    "source_origin_game": 35
+                  }
+                }
+                """);
+
+            var result = BridgeProject.ProjectFromJsonFile(requestPath);
+            Assert.True(result.Success, result.Details ?? result.Error);
+
+            var decoded = Convert.FromBase64String(result.TargetRawPayloadBase64!);
+            var pk4 = EntityFormat.GetFromBytes(decoded);
+            Assert.NotNull(pk4);
+            Assert.Equal(typeof(PK4), pk4!.GetType());
+            Assert.True(pk4.EV_HP <= 100);
+            Assert.True(pk4.EV_ATK <= 100);
+            Assert.True(pk4.EV_DEF <= 100);
+            Assert.True(pk4.EV_SPA <= 100);
+            Assert.True(pk4.EV_SPD <= 100);
+            Assert.True(pk4.EV_SPE <= 100);
+            Assert.True(pk4.EVTotal <= 510);
+        }
+        finally
+        {
+            File.Delete(requestPath);
+        }
+    }
+
+    [Fact]
+    public void Project_NormalizesCanonicalGbOriginEvsAndLanguage_WhenProjectingToPk3()
+    {
+        var pk3Source = EntityBlank.GetBlank(typeof(PK3));
+        pk3Source.Species = (int)Species.Jigglypuff;
+        pk3Source.EXP = 1000;
+        pk3Source.Version = GameVersion.FR;
+        pk3Source.Language = 0;
+        pk3Source.EV_HP = 120;
+        pk3Source.EV_ATK = 120;
+        pk3Source.EV_DEF = 120;
+        pk3Source.EV_SPA = 120;
+        pk3Source.EV_SPD = 120;
+        pk3Source.EV_SPE = 120;
+        pk3Source.RefreshChecksum();
+
+        var raw = pk3Source.EncryptedBoxData;
+        var hash = Convert.ToHexString(SHA256.HashData(raw)).ToLowerInvariant();
+        var requestPath = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllText(requestPath, $$"""
+                {
+                  "bridge_project_schema": 1,
+                  "source_format_name": "{{pk3Source.GetType().Name}}",
+                  "source_raw_payload_base64": "{{Convert.ToBase64String(raw)}}",
+                  "source_raw_hash_sha256": "{{hash}}",
+                  "target_game": 4,
+                  "target_format_name": "PK3",
+                  "projection_policy": { "allow_lossy_projection": true },
+                  "pre_save_review": {
+                    "enabled": true,
+                    "source_origin_game": 35
+                  }
+                }
+                """);
+
+            var result = BridgeProject.ProjectFromJsonFile(requestPath);
+            Assert.True(result.Success, result.Details ?? result.Error);
+            var pk3 = EntityFormat.GetFromBytes(Convert.FromBase64String(result.TargetRawPayloadBase64!));
+            Assert.NotNull(pk3);
+            Assert.Equal(typeof(PK3), pk3!.GetType());
+            Assert.InRange(pk3.Language, (int)LanguageID.Japanese, (int)LanguageID.Spanish);
+            Assert.True(pk3.EV_HP <= 100);
+            Assert.True(pk3.EV_ATK <= 100);
+            Assert.True(pk3.EV_DEF <= 100);
+            Assert.True(pk3.EV_SPA <= 100);
+            Assert.True(pk3.EV_SPD <= 100);
+            Assert.True(pk3.EV_SPE <= 100);
+            Assert.True(pk3.EVTotal <= 510);
+        }
+        finally
+        {
+            File.Delete(requestPath);
+        }
+    }
+
+    [Fact]
+    public void Project_UsesPokeTransferFields_WhenProjectingGbOriginToPk5()
+    {
+        var pk4Source = EntityBlank.GetBlank(typeof(PK4));
+        pk4Source.Species = (int)Species.Jigglypuff;
+        pk4Source.EXP = 1000;
+        pk4Source.Version = GameVersion.FR;
+        pk4Source.Language = 0;
+        pk4Source.MetLocation = 55;
+        pk4Source.MetLevel = 0;
+        pk4Source.PID = 0;
+        pk4Source.TID16 = 12345;
+        pk4Source.SID16 = 54321;
+        pk4Source.EV_HP = 120;
+        pk4Source.EV_ATK = 120;
+        pk4Source.EV_DEF = 120;
+        pk4Source.EV_SPA = 120;
+        pk4Source.EV_SPD = 120;
+        pk4Source.EV_SPE = 120;
+        pk4Source.RefreshChecksum();
+
+        var raw = pk4Source.EncryptedBoxData;
+        var hash = Convert.ToHexString(SHA256.HashData(raw)).ToLowerInvariant();
+        var requestPath = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllText(requestPath, $$"""
+                {
+                  "bridge_project_schema": 1,
+                  "source_format_name": "{{pk4Source.GetType().Name}}",
+                  "source_raw_payload_base64": "{{Convert.ToBase64String(raw)}}",
+                  "source_raw_hash_sha256": "{{hash}}",
+                  "target_game": 20,
+                  "target_format_name": "PK5",
+                  "projection_policy": { "allow_lossy_projection": true },
+                  "pre_save_review": {
+                    "enabled": true,
+                    "source_origin_game": 35,
+                    "origin_game": 4,
+                    "met_location_id": 30001,
+                    "met_level": 10,
+                    "language": 0,
+                    "apply_static_fields": true
+                  }
+                }
+                """);
+
+            var result = BridgeProject.ProjectFromJsonFile(requestPath);
+            Assert.True(result.Success, result.Details ?? result.Error);
+            Assert.Equal("PK5", result.TargetFormatName);
+            Assert.False(string.IsNullOrEmpty(result.TargetRawPayloadBase64));
+            var pk5 = new PK5(Convert.FromBase64String(result.TargetRawPayloadBase64!));
+            Assert.Equal(30001, pk5.MetLocation);
+            Assert.NotEqual(55, pk5.EggLocation);
+            Assert.False(pk5.IsEgg);
+            Assert.True(pk5.MetDate is { Year: >= 2000 and <= 2099 });
+            Assert.Equal(10, pk5.MetLevel);
+            Assert.InRange(pk5.Language, (int)LanguageID.Japanese, (int)LanguageID.Spanish);
+            Assert.Equal(pk5.Nature, (Nature)(pk5.PID % 25));
+            Assert.Equal(pk5.PIDAbility, pk5.AbilityNumber >> 1);
+            Assert.Contains(result.LossManifest?.Notes ?? [], note => note.Contains("[transfer_normalize]"));
+            Assert.Contains(result.LossManifest?.Notes ?? [], note => note.Contains("[finalize_identity]"));
+        }
+        finally
+        {
+            File.Delete(requestPath);
+        }
+    }
+
+    [Fact]
+    public void Project_UsesBankTransferFields_WhenProjectingGbOriginToPk6()
+    {
+        var pk4Source = EntityBlank.GetBlank(typeof(PK4));
+        pk4Source.Species = (int)Species.Exeggcute;
+        pk4Source.EXP = 1000;
+        pk4Source.Version = GameVersion.FR;
+        pk4Source.Language = 0;
+        pk4Source.MetLocation = 55;
+        pk4Source.MetLevel = 0;
+        pk4Source.PID = 0;
+        pk4Source.EncryptionConstant = 0;
+        pk4Source.RefreshChecksum();
+
+        var projected = ProjectAndDecode(pk4Source, 26, "PK6", $$"""
+          "pre_save_review": {
+            "enabled": true,
+            "source_origin_game": 35,
+            "origin_game": 4,
+            "met_location_id": 30001,
+            "met_level": 10,
+            "language": 0,
+            "apply_static_fields": true
+          }
+        """);
+
+        var pk6 = Assert.IsType<PK6>(projected);
+        Assert.Equal(GameVersion.FR, pk6.Version);
+        Assert.Equal((ushort)30001, pk6.MetLocation);
+        Assert.False(pk6.IsEgg);
+        Assert.Equal(0, pk6.EggLocation);
+        Assert.True(pk6.MetDate is { Year: >= 2000 and <= 2099 });
+        Assert.Equal(10, pk6.MetLevel);
+        Assert.InRange(pk6.Language, (int)LanguageID.Japanese, (int)LanguageID.Spanish);
+        Assert.NotEqual(0u, pk6.PID);
+        Assert.NotEqual(0u, pk6.EncryptionConstant);
+        Assert.Equal(pk6.PID, pk6.EncryptionConstant);
+        Assert.Equal(pk6.Nature, (Nature)(pk6.PID % 25));
+        Assert.Equal(49, pk6.Country);
+        Assert.Equal(1, pk6.ConsoleRegion);
+
+        var report = new LegalityAnalysis(pk6).Report();
+        Assert.DoesNotContain("Unable to match an encounter from origin game.", report, StringComparison.Ordinal);
+        Assert.DoesNotContain("PID should be equal to EC.", report, StringComparison.Ordinal);
+        Assert.DoesNotContain("PID-Nature mismatch.", report, StringComparison.Ordinal);
+        Assert.DoesNotContain("Ability is not valid for species/form.", report, StringComparison.Ordinal);
+        Assert.DoesNotContain("Ability mismatch for encounter.", report, StringComparison.Ordinal);
+        Assert.DoesNotContain("Geolocation: Country is not in 3DS region.", report, StringComparison.Ordinal);
+        Assert.DoesNotContain("Original Trainer Memory: Can't obtain Memory on Original Trainer Version.", report, StringComparison.Ordinal);
+        Assert.DoesNotContain("Memory: Original Trainer Memory missing.", report, StringComparison.Ordinal);
+        Assert.DoesNotContain("PID is not set.", report, StringComparison.Ordinal);
+        Assert.DoesNotContain("Encryption Constant is not set.", report, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Project_PreservesRequestedGender_WhenGen6Method1RepairCannotSatisfyEncounter()
+    {
+        var pk4Source = EntityBlank.GetBlank(typeof(PK4));
+        pk4Source.Species = (int)Species.Jigglypuff;
+        pk4Source.EXP = 1000;
+        pk4Source.Version = GameVersion.FR;
+        pk4Source.Language = (int)LanguageID.English;
+        pk4Source.MetLocation = 55;
+        pk4Source.MetLevel = 10;
+        pk4Source.PID = 0;
+        pk4Source.RefreshChecksum();
+
+        var projected = ProjectAndDecode(pk4Source, 26, "PK6", $$"""
+          "pre_save_review": {
+            "enabled": true,
+            "source_origin_game": 35,
+            "origin_game": 4,
+            "met_location_id": 30001,
+            "met_level": 10,
+            "language": {{(int)LanguageID.English}},
+            "apply_static_fields": true
+          },
+          "hot_mutable_overlay": {
+            "enabled": true,
+            "species_id": {{(int)Species.Jigglypuff}},
+            "form_id": 0,
+            "gender": 1,
+            "shiny": false
+          }
+        """);
+
+        var pk6 = Assert.IsType<PK6>(projected);
+        Assert.Equal(1, pk6.Gender);
+        Assert.Equal(pk6.PID, pk6.EncryptionConstant);
+        Assert.Equal(GameVersion.FR, pk6.Version);
+        var report = new LegalityAnalysis(pk6).Report();
+        Assert.DoesNotContain("Ability mismatch for encounter.", report, StringComparison.Ordinal);
+        Assert.DoesNotContain("PID+ correlation does not match what was expected for the Encounter's type.", report, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1506,6 +1919,7 @@ public class BridgeProjectConversionTests
         "PK3" => new PK3(decoded),
         "PK4" => new PK4(decoded),
         "PK5" => new PK5(decoded),
+        "PK6" => new PK6(decoded),
         _ => EntityFormat.GetFromBytes(decoded)
     };
 

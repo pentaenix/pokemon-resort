@@ -40,6 +40,9 @@ internal static class BridgeProjectPastProjection
         projected.OriginalTrainerFriendship = source.OriginalTrainerFriendship;
         projected.HandlingTrainerFriendship = source.HandlingTrainerFriendship;
 
+        if (source.Format <= 2 && targetFormat is 3 or 4)
+            NormalizeGbOriginEvTotal(projected);
+
         projected.MetLocation = DefaultPastMetLocation(targetFormat);
         projected.MetLevel = ClampMetLevel(source.MetLevel, source.CurrentLevel);
         projected.Ball = DefaultBallForFormat(targetFormat);
@@ -176,6 +179,57 @@ internal static class BridgeProjectPastProjection
         projected.EV_SPA = ClampByte(source.EV_SPA);
         projected.EV_SPD = ClampByte(source.EV_SPD);
         projected.EV_SPE = ClampByte(source.EV_SPE);
+    }
+
+    private static void NormalizeGbOriginEvTotal(PKM pk)
+    {
+        const int MaxEv = 100;
+        const int MaxTotal = 510;
+        var evs = new[]
+        {
+            Math.Clamp(pk.EV_HP, 0, MaxEv),
+            Math.Clamp(pk.EV_ATK, 0, MaxEv),
+            Math.Clamp(pk.EV_DEF, 0, MaxEv),
+            Math.Clamp(pk.EV_SPA, 0, MaxEv),
+            Math.Clamp(pk.EV_SPD, 0, MaxEv),
+            Math.Clamp(pk.EV_SPE, 0, MaxEv),
+        };
+        var total = evs.Sum();
+        if (total <= MaxTotal)
+        {
+            SetEvs(pk, evs);
+            return;
+        }
+
+        var scaled = new int[evs.Length];
+        var fractions = new List<(int Index, double Fraction)>(evs.Length);
+        for (var i = 0; i < evs.Length; i++)
+        {
+            var exact = evs[i] * (double)MaxTotal / total;
+            scaled[i] = (int)Math.Floor(exact);
+            fractions.Add((i, exact - scaled[i]));
+        }
+
+        var remaining = MaxTotal - scaled.Sum();
+        foreach (var item in fractions.OrderByDescending(x => x.Fraction))
+        {
+            if (remaining <= 0)
+                break;
+            scaled[item.Index]++;
+            remaining--;
+        }
+
+        SetEvs(pk, scaled);
+    }
+
+    private static void SetEvs(PKM pk, IReadOnlyList<int> evs)
+    {
+        pk.EV_HP = evs[0];
+        pk.EV_ATK = evs[1];
+        pk.EV_DEF = evs[2];
+        pk.EV_SPA = evs[3];
+        pk.EV_SPD = evs[4];
+        pk.EV_SPE = evs[5];
     }
 
     private static void CopyNickname(PKM source, PKM projected)

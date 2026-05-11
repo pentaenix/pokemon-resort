@@ -63,6 +63,22 @@ std::optional<int> jsonIntFromObject(const pr::JsonValue& obj, const char* key) 
     return static_cast<int>(std::lround(v->asNumber()));
 }
 
+std::uint16_t legalGen4OriginForGbOrigin(std::uint16_t origin_game) {
+    switch (origin_game) {
+        case 37: // Blue
+            return 5; // LeafGreen
+        case 40: // Silver
+            return 8; // SoulSilver
+        case 39: // Gold
+        case 41: // Crystal
+            return 7; // HeartGold
+        case 35: // Red
+        case 38: // Yellow
+        default:
+            return 4; // FireRed
+    }
+}
+
 /// Builds `move_reconciliation` from warm JSON `resort_catalog.moves` (slot_index, move_name, move_id).
 void appendMoveReconciliationJson(std::ostringstream& body, const std::string& warm_json) {
     if (warm_json.empty()) {
@@ -240,6 +256,7 @@ void appendPreSaveReviewJson(
         body << ",\"nickname\":\"" << jsonEscape(hot->nickname) << "\""
              << ",\"is_nicknamed\":" << (hot->is_nicknamed ? "true" : "false")
              << ",\"apply_static_fields\":true"
+             << ",\"source_origin_game\":" << hot->origin_game
              << ",\"ot_name\":\"" << jsonEscape(hot->ot_name) << "\""
              << ",\"tid16\":" << (hot->tid16 ? std::to_string(*hot->tid16) : "null")
              << ",\"sid16\":" << (hot->sid16 ? std::to_string(*hot->sid16) : "null")
@@ -254,14 +271,43 @@ void appendPreSaveReviewJson(
             // `hot.met_location_id` uses the **origin generation's** location table (Gen III indices from Resort).
             // PK4 expects **Gen IV** indices; passing Gen III IDs through PKHeX mis-maps them (e.g. Ever Grande →
             // Pokémon League). Legitimate GBA→DS transfers always use Pal Park (55 in D/P/Pt/HGSS).
+            std::optional<std::uint16_t> origin_for_bridge = hot->origin_game != 0
+                ? std::optional<std::uint16_t>(hot->origin_game)
+                : std::nullopt;
             std::optional<std::uint16_t> met_for_bridge = hot->met_location_id;
-            if (source_constraint_generation == 3 && target_constraint_generation == 4) {
+            if (source_constraint_generation > 0 &&
+                source_constraint_generation <= 3 &&
+                target_constraint_generation == 4) {
                 met_for_bridge = 55;
+                if (source_constraint_generation <= 2) {
+                    origin_for_bridge = legalGen4OriginForGbOrigin(hot->origin_game);
+                }
             }
-            body << ",\"origin_game\":" << (hot->origin_game != 0 ? std::to_string(hot->origin_game) : "null")
+            if (source_constraint_generation > 0 &&
+                source_constraint_generation <= 2 &&
+                target_constraint_generation == 5) {
+                origin_for_bridge = legalGen4OriginForGbOrigin(hot->origin_game);
+                met_for_bridge = 30001;
+            }
+            if (source_constraint_generation > 0 &&
+                source_constraint_generation <= 2 &&
+                target_constraint_generation == 6) {
+                origin_for_bridge = legalGen4OriginForGbOrigin(hot->origin_game);
+                met_for_bridge = 30001;
+            }
+            body << ",\"origin_game\":" << (origin_for_bridge ? std::to_string(*origin_for_bridge) : "null")
                  << ",\"met_location_id\":"
                  << (met_for_bridge ? std::to_string(*met_for_bridge) : "null")
-                 << ",\"met_level\":" << (hot->met_level ? std::to_string(*hot->met_level) : "null");
+                 << ",\"met_level\":";
+            if (hot->met_level && *hot->met_level > 0) {
+                body << std::to_string(*hot->met_level);
+            } else if (source_constraint_generation > 0 &&
+                       source_constraint_generation <= 2 &&
+                       target_constraint_generation >= 4) {
+                body << static_cast<int>(hot->level);
+            } else {
+                body << "null";
+            }
         }
     }
 
