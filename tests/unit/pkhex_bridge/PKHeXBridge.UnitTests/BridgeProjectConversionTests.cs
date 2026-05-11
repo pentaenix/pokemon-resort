@@ -23,15 +23,16 @@ public class BridgeProjectConversionTests
         pk3.Ball = 4;
         pk3.Move1 = (ushort)Move.Tackle;
         pk3.Move1_PP = 35;
-        pk3.EV_HP = 120;
-        pk3.EV_ATK = 120;
-        pk3.EV_DEF = 120;
-        pk3.EV_SPA = 120;
-        pk3.EV_SPD = 120;
-        pk3.EV_SPE = 120;
+        // PKHeX 26+: strict EV/EXP correlation on Gen IV imports; keep EVs zero for a stable legality surface.
+        pk3.EV_HP = 0;
+        pk3.EV_ATK = 0;
+        pk3.EV_DEF = 0;
+        pk3.EV_SPA = 0;
+        pk3.EV_SPD = 0;
+        pk3.EV_SPE = 0;
         pk3.RefreshChecksum();
 
-        var raw = pk3.EncryptedBoxData;
+        var raw = PkmEncryptedExport.GetStored(pk3);
         var hash = Convert.ToHexString(SHA256.HashData(raw)).ToLowerInvariant();
 
         var requestPath = Path.GetTempFileName();
@@ -94,7 +95,7 @@ public class BridgeProjectConversionTests
         pk2.EV_SPE = 120;
         pk2.RefreshChecksum();
 
-        var raw = pk2.EncryptedBoxData;
+        var raw = PkmEncryptedExport.GetStored(pk2);
         var hash = Convert.ToHexString(SHA256.HashData(raw)).ToLowerInvariant();
 
         var requestPath = Path.GetTempFileName();
@@ -147,7 +148,7 @@ public class BridgeProjectConversionTests
         pk2.EXP = Experience.GetEXP((byte)pk2.CurrentLevel, g2Growth);
         pk2.RefreshChecksum();
 
-        var raw = pk2.EncryptedBoxData;
+        var raw = PkmEncryptedExport.GetStored(pk2);
         var hash = Convert.ToHexString(SHA256.HashData(raw)).ToLowerInvariant();
 
         var requestPath = Path.GetTempFileName();
@@ -207,7 +208,7 @@ public class BridgeProjectConversionTests
         pk4Source.EV_SPE = 120;
         pk4Source.RefreshChecksum();
 
-        var raw = pk4Source.EncryptedBoxData;
+        var raw = PkmEncryptedExport.GetStored(pk4Source);
         var hash = Convert.ToHexString(SHA256.HashData(raw)).ToLowerInvariant();
 
         var requestPath = Path.GetTempFileName();
@@ -266,7 +267,7 @@ public class BridgeProjectConversionTests
         pk3Source.EV_SPE = 120;
         pk3Source.RefreshChecksum();
 
-        var raw = pk3Source.EncryptedBoxData;
+        var raw = PkmEncryptedExport.GetStored(pk3Source);
         var hash = Convert.ToHexString(SHA256.HashData(raw)).ToLowerInvariant();
         var requestPath = Path.GetTempFileName();
         try
@@ -328,7 +329,7 @@ public class BridgeProjectConversionTests
         pk4Source.EV_SPE = 120;
         pk4Source.RefreshChecksum();
 
-        var raw = pk4Source.EncryptedBoxData;
+        var raw = PkmEncryptedExport.GetStored(pk4Source);
         var hash = Convert.ToHexString(SHA256.HashData(raw)).ToLowerInvariant();
         var requestPath = Path.GetTempFileName();
         try
@@ -478,7 +479,7 @@ public class BridgeProjectConversionTests
         pk3.Species = (int)Species.Bulbasaur;
         pk3.Version = GameVersion.FR;
         pk3.RefreshChecksum();
-        var raw = pk3.EncryptedBoxData;
+        var raw = PkmEncryptedExport.GetStored(pk3);
 
         var requestPath = Path.GetTempFileName();
         try
@@ -516,7 +517,7 @@ public class BridgeProjectConversionTests
         pk3.Move2 = (ushort)Move.Growl;
         pk3.RefreshChecksum();
 
-        var raw = pk3.EncryptedBoxData;
+        var raw = PkmEncryptedExport.GetStored(pk3);
         var hash = Convert.ToHexString(SHA256.HashData(raw)).ToLowerInvariant();
 
         var requestPath = Path.GetTempFileName();
@@ -569,7 +570,7 @@ public class BridgeProjectConversionTests
         pk3.OriginalTrainerFriendship = 10;
         pk3.RefreshChecksum();
 
-        var raw = pk3.EncryptedBoxData;
+        var raw = PkmEncryptedExport.GetStored(pk3);
         var hash = Convert.ToHexString(SHA256.HashData(raw)).ToLowerInvariant();
 
         var requestPath = Path.GetTempFileName();
@@ -624,7 +625,7 @@ public class BridgeProjectConversionTests
         pk3.IsNicknamed = true;
         pk3.RefreshChecksum();
 
-        var raw = pk3.EncryptedBoxData;
+        var raw = PkmEncryptedExport.GetStored(pk3);
         var hash = Convert.ToHexString(SHA256.HashData(raw)).ToLowerInvariant();
 
         var requestPath = Path.GetTempFileName();
@@ -675,7 +676,7 @@ public class BridgeProjectConversionTests
         pk3.IsNicknamed = true;
         pk3.RefreshChecksum();
 
-        var raw = pk3.EncryptedBoxData;
+        var raw = PkmEncryptedExport.GetStored(pk3);
         var hash = Convert.ToHexString(SHA256.HashData(raw)).ToLowerInvariant();
 
         var requestPath = Path.GetTempFileName();
@@ -726,7 +727,7 @@ public class BridgeProjectConversionTests
         pk3.Ball = 4;
         pk3.RefreshChecksum();
 
-        var raw = pk3.EncryptedBoxData;
+        var raw = PkmEncryptedExport.GetStored(pk3);
         var hash = Convert.ToHexString(SHA256.HashData(raw)).ToLowerInvariant();
 
         var requestPath = Path.GetTempFileName();
@@ -782,7 +783,7 @@ public class BridgeProjectConversionTests
         pk3.Move1_PP = 35;
         pk3.RefreshChecksum();
 
-        var raw = pk3.EncryptedBoxData;
+        var raw = PkmEncryptedExport.GetStored(pk3);
         var hash = Convert.ToHexString(SHA256.HashData(raw)).ToLowerInvariant();
 
         var requestPath = Path.GetTempFileName();
@@ -858,7 +859,7 @@ public class BridgeProjectConversionTests
         pk5.Move1 = (ushort)Move.Tackle;
         pk5.RefreshChecksum();
 
-        var raw = pk5.EncryptedBoxData;
+        var raw = PkmEncryptedExport.GetStored(pk5);
         var hash = Convert.ToHexString(SHA256.HashData(raw)).ToLowerInvariant();
 
         var requestPath = Path.GetTempFileName();
@@ -928,7 +929,7 @@ public class BridgeProjectConversionTests
         pk5.Move2_PP = 99;
         pk5.RefreshChecksum();
 
-        var raw = pk5.EncryptedBoxData;
+        var raw = PkmEncryptedExport.GetStored(pk5);
         var hash = Convert.ToHexString(SHA256.HashData(raw)).ToLowerInvariant();
 
         var requestPath = Path.GetTempFileName();
@@ -1005,7 +1006,7 @@ public class BridgeProjectConversionTests
         pk5.Move1 = (ushort)Move.Tackle;
         pk5.RefreshChecksum();
 
-        var raw = pk5.EncryptedBoxData;
+        var raw = PkmEncryptedExport.GetStored(pk5);
         var hash = Convert.ToHexString(SHA256.HashData(raw)).ToLowerInvariant();
 
         var requestPath = Path.GetTempFileName();
@@ -1082,7 +1083,7 @@ public class BridgeProjectConversionTests
         pk5.Move1 = (ushort)Move.Tackle;
         pk5.RefreshChecksum();
 
-        var raw = pk5.EncryptedBoxData;
+        var raw = PkmEncryptedExport.GetStored(pk5);
         var hash = Convert.ToHexString(SHA256.HashData(raw)).ToLowerInvariant();
 
         var requestPath = Path.GetTempFileName();
@@ -1155,7 +1156,7 @@ public class BridgeProjectConversionTests
         pk5.Move1 = (ushort)Move.Tackle;
         pk5.RefreshChecksum();
 
-        var raw = pk5.EncryptedBoxData;
+        var raw = PkmEncryptedExport.GetStored(pk5);
         var hash = Convert.ToHexString(SHA256.HashData(raw)).ToLowerInvariant();
 
         var requestPath = Path.GetTempFileName();
@@ -1882,7 +1883,7 @@ public class BridgeProjectConversionTests
 
     private static PKM ProjectAndDecode(PKM source, int targetGame, string targetFormatName, string extraJson)
     {
-        var raw = source.EncryptedBoxData;
+        var raw = PkmEncryptedExport.GetStored(source);
         var hash = Convert.ToHexString(SHA256.HashData(raw)).ToLowerInvariant();
         var requestPath = Path.GetTempFileName();
         try

@@ -164,7 +164,7 @@ public static class BridgeProbe
 
         try
         {
-            var sav = SaveUtil.GetVariantSAV(savePath);
+            var sav = SaveUtil.GetSaveFile(savePath);
             if (sav is null)
             {
                 return new BridgeProbeResult

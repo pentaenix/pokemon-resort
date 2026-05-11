@@ -84,7 +84,7 @@ public static class BridgeImport
 
         try
         {
-            var sav = SaveUtil.GetVariantSAV(savePath);
+            var sav = SaveUtil.GetSaveFile(savePath);
             if (sav is null)
             {
                 return new BridgeImportResult
@@ -202,8 +202,8 @@ internal static class BridgeImportReader
     {
         ArgumentNullException.ThrowIfNull(sav);
         var raw = usePartyPayload
-            ? pokemon.EncryptedPartyData
-            : pokemon.EncryptedBoxData;
+            ? PkmEncryptedExport.GetParty(pokemon)
+            : PkmEncryptedExport.GetStored(pokemon);
         var hash = SHA256.HashData(raw);
         var formatName = pokemon.GetType().Name.ToLowerInvariant();
 

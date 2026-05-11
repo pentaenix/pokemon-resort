@@ -237,7 +237,7 @@ public static class BridgeProject
                     hotOverlayForFinalize,
                     extraNotes);
 
-                var outBytes = converted.EncryptedBoxData;
+                var outBytes = PkmEncryptedExport.GetStored(converted);
                 var outHash = Convert.ToHexString(SHA256.HashData(outBytes)).ToLowerInvariant();
 
                 var warnings = new List<string>();

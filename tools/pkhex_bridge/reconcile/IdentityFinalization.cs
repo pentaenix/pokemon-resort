@@ -205,7 +205,7 @@ internal static partial class BridgeProjectReconcile
         {
             foreach (var pidType in pidTypes)
             {
-                PIDGenerator.SetValuesFromSeed(pk, pidType, seed);
+                TransferLcrngPidSeed.Apply(pk, pidType, seed);
                 pk.Gender = GenderFromPid(pk, pk.PID);
                 pk.Nature = desiredNature;
                 pk.Form = desiredForm;
@@ -267,7 +267,7 @@ internal static partial class BridgeProjectReconcile
         PKM? generated = match switch
         {
             EncounterGift3 gift => gift.ConvertToPKM(trainer, criteria),
-            EncounterEgg egg => egg.ConvertToPKM(trainer, criteria),
+            IEncounterEgg and IEncounterConvertible eggConv => eggConv.ConvertToPKM(trainer, criteria),
             _ => null,
         };
         if (generated is null)

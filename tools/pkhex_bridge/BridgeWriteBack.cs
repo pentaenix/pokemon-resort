@@ -69,7 +69,7 @@ public static class BridgeWriteBack
 
         try
         {
-            var sav = SaveUtil.GetVariantSAV(savePath);
+            var sav = SaveUtil.GetSaveFile(savePath);
             if (sav is null)
             {
                 return new BridgeWriteBackResult

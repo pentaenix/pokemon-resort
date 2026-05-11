@@ -36,7 +36,7 @@ public class HeldItemTransferIntegrationTests
     public void Fixture_HasBulbasaurWithPokeBall_AndCharmanderWithoutHold_InFirstBoxFirstTwoSlots()
     {
         var path = RequireItemTransferFixturePath();
-        var sav = SaveUtil.GetVariantSAV(path);
+        var sav = SaveUtil.GetSaveFile(path);
         Assert.NotNull(sav);
 
         var bulba = sav.GetBoxSlotAtIndex(Box, BulbasaurSlot);
@@ -56,7 +56,7 @@ public class HeldItemTransferIntegrationTests
     public void PkmHeldItemPatch_ClearBulbasaurItem_MatchesPkhexClone_OnlyHeldItemChanges()
     {
         var path = RequireItemTransferFixturePath();
-        var sav = SaveUtil.GetVariantSAV(path);
+        var sav = SaveUtil.GetSaveFile(path);
         Assert.NotNull(sav);
 
         var bulba = sav.GetBoxSlotAtIndex(Box, BulbasaurSlot);
@@ -65,11 +65,11 @@ public class HeldItemTransferIntegrationTests
         var expected = bulba!.Clone();
         expected.HeldItem = 0;
 
-        var patch = PkmHeldItemPatch.ApplyFromPayload(Convert.ToBase64String(bulba.EncryptedBoxData), 0);
+        var patch = PkmHeldItemPatch.ApplyFromPayload(Convert.ToBase64String(PkmEncryptedExport.GetStored(bulba)), 0);
         Assert.True(patch.Success);
         Assert.NotNull(patch.RawPayloadBase64);
 
-        var expectedBytes = expected.EncryptedBoxData;
+        var expectedBytes = PkmEncryptedExport.GetStored(expected);
         var actualBytes = Convert.FromBase64String(patch.RawPayloadBase64!);
         Assert.Equal(expectedBytes, actualBytes);
     }
@@ -78,7 +78,7 @@ public class HeldItemTransferIntegrationTests
     public void PkmHeldItemPatch_GiveCharmanderPokeBall_MatchesPkhexClone()
     {
         var path = RequireItemTransferFixturePath();
-        var sav = SaveUtil.GetVariantSAV(path);
+        var sav = SaveUtil.GetSaveFile(path);
         Assert.NotNull(sav);
 
         var charm = sav.GetBoxSlotAtIndex(Box, CharmanderSlot);
@@ -88,10 +88,10 @@ public class HeldItemTransferIntegrationTests
         var expected = charm!.Clone();
         expected.HeldItem = pokeBall;
 
-        var patch = PkmHeldItemPatch.ApplyFromPayload(Convert.ToBase64String(charm.EncryptedBoxData), pokeBall);
+        var patch = PkmHeldItemPatch.ApplyFromPayload(Convert.ToBase64String(PkmEncryptedExport.GetStored(charm)), pokeBall);
         Assert.True(patch.Success);
         Assert.NotNull(patch.RawPayloadBase64);
 
-        Assert.Equal(expected.EncryptedBoxData, Convert.FromBase64String(patch.RawPayloadBase64!));
+        Assert.Equal(PkmEncryptedExport.GetStored(expected), Convert.FromBase64String(patch.RawPayloadBase64!));
     }
 }

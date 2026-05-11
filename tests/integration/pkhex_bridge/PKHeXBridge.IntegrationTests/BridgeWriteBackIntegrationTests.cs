@@ -22,7 +22,7 @@ public class BridgeWriteBackIntegrationTests
             var savePath = Path.Combine(tempDir, "roundtrip.sav");
             File.Copy(fixture, savePath);
 
-            var sav = SaveUtil.GetVariantSAV(savePath);
+            var sav = SaveUtil.GetSaveFile(savePath);
             Assert.NotNull(sav);
 
             var names = Enumerable.Range(0, sav.BoxCount)
@@ -36,7 +36,7 @@ public class BridgeWriteBackIntegrationTests
             var result = BridgeWriteBack.WriteProjection(savePath, projPath);
             Assert.True(result.Success);
 
-            var sav2 = SaveUtil.GetVariantSAV(savePath);
+            var sav2 = SaveUtil.GetSaveFile(savePath);
             Assert.NotNull(sav2);
             Assert.True(sav2.ChecksumsValid);
         }
@@ -57,7 +57,7 @@ public class BridgeWriteBackIntegrationTests
             var savePath = Path.Combine(tempDir, "swap.sav");
             File.Copy(fixture, savePath);
 
-            var sav = SaveUtil.GetVariantSAV(savePath);
+            var sav = SaveUtil.GetSaveFile(savePath);
             Assert.NotNull(sav);
 
             if (!WriteBackIntegrationHelpers.TryFindTwoOccupiedSlots(sav, out var ba, out var sa, out var bb, out var sb))
@@ -86,7 +86,7 @@ public class BridgeWriteBackIntegrationTests
             var result = BridgeWriteBack.WriteProjection(savePath, projPath);
             Assert.True(result.Success);
 
-            var sav2 = SaveUtil.GetVariantSAV(savePath);
+            var sav2 = SaveUtil.GetSaveFile(savePath);
             Assert.NotNull(sav2);
 
             var afterA = sav2.GetBoxSlotAtIndex(ba, sa);
@@ -113,7 +113,7 @@ public class BridgeWriteBackIntegrationTests
             var savePath = Path.Combine(tempDir, "preserve.sav");
             File.Copy(fixture, savePath);
 
-            var sav = SaveUtil.GetVariantSAV(savePath);
+            var sav = SaveUtil.GetSaveFile(savePath);
             Assert.NotNull(sav);
 
             if (!WriteBackIntegrationHelpers.TryFindTwoOccupiedSlots(sav, out var ba, out var sa, out var bb, out var sb))
@@ -151,7 +151,7 @@ public class BridgeWriteBackIntegrationTests
             var result = BridgeWriteBack.WriteProjection(savePath, projPath);
             Assert.True(result.Success, $"{result.Error} {result.Details}");
 
-            var sav2 = SaveUtil.GetVariantSAV(savePath);
+            var sav2 = SaveUtil.GetSaveFile(savePath);
             Assert.NotNull(sav2);
 
             var afterA = sav2.GetBoxSlotAtIndex(ba, sa);
@@ -182,7 +182,7 @@ public class BridgeWriteBackIntegrationTests
                 var savePath = Path.Combine(tempDir, Path.GetFileName(fixture));
                 File.Copy(fixture, savePath);
 
-                var sav = SaveUtil.GetVariantSAV(savePath);
+                var sav = SaveUtil.GetSaveFile(savePath);
                 Assert.NotNull(sav);
                 if (!sav.HasBox)
                     continue;
@@ -194,7 +194,7 @@ public class BridgeWriteBackIntegrationTests
                 var result = BridgeWriteBack.WriteProjection(savePath, projPath);
                 Assert.True(result.Success, $"{Path.GetFileName(fixture)} failed: {result.Error} {result.Details}");
 
-                var sav2 = SaveUtil.GetVariantSAV(savePath);
+                var sav2 = SaveUtil.GetSaveFile(savePath);
                 Assert.NotNull(sav2);
                 Assert.True(sav2.ChecksumsValid, $"{Path.GetFileName(fixture)} checksums invalid after write-back");
             }
@@ -228,7 +228,7 @@ public class BridgeWriteBackIntegrationTests
                 var savePath = Path.Combine(tempDir, Path.GetFileName(fixture));
                 File.Copy(fixture, savePath);
 
-                var sav = SaveUtil.GetVariantSAV(savePath);
+                var sav = SaveUtil.GetSaveFile(savePath);
                 Assert.NotNull(sav);
                 if (!sav.HasBox)
                 {
@@ -243,7 +243,7 @@ public class BridgeWriteBackIntegrationTests
                 var label = Path.GetFileName(fixture);
                 Assert.True(result.Success, $"{label} failed: {result.Error} {result.Details}");
 
-                var sav2 = SaveUtil.GetVariantSAV(savePath);
+                var sav2 = SaveUtil.GetSaveFile(savePath);
                 Assert.NotNull(sav2);
                 Assert.True(sav2.ChecksumsValid, $"{label} checksums invalid after write-back");
             }
@@ -266,7 +266,7 @@ public class BridgeWriteBackIntegrationTests
             var savePath = Path.Combine(tempDir, "2_cry.sav");
             File.Copy(fixture, savePath);
 
-            var sav = SaveUtil.GetVariantSAV(savePath);
+            var sav = SaveUtil.GetSaveFile(savePath);
             Assert.NotNull(sav);
 
             var grid = WriteBackIntegrationHelpers.CaptureBoxPayloadGrid(sav);
@@ -287,7 +287,7 @@ public class BridgeWriteBackIntegrationTests
             var result = BridgeWriteBack.WriteProjection(savePath, projPath);
             Assert.True(result.Success, $"{result.Error} {result.Details}");
 
-            var sav2 = SaveUtil.GetVariantSAV(savePath);
+            var sav2 = SaveUtil.GetSaveFile(savePath);
             Assert.NotNull(sav2);
             var written = sav2.GetBoxSlotAtIndex(box, slot);
             Assert.NotNull(written);
@@ -310,7 +310,7 @@ public class BridgeWriteBackIntegrationTests
             var savePath = Path.Combine(tempDir, "rename.sav");
             File.Copy(fixture, savePath);
 
-            var sav = SaveUtil.GetVariantSAV(savePath);
+            var sav = SaveUtil.GetSaveFile(savePath);
             Assert.NotNull(sav);
 
             var names = Enumerable.Range(0, sav.BoxCount)
@@ -325,7 +325,7 @@ public class BridgeWriteBackIntegrationTests
             var result = BridgeWriteBack.WriteProjection(savePath, projPath);
             Assert.True(result.Success);
 
-            var sav2 = SaveUtil.GetVariantSAV(savePath);
+            var sav2 = SaveUtil.GetSaveFile(savePath);
             Assert.NotNull(sav2);
             Assert.Equal(
                 WriteBackIntegrationHelpers.ExpectedBoxRenameMarker,
