@@ -8,6 +8,15 @@ namespace PKHeXBridge;
 
 internal static partial class BridgeProjectReconcile
 {
+    private enum IdentityProjectionPolicy
+    {
+        None,
+        Gen3Encounter,
+        Gen4PalPark,
+        Gen56GbTransfer,
+        Gen56Gen3Transfer,
+    }
+
     internal static void FinalizeProjectedIdentity(
         PKM source,
         PKM pk,
@@ -15,7 +24,8 @@ internal static partial class BridgeProjectReconcile
         JsonElement? hotMutableOverlay,
         IList<string> notes)
     {
-        if (!ShouldFinalizePidIdentity(source, pk, preSaveReview))
+        var policy = GetIdentityProjectionPolicy(source, pk, preSaveReview);
+        if (policy == IdentityProjectionPolicy.None)
             return;
 
         var desiredNature = ReadNature(preSaveReview) ?? pk.Nature;
@@ -67,14 +77,15 @@ internal static partial class BridgeProjectReconcile
         var finalPid = pk.PID;
         CommonEdits.SetAbilityIndex(pk, pk.PIDAbility);
         TrySetGbOriginEncounterAbility(pk);
+        SyncAbilityFromPid(pk);
         pk.PID = finalPid;
         pk.Nature = desiredNature;
         pk.Gender = desiredGender;
         pk.Form = desiredForm;
-        if (ShouldRepairMethod1PidIvCorrelation(source, pk, preSaveReview))
+        if (ShouldRepairPidIvCorrelation(policy))
         {
-                if (HasPidCorrelationIssue(pk))
-                {
+            if (HasPidCorrelationIssue(pk))
+            {
                 var beforePid = pk.PID;
                 var beforeAbility = pk.Ability;
                 var beforeAbilityNumber = pk.AbilityNumber;
@@ -104,10 +115,11 @@ internal static partial class BridgeProjectReconcile
                     pk.AbilityNumber = beforeAbilityNumber;
                     TrySetAbilityIndex(pk, pk.PIDAbility);
                     TrySetGbOriginEncounterAbility(pk);
+                    SyncAbilityFromPid(pk);
                 }
             }
         }
-        if (pk.Format == 6 && ShouldUseGbOriginEvCap(source, preSaveReview))
+        if (pk.Format == 6 && policy is IdentityProjectionPolicy.Gen56GbTransfer or IdentityProjectionPolicy.Gen56Gen3Transfer)
             pk.EncryptionConstant = pk.PID;
         AddFinalIdentityNote(pk, notes, "finalize_identity");
     }
@@ -119,7 +131,7 @@ internal static partial class BridgeProjectReconcile
         JsonElement? hotMutableOverlay,
         IList<string> notes)
     {
-        if (!ShouldFinalizePidIdentity(source, pk, preSaveReview))
+        if (GetIdentityProjectionPolicy(source, pk, preSaveReview) == IdentityProjectionPolicy.None)
             return;
 
         var desiredNature = ReadNature(preSaveReview) ?? pk.Nature;
@@ -138,18 +150,32 @@ internal static partial class BridgeProjectReconcile
         AddFinalIdentityNote(pk, notes, "finalize_identity_validate");
     }
 
-    private static bool ShouldFinalizePidIdentity(PKM source, PKM pk, JsonElement? preSaveReview)
+    private static IdentityProjectionPolicy GetIdentityProjectionPolicy(PKM source, PKM pk, JsonElement? preSaveReview)
     {
         if (pk.Format is 3 or 4)
-            return true;
-        return pk.Format is 5 or 6 && ShouldUseGbOriginEvCap(source, preSaveReview);
+        {
+            if (pk.Format == 3)
+                return IdentityProjectionPolicy.Gen3Encounter;
+            return pk.MetLocation == 55
+                ? IdentityProjectionPolicy.Gen4PalPark
+                : IdentityProjectionPolicy.Gen3Encounter;
+        }
+
+        if (pk.Format is 5 or 6 && ShouldUseGbOriginEvCap(source, preSaveReview))
+            return IdentityProjectionPolicy.Gen56GbTransfer;
+        if (pk.Format is 5 or 6 && source.Format == 3)
+            return IdentityProjectionPolicy.Gen56Gen3Transfer;
+
+        return IdentityProjectionPolicy.None;
     }
 
-    private static bool ShouldRepairMethod1PidIvCorrelation(PKM source, PKM pk, JsonElement? preSaveReview)
+    private static bool ShouldRepairPidIvCorrelation(IdentityProjectionPolicy policy)
     {
-        if (pk.Format == 4 && pk.MetLocation == 55)
-            return true;
-        return pk.Format is 5 or 6 && ShouldUseGbOriginEvCap(source, preSaveReview);
+        return policy is
+            IdentityProjectionPolicy.Gen3Encounter or
+            IdentityProjectionPolicy.Gen4PalPark or
+            IdentityProjectionPolicy.Gen56GbTransfer or
+            IdentityProjectionPolicy.Gen56Gen3Transfer;
     }
 
     private static bool MatchesFinalIdentity(
@@ -196,6 +222,11 @@ internal static partial class BridgeProjectReconcile
             return true;
         if (TrySetEncounterSlot3TransferPidIv(pk, desiredNature, desiredShiny, desiredGender, desiredForm, desiredAbilityIndex, notes))
             return true;
+        if (pk.Format == 3)
+        {
+            notes.Add("[transfer_normalize] skipped exhaustive Gen III PID/IV brute-force fallback; preserved legacy moves can make PKHeX choose an incompatible encounter path.");
+            return false;
+        }
 
         var seed = unchecked((uint)(pk.PID ^ ((uint)pk.Species << 16) ^ ((uint)pk.TID16 << 8) ^ pk.SID16));
         const int MaxAttempts = 4_000_000;
@@ -216,6 +247,7 @@ internal static partial class BridgeProjectReconcile
 
                 CommonEdits.SetAbilityIndex(pk, pk.PIDAbility);
                 TrySetGbOriginEncounterAbility(pk);
+                SyncAbilityFromPid(pk);
                 pk.Nature = desiredNature;
                 pk.Gender = desiredGender;
                 pk.Form = desiredForm;
@@ -243,6 +275,11 @@ internal static partial class BridgeProjectReconcile
         IList<string> notes)
     {
         var match = new LegalityAnalysis(pk).EncounterMatch;
+
+        if (match is not IEncounterConvertible conv)
+            return false;
+
+        var encounterGen = match is IGeneration g ? g.Generation : pk.Generation;
         var trainer = new SimpleTrainerInfo(pk.Version)
         {
             OT = pk.OriginalTrainerName,
@@ -250,9 +287,11 @@ internal static partial class BridgeProjectReconcile
             SID16 = pk.SID16,
             Gender = pk.OriginalTrainerGender,
             Language = pk.Language,
-            Generation = 3,
-            Context = EntityContext.Gen3,
+            Generation = encounterGen,
+            Context = EncounterGenerationToContext(encounterGen, pk),
         };
+        var levelMin = TryReadEncounterProperty<byte>(match, "LevelMin");
+        var levelMax = TryReadEncounterProperty<byte>(match, "LevelMax");
         var criteria = new EncounterCriteria
         {
             Nature = desiredNature,
@@ -262,20 +301,34 @@ internal static partial class BridgeProjectReconcile
                 : desiredAbilityIndex == 0 ? AbilityPermission.OnlyFirst : AbilityPermission.OnlySecond,
             Shiny = desiredShiny ? Shiny.Always : Shiny.Never,
             Form = (sbyte)desiredForm,
+            LevelMin = levelMin ?? 0,
+            LevelMax = levelMax ?? 0,
         };
 
-        PKM? generated = match switch
+        PKM generated;
+        try
         {
-            EncounterGift3 gift => gift.ConvertToPKM(trainer, criteria),
-            IEncounterEgg and IEncounterConvertible eggConv => eggConv.ConvertToPKM(trainer, criteria),
-            _ => null,
-        };
-        if (generated is null)
+            generated = conv.ConvertToPKM(trainer, criteria);
+        }
+        catch
+        {
+            return false;
+        }
+        if (pk.Format == 3 && generated.Species != pk.Species)
             return false;
 
         ApplyGeneratedPidIv(pk, generated, desiredNature, desiredGender, desiredForm);
-        CommonEdits.SetAbilityIndex(pk, pk.PIDAbility);
-        TrySetGbOriginEncounterAbility(pk);
+        if (pk.Format != 3)
+        {
+            CommonEdits.SetAbilityIndex(pk, pk.PIDAbility);
+            TrySetGbOriginEncounterAbility(pk);
+            SyncAbilityFromPid(pk);
+        }
+        if (pk.Format == 3 && !HasPidCorrelationIssue(pk))
+        {
+            notes.Add($"[transfer_normalize] repaired Gen III PID/IV pair from PKHeX {match.GetType().Name} generator.");
+            return true;
+        }
         if (!MatchesFinalIdentity(pk, desiredNature, desiredShiny, desiredGender, desiredForm, desiredAbilityIndex) ||
             HasPidCorrelationIssue(pk))
         {
@@ -296,21 +349,28 @@ internal static partial class BridgeProjectReconcile
         IList<string> notes)
     {
         var match = new LegalityAnalysis(pk).EncounterMatch;
-        if (match is not EncounterSlot3 slot)
+        if (match is not IEncounterSlot3)
             return false;
 
         try
         {
+            var matchType = match.GetType();
+            var version = ReadEncounterProperty<GameVersion>(match, "Version");
+            var location = ReadEncounterProperty<ushort>(match, "Location");
+            var levelMin = ReadEncounterProperty<byte>(match, "LevelMin");
+            var levelMax = ReadEncounterProperty<byte>(match, "LevelMax");
+            var slotNumber = ReadEncounterProperty<byte>(match, "SlotNumber");
+
             var temp = (PK3)EntityBlank.GetBlank(typeof(PK3));
             temp.Species = pk.Species;
             temp.Form = pk.Form;
-            temp.Version = slot.Version;
+            temp.Version = version;
             temp.Language = pk.Language;
             temp.TID16 = pk.TID16;
             temp.SID16 = pk.SID16;
             temp.EXP = pk.EXP;
-            temp.MetLocation = slot.Location;
-            temp.MetLevel = Math.Max(slot.LevelMin, pk.MetLevel);
+            temp.MetLocation = location;
+            temp.MetLevel = Math.Max(levelMin, pk.MetLevel);
             temp.Ball = (byte)Ball.Poke;
 
             var criteria = new EncounterCriteria
@@ -322,17 +382,26 @@ internal static partial class BridgeProjectReconcile
                     : desiredAbilityIndex == 0 ? AbilityPermission.OnlyFirst : AbilityPermission.OnlySecond,
                 Shiny = desiredShiny ? Shiny.Always : Shiny.Never,
                 Form = (sbyte)desiredForm,
-                LevelMin = slot.LevelMin,
-                LevelMax = slot.LevelMax,
+                LevelMin = levelMin,
+                LevelMax = levelMax,
             };
 
-            var info = (PersonalInfo3)PersonalTable.FR.GetFormEntry(pk.Species, pk.Form);
-            var seed = unchecked(pk.PID ^ ((uint)slot.Location << 16) ^ ((uint)slot.SlotNumber << 8) ^ (uint)desiredNature);
-            GenerateMethodH.SetRandom(slot, temp, info, criteria, seed);
+            var info = GetPersonalInfo3(version, pk.Species, pk.Form);
+            var seed = unchecked(pk.PID ^ ((uint)location << 16) ^ ((uint)slotNumber << 8) ^ (uint)desiredNature);
+            var method = typeof(GenerateMethodH)
+                .GetMethods(BindingFlags.Public | BindingFlags.Static)
+                .Single(m => m.Name == nameof(GenerateMethodH.SetRandom) && m.IsGenericMethodDefinition);
+            method.MakeGenericMethod(matchType).Invoke(null, [match, temp, info, criteria, seed]);
 
             ApplyGeneratedPidIv(pk, temp, desiredNature, desiredGender, desiredForm);
             CommonEdits.SetAbilityIndex(pk, pk.PIDAbility);
             TrySetGbOriginEncounterAbility(pk);
+            SyncAbilityFromPid(pk);
+            if (pk.Format == 3 && !HasPidCorrelationIssue(pk))
+            {
+                notes.Add("[transfer_normalize] repaired Gen III PID/IV pair with PKHeX Method H slot data.");
+                return true;
+            }
 
             if (!MatchesFinalIdentity(pk, desiredNature, desiredShiny, desiredGender, desiredForm, desiredAbilityIndex) ||
                 HasPidCorrelationIssue(pk))
@@ -343,60 +412,11 @@ internal static partial class BridgeProjectReconcile
             notes.Add("[transfer_normalize] repaired transfer PID/IV pair with PKHeX Method H slot data.");
             return true;
         }
-        catch
+        catch (Exception ex)
         {
+            notes.Add($"[transfer_normalize] skipped Method H slot repair for {match.GetType().Name}: {ex.GetBaseException().Message}");
             return false;
         }
     }
 
-    private static void ApplyGeneratedPidIv(
-        PKM pk,
-        PKM generated,
-        Nature desiredNature,
-        byte desiredGender,
-        byte desiredForm)
-    {
-        pk.PID = generated.PID;
-        pk.IV_HP = generated.IV_HP;
-        pk.IV_ATK = generated.IV_ATK;
-        pk.IV_DEF = generated.IV_DEF;
-        pk.IV_SPE = generated.IV_SPE;
-        pk.IV_SPA = generated.IV_SPA;
-        pk.IV_SPD = generated.IV_SPD;
-        pk.Nature = desiredNature;
-        pk.Gender = desiredGender;
-        pk.Form = desiredForm;
-        if (pk.Format == 6)
-            pk.EncryptionConstant = pk.PID;
-    }
-
-    private static bool HasPidCorrelationIssue(PKM pk)
-    {
-        try
-        {
-            var report = new LegalityAnalysis(pk).Report();
-            return report.Contains(
-                "PID+ correlation does not match what was expected for the Encounter's type.",
-                StringComparison.Ordinal);
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    private static byte GenderFromPid(PKM pk, uint pid)
-    {
-        var ratio = pk.PersonalInfo.Gender;
-        if (ratio == 255)
-            return 2;
-        if (ratio == 254)
-            return 1;
-        if (ratio == 0)
-            return 0;
-        if (ratio is > 0 and < 254)
-            return (byte)(((pid & 0xff) < ratio) ? 1 : 0);
-
-        return pk.Gender;
-    }
 }

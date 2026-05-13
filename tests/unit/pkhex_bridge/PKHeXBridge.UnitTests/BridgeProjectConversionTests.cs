@@ -127,6 +127,8 @@ public class BridgeProjectConversionTests
             Assert.True(pk4.EV_SPD <= 100);
             Assert.True(pk4.EV_SPE <= 100);
             Assert.True(pk4.EVTotal <= 510);
+            Assert.NotEqual(0, pk4.SID16);
+            Assert.DoesNotContain("SID16 is zero.", new LegalityAnalysis(pk4).Report(), StringComparison.Ordinal);
         }
         finally
         {
@@ -301,11 +303,115 @@ public class BridgeProjectConversionTests
             Assert.True(pk3.EV_SPD <= 100);
             Assert.True(pk3.EV_SPE <= 100);
             Assert.True(pk3.EVTotal <= 510);
+            Assert.NotEqual(0, pk3.SID16);
+            var report = new LegalityAnalysis(pk3).Report();
+            Assert.DoesNotContain("SID16 is zero.", report, StringComparison.Ordinal);
         }
         finally
         {
             File.Delete(requestPath);
         }
+    }
+
+    [Fact]
+    public void Project_GbOriginToPk3_UsesGen3EncounterPolicy()
+    {
+        var pk2 = EntityBlank.GetBlank(typeof(PK2));
+        pk2.Species = (int)Species.Bulbasaur;
+        pk2.EXP = 135;
+        pk2.Version = GameVersion.GS;
+        pk2.Language = (int)LanguageID.English;
+        pk2.OriginalTrainerName = "RESORT";
+        pk2.TID16 = 12345;
+        pk2.Move1 = (ushort)Move.Tackle;
+        pk2.Move1_PP = 35;
+        pk2.RefreshChecksum();
+
+        var pk3 = Assert.IsType<PK3>(ProjectAndDecode(pk2, 4, "PK3", """
+          "pre_save_review": {
+            "enabled": true,
+            "source_origin_game": 39,
+            "origin_game": 4,
+            "language": 2,
+            "apply_static_fields": true
+          }
+        """));
+
+        Assert.Equal(GameVersion.FR, pk3.Version);
+        Assert.NotEqual(0, pk3.SID16);
+        Assert.Equal((ushort)Move.Tackle, pk3.Move1);
+        var report = new LegalityAnalysis(pk3).Report();
+        Assert.DoesNotContain("Unable to match an encounter from origin game.", report, StringComparison.Ordinal);
+        Assert.DoesNotContain("PID+ correlation does not match what was expected for the Encounter's type.", report, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData((int)Species.Jigglypuff, "RESORT", (int)Move.Pound)]
+    [InlineData((int)Species.Exeggcute, "RESORT", (int)Move.Barrage)]
+    [InlineData((int)Species.Meowth, "RESORT", (int)Move.Scratch)]
+    [InlineData(83, "*", (int)Move.Peck)]
+    public void Project_GbOriginToPk3_DoesNotFallBackToFatefulMysteryGiftOrShortOt(int species, string otName, int move)
+    {
+        var pk2 = EntityBlank.GetBlank(typeof(PK2));
+        pk2.Species = (ushort)species;
+        pk2.EXP = 1000;
+        pk2.Version = GameVersion.GS;
+        pk2.Language = (int)LanguageID.English;
+        pk2.OriginalTrainerName = otName;
+        pk2.TID16 = 12345;
+        pk2.Move1 = (ushort)move;
+        pk2.Move1_PP = 35;
+        pk2.RefreshChecksum();
+
+        var pk3 = Assert.IsType<PK3>(ProjectAndDecode(pk2, 4, "PK3", $$"""
+          "pre_save_review": {
+            "enabled": true,
+            "source_origin_game": 39,
+            "origin_game": 4,
+            "language": 2,
+            "ot_name": "{{otName}}",
+            "apply_static_fields": true
+          }
+        """));
+
+        Assert.True(pk3.OriginalTrainerName.Length >= 2);
+        Assert.False(pk3.FatefulEncounter);
+        Assert.Equal((ushort)move, pk3.Move1);
+        var report = new LegalityAnalysis(pk3).Report();
+        Assert.DoesNotContain("OT Name too short.", report, StringComparison.Ordinal);
+        Assert.DoesNotContain("Unable to match to a Mystery Gift in the database.", report, StringComparison.Ordinal);
+        Assert.DoesNotContain("Fateful Encounter with no matching Encounter.", report, StringComparison.Ordinal);
+        Assert.DoesNotContain("Can't hatch an Egg at Met Location.", report, StringComparison.Ordinal);
+        Assert.DoesNotContain("PID+ correlation does not match what was expected for the Encounter's type.", report, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Project_GbOriginToPk3_PreservesLegacyMoveInsteadOfMakingGeneratedMovesLegal()
+    {
+        var pk2 = EntityBlank.GetBlank(typeof(PK2));
+        pk2.Species = (ushort)Species.Jigglypuff;
+        pk2.EXP = 1000;
+        pk2.Version = GameVersion.GS;
+        pk2.Language = (int)LanguageID.English;
+        pk2.OriginalTrainerName = "RESORT";
+        pk2.TID16 = 12345;
+        pk2.Move1 = (ushort)Move.WaterGun;
+        pk2.Move1_PP = 25;
+        pk2.RefreshChecksum();
+
+        var pk3 = Assert.IsType<PK3>(ProjectAndDecode(pk2, 4, "PK3", """
+          "pre_save_review": {
+            "enabled": true,
+            "source_origin_game": 39,
+            "origin_game": 4,
+            "language": 2,
+            "ot_name": "RESORT",
+            "apply_static_fields": true
+          }
+        """));
+
+        Assert.Equal((ushort)Move.WaterGun, pk3.Move1);
+        Assert.DoesNotContain("Unable to match to a Mystery Gift in the database.", new LegalityAnalysis(pk3).Report(), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -320,7 +426,7 @@ public class BridgeProjectConversionTests
         pk4Source.MetLevel = 0;
         pk4Source.PID = 0;
         pk4Source.TID16 = 12345;
-        pk4Source.SID16 = 54321;
+        pk4Source.SID16 = 0;
         pk4Source.EV_HP = 120;
         pk4Source.EV_ATK = 120;
         pk4Source.EV_DEF = 120;
@@ -366,8 +472,10 @@ public class BridgeProjectConversionTests
             Assert.True(pk5.MetDate is { Year: >= 2000 and <= 2099 });
             Assert.Equal(10, pk5.MetLevel);
             Assert.InRange(pk5.Language, (int)LanguageID.Japanese, (int)LanguageID.Spanish);
+            Assert.NotEqual(0, pk5.SID16);
             Assert.Equal(pk5.Nature, (Nature)(pk5.PID % 25));
             Assert.Equal(pk5.PIDAbility, pk5.AbilityNumber >> 1);
+            Assert.DoesNotContain("SID16 is zero.", new LegalityAnalysis(pk5).Report(), StringComparison.Ordinal);
             Assert.Contains(result.LossManifest?.Notes ?? [], note => note.Contains("[transfer_normalize]"));
             Assert.Contains(result.LossManifest?.Notes ?? [], note => note.Contains("[finalize_identity]"));
         }
@@ -413,6 +521,7 @@ public class BridgeProjectConversionTests
         Assert.InRange(pk6.Language, (int)LanguageID.Japanese, (int)LanguageID.Spanish);
         Assert.NotEqual(0u, pk6.PID);
         Assert.NotEqual(0u, pk6.EncryptionConstant);
+        Assert.NotEqual(0, pk6.SID16);
         Assert.Equal(pk6.PID, pk6.EncryptionConstant);
         Assert.Equal(pk6.Nature, (Nature)(pk6.PID % 25));
         Assert.Equal(49, pk6.Country);
@@ -424,6 +533,7 @@ public class BridgeProjectConversionTests
         Assert.DoesNotContain("PID-Nature mismatch.", report, StringComparison.Ordinal);
         Assert.DoesNotContain("Ability is not valid for species/form.", report, StringComparison.Ordinal);
         Assert.DoesNotContain("Ability mismatch for encounter.", report, StringComparison.Ordinal);
+        Assert.DoesNotContain("SID16 is zero.", report, StringComparison.Ordinal);
         Assert.DoesNotContain("Geolocation: Country is not in 3DS region.", report, StringComparison.Ordinal);
         Assert.DoesNotContain("Original Trainer Memory: Can't obtain Memory on Original Trainer Version.", report, StringComparison.Ordinal);
         Assert.DoesNotContain("Memory: Original Trainer Memory missing.", report, StringComparison.Ordinal);

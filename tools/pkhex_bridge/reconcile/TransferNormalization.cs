@@ -34,6 +34,44 @@ internal static partial class BridgeProjectReconcile
         if (ShouldUseGbOriginEvCap(source, preSaveReview) ? NormalizeGbOriginEvTotal(pk) : NormalizeEvTotal(pk))
             touched = true;
 
+        if (ShouldUseGbOriginEvCap(source, preSaveReview) && pk.SID16 == 0)
+        {
+            pk.SID16 = GenerateSyntheticGbOriginSid(source, pk, preSaveReview);
+            touched = true;
+            notes.Add("[transfer_normalize] gb_origin: assigned deterministic synthetic SID16 before PID repair.");
+        }
+
+        if (pk.Format == 3 && ShouldUseGbOriginEvCap(source, preSaveReview))
+        {
+            if ((int)pk.Version is < 1 or >= 35)
+            {
+                pk.Version = GameVersion.FR;
+                touched = true;
+            }
+
+            var origin = ReadInt(preSaveReview, "origin_game");
+            if (origin is 4 or 5 && (int)pk.Version != origin.Value)
+            {
+                pk.Version = (GameVersion)origin.Value;
+                touched = true;
+            }
+
+            if (pk.MetLocation == 0 || HasUnableToMatchEncounter(pk))
+            {
+                var suggested = EncounterSuggestion.GetSuggestedMetInfo(pk);
+                if (suggested is not null && suggested.Location != 0)
+                {
+                    pk.MetLocation = suggested.Location;
+                    touched = true;
+                }
+                if (suggested is not null && pk.MetLevel == 0)
+                {
+                    pk.MetLevel = suggested.GetSuggestedMetLevel(pk);
+                    touched = true;
+                }
+            }
+        }
+
         if (pk.Format == 5 && ShouldUseGbOriginEvCap(source, preSaveReview))
         {
             var origin = ReadInt(preSaveReview, "origin_game");
@@ -197,6 +235,22 @@ internal static partial class BridgeProjectReconcile
         return seed == 0 ? 1u : seed;
     }
 
+    private static ushort GenerateSyntheticGbOriginSid(PKM source, PKM pk, JsonElement? preSaveReview)
+    {
+        var origin = ReadInt(preSaveReview, "source_origin_game") ?? (int)source.Version;
+        var seed = unchecked((uint)(
+            ((pk.Species & 0xffff) << 16) ^
+            ((pk.TID16 & 0xffff) << 1) ^
+            (pk.PID & 0xffff) ^
+            ((origin & 0xff) << 24) ^
+            ((source.Format & 0xff) << 8) ^
+            0x5A17u));
+        seed ^= seed >> 16;
+        seed = unchecked((seed * 0x45D9F3Bu) + 0x2710u);
+        var sid = (ushort)(seed & 0xffff);
+        return sid == 0 ? (ushort)1 : sid;
+    }
+
     private static void NormalizeGen6GeoAndMemory(PKM pk)
     {
         const int countryUnitedStates = 49;
@@ -273,6 +327,20 @@ internal static partial class BridgeProjectReconcile
         if (date is not { } value)
             return false;
         return value.Year is >= 2000 and <= 2099;
+    }
+
+    private static bool HasUnableToMatchEncounter(PKM pk)
+    {
+        try
+        {
+            return new LegalityAnalysis(pk).Report().Contains(
+                "Unable to match an encounter from origin game.",
+                StringComparison.Ordinal);
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static bool NormalizeEvTotal(PKM pk)

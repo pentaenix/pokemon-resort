@@ -34,6 +34,9 @@ internal static partial class BridgeProjectReconcile
 
     private static string NormalizeTrainerName(PKM pk, string otName)
     {
+        if (pk.Format >= 3 && otName.Length < 2)
+            return "GB";
+
         var maxLength = pk.MaxStringLengthTrainer;
         if (maxLength <= 0 || otName.Length <= maxLength)
             return otName;

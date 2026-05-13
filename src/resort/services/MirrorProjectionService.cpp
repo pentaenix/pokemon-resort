@@ -79,6 +79,20 @@ std::uint16_t legalGen4OriginForGbOrigin(std::uint16_t origin_game) {
     }
 }
 
+std::uint16_t legalGen3OriginForGbOrigin(std::uint16_t origin_game) {
+    switch (origin_game) {
+        case 37: // Blue
+            return 5; // LeafGreen
+        case 35: // Red
+        case 38: // Yellow
+        case 39: // Gold
+        case 40: // Silver
+        case 41: // Crystal
+        default:
+            return 4; // FireRed
+    }
+}
+
 /// Builds `move_reconciliation` from warm JSON `resort_catalog.moves` (slot_index, move_name, move_id).
 void appendMoveReconciliationJson(std::ostringstream& body, const std::string& warm_json) {
     if (warm_json.empty()) {
@@ -275,6 +289,12 @@ void appendPreSaveReviewJson(
                 ? std::optional<std::uint16_t>(hot->origin_game)
                 : std::nullopt;
             std::optional<std::uint16_t> met_for_bridge = hot->met_location_id;
+            if (source_constraint_generation > 0 &&
+                source_constraint_generation <= 2 &&
+                target_constraint_generation == 3) {
+                origin_for_bridge = legalGen3OriginForGbOrigin(hot->origin_game);
+                met_for_bridge = std::nullopt; // bridge/PKHeX chooses a valid FRLG encounter location.
+            }
             if (source_constraint_generation > 0 &&
                 source_constraint_generation <= 3 &&
                 target_constraint_generation == 4) {
