@@ -442,6 +442,34 @@ void PokemonResortService::recordPokemonHomePlacement(
     tx.commit();
 }
 
+void PokemonResortService::applyOpenHomePushToGamePlacementsBatch(
+    const std::string& profile_id,
+    const std::optional<std::uint16_t> game_id,
+    const std::string& save_path,
+    const std::vector<OpenHomePushToGamePlacementItem>& items) {
+    if (items.empty()) {
+        return;
+    }
+    SqliteTransaction tx(*connection_);
+    for (const auto& item : items) {
+        if (item.updated_payload && !item.updated_payload->serialized_identity_or_ohpkm.empty()) {
+            openhome_links_->upsertPayloadForPokemon(item.pkrid, *item.updated_payload, unixNow());
+        }
+        PokemonPlacementRecord placement;
+        placement.pkrid = item.pkrid;
+        placement.kind = PokemonPlacementKind::InGameSave;
+        placement.game_id = game_id;
+        placement.save_path = save_path;
+        placement.box_index = item.game_box;
+        placement.slot_index = item.game_slot;
+        placement.openhome_id = item.openhome_id;
+        placement.updated_at_unix = unixNow();
+        openhome_links_->recordPlacement(placement);
+        boxes_->removePokemon(profile_id, item.pkrid);
+    }
+    tx.commit();
+}
+
 std::vector<std::pair<int, std::string>> PokemonResortService::listProfileBoxes(const std::string& profile_id) const {
     return boxes_->listBoxes(profile_id);
 }

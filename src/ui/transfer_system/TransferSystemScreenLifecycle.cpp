@@ -31,38 +31,11 @@ namespace pr {
 namespace {
 constexpr const char* kDefaultResortProfileId = "default";
 constexpr int kBoxViewportY = 100;
-constexpr char kBase64Alphabet[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 constexpr const char* kTempTransferLog = "[TEMP_TRANSFER_LOG_DELETE]";
 
 bool isGen12GameKey(const std::string& game_key) {
     return game_key == "pokemon_red" || game_key == "pokemon_blue" || game_key == "pokemon_yellow" ||
            game_key == "pokemon_gold" || game_key == "pokemon_silver" || game_key == "pokemon_crystal";
-}
-
-std::string encodeBase64(const std::vector<unsigned char>& bytes) {
-    std::string out;
-    out.reserve(((bytes.size() + 2) / 3) * 4);
-    for (std::size_t i = 0; i < bytes.size(); i += 3) {
-        const unsigned int b0 = bytes[i];
-        const unsigned int b1 = (i + 1) < bytes.size() ? bytes[i + 1] : 0;
-        const unsigned int b2 = (i + 2) < bytes.size() ? bytes[i + 2] : 0;
-        out.push_back(kBase64Alphabet[(b0 >> 2) & 0x3f]);
-        out.push_back(kBase64Alphabet[((b0 & 0x03) << 4) | ((b1 >> 4) & 0x0f)]);
-        out.push_back((i + 1) < bytes.size() ? kBase64Alphabet[((b1 & 0x0f) << 2) | ((b2 >> 6) & 0x03)] : '=');
-        out.push_back((i + 2) < bytes.size() ? kBase64Alphabet[b2 & 0x3f] : '=');
-    }
-    return out;
-}
-
-std::string firstNonEmptyGameSlotFormat(const std::vector<TransferSaveSelection::PcBox>& boxes) {
-    for (const auto& box : boxes) {
-        for (const auto& slot : box.slots) {
-            if (slot.occupied() && !slot.format.empty()) {
-                return slot.format;
-            }
-        }
-    }
-    return {};
 }
 
 constexpr const char* kOpenHomeJournalFileName = "pkr_openhome_journal.json";

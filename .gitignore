@@ -51,3 +51,4 @@ compile_commands.json
 .vscode/
 *.swp
 *.swo
+tools/OpenHome/**/node_modules/
