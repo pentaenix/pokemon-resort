@@ -1,0 +1,141 @@
+import { PKMInterface } from '@openhome-core/pkm/interfaces'
+import { getTypes, isMegaStone, isZCrystal } from '@openhome-core/pkm/util'
+import { Gender, OriginGame, PkmType } from '@pkm-rs/pkg'
+
+export interface Filter {
+  dexNumber?: number
+  formeNumber?: number
+  heldItem?: number | HeldItemCategory
+  gender?: Gender
+  ability?: number
+  type1?: PkmType
+  type2?: PkmType
+  gameOfOrigin?: OriginGame
+  ribbon?: string
+  shiny?: string
+  ball?: number
+  isEgg?: boolean
+  shinyLeaves?: number
+  tag?: string
+  displayColor?: string
+  hasNotes?: boolean
+}
+
+export type HeldItemFilter = number | HeldItemCategory
+
+type monData = PKMInterface & {
+  tags?: { label: string }[]
+  displayColor?: string
+  notes?: string
+}
+
+export function filterApplies(filter: Filter, mon: monData) {
+  if (filter.dexNumber && mon.dexNum !== filter.dexNumber) {
+    return false
+  }
+  if (filter.formeNumber !== undefined && mon.formNum !== filter.formeNumber) {
+    return false
+  }
+  if (filter.heldItem !== undefined && !heldItemPassesFilter(mon.heldItemIndex, filter.heldItem)) {
+    return false
+  }
+  if (filter.gender !== undefined && mon.gender !== filter.gender) {
+    return false
+  }
+  if (filter.ball !== undefined && 'ball' in mon && mon.ball !== filter.ball) {
+    return false
+  }
+  if (filter.isEgg !== undefined && mon.isEgg !== filter.isEgg) {
+    return false
+  }
+  if (filter.shinyLeaves !== undefined && 'shinyLeaves' in mon) {
+    return mon.shinyLeaves && mon.shinyLeaves.count() >= filter.shinyLeaves
+  }
+  if (
+    filter.ability !== undefined &&
+    (!('ability' in mon) || mon.ability?.index !== filter.ability)
+  ) {
+    return false
+  }
+  if (filter.gameOfOrigin !== undefined && mon.gameOfOrigin !== filter.gameOfOrigin) {
+    return false
+  }
+  if (filter.ribbon !== undefined) {
+    if (!mon.ribbons) return false
+    if (filter.ribbon === 'Any Ribbon') {
+      if (mon.ribbons.length === 0) return false
+    } else if (filter.ribbon === 'No Ribbon') {
+      if (mon.ribbons.length !== 0) return false
+    } else if (!mon.ribbons.includes(filter.ribbon)) return false
+  }
+  if (filter.shiny) {
+    switch (filter.shiny) {
+      case 'Shiny':
+        return mon.isShiny()
+      case 'Not Shiny':
+        return !mon.isShiny()
+      case 'Square Shiny':
+        return 'isSquareShiny' in mon && mon.isSquareShiny()
+      case 'Star Shiny':
+        return 'isSquareShiny' in mon && mon.isShiny() && !mon.isSquareShiny()
+    }
+  }
+
+  const types = getTypes(mon)
+  if (!types) {
+    return false
+  }
+
+  if (filter.type1 !== undefined && !types.includes(filter.type1)) {
+    return false
+  }
+
+  if (filter.type2 !== undefined && !types.includes(filter.type2)) {
+    return false
+  }
+
+  if (filter.tag !== undefined) {
+    const tags = mon.tags ?? []
+    if (filter.tag === 'Any Tag') {
+      if (tags.length === 0) return false
+    } else if (filter.tag === 'No Tag') {
+      if (tags.length > 0) return false
+    } else {
+      if (!tags.some((t) => t.label === filter.tag)) return false
+    }
+  }
+
+  if (filter.displayColor !== undefined) {
+    if (filter.displayColor === 'Any Color') {
+      if (!mon.displayColor) return false
+    } else if (filter.displayColor === 'No Color') {
+      if (mon.displayColor) return false
+    } else {
+      if (mon.displayColor !== filter.displayColor) return false
+    }
+  }
+
+  if (filter.hasNotes !== undefined) {
+    const monHasNotes = mon.notes && mon.notes.trim().length > 0
+    if (filter.hasNotes !== monHasNotes) return false
+  }
+
+  return true
+}
+
+export type HeldItemCategory = 'any' | 'mega_stone' | 'z_crystal'
+
+function heldItemPassesFilter(heldItemIndex: number, filter: HeldItemFilter): boolean {
+  if (typeof filter === 'number') {
+    return heldItemIndex === filter
+  }
+
+  switch (filter) {
+    case 'any':
+      return heldItemIndex > 0
+    case 'mega_stone':
+      return isMegaStone(heldItemIndex)
+    case 'z_crystal':
+      return isZCrystal(heldItemIndex)
+  }
+}

@@ -1,0 +1,378 @@
+import { get8BitChecksum } from '@openhome-core/save/util/byteLogic'
+import { gen12StringToUTF, utf16StringToGen12 } from '@openhome-core/save/util/Strings'
+import {
+  rememberedGen12BoxStringBytesForWrite,
+  rememberGen12BoxStringBytes,
+} from '@openhome-core/save/util/gen12BoxStringBytes'
+import { gen12BoxNicknameForEncode } from '@openhome-core/save/util/gen12BoxNicknameEncode'
+import { Option, unique } from '@openhome-core/util/functional'
+import {
+  ConvertStrategy,
+  ExtraFormIndex,
+  Gender,
+  ItemGen2,
+  Language,
+  OriginGame,
+} from '@pkm-rs/pkg'
+import { PK2 } from '@pokemon-files/pkm'
+import { EXCLAMATION } from '@pokemon-resources/consts/Forms'
+import { NationalDex } from '@pokemon-resources/consts/NationalDex'
+import { GEN2_TRANSFER_RESTRICTIONS } from '@pokemon-resources/consts/TransferRestrictions'
+import { OHPKM } from '../pkm/OHPKM'
+import { Box, BoxAndSlot, OfficialSAV } from './interfaces'
+import { LookupType } from './util'
+import { emptyPathData, PathData } from './util/path'
+
+const CURRENT_BOX_OFFSET_GS_INTL = 0x2724
+const CURRENT_BOX_OFFSET_C_INTL = 0x2700
+const MIN_SAVE_SIZE_BYTES = 0x8000
+/** Gen II retail saves are on the order of 32–64 KiB; refuse huge buffers as G2 to avoid mis-detection. */
+const MAX_G2_SAVE_SIZE_BYTES = 0x20000
+
+export class G2SAV extends OfficialSAV<PK2> {
+  static pkmType = PK2
+  boxOffsets: number[]
+
+  static transferRestrictions = GEN2_TRANSFER_RESTRICTIONS
+  static lookupType: LookupType = 'gen12'
+
+  origin: OriginGame = OriginGame.Gold
+  isPlugin: false = false
+
+  boxRows = 4
+  boxColumns = 5
+
+  filePath: PathData
+  fileCreated?: Date
+
+  money: number = 0 // TODO: set money for gen 2 saves
+  name: string
+  tid: number
+  sid?: number | undefined
+  displayID: string
+  language = Language.None
+
+  currentPCBox: number
+  boxes: Array<Box<PK2>>
+
+  bytes: Uint8Array
+
+  invalid: boolean = false
+  tooEarlyToOpen: boolean = false
+
+  updatedBoxSlots: BoxAndSlot[] = []
+
+  constructor(path: PathData, bytes: Uint8Array) {
+    super()
+    const dataView = new DataView(bytes.buffer)
+    this.bytes = bytes
+    this.filePath = path
+    this.tid = dataView.getInt16(0x2009)
+    this.displayID = this.tid.toString().padStart(5, '0')
+    this.name = gen12StringToUTF(this.bytes, 0x200b, 11)
+    this.boxOffsets = [
+      0x4000, 0x4450, 0x48a0, 0x4cf0, 0x5140, 0x5590, 0x59e0, 0x6000, 0x6450, 0x68a0, 0x6cf0,
+      0x7140, 0x7590, 0x79e0,
+    ]
+    this.boxes = []
+    if (this.areGoldSilverChecksumsValid()) {
+      // hacky but unavoidable
+      if (this.filePath.name.toUpperCase().includes('SILVER')) {
+        this.origin = OriginGame.Silver
+      } else {
+        this.origin = OriginGame.Gold
+      }
+    } else if (this.areCrystalInternationalChecksumsValid()) {
+      this.origin = OriginGame.Crystal
+    }
+
+    this.currentPCBox =
+      this.origin === OriginGame.Crystal
+        ? this.bytes[CURRENT_BOX_OFFSET_C_INTL]
+        : this.bytes[CURRENT_BOX_OFFSET_GS_INTL]
+
+    this.boxes = new Array<Box<PK2>>(this.boxOffsets.length)
+
+    const pokemonPerBox = this.boxRows * this.boxColumns
+
+    this.boxOffsets.forEach((_offset, boxNumber) => {
+      this.boxes[boxNumber] = new Box(`Box ${boxNumber + 1}`, pokemonPerBox)
+      this.decodeG2Box(boxNumber)
+    })
+  }
+
+  /**
+   * Gen 2 boxes are stored packed (count + contiguous mons). Move all occupied slots to the front
+   * before writing so the save matches what `prepareForSaving` emits and avoiding sparse in-memory
+   * state after pulls.
+   */
+  private compactG2BoxSlotsInPlace(box: Box<PK2>): void {
+    const filled = box.boxSlots.filter((m): m is PK2 => m !== undefined && m !== null)
+    for (let i = 0; i < box.boxSlots.length; i += 1) {
+      box.boxSlots[i] = filled[i]
+    }
+  }
+
+  /** Rebuild `boxSlots` for one box from `this.bytes` (packed PC layout). */
+  private decodeG2Box(boxNumber: number): void {
+    const offset = this.boxOffsets[boxNumber]
+    const pokemonPerBox = this.boxRows * this.boxColumns
+    const rawCount = this.bytes[offset]
+    if (rawCount > pokemonPerBox) {
+      console.warn(
+        `G2SAV: box ${boxNumber} count byte ${rawCount} exceeds ${pokemonPerBox}; clamping (save may be corrupt).`
+      )
+    }
+    const monCount = Math.min(rawCount, pokemonPerBox)
+    const box = this.boxes[boxNumber]
+
+    for (let i = 0; i < pokemonPerBox; i += 1) {
+      box.boxSlots[i] = undefined
+    }
+
+    for (let monIndex = 0; monIndex < monCount; monIndex++) {
+      const mon = PK2.fromBytes(
+        this.bytes.slice(
+          offset + 1 + pokemonPerBox + 1 + monIndex * 0x20,
+          offset + 1 + pokemonPerBox + 1 + (monIndex + 1) * 0x20
+        ).buffer
+      )
+
+      const trainerNameOffset =
+        offset + 1 + pokemonPerBox + 1 + pokemonPerBox * 0x20 + monIndex * 11
+      const nicknameOffset =
+        offset +
+        1 +
+        pokemonPerBox +
+        1 +
+        pokemonPerBox * 0x20 +
+        pokemonPerBox * 11 +
+        monIndex * 11
+      const trainerNameBytes = this.bytes.slice(trainerNameOffset, trainerNameOffset + 11)
+      const nicknameBytes = this.bytes.slice(nicknameOffset, nicknameOffset + 11)
+      mon.trainerName = gen12StringToUTF(trainerNameBytes, 0, 11)
+      mon.nickname = gen12StringToUTF(nicknameBytes, 0, 11)
+      rememberGen12BoxStringBytes(mon, trainerNameBytes, nicknameBytes)
+      mon.gameOfOrigin = mon.metLevel ? OriginGame.Crystal : this.origin
+      mon.language = Language.English
+      box.boxSlots[monIndex] = mon
+    }
+  }
+
+  private assertG2BoxCountConsistent(boxNumber: number): void {
+    const offset = this.boxOffsets[boxNumber]
+    const recorded = this.bytes[offset]
+    const box = this.boxes[boxNumber]
+    const actual = box.boxSlots.reduce<number>((n, s) => n + (s ? 1 : 0), 0)
+    if (recorded !== actual) {
+      console.warn(
+        `G2SAV: box ${boxNumber} count mismatch after save (bytes=${recorded}, slots=${actual}); save layout may be wrong.`
+      )
+    }
+  }
+
+  prepareForSaving() {
+    const changedBoxes = unique(this.updatedBoxSlots.map((coords) => coords.box))
+    const pokemonPerBox = this.boxRows * this.boxColumns
+
+    changedBoxes.forEach((boxNumber) => {
+      const boxByteOffset = this.boxOffsets[boxNumber]
+      const box = this.boxes[boxNumber]
+      this.compactG2BoxSlotsInPlace(box)
+      // functions as an index, to skip empty slots
+      let numMons = 0
+
+      box.boxSlots.forEach((boxMon) => {
+        if (boxMon) {
+          // set the mon's dex number in the box (separate location)
+          this.bytes[boxByteOffset + 1 + numMons] = boxMon.dexNum
+          // set the mon's data in the box
+          this.bytes.set(
+            new Uint8Array(boxMon.toBytes().slice(0, 32)),
+            boxByteOffset + 1 + pokemonPerBox + 1 + numMons * 0x20
+          )
+          // set the mon's OT name in the box
+          const trainerNameBuffer =
+            rememberedGen12BoxStringBytesForWrite(boxMon, 'trainerName', boxMon.trainerName, 11) ??
+            utf16StringToGen12(boxMon.trainerName, 11, true)
+
+          this.bytes.set(
+            trainerNameBuffer,
+            boxByteOffset + 1 + pokemonPerBox + 1 + pokemonPerBox * 0x20 + numMons * 11
+          )
+          // set the mon's nickname in the box
+          const nicknameText = gen12BoxNicknameForEncode(
+            boxMon.dexNum,
+            boxMon.language,
+            boxMon.nickname
+          )
+          const nicknameBuffer =
+            rememberedGen12BoxStringBytesForWrite(boxMon, 'nickname', boxMon.nickname, 11) ??
+            utf16StringToGen12(nicknameText, 11, true).fill(0x50, nicknameText.length)
+
+          this.bytes.set(
+            nicknameBuffer,
+            boxByteOffset +
+              1 +
+              pokemonPerBox +
+              1 +
+              pokemonPerBox * 0x20 +
+              pokemonPerBox * 11 +
+              numMons * 11
+          )
+          numMons++
+        }
+      })
+      this.bytes[boxByteOffset] = numMons
+      const remainingSlots = pokemonPerBox - numMons
+
+      if (remainingSlots) {
+        // set all dex numbers to 0
+        this.bytes.set(new Uint8Array(remainingSlots + 1), boxByteOffset + 1 + numMons)
+        // set all mon data to all 0s
+        this.bytes.set(
+          new Uint8Array(0x20 * remainingSlots),
+          boxByteOffset + 1 + pokemonPerBox + 1 + numMons * 0x20
+        )
+        // set all OT names to all 0s
+        this.bytes.set(
+          new Uint8Array(11 * remainingSlots),
+          boxByteOffset + 1 + pokemonPerBox + 1 + pokemonPerBox * 0x20 + numMons * 11
+        )
+        // set all nicknames to all 0s
+        this.bytes.set(
+          new Uint8Array(11 * remainingSlots),
+          boxByteOffset +
+            1 +
+            pokemonPerBox +
+            1 +
+            pokemonPerBox * 0x20 +
+            pokemonPerBox * 11 +
+            numMons * 11
+        )
+      }
+      // add terminator
+      this.bytes[boxByteOffset + 1 + numMons] = 0xff
+
+      this.decodeG2Box(boxNumber)
+      this.assertG2BoxCountConsistent(boxNumber)
+    })
+    switch (this.origin) {
+      case OriginGame.Gold:
+      case OriginGame.Silver:
+        this.bytes[0x2d69] = this.getGoldSilverInternationalChecksum1()
+        this.bytes[0x7e6d] = this.getGoldSilverInternationalChecksum2()
+        break
+      case OriginGame.Crystal:
+        this.bytes.set(this.bytes.slice(0x2009, 0x2b82), 0x1209)
+        this.bytes[0x2d0d] = this.getCrystalInternationalChecksum1()
+        this.bytes[0x1f0d] = this.getCrystalInternationalChecksum2()
+        break
+    }
+  }
+
+  convertOhpkm(ohpkm: OHPKM, strategy: ConvertStrategy): PK2 {
+    return PK2.fromOhpkm(ohpkm, strategy)
+  }
+
+  areGoldSilverChecksumsValid() {
+    const checksum1 = this.getGoldSilverInternationalChecksum1()
+
+    if (checksum1 !== this.bytes[0x2d69]) {
+      return false
+    }
+    const checksum2 = this.getGoldSilverInternationalChecksum2()
+
+    if (checksum1 === 0 && checksum2 === 0) return false
+
+    return checksum2 === this.bytes[0x7e6d]
+  }
+
+  getGoldSilverInternationalChecksum1() {
+    return get8BitChecksum(this.bytes, 0x2009, 0x2d68)
+  }
+
+  getGoldSilverInternationalChecksum2() {
+    let checksum = 0
+
+    checksum += get8BitChecksum(this.bytes, 0x15c7, 0x17ec)
+    checksum += get8BitChecksum(this.bytes, 0x3d96, 0x3f3f)
+    checksum += get8BitChecksum(this.bytes, 0x0c6b, 0x10e7)
+    checksum += get8BitChecksum(this.bytes, 0x7e39, 0x7e6c)
+    checksum += get8BitChecksum(this.bytes, 0x10e8, 0x15c6)
+    return checksum & 0xff
+  }
+
+  getCrystalInternationalChecksum1() {
+    return get8BitChecksum(this.bytes, 0x2009, 0x2b82)
+  }
+
+  getCrystalInternationalChecksum2() {
+    return get8BitChecksum(this.bytes, 0x1209, 0x1d82)
+  }
+
+  areCrystalInternationalChecksumsValid() {
+    const checksum1 = this.getCrystalInternationalChecksum1()
+
+    if (checksum1 !== this.bytes[0x2d0d]) {
+      return false
+    }
+    const checksum2 = this.getCrystalInternationalChecksum2()
+
+    if (checksum1 === 0 && checksum2 === 0) return false
+
+    return checksum2 === this.bytes[0x1f0d]
+  }
+
+  supportsMon(dexNumber: number, formeNumber: number, extraFormIndex?: ExtraFormIndex): boolean {
+    if (extraFormIndex !== undefined) return false
+    return (
+      (dexNumber <= NationalDex.Celebi && formeNumber === 0) ||
+      (dexNumber === NationalDex.Unown && formeNumber < EXCLAMATION)
+    )
+  }
+
+  supportsItem(itemIndex: number) {
+    return ItemGen2.fromModern(itemIndex) !== undefined
+  }
+
+  static saveTypeAbbreviation = 'GSC (Int)'
+  static saveTypeName = 'Pokémon Gold/Silver/Crystal (INT)'
+  static saveTypeID = 'G2SAV'
+
+  static fileIsSave(bytes: Uint8Array): boolean {
+    if (bytes.length < MIN_SAVE_SIZE_BYTES) {
+      return false
+    }
+    if (bytes.length > MAX_G2_SAVE_SIZE_BYTES) {
+      return false
+    }
+    try {
+      const g2Save = new G2SAV(emptyPathData, bytes)
+
+      return g2Save.areCrystalInternationalChecksumsValid() || g2Save.areGoldSilverChecksumsValid()
+    } catch {
+      return false
+    }
+  }
+
+  static includesOrigin(origin: OriginGame) {
+    return origin >= OriginGame.Gold && origin <= OriginGame.Crystal
+  }
+
+  get trainerGender() {
+    return this.origin === OriginGame.Crystal && this.bytes[0x3e3d] ? Gender.Female : Gender.Male
+  }
+
+  getMonAt(boxNum: number, boxSlot: number) {
+    const box = this.boxes[boxNum]
+    if (!box) return undefined
+    return box.boxSlots[boxSlot]
+  }
+
+  setMonAt(boxNum: number, boxSlot: number, mon: Option<PK2>): void {
+    const box = this.boxes[boxNum]
+    if (!box) return
+    box.boxSlots[boxSlot] = mon
+  }
+}

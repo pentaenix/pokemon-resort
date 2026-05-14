@@ -252,6 +252,11 @@ CREATE TABLE IF NOT EXISTS pokemon_placements (
     connection.exec("CREATE INDEX IF NOT EXISTS idx_pokemon_placements_kind ON pokemon_placements(placement_kind)");
 }
 
+void migrateTo6(SqliteConnection& connection) {
+    addColumnIfMissing(connection, "pokemon_placements", "cart_identity_kind", "cart_identity_kind TEXT");
+    addColumnIfMissing(connection, "pokemon_placements", "cart_identity_key", "cart_identity_key TEXT");
+}
+
 } // namespace
 
 void runResortMigrations(SqliteConnection& connection) {
@@ -283,6 +288,11 @@ void runResortMigrations(SqliteConnection& connection) {
     if (version < 5) {
         migrateTo5(connection);
         setVersion(connection, 5);
+        version = 5;
+    }
+    if (version < 6) {
+        migrateTo6(connection);
+        setVersion(connection, 6);
     }
     tx.commit();
 }
