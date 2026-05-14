@@ -76,6 +76,57 @@ struct OpenHomePushToGameResult {
     std::optional<OpenHomeMovementError> error;
 };
 
+struct OpenHomeBridgePerf {
+    int save_loads = 0;
+    int save_writes = 0;
+    int count = 0;
+    double total_ms = 0;
+};
+
+struct OpenHomeBatchPullToHomeRequest {
+    std::filesystem::path save_path;
+    std::string save_type;
+    std::filesystem::path ops_json_path;
+    bool write_source_save = true;
+};
+
+struct OpenHomeBatchPullItemResult {
+    OpenHomeId openhome_id;
+    OpenHomePokemonPayload payload;
+    std::optional<OpenHomeId> displaced_home_openhome_id;
+    int source_box = 0;
+    int source_slot = 0;
+    int home_bank = 0;
+    int home_box = 0;
+    int home_slot = 0;
+};
+
+struct OpenHomeBatchPullToHomeResult {
+    bool success = false;
+    std::vector<OpenHomeBatchPullItemResult> pulls;
+    OpenHomeBridgePerf perf;
+    std::optional<OpenHomeMovementError> error;
+};
+
+struct OpenHomeBatchPushToGameRequest {
+    std::filesystem::path save_path;
+    std::string save_type;
+    std::filesystem::path ops_json_path;
+    bool write_target_save = true;
+};
+
+struct OpenHomeBatchPushItemResult {
+    OpenHomeId openhome_id;
+    OpenHomePokemonPayload payload;
+};
+
+struct OpenHomeBatchPushToGameResult {
+    bool success = false;
+    std::vector<OpenHomeBatchPushItemResult> pushes;
+    OpenHomeBridgePerf perf;
+    std::optional<OpenHomeMovementError> error;
+};
+
 struct OpenHomeMoveBetweenGamesRequest {
     OpenHomeSaveSlot source;
     OpenHomeSaveSlot destination;
@@ -148,6 +199,9 @@ public:
     OpenHomePokemonSupportResult queryPokemonSupport(
         const OpenHomeSaveSlot& save,
         const std::vector<OpenHomePokemonSupportQuery>& queries) override;
+
+    OpenHomeBatchPullToHomeResult batchPullPokemonToHome(const OpenHomeBatchPullToHomeRequest& request);
+    OpenHomeBatchPushToGameResult batchPushPokemonToGame(const OpenHomeBatchPushToGameRequest& request);
 
     std::filesystem::path bridgeScriptPath() const;
 

@@ -19,6 +19,8 @@
 #include "resort/services/MirrorProjectionService.hpp"
 #include "resort/services/MirrorSessionService.hpp"
 
+#include "resort/openhome/OpenHomePokemonPayload.hpp"
+
 #include <filesystem>
 #include <memory>
 #include <optional>
@@ -39,6 +41,14 @@ struct ResetProfileResult {
     bool success = false;
     std::string error;
     std::string backup_path;
+};
+
+struct OpenHomePushToGamePlacementItem {
+    std::string pkrid;
+    std::string openhome_id;
+    std::optional<openhome::OpenHomePokemonPayload> updated_payload;
+    int game_box = 0;
+    int game_slot = 0;
 };
 
 class PokemonResortService {
@@ -95,6 +105,13 @@ public:
         int bank,
         int box,
         int slot);
+
+    /// Single SQLite transaction: link payload (when provided), record in-game placement, remove from Resort boxes.
+    void applyOpenHomePushToGamePlacementsBatch(
+        const std::string& profile_id,
+        std::optional<std::uint16_t> game_id,
+        const std::string& save_path,
+        const std::vector<OpenHomePushToGamePlacementItem>& items);
 
     std::vector<std::pair<int, std::string>> listProfileBoxes(const std::string& profile_id) const;
 

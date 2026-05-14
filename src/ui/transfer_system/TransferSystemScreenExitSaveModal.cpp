@@ -14,6 +14,7 @@
 #include <SDL.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cctype>
 #include <filesystem>
@@ -41,6 +42,50 @@ struct OpenHomeJournalPull {
 std::filesystem::path openHomeJournalPath(const std::string& save_directory) {
     namespace fs = std::filesystem;
     return fs::path(save_directory) / "resort-openhome-storage" / kOpenHomeJournalFileName;
+}
+
+std::vector<resort::openhome::OpenHomeHomeSlot> findEmptyOpenHomeHomeSlots(
+    const std::filesystem::path& openhome_storage_root,
+    std::size_t need_count) {
+    std::vector<resort::openhome::OpenHomeHomeSlot> out;
+    if (need_count == 0) {
+        return out;
+    }
+    try {
+        resort::openhome::OpenHomeStorageBridge storage(openhome_storage_root);
+        const resort::openhome::OpenHomeBankData banks = storage.loadHomeBanks();
+        for (const auto& bank : banks.banks) {
+            for (const auto& box : bank.boxes) {
+                for (int si = 0; si < 30; ++si) {
+                    if (box.identifiers_by_slot.find(si) == box.identifiers_by_slot.end()) {
+                        resort::openhome::OpenHomeHomeSlot slot;
+                        slot.bank = bank.index;
+                        slot.box = box.index;
+                        slot.slot = si;
+                        out.push_back(slot);
+                        if (out.size() >= need_count) {
+                            return out;
+                        }
+                    }
+                }
+            }
+        }
+    } catch (const std::exception& ex) {
+        std::cerr << "Warning: could not enumerate OpenHome home slots: " << ex.what() << '\n';
+    }
+    return out;
+}
+
+bool writeOpenHomeBatchOpsFile(const std::filesystem::path& path, const std::string& json_body) {
+    namespace fs = std::filesystem;
+    std::error_code mk_err;
+    fs::create_directories(path.parent_path(), mk_err);
+    std::ofstream out(path, std::ios::binary | std::ios::trunc);
+    if (!out) {
+        return false;
+    }
+    out.write(json_body.data(), static_cast<std::streamsize>(json_body.size()));
+    return static_cast<bool>(out);
 }
 
 bool writeOpenHomeJournal(
@@ -666,7 +711,9 @@ bool TransferSystemScreen::preparePendingResortMirrorPayloadsForSave() {
     if (!resort_service_) {
         return true;
     }
+
     pending_prepared_mirror_exports_.clear();
+
     if (!bridge_import_source_game_.has_value()) {
         for (const auto& box : resort_pc_boxes_) {
             for (const auto& slot : box.slots) {
@@ -678,17 +725,30 @@ bool TransferSystemScreen::preparePendingResortMirrorPayloadsForSave() {
         }
     }
 
+    auto resolveOpenHomeIdForSlot = [this](PcSlotSpecies& slot) -> std::optional<std::string> {
+        if (slotIsOpenHomeBacked(slot)) {
+            return slot.home_tracker;
+        }
+
+        if (!slot.resort_pkrid.empty() && resort_service_) {
+            const auto linked_openhome_id = resort_service_->getOpenHomeIdForPokemon(slot.resort_pkrid);
+            if (linked_openhome_id && resort::openhome::isValidOpenHomeId(*linked_openhome_id)) {
+                slot.home_tracker = *linked_openhome_id;
+                return *linked_openhome_id;
+            }
+        }
+
+        return std::nullopt;
+    };
+
     for (auto& box : game_pc_boxes_) {
         for (auto& slot : box.slots) {
             if (!slot.occupied() || slot.resort_pkrid.empty()) {
                 continue;
             }
-            if (!slotIsOpenHomeBacked(slot) && resort_service_) {
-                if (const auto linked_openhome_id = resort_service_->getOpenHomeIdForPokemon(slot.resort_pkrid);
-                    linked_openhome_id && resort::openhome::isValidOpenHomeId(*linked_openhome_id)) {
-                    slot.home_tracker = *linked_openhome_id;
-                }
-            }
+
+            const std::optional<std::string> openhome_id = resolveOpenHomeIdForSlot(slot);
+
             if (resort_service_->getActiveMirrorForPokemon(slot.resort_pkrid).has_value()) {
                 if (resort_service_->getPokemonLocation(kDefaultResortProfileId, slot.resort_pkrid).has_value()) {
                     std::cerr << kTempTransferLog
@@ -700,19 +760,34 @@ bool TransferSystemScreen::preparePendingResortMirrorPayloadsForSave() {
                     return false;
                 }
             }
+
+            // Critical performance fast path:
+            // OpenHome-backed Pokémon are written by batchPushPokemonToGame() against the staged save.
+            // Do not run per-Pokémon PKHeX projection for these slots.
+            if (openhome_id.has_value()) {
+                std::cerr << kTempTransferLog
+                          << " Save prepare skipping PKHeX mirror projection for OpenHome-backed Pokemon pkrid="
+                          << slot.resort_pkrid
+                          << " openhomeId=" << *openhome_id << '\n';
+                continue;
+            }
+
             const std::filesystem::path bridge_project_req =
                 std::filesystem::temp_directory_path() /
                 ("pr_prepare_proj_" + slot.resort_pkrid + ".json");
-            // Mirror slots often retain the Pokémon's prior encoding (`pk3`) even while the loaded save is Gen 4.
-            // PKHeX write-projection requires payloads matching the *save file* (`pk4`). Prefer import snapshot format.
+
             const std::string inferred_write_target_format =
-                bridge_import_source_game_ ? resort::pkmStorageFormatNameForGameId(*bridge_import_source_game_)
-                                           : std::string{};
-            const std::string write_target_format = !inferred_write_target_format.empty()
-                                                      ? inferred_write_target_format
-                                                      : (bridge_import_storage_format_name_.empty()
-                                                             ? slot.format
-                                                             : bridge_import_storage_format_name_);
+                bridge_import_source_game_
+                    ? resort::pkmStorageFormatNameForGameId(*bridge_import_source_game_)
+                    : std::string{};
+
+            const std::string write_target_format =
+                !inferred_write_target_format.empty()
+                    ? inferred_write_target_format
+                    : (bridge_import_storage_format_name_.empty()
+                           ? slot.format
+                           : bridge_import_storage_format_name_);
+
             const std::optional<resort::PokemonSnapshot> snapshot =
                 resort_service_->prepareLatestRawSnapshotForGameWrite(
                     slot.resort_pkrid,
@@ -721,11 +796,13 @@ bool TransferSystemScreen::preparePendingResortMirrorPayloadsForSave() {
                     project_root_,
                     bridge_argv0_,
                     bridge_project_req);
+
             if (!snapshot || snapshot->raw_bytes.empty() || snapshot->raw_hash_sha256.empty()) {
                 std::cerr << "Warning: cannot save Resort mirror: missing compatible raw snapshot for "
                           << slot.resort_pkrid << '\n';
                 return false;
             }
+
             slot.bridge_box_payload_base64 = encodeBase64(snapshot->raw_bytes);
             slot.bridge_box_payload_hash_sha256 = snapshot->raw_hash_sha256;
             slot.format = snapshot->format_name;
@@ -733,12 +810,14 @@ bool TransferSystemScreen::preparePendingResortMirrorPayloadsForSave() {
             if (slot.pid && *slot.pid == 0) {
                 slot.pid.reset();
             }
+
             resort::ExportContext ctx;
             ctx.target_game = *bridge_import_source_game_;
             ctx.target_format_name = write_target_format;
             ctx.managed_mirror = true;
             ctx.bridge_project_root = project_root_;
             ctx.bridge_argv0 = bridge_argv0_;
+
             PendingPreparedMirrorExport pending;
             pending.pkrid = slot.resort_pkrid;
             pending.context = ctx;
@@ -747,6 +826,7 @@ bool TransferSystemScreen::preparePendingResortMirrorPayloadsForSave() {
             pending.format_name = snapshot->format_name;
             pending.transport_pid = slot.pid;
             pending_prepared_mirror_exports_.push_back(std::move(pending));
+
             std::cerr << kTempTransferLog
                       << " Save prepare Resort mirror payload pkrid=" << slot.resort_pkrid
                       << " snapshot_id=" << snapshot->snapshot_id
@@ -756,6 +836,7 @@ bool TransferSystemScreen::preparePendingResortMirrorPayloadsForSave() {
                       << " hash=" << snapshot->raw_hash_sha256 << '\n';
         }
     }
+
     return true;
 }
 
@@ -801,29 +882,12 @@ bool TransferSystemScreen::commitPendingOpenHomeMovementBeforeSave(const std::st
         fs::path(project_root_),
         fs::path(save_directory_) / "resort-openhome-storage");
 
-    auto findFirstEmptyHomeSlot = [&]() -> std::optional<resort::openhome::OpenHomeHomeSlot> {
-        try {
-            resort::openhome::OpenHomeStorageBridge storage(fs::path(save_directory_) / "resort-openhome-storage");
-            const resort::openhome::OpenHomeBankData banks = storage.loadHomeBanks();
-            for (const auto& bank : banks.banks) {
-                for (const auto& box : bank.boxes) {
-                    // Home boxes are sparse maps; first missing slot index is free.
-                    for (int si = 0; si < 30; ++si) {
-                        if (box.identifiers_by_slot.find(si) == box.identifiers_by_slot.end()) {
-                            resort::openhome::OpenHomeHomeSlot out;
-                            out.bank = bank.index;
-                            out.box = box.index;
-                            out.slot = si;
-                            return out;
-                        }
-                    }
-                }
-            }
-        } catch (const std::exception& ex) {
-            std::cerr << "Warning: could not load OpenHome banks to find empty slot: " << ex.what() << '\n';
-        }
-        return std::nullopt;
-    };
+    const bool trace_save_perf = std::getenv("PDSM_TRACE_SAVE_PERF") != nullptr &&
+        std::string(std::getenv("PDSM_TRACE_SAVE_PERF")) == "1";
+    const auto perf_wall_start = std::chrono::steady_clock::now();
+    int openhome_processes = 0;
+    int openhome_batch_pull_size = 0;
+    int openhome_batch_push_size = 0;
 
     std::vector<const PendingOpenHomePull*> ordered_pulls;
     ordered_pulls.reserve(pending_openhome_pulls_.size());
@@ -837,6 +901,16 @@ bool TransferSystemScreen::commitPendingOpenHomeMovementBeforeSave(const std::st
         return a->source_slot > b->source_slot;
     });
 
+    struct ExecPull {
+        const PendingOpenHomePull* pending;
+        PcSlotSpecies* target_slot = nullptr;
+        int target_box = -1;
+        int target_index = -1;
+        int staged_source_box = 0;
+        int staged_source_slot = 0;
+    };
+    std::vector<ExecPull> exec_pulls;
+    exec_pulls.reserve(ordered_pulls.size());
     for (const PendingOpenHomePull* pending_ptr : ordered_pulls) {
         const PendingOpenHomePull& pending = *pending_ptr;
         PcSlotSpecies* target_slot = nullptr;
@@ -859,59 +933,109 @@ bool TransferSystemScreen::commitPendingOpenHomeMovementBeforeSave(const std::st
         if (!target_slot) {
             continue;
         }
+        ExecPull row;
+        row.pending = pending_ptr;
+        row.target_slot = target_slot;
+        row.target_box = target_box;
+        row.target_index = target_index;
+        row.staged_source_box = pending.source_box;
+        row.staged_source_slot = pending.source_slot;
+        exec_pulls.push_back(row);
+    }
 
-        // Gen 1 boxes pack toward slot 0 on each save write. Pull higher slots first within each
-        // box so queued lower-slot coordinates remain valid without a PKHeX bridge re-probe.
-        int staged_source_box = pending.source_box;
-        int staged_source_slot = pending.source_slot;
-
-        resort::openhome::OpenHomePullToHomeRequest request;
-        request.source.save_path = save_path_override;
-        request.source.save_type = openHomeResortExplicitSaveType(transfer_selection_);
-        request.source.box = staged_source_box;
-        request.source.slot = staged_source_slot;
-        if (const auto empty = findFirstEmptyHomeSlot()) {
-            request.destination = *empty;
-        } else {
-            // Fallback: preserve old behavior if banks cannot be read, but this may swap.
-            request.destination.bank = 0;
-            request.destination.box = target_box;
-            request.destination.slot = target_index;
+    if (!exec_pulls.empty()) {
+        const fs::path openhome_root = fs::path(save_directory_) / "resort-openhome-storage";
+        const std::vector<resort::openhome::OpenHomeHomeSlot> home_slots =
+            findEmptyOpenHomeHomeSlots(openhome_root, exec_pulls.size());
+        if (home_slots.size() < exec_pulls.size()) {
+            std::cerr << "Warning: OpenHome batch pull needs " << exec_pulls.size()
+                      << " empty home slots but only " << home_slots.size() << " are available\n";
+            return false;
+        }
+        std::ostringstream ops_json;
+        ops_json << '[';
+        for (std::size_t i = 0; i < exec_pulls.size(); ++i) {
+            if (i > 0) {
+                ops_json << ',';
+            }
+            const ExecPull& e = exec_pulls[i];
+            const resort::openhome::OpenHomeHomeSlot& h = home_slots[i];
+            ops_json << "{\"box\":" << e.staged_source_box << ",\"slot\":" << e.staged_source_slot
+                     << ",\"home_bank\":" << h.bank << ",\"home_box\":" << h.box << ",\"home_slot\":" << h.slot
+                     << "}";
+        }
+        ops_json << ']';
+        const fs::path ops_path = fs::path(save_directory_) / "pkr_openhome_batch_pull_ops.json";
+        if (!writeOpenHomeBatchOpsFile(ops_path, ops_json.str())) {
+            std::cerr << "Warning: could not write OpenHome batch pull ops file\n";
+            return false;
         }
 
-        const resort::openhome::OpenHomePullToHomeResult result = bridge.pullPokemonToHome(request);
-        if (!result.success) {
-            std::cerr << "Warning: OpenHome pull-to-home failed: "
-                      << (result.error ? result.error->message : std::string("unknown error")) << '\n';
+        resort::openhome::OpenHomeBatchPullToHomeRequest batch_req;
+        batch_req.save_path = save_path_override;
+        batch_req.save_type = openHomeResortExplicitSaveType(transfer_selection_);
+        batch_req.ops_json_path = ops_path;
+        batch_req.write_source_save = true;
+        const resort::openhome::OpenHomeBatchPullToHomeResult batch_result = bridge.batchPullPokemonToHome(batch_req);
+        ++openhome_processes;
+        openhome_batch_pull_size = static_cast<int>(exec_pulls.size());
+        if (trace_save_perf) {
+            std::cerr << kTempTransferLog << " openhome_batch_pull_size=" << openhome_batch_pull_size
+                      << " bridge_perf_save_loads=" << batch_result.perf.save_loads
+                      << " bridge_perf_save_writes=" << batch_result.perf.save_writes
+                      << " bridge_perf_total_ms=" << batch_result.perf.total_ms << '\n';
+        }
+        if (!batch_result.success) {
+            std::cerr << "Warning: OpenHome batch-pull-to-home failed: "
+                      << (batch_result.error ? batch_result.error->message : std::string("unknown error")) << '\n';
             if (!journal_pulls.empty()) {
                 (void)writeOpenHomeJournal(save_directory_, transfer_selection_.source_path, journal_pulls);
             }
             return false;
         }
-        target_slot->home_tracker = result.openhome_id;
-        pending_openhome_import_payloads_.push_back(PendingOpenHomeImportPayload{
-            target_box,
-            target_index,
-            request.destination.bank,
-            request.destination.box,
-            request.destination.slot,
-            result.payload
-        });
-        journal_pulls.push_back(OpenHomeJournalPull{
-            staged_source_box,
-            staged_source_slot,
-            result.openhome_id
-        });
-        std::cerr << kTempTransferLog
-                  << " OpenHome pull-to-home openhomeId=" << result.openhome_id
-                  << " source_box=" << staged_source_box
-                  << " source_slot=" << staged_source_slot
-                  << " (queue_box=" << pending.source_box << " queue_slot=" << pending.source_slot << ")"
-                  << " home_bank=" << request.destination.bank
-                  << " home_box=" << request.destination.box
-                  << " home_slot=" << request.destination.slot << '\n';
+        if (batch_result.pulls.size() != exec_pulls.size()) {
+            std::cerr << "Warning: OpenHome batch-pull-to-home result count mismatch\n";
+            if (!journal_pulls.empty()) {
+                (void)writeOpenHomeJournal(save_directory_, transfer_selection_.source_path, journal_pulls);
+            }
+            return false;
+        }
+        for (std::size_t i = 0; i < exec_pulls.size(); ++i) {
+            const ExecPull& e = exec_pulls[i];
+            const resort::openhome::OpenHomeBatchPullItemResult& pr = batch_result.pulls[i];
+            e.target_slot->home_tracker = pr.openhome_id;
+            pending_openhome_import_payloads_.push_back(PendingOpenHomeImportPayload{
+                e.target_box,
+                e.target_index,
+                pr.home_bank,
+                pr.home_box,
+                pr.home_slot,
+                pr.payload
+            });
+            journal_pulls.push_back(OpenHomeJournalPull{
+                e.staged_source_box,
+                e.staged_source_slot,
+                pr.openhome_id
+            });
+            std::cerr << kTempTransferLog
+                      << " OpenHome batch-pull openhomeId=" << pr.openhome_id
+                      << " source_box=" << e.staged_source_box
+                      << " source_slot=" << e.staged_source_slot
+                      << " (queue_box=" << e.pending->source_box << " queue_slot=" << e.pending->source_slot << ")"
+                      << " home_bank=" << pr.home_bank
+                      << " home_box=" << pr.home_box
+                      << " home_slot=" << pr.home_slot << '\n';
+        }
     }
 
+    struct PushEntry {
+        PcSlotSpecies* slot = nullptr;
+        std::string openhome_id;
+        std::string resort_pkrid;
+        int game_box = 0;
+        int game_slot = 0;
+    };
+    std::vector<PushEntry> push_entries;
     for (std::size_t bi = 0; bi < game_pc_boxes_.size(); ++bi) {
         auto& slots = game_pc_boxes_[bi].slots;
         for (std::size_t si = 0; si < slots.size(); ++si) {
@@ -930,40 +1054,98 @@ bool TransferSystemScreen::commitPendingOpenHomeMovementBeforeSave(const std::st
             if (!resort::openhome::isValidOpenHomeId(openhome_id)) {
                 continue;
             }
-            resort::openhome::OpenHomePushToGameRequest request;
-            request.openhome_id = openhome_id;
-            request.destination.save_path = save_path_override;
-            request.destination.box = static_cast<int>(bi);
-            request.destination.slot = static_cast<int>(si);
-            const resort::openhome::OpenHomePushToGameResult result = bridge.pushPokemonToGame(request);
-            if (!result.success) {
-                std::cerr << "Warning: OpenHome push-to-game failed: "
-                          << (result.error ? result.error->message : std::string("unknown error")) << '\n';
-                return false;
+            PushEntry pe;
+            pe.slot = &slot;
+            pe.openhome_id = std::move(openhome_id);
+            pe.resort_pkrid = slot.resort_pkrid;
+            pe.game_box = static_cast<int>(bi);
+            pe.game_slot = static_cast<int>(si);
+            push_entries.push_back(std::move(pe));
+        }
+    }
+
+    if (!push_entries.empty()) {
+        std::ostringstream ops_json;
+        ops_json << '[';
+        for (std::size_t i = 0; i < push_entries.size(); ++i) {
+            if (i > 0) {
+                ops_json << ',';
             }
-            if (resort_service_) {
-                if (result.updated_payload && !result.updated_payload->serialized_identity_or_ohpkm.empty()) {
-                    resort_service_->linkOpenHomePayloadToPokemon(slot.resort_pkrid, *result.updated_payload);
+            const PushEntry& pe = push_entries[i];
+            ops_json << "{\"openhome_id\":\"" << escapeJsonString(pe.openhome_id) << "\",\"box\":" << pe.game_box
+                     << ",\"slot\":" << pe.game_slot << "}";
+        }
+        ops_json << ']';
+        const fs::path ops_path = fs::path(save_directory_) / "pkr_openhome_batch_push_ops.json";
+        if (!writeOpenHomeBatchOpsFile(ops_path, ops_json.str())) {
+            std::cerr << "Warning: could not write OpenHome batch push ops file\n";
+            return false;
+        }
+        resort::openhome::OpenHomeBatchPushToGameRequest batch_req;
+        batch_req.save_path = save_path_override;
+        batch_req.save_type = openHomeResortExplicitSaveType(transfer_selection_);
+        batch_req.ops_json_path = ops_path;
+        batch_req.write_target_save = true;
+        const resort::openhome::OpenHomeBatchPushToGameResult batch_result = bridge.batchPushPokemonToGame(batch_req);
+        ++openhome_processes;
+        openhome_batch_push_size = static_cast<int>(push_entries.size());
+        if (trace_save_perf) {
+            std::cerr << kTempTransferLog << " openhome_batch_push_size=" << openhome_batch_push_size
+                      << " bridge_perf_save_loads=" << batch_result.perf.save_loads
+                      << " bridge_perf_save_writes=" << batch_result.perf.save_writes
+                      << " bridge_perf_total_ms=" << batch_result.perf.total_ms << '\n';
+        }
+        if (!batch_result.success) {
+            std::cerr << "Warning: OpenHome batch-push-to-game failed: "
+                      << (batch_result.error ? batch_result.error->message : std::string("unknown error")) << '\n';
+            return false;
+        }
+        if (batch_result.pushes.size() != push_entries.size()) {
+            std::cerr << "Warning: OpenHome batch-push-to-game result count mismatch\n";
+            return false;
+        }
+        if (resort_service_) {
+            std::vector<resort::OpenHomePushToGamePlacementItem> placement_items;
+            placement_items.reserve(push_entries.size());
+            for (std::size_t i = 0; i < push_entries.size(); ++i) {
+                resort::OpenHomePushToGamePlacementItem item;
+                item.pkrid = push_entries[i].resort_pkrid;
+                item.openhome_id = push_entries[i].openhome_id;
+                item.game_box = push_entries[i].game_box;
+                item.game_slot = push_entries[i].game_slot;
+                const resort::openhome::OpenHomePokemonPayload& pl = batch_result.pushes[i].payload;
+                if (!pl.serialized_identity_or_ohpkm.empty()) {
+                    item.updated_payload = pl;
                 }
-                resort_service_->recordPokemonInGamePlacement(
-                    slot.resort_pkrid,
-                    openhome_id,
-                    bridge_import_source_game_,
-                    transfer_selection_.source_path,
-                    static_cast<int>(bi),
-                    static_cast<int>(si));
-                resort_service_->removePokemonFromBoxes(kDefaultResortProfileId, slot.resort_pkrid);
+                placement_items.push_back(std::move(item));
             }
+            resort_service_->applyOpenHomePushToGamePlacementsBatch(
+                kDefaultResortProfileId,
+                bridge_import_source_game_,
+                save_path_override,
+                placement_items);
+        }
+        for (std::size_t i = 0; i < push_entries.size(); ++i) {
+            const PushEntry& pe = push_entries[i];
             std::cerr << kTempTransferLog
-                      << " OpenHome push-to-game openhomeId=" << openhome_id
-                      << " pkrid=" << slot.resort_pkrid
-                      << " game_box=" << bi
-                      << " game_slot=" << si << '\n';
+                      << " OpenHome batch-push openhomeId=" << pe.openhome_id
+                      << " pkrid=" << pe.resort_pkrid
+                      << " game_box=" << pe.game_box
+                      << " game_slot=" << pe.game_slot << '\n';
         }
     }
 
     if (!journal_pulls.empty()) {
         (void)writeOpenHomeJournal(save_directory_, transfer_selection_.source_path, journal_pulls);
+    }
+    if (trace_save_perf) {
+        const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - perf_wall_start);
+        std::cerr << kTempTransferLog << " save_perf_openhome total_ms=" << elapsed.count()
+                  << " openhome_processes=" << openhome_processes
+                  << " openhome_batch_pull_size=" << openhome_batch_pull_size
+                  << " openhome_batch_push_size=" << openhome_batch_push_size
+                  << " placement_transactions=" << (push_entries.empty() ? 0 : 1) << '\n';
     }
     return true;
 }

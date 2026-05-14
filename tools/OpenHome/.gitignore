@@ -1,5 +1,6 @@
 # dependencies
 /node_modules
+**/node_modules/
 /pkm_rs_resources/generate/node_modules
 /pkm_rs/generate/node_modules
 /generate/node_modules

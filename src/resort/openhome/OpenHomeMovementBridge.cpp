@@ -7,6 +7,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
+#include <iostream>
 #include <spawn.h>
 #include <sstream>
 #include <stdexcept>
@@ -286,6 +287,39 @@ std::string bridgeProcessFailureDetail(const ProcessResult& process) {
     return oss.str();
 }
 
+double doubleField(const pr::JsonValue& value, const std::string& key, double fallback) {
+    const pr::JsonValue* field = child(value, key);
+    return field && field->isNumber() ? field->asNumber() : fallback;
+}
+
+OpenHomeBridgePerf parseBridgePerf(const pr::JsonValue& root) {
+    OpenHomeBridgePerf perf;
+    const pr::JsonValue* perf_node = child(root, "perf");
+    if (!perf_node || !perf_node->isObject()) {
+        return perf;
+    }
+    perf.save_loads = static_cast<int>(doubleField(*perf_node, "save_loads", 0));
+    perf.save_writes = static_cast<int>(doubleField(*perf_node, "save_writes", 0));
+    perf.count = static_cast<int>(doubleField(*perf_node, "count", 0));
+    perf.total_ms = doubleField(*perf_node, "total_ms", 0);
+    return perf;
+}
+
+int intChild(const pr::JsonValue& object, const std::string& key, int fallback) {
+    const pr::JsonValue* field = child(object, key);
+    return field && field->isNumber() ? static_cast<int>(field->asNumber()) : fallback;
+}
+
+void logOpenHomeBridgePerfIfEnabled(const OpenHomeBridgePerf& perf, const char* label) {
+    const char* flag = std::getenv("PDSM_TRACE_OPENHOME_PERF");
+    if (flag == nullptr || std::string(flag) != "1") {
+        return;
+    }
+    std::cerr << "[openhome-perf] " << label << " save_loads=" << perf.save_loads
+              << " save_writes=" << perf.save_writes << " count=" << perf.count << " total_ms=" << perf.total_ms
+              << '\n';
+}
+
 } // namespace
 
 OpenHomeCliMovementBridge::OpenHomeCliMovementBridge(
@@ -426,6 +460,133 @@ OpenHomePushToGameResult OpenHomeCliMovementBridge::pushPokemonToGame(const Open
             std::string err = stringField(root, "error");
             if (err.empty()) {
                 err = "OpenHome push-to-game reported failure without an error message";
+            }
+            out.error = movementError("bridge_error", err);
+        }
+    } catch (const std::exception& ex) {
+        out.error = movementError("parse_failed", ex.what());
+    }
+    return out;
+}
+
+OpenHomeBatchPullToHomeResult OpenHomeCliMovementBridge::batchPullPokemonToHome(
+    const OpenHomeBatchPullToHomeRequest& request) {
+    OpenHomeBatchPullToHomeResult out;
+    const auto script = bridgeScriptPath();
+    if (!std::filesystem::exists(script)) {
+        out.error = movementError("bridge_missing", "OpenHome resort bridge is not built: " + script.string());
+        return out;
+    }
+    std::vector<std::string> args = bridgeArgs(script, storage_root_, "batch-pull-to-home");
+    args.push_back("--save");
+    args.push_back(request.save_path.string());
+    if (!request.save_type.empty()) {
+        args.push_back("--save-type");
+        args.push_back(request.save_type);
+    }
+    args.push_back("--ops-json");
+    args.push_back(request.ops_json_path.string());
+    args.push_back("--write-save");
+    args.push_back(request.write_source_save ? "true" : "false");
+
+    const ProcessResult process = runProcessCapture(args);
+    if (!process.launched || process.exit_code != 0) {
+        out.error = movementError("bridge_failed", bridgeProcessFailureDetail(process));
+        return out;
+    }
+    try {
+        const std::optional<pr::JsonValue> root_opt = tryParseJsonFromStdout(process.stdout_text);
+        if (!root_opt.has_value()) {
+            throw std::runtime_error("OpenHome bridge returned non-JSON stdout");
+        }
+        const pr::JsonValue& root = *root_opt;
+        out.success = boolField(root, "success");
+        out.perf = parseBridgePerf(root);
+        logOpenHomeBridgePerfIfEnabled(out.perf, "batch-pull-to-home");
+        if (const pr::JsonValue* pulls = child(root, "pulls"); pulls && pulls->isArray()) {
+            for (const pr::JsonValue& item : pulls->asArray()) {
+                if (!item.isObject()) {
+                    continue;
+                }
+                OpenHomeBatchPullItemResult row;
+                row.openhome_id = stringField(item, "openhomeId");
+                row.payload = payloadFromJson(item, row.openhome_id);
+                const pr::JsonValue* disp = child(item, "displacedHomeOpenhomeId");
+                if (disp && disp->isString() && !disp->asString().empty()) {
+                    row.displaced_home_openhome_id = disp->asString();
+                }
+                row.source_box = intChild(item, "sourceBox", 0);
+                row.source_slot = intChild(item, "sourceSlot", 0);
+                if (const pr::JsonValue* hl = child(item, "homeLocation"); hl && hl->isObject()) {
+                    row.home_bank = intChild(*hl, "bank", 0);
+                    row.home_box = intChild(*hl, "box", 0);
+                    row.home_slot = intChild(*hl, "slot", 0);
+                }
+                out.pulls.push_back(std::move(row));
+            }
+        }
+        if (!out.success) {
+            std::string err = stringField(root, "error");
+            if (err.empty()) {
+                err = "OpenHome batch-pull-to-home reported failure without an error message";
+            }
+            out.error = movementError("bridge_error", err);
+        }
+    } catch (const std::exception& ex) {
+        out.error = movementError("parse_failed", ex.what());
+    }
+    return out;
+}
+
+OpenHomeBatchPushToGameResult OpenHomeCliMovementBridge::batchPushPokemonToGame(
+    const OpenHomeBatchPushToGameRequest& request) {
+    OpenHomeBatchPushToGameResult out;
+    const auto script = bridgeScriptPath();
+    if (!std::filesystem::exists(script)) {
+        out.error = movementError("bridge_missing", "OpenHome resort bridge is not built: " + script.string());
+        return out;
+    }
+    std::vector<std::string> args = bridgeArgs(script, storage_root_, "batch-push-to-game");
+    args.push_back("--save");
+    args.push_back(request.save_path.string());
+    if (!request.save_type.empty()) {
+        args.push_back("--save-type");
+        args.push_back(request.save_type);
+    }
+    args.push_back("--ops-json");
+    args.push_back(request.ops_json_path.string());
+    args.push_back("--write-save");
+    args.push_back(request.write_target_save ? "true" : "false");
+
+    const ProcessResult process = runProcessCapture(args);
+    if (!process.launched || process.exit_code != 0) {
+        out.error = movementError("bridge_failed", bridgeProcessFailureDetail(process));
+        return out;
+    }
+    try {
+        const std::optional<pr::JsonValue> root_opt = tryParseJsonFromStdout(process.stdout_text);
+        if (!root_opt.has_value()) {
+            throw std::runtime_error("OpenHome bridge returned non-JSON stdout");
+        }
+        const pr::JsonValue& root = *root_opt;
+        out.success = boolField(root, "success");
+        out.perf = parseBridgePerf(root);
+        logOpenHomeBridgePerfIfEnabled(out.perf, "batch-push-to-game");
+        if (const pr::JsonValue* pushes = child(root, "pushes"); pushes && pushes->isArray()) {
+            for (const pr::JsonValue& item : pushes->asArray()) {
+                if (!item.isObject()) {
+                    continue;
+                }
+                OpenHomeBatchPushItemResult row;
+                row.openhome_id = stringField(item, "openhomeId");
+                row.payload = payloadFromJson(item, row.openhome_id);
+                out.pushes.push_back(std::move(row));
+            }
+        }
+        if (!out.success) {
+            std::string err = stringField(root, "error");
+            if (err.empty()) {
+                err = "OpenHome batch-push-to-game reported failure without an error message";
             }
             out.error = movementError("bridge_error", err);
         }
