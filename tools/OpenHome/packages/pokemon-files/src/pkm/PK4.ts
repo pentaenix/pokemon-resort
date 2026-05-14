@@ -14,6 +14,7 @@ import {
   OriginGames,
   ShinyLeaves,
   SpeciesLookup,
+  Tag,
 } from '@pkm-rs/pkg'
 import { OHPKM } from '../../../../src/core/pkm/OHPKM'
 import { PkmConverter } from '../conversion/converter'
@@ -93,6 +94,8 @@ export default class PK4 {
   isFatefulEncounter: boolean
   checksum: number = 0
   originalBytes?: ArrayBuffer
+  /** Opaque Gen 4 OT name bytes (0x68–0x77); when set, toBytes writes these verbatim (no UTF re-encode). */
+  private rawTrainerOt?: Uint8Array
 
   constructor(arg: ArrayBuffer | OHPKM, options: PkmConstructorOptions) {
     const { encrypted } = options
@@ -195,6 +198,8 @@ export default class PK4 {
         )
       this.nickname = stringLogic.readGen4StringFromBytes(dataView, 0x48, 12)
       this.trainerName = stringLogic.readGen4StringFromBytes(dataView, 0x68, 8)
+      this.rawTrainerOt = new Uint8Array(16)
+      this.rawTrainerOt.set(new Uint8Array(buffer, 0x68, 16))
       this.trainerGender = byteLogic.getFlag(dataView, 0x84, 7)
       this.isFatefulEncounter = byteLogic.getFlag(dataView, 0x40, 0)
       this.checksum = dataView.getUint16(0x6, true)
@@ -310,6 +315,10 @@ export default class PK4 {
       this.ribbons = filterRibbons(other.ribbons ?? [], [Gen4Ribbons], '') ?? []
       this.nickname = converter.nickname(other)
       this.trainerName = other.trainerName
+      const od = other.originalData
+      if (od?.tag === Tag.Pk4 && od.data.length >= 0x78) {
+        this.rawTrainerOt = od.data.subarray(0x68, 0x78).slice()
+      }
       this.trainerGender = other.trainerGender
       this.isFatefulEncounter = other.isFatefulEncounter ?? false
 
@@ -367,7 +376,6 @@ export default class PK4 {
     byteLogic.uIntToBufferBits(dataView, this.gender, 64, 1, 2, true)
     byteLogic.uIntToBufferBits(dataView, this.formNum, 0x40, 3, 5, true)
     dataView.setUint8(0x41, this.shinyLeaves.toByte())
-    dataView.setUint8(0x5f, this.gameOfOrigin)
     types.writePKMDateToBytes(dataView, 0x78, this.eggDate)
     types.writePKMDateToBytes(dataView, 0x7b, this.metDate)
     dataView.setUint8(0x82, this.pokerusByte)
@@ -412,8 +420,21 @@ export default class PK4 {
         .map((ribbon) => Gen4Ribbons.indexOf(ribbon) - 60)
         .filter((index) => index > -1 && index < 20)
     )
-    stringLogic.writeGen4StringToBytes(dataView, this.nickname, 0x48, 24)
-    stringLogic.writeGen4StringToBytes(dataView, this.trainerName, 0x68, 16)
+    stringLogic.writeGen4StringToBytes(dataView, this.nickname, 0x48, 12)
+    // The nickname field is 12×uint16 (0x48–0x5F). Byte 0x5F is also game of origin on retail PK4;
+    // the tail halfwords overwrite 0x5E–0x5F, so restore those bytes from the source blob when we have it.
+    if (this.originalBytes && this.originalBytes.byteLength > 0x5f) {
+      const src = new Uint8Array(this.originalBytes)
+      dataView.setUint8(0x5e, src[0x5e])
+      dataView.setUint8(0x5f, src[0x5f])
+    } else {
+      dataView.setUint8(0x5f, this.gameOfOrigin)
+    }
+    if (this.rawTrainerOt?.length === 16) {
+      new Uint8Array(dataView.buffer, dataView.byteOffset + 0x68, 16).set(this.rawTrainerOt)
+    } else {
+      stringLogic.writeGen4StringToBytes(dataView, this.trainerName, 0x68, 8)
+    }
     byteLogic.setFlag(dataView, 0x84, 7, this.trainerGender)
     byteLogic.setFlag(dataView, 0x40, 0, this.isFatefulEncounter)
     dataView.setUint16(0x6, this.checksum, true)
