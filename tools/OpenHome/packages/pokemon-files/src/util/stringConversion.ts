@@ -539,11 +539,10 @@ export const readGen4StringFromBytes = (dataView: DataView, offset: number, leng
 
 /**
  * Convert string to Gen 4 encoded bytes. Uses a proprietary encoding,
- * terminated with 0xffff character. Characters not in Gen 4 character
- * set will be replaced with '?'
- * @param str the string to encode
- * @param length character length of string (bytes * 2)
- * @param terminate include 0xffff at the end
+ * terminated with 0xffff. Must match {@link readGen4StringFromBytes}:
+ * `length` is the number of uint16 slots in the field (including the terminator cell).
+ * At most `length - 1` UTF-16 code units from `str` are written; the next slot is always 0xffff.
+ * Unsupported code points (missing map entry, -1, or 0xffff) become Gen4 '?' (0x01ac).
  */
 export const writeGen4StringToBytes = (
   dataView: DataView,
@@ -551,20 +550,24 @@ export const writeGen4StringToBytes = (
   offset: number,
   length: number
 ) => {
-  for (let i = 0; i < Math.min(str.length, length); i++) {
+  if (length <= 0) {
+    return
+  }
+  const maxPayloadChars = length - 1
+  const n = Math.min(str.length, maxPayloadChars)
+  for (let i = 0; i < n; i++) {
     const val = str.charCodeAt(i)
     const gen4Char = UTFToGen4Map[val]
 
-    if (gen4Char === -1) {
-      // unsupported characters are now '?'
+    if (gen4Char === undefined || gen4Char === -1 || gen4Char === 0xffff) {
       dataView.setUint16(offset + i * 2, 0x01ac, true)
     } else {
       dataView.setUint16(offset + i * 2, gen4Char, true)
     }
   }
-
-  if (str.length < length) {
-    dataView.setUint16(offset + str.length * 2, 0xffff, true)
+  dataView.setUint16(offset + n * 2, 0xffff, true)
+  for (let i = n + 1; i < length; i++) {
+    dataView.setUint16(offset + i * 2, 0x0000, true)
   }
 }
 
