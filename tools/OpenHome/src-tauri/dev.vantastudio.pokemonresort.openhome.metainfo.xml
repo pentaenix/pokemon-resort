@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>dev.vantastudio.pokemonresort.openhome</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-only</project_license>
+  <name>OpenHome</name>
+  <summary>Pokémon save tooling vendored inside Pokemon Resort</summary>
+  <developer id="dev.vantastudio">
+    <name>VantaStudio</name>
+  </developer>
+  <description>
+    <p>This tree is embedded in the Pokemon Resort monorepo as tooling and WASM sources, not distributed as a standalone upstream application build from this path.</p>
+  </description>
+  <launchable type="desktop-id">OpenHome.desktop</launchable>
+  <categories>
+    <category>Utility</category>
+  </categories>
+  <content_rating type="oars-1.1" />
+</component>

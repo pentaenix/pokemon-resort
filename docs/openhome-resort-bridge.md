@@ -2,6 +2,7 @@
 
 ## Status
 
+- `observed`: Sources under `tools/OpenHome` are **vendored** in this repository (plain directories in git, not a submodule or nested remote checkout).
 - `observed`: OpenHome can now be built locally from `tools/OpenHome`.
 - `observed`: The Resort bridge command is `tools/OpenHome/dist/resort-bridge/resortBridge.mjs`.
 - `observed`: The bridge successfully moved a Pokemon from an Emerald test save into OpenHome storage, moved that same `openhomeId` into a Black test save, then recognized and pulled it back from Black with the same `openhomeId`.

@@ -1,0 +1,1306 @@
+import { ExtraFormIndex } from '@pkm-rs/pkg'
+import {
+  CfruSpeciesAndForm,
+  makeExtraFormToGameMap,
+  makeNationalDexToGameMap,
+} from '../../cfru/conversion/util'
+
+export const UnboundToNationalDexMap: Record<string, CfruSpeciesAndForm | null> = {
+  '0': null, // Egg (not found)
+  '1': { nationalDex: 1, formIndex: 0 }, // Bulbasaur
+  '2': { nationalDex: 2, formIndex: 0 }, // Ivysaur
+  '3': { nationalDex: 3, formIndex: 0 }, // Venusaur
+  '4': { nationalDex: 4, formIndex: 0 }, // Charmander
+  '5': { nationalDex: 5, formIndex: 0 }, // Charmeleon
+  '6': { nationalDex: 6, formIndex: 0 }, // Charizard
+  '7': { nationalDex: 7, formIndex: 0 }, // Squirtle
+  '8': { nationalDex: 8, formIndex: 0 }, // Wartortle
+  '9': { nationalDex: 9, formIndex: 0 }, // Blastoise
+  '10': { nationalDex: 10, formIndex: 0 }, // Caterpie
+  '11': { nationalDex: 11, formIndex: 0 }, // Metapod
+  '12': { nationalDex: 12, formIndex: 0 }, // Butterfree
+  '13': { nationalDex: 13, formIndex: 0 }, // Weedle
+  '14': { nationalDex: 14, formIndex: 0 }, // Kakuna
+  '15': { nationalDex: 15, formIndex: 0 }, // Beedrill
+  '16': { nationalDex: 16, formIndex: 0 }, // Pidgey
+  '17': { nationalDex: 17, formIndex: 0 }, // Pidgeotto
+  '18': { nationalDex: 18, formIndex: 0 }, // Pidgeot
+  '19': { nationalDex: 19, formIndex: 0 }, // Rattata
+  '20': { nationalDex: 20, formIndex: 0 }, // Raticate
+  '21': { nationalDex: 21, formIndex: 0 }, // Spearow
+  '22': { nationalDex: 22, formIndex: 0 }, // Fearow
+  '23': { nationalDex: 23, formIndex: 0 }, // Ekans
+  '24': { nationalDex: 24, formIndex: 0 }, // Arbok
+  '25': { nationalDex: 25, formIndex: 0 }, // Pikachu
+  '26': { nationalDex: 26, formIndex: 0 }, // Raichu
+  '27': { nationalDex: 27, formIndex: 0 }, // Sandshrew
+  '28': { nationalDex: 28, formIndex: 0 }, // Sandslash
+  '29': { nationalDex: 29, formIndex: 0 }, // Nidoran-F
+  '30': { nationalDex: 30, formIndex: 0 }, // Nidorina
+  '31': { nationalDex: 31, formIndex: 0 }, // Nidoqueen
+  '32': { nationalDex: 32, formIndex: 0 }, // Nidoran-M
+  '33': { nationalDex: 33, formIndex: 0 }, // Nidorino
+  '34': { nationalDex: 34, formIndex: 0 }, // Nidoking
+  '35': { nationalDex: 35, formIndex: 0 }, // Clefairy
+  '36': { nationalDex: 36, formIndex: 0 }, // Clefable
+  '37': { nationalDex: 37, formIndex: 0 }, // Vulpix
+  '38': { nationalDex: 38, formIndex: 0 }, // Ninetales
+  '39': { nationalDex: 39, formIndex: 0 }, // Jigglypuff
+  '40': { nationalDex: 40, formIndex: 0 }, // Wigglytuff
+  '41': { nationalDex: 41, formIndex: 0 }, // Zubat
+  '42': { nationalDex: 42, formIndex: 0 }, // Golbat
+  '43': { nationalDex: 43, formIndex: 0 }, // Oddish
+  '44': { nationalDex: 44, formIndex: 0 }, // Gloom
+  '45': { nationalDex: 45, formIndex: 0 }, // Vileplume
+  '46': { nationalDex: 46, formIndex: 0 }, // Paras
+  '47': { nationalDex: 47, formIndex: 0 }, // Parasect
+  '48': { nationalDex: 48, formIndex: 0 }, // Venonat
+  '49': { nationalDex: 49, formIndex: 0 }, // Venomoth
+  '50': { nationalDex: 50, formIndex: 0 }, // Diglett
+  '51': { nationalDex: 51, formIndex: 0 }, // Dugtrio
+  '52': { nationalDex: 52, formIndex: 0 }, // Meowth
+  '53': { nationalDex: 53, formIndex: 0 }, // Persian
+  '54': { nationalDex: 54, formIndex: 0 }, // Psyduck
+  '55': { nationalDex: 55, formIndex: 0 }, // Golduck
+  '56': { nationalDex: 56, formIndex: 0 }, // Mankey
+  '57': { nationalDex: 57, formIndex: 0 }, // Primeape
+  '58': { nationalDex: 58, formIndex: 0 }, // Growlithe
+  '59': { nationalDex: 59, formIndex: 0 }, // Arcanine
+  '60': { nationalDex: 60, formIndex: 0 }, // Poliwag
+  '61': { nationalDex: 61, formIndex: 0 }, // Poliwhirl
+  '62': { nationalDex: 62, formIndex: 0 }, // Poliwrath
+  '63': { nationalDex: 63, formIndex: 0 }, // Abra
+  '64': { nationalDex: 64, formIndex: 0 }, // Kadabra
+  '65': { nationalDex: 65, formIndex: 0 }, // Alakazam
+  '66': { nationalDex: 66, formIndex: 0 }, // Machop
+  '67': { nationalDex: 67, formIndex: 0 }, // Machoke
+  '68': { nationalDex: 68, formIndex: 0 }, // Machamp
+  '69': { nationalDex: 69, formIndex: 0 }, // Bellsprout
+  '70': { nationalDex: 70, formIndex: 0 }, // Weepinbell
+  '71': { nationalDex: 71, formIndex: 0 }, // Victreebel
+  '72': { nationalDex: 72, formIndex: 0 }, // Tentacool
+  '73': { nationalDex: 73, formIndex: 0 }, // Tentacruel
+  '74': { nationalDex: 74, formIndex: 0 }, // Geodude
+  '75': { nationalDex: 75, formIndex: 0 }, // Graveler
+  '76': { nationalDex: 76, formIndex: 0 }, // Golem
+  '77': { nationalDex: 77, formIndex: 0 }, // Ponyta
+  '78': { nationalDex: 78, formIndex: 0 }, // Rapidash
+  '79': { nationalDex: 79, formIndex: 0 }, // Slowpoke
+  '80': { nationalDex: 80, formIndex: 0 }, // Slowbro
+  '81': { nationalDex: 81, formIndex: 0 }, // Magnemite
+  '82': { nationalDex: 82, formIndex: 0 }, // Magneton
+  '83': { nationalDex: 83, formIndex: 0 }, // Farfetch'd
+  '84': { nationalDex: 84, formIndex: 0 }, // Doduo
+  '85': { nationalDex: 85, formIndex: 0 }, // Dodrio
+  '86': { nationalDex: 86, formIndex: 0 }, // Seel
+  '87': { nationalDex: 87, formIndex: 0 }, // Dewgong
+  '88': { nationalDex: 88, formIndex: 0 }, // Grimer
+  '89': { nationalDex: 89, formIndex: 0 }, // Muk
+  '90': { nationalDex: 90, formIndex: 0 }, // Shellder
+  '91': { nationalDex: 91, formIndex: 0 }, // Cloyster
+  '92': { nationalDex: 92, formIndex: 0 }, // Gastly
+  '93': { nationalDex: 93, formIndex: 0 }, // Haunter
+  '94': { nationalDex: 94, formIndex: 0 }, // Gengar
+  '95': { nationalDex: 95, formIndex: 0 }, // Onix
+  '96': { nationalDex: 96, formIndex: 0 }, // Drowzee
+  '97': { nationalDex: 97, formIndex: 0 }, // Hypno
+  '98': { nationalDex: 98, formIndex: 0 }, // Krabby
+  '99': { nationalDex: 99, formIndex: 0 }, // Kingler
+  '100': { nationalDex: 100, formIndex: 0 }, // Voltorb
+  '101': { nationalDex: 101, formIndex: 0 }, // Electrode
+  '102': { nationalDex: 102, formIndex: 0 }, // Exeggcute
+  '103': { nationalDex: 103, formIndex: 0 }, // Exeggutor
+  '104': { nationalDex: 104, formIndex: 0 }, // Cubone
+  '105': { nationalDex: 105, formIndex: 0 }, // Marowak
+  '106': { nationalDex: 106, formIndex: 0 }, // Hitmonlee
+  '107': { nationalDex: 107, formIndex: 0 }, // Hitmonchan
+  '108': { nationalDex: 108, formIndex: 0 }, // Lickitung
+  '109': { nationalDex: 109, formIndex: 0 }, // Koffing
+  '110': { nationalDex: 110, formIndex: 0 }, // Weezing
+  '111': { nationalDex: 111, formIndex: 0 }, // Rhyhorn
+  '112': { nationalDex: 112, formIndex: 0 }, // Rhydon
+  '113': { nationalDex: 113, formIndex: 0 }, // Chansey
+  '114': { nationalDex: 114, formIndex: 0 }, // Tangela
+  '115': { nationalDex: 115, formIndex: 0 }, // Kangaskhan
+  '116': { nationalDex: 116, formIndex: 0 }, // Horsea
+  '117': { nationalDex: 117, formIndex: 0 }, // Seadra
+  '118': { nationalDex: 118, formIndex: 0 }, // Goldeen
+  '119': { nationalDex: 119, formIndex: 0 }, // Seaking
+  '120': { nationalDex: 120, formIndex: 0 }, // Staryu
+  '121': { nationalDex: 121, formIndex: 0 }, // Starmie
+  '122': { nationalDex: 122, formIndex: 0 }, // Mr. Mime
+  '123': { nationalDex: 123, formIndex: 0 }, // Scyther
+  '124': { nationalDex: 124, formIndex: 0 }, // Jynx
+  '125': { nationalDex: 125, formIndex: 0 }, // Electabuzz
+  '126': { nationalDex: 126, formIndex: 0 }, // Magmar
+  '127': { nationalDex: 127, formIndex: 0 }, // Pinsir
+  '128': { nationalDex: 128, formIndex: 0 }, // Tauros
+  '129': { nationalDex: 129, formIndex: 0 }, // Magikarp
+  '130': { nationalDex: 130, formIndex: 0 }, // Gyarados
+  '131': { nationalDex: 131, formIndex: 0 }, // Lapras
+  '132': { nationalDex: 132, formIndex: 0 }, // Ditto
+  '133': { nationalDex: 133, formIndex: 0 }, // Eevee
+  '134': { nationalDex: 134, formIndex: 0 }, // Vaporeon
+  '135': { nationalDex: 135, formIndex: 0 }, // Jolteon
+  '136': { nationalDex: 136, formIndex: 0 }, // Flareon
+  '137': { nationalDex: 137, formIndex: 0 }, // Porygon
+  '138': { nationalDex: 138, formIndex: 0 }, // Omanyte
+  '139': { nationalDex: 139, formIndex: 0 }, // Omastar
+  '140': { nationalDex: 140, formIndex: 0 }, // Kabuto
+  '141': { nationalDex: 141, formIndex: 0 }, // Kabutops
+  '142': { nationalDex: 142, formIndex: 0 }, // Aerodactyl
+  '143': { nationalDex: 143, formIndex: 0 }, // Snorlax
+  '144': { nationalDex: 144, formIndex: 0 }, // Articuno
+  '145': { nationalDex: 145, formIndex: 0 }, // Zapdos
+  '146': { nationalDex: 146, formIndex: 0 }, // Moltres
+  '147': { nationalDex: 147, formIndex: 0 }, // Dratini
+  '148': { nationalDex: 148, formIndex: 0 }, // Dragonair
+  '149': { nationalDex: 149, formIndex: 0 }, // Dragonite
+  '150': { nationalDex: 150, formIndex: 0 }, // Mewtwo
+  '151': { nationalDex: 151, formIndex: 0 }, // Mew
+  '152': { nationalDex: 152, formIndex: 0 }, // Chikorita
+  '153': { nationalDex: 153, formIndex: 0 }, // Bayleef
+  '154': { nationalDex: 154, formIndex: 0 }, // Meganium
+  '155': { nationalDex: 155, formIndex: 0 }, // Cyndaquil
+  '156': { nationalDex: 156, formIndex: 0 }, // Quilava
+  '157': { nationalDex: 157, formIndex: 0 }, // Typhlosion
+  '158': { nationalDex: 158, formIndex: 0 }, // Totodile
+  '159': { nationalDex: 159, formIndex: 0 }, // Croconaw
+  '160': { nationalDex: 160, formIndex: 0 }, // Feraligatr
+  '161': { nationalDex: 161, formIndex: 0 }, // Sentret
+  '162': { nationalDex: 162, formIndex: 0 }, // Furret
+  '163': { nationalDex: 163, formIndex: 0 }, // Hoothoot
+  '164': { nationalDex: 164, formIndex: 0 }, // Noctowl
+  '165': { nationalDex: 165, formIndex: 0 }, // Ledyba
+  '166': { nationalDex: 166, formIndex: 0 }, // Ledian
+  '167': { nationalDex: 167, formIndex: 0 }, // Spinarak
+  '168': { nationalDex: 168, formIndex: 0 }, // Ariados
+  '169': { nationalDex: 169, formIndex: 0 }, // Crobat
+  '170': { nationalDex: 170, formIndex: 0 }, // Chinchou
+  '171': { nationalDex: 171, formIndex: 0 }, // Lanturn
+  '172': { nationalDex: 172, formIndex: 0 }, // Pichu
+  '173': { nationalDex: 173, formIndex: 0 }, // Cleffa
+  '174': { nationalDex: 174, formIndex: 0 }, // Igglybuff
+  '175': { nationalDex: 175, formIndex: 0 }, // Togepi
+  '176': { nationalDex: 176, formIndex: 0 }, // Togetic
+  '177': { nationalDex: 177, formIndex: 0 }, // Natu
+  '178': { nationalDex: 178, formIndex: 0 }, // Xatu
+  '179': { nationalDex: 179, formIndex: 0 }, // Mareep
+  '180': { nationalDex: 180, formIndex: 0 }, // Flaaffy
+  '181': { nationalDex: 181, formIndex: 0 }, // Ampharos
+  '182': { nationalDex: 182, formIndex: 0 }, // Bellossom
+  '183': { nationalDex: 183, formIndex: 0 }, // Marill
+  '184': { nationalDex: 184, formIndex: 0 }, // Azumarill
+  '185': { nationalDex: 185, formIndex: 0 }, // Sudowoodo
+  '186': { nationalDex: 186, formIndex: 0 }, // Politoed
+  '187': { nationalDex: 187, formIndex: 0 }, // Hoppip
+  '188': { nationalDex: 188, formIndex: 0 }, // Skiploom
+  '189': { nationalDex: 189, formIndex: 0 }, // Jumpluff
+  '190': { nationalDex: 190, formIndex: 0 }, // Aipom
+  '191': { nationalDex: 191, formIndex: 0 }, // Sunkern
+  '192': { nationalDex: 192, formIndex: 0 }, // Sunflora
+  '193': { nationalDex: 193, formIndex: 0 }, // Yanma
+  '194': { nationalDex: 194, formIndex: 0 }, // Wooper
+  '195': { nationalDex: 195, formIndex: 0 }, // Quagsire
+  '196': { nationalDex: 196, formIndex: 0 }, // Espeon
+  '197': { nationalDex: 197, formIndex: 0 }, // Umbreon
+  '198': { nationalDex: 198, formIndex: 0 }, // Murkrow
+  '199': { nationalDex: 199, formIndex: 0 }, // Slowking
+  '200': { nationalDex: 200, formIndex: 0 }, // Misdreavus
+  '201': { nationalDex: 201, formIndex: 0 }, // Unown
+  '202': { nationalDex: 202, formIndex: 0 }, // Wobbuffet
+  '203': { nationalDex: 203, formIndex: 0 }, // Girafarig
+  '204': { nationalDex: 204, formIndex: 0 }, // Pineco
+  '205': { nationalDex: 205, formIndex: 0 }, // Forretress
+  '206': { nationalDex: 206, formIndex: 0 }, // Dunsparce
+  '207': { nationalDex: 207, formIndex: 0 }, // Gligar
+  '208': { nationalDex: 208, formIndex: 0 }, // Steelix
+  '209': { nationalDex: 209, formIndex: 0 }, // Snubbull
+  '210': { nationalDex: 210, formIndex: 0 }, // Granbull
+  '211': { nationalDex: 211, formIndex: 0 }, // Qwilfish
+  '212': { nationalDex: 212, formIndex: 0 }, // Scizor
+  '213': { nationalDex: 213, formIndex: 0 }, // Shuckle
+  '214': { nationalDex: 214, formIndex: 0 }, // Heracross
+  '215': { nationalDex: 215, formIndex: 0 }, // Sneasel
+  '216': { nationalDex: 216, formIndex: 0 }, // Teddiursa
+  '217': { nationalDex: 217, formIndex: 0 }, // Ursaring
+  '218': { nationalDex: 218, formIndex: 0 }, // Slugma
+  '219': { nationalDex: 219, formIndex: 0 }, // Magcargo
+  '220': { nationalDex: 220, formIndex: 0 }, // Swinub
+  '221': { nationalDex: 221, formIndex: 0 }, // Piloswine
+  '222': { nationalDex: 222, formIndex: 0 }, // Corsola
+  '223': { nationalDex: 223, formIndex: 0 }, // Remoraid
+  '224': { nationalDex: 224, formIndex: 0 }, // Octillery
+  '225': { nationalDex: 225, formIndex: 0 }, // Delibird
+  '226': { nationalDex: 226, formIndex: 0 }, // Mantine
+  '227': { nationalDex: 227, formIndex: 0 }, // Skarmory
+  '228': { nationalDex: 228, formIndex: 0 }, // Houndour
+  '229': { nationalDex: 229, formIndex: 0 }, // Houndoom
+  '230': { nationalDex: 230, formIndex: 0 }, // Kingdra
+  '231': { nationalDex: 231, formIndex: 0 }, // Phanpy
+  '232': { nationalDex: 232, formIndex: 0 }, // Donphan
+  '233': { nationalDex: 233, formIndex: 0 }, // Porygon2
+  '234': { nationalDex: 234, formIndex: 0 }, // Stantler
+  '235': { nationalDex: 235, formIndex: 0 }, // Smeargle
+  '236': { nationalDex: 236, formIndex: 0 }, // Tyrogue
+  '237': { nationalDex: 237, formIndex: 0 }, // Hitmontop
+  '238': { nationalDex: 238, formIndex: 0 }, // Smoochum
+  '239': { nationalDex: 239, formIndex: 0 }, // Elekid
+  '240': { nationalDex: 240, formIndex: 0 }, // Magby
+  '241': { nationalDex: 241, formIndex: 0 }, // Miltank
+  '242': { nationalDex: 242, formIndex: 0 }, // Blissey
+  '243': { nationalDex: 243, formIndex: 0 }, // Raikou
+  '244': { nationalDex: 244, formIndex: 0 }, // Entei
+  '245': { nationalDex: 245, formIndex: 0 }, // Suicune
+  '246': { nationalDex: 246, formIndex: 0 }, // Larvitar
+  '247': { nationalDex: 247, formIndex: 0 }, // Pupitar
+  '248': { nationalDex: 248, formIndex: 0 }, // Tyranitar
+  '249': { nationalDex: 249, formIndex: 0 }, // Lugia
+  '250': { nationalDex: 250, formIndex: 0 }, // Ho-Oh
+  '251': { nationalDex: 251, formIndex: 0 }, // Celebi
+  '252': null, // SPECIES_MANAPHY_EGG (not found)
+  '253': null, // SPECIES_MISSINGNO (not found)
+  '254': null, // . (not found)
+  '255': null, // . (not found)
+  '256': null, // . (not found)
+  '257': null, // . (not found)
+  '258': null, // . (not found)
+  '259': null, // . (not found)
+  '260': null, // . (not found)
+  '261': null, // . (not found)
+  '262': null, // . (not found)
+  '263': null, // . (not found)
+  '264': null, // . (not found)
+  '265': null, // . (not found)
+  '266': null, // . (not found)
+  '267': null, // . (not found)
+  '268': null, // . (not found)
+  '269': null, // . (not found)
+  '270': null, // . (not found)
+  '271': null, // . (not found)
+  '272': null, // . (not found)
+  '273': null, // . (not found)
+  '274': null, // . (not found)
+  '275': null, // . (not found)
+  '276': null, // . (not found)
+  '277': { nationalDex: 252, formIndex: 0 }, // Treecko
+  '278': { nationalDex: 253, formIndex: 0 }, // Grovyle
+  '279': { nationalDex: 254, formIndex: 0 }, // Sceptile
+  '280': { nationalDex: 255, formIndex: 0 }, // Torchic
+  '281': { nationalDex: 256, formIndex: 0 }, // Combusken
+  '282': { nationalDex: 257, formIndex: 0 }, // Blaziken
+  '283': { nationalDex: 258, formIndex: 0 }, // Mudkip
+  '284': { nationalDex: 259, formIndex: 0 }, // Marshtomp
+  '285': { nationalDex: 260, formIndex: 0 }, // Swampert
+  '286': { nationalDex: 261, formIndex: 0 }, // Poochyena
+  '287': { nationalDex: 262, formIndex: 0 }, // Mightyena
+  '288': { nationalDex: 263, formIndex: 0 }, // Zigzagoon
+  '289': { nationalDex: 264, formIndex: 0 }, // Linoone
+  '290': { nationalDex: 265, formIndex: 0 }, // Wurmple
+  '291': { nationalDex: 266, formIndex: 0 }, // Silcoon
+  '292': { nationalDex: 267, formIndex: 0 }, // Beautifly
+  '293': { nationalDex: 268, formIndex: 0 }, // Cascoon
+  '294': { nationalDex: 269, formIndex: 0 }, // Dustox
+  '295': { nationalDex: 270, formIndex: 0 }, // Lotad
+  '296': { nationalDex: 271, formIndex: 0 }, // Lombre
+  '297': { nationalDex: 272, formIndex: 0 }, // Ludicolo
+  '298': { nationalDex: 273, formIndex: 0 }, // Seedot
+  '299': { nationalDex: 274, formIndex: 0 }, // Nuzleaf
+  '300': { nationalDex: 275, formIndex: 0 }, // Shiftry
+  '301': { nationalDex: 290, formIndex: 0 }, // Nincada
+  '302': { nationalDex: 291, formIndex: 0 }, // Ninjask
+  '303': { nationalDex: 292, formIndex: 0 }, // Shedinja
+  '304': { nationalDex: 276, formIndex: 0 }, // Taillow
+  '305': { nationalDex: 277, formIndex: 0 }, // Swellow
+  '306': { nationalDex: 285, formIndex: 0 }, // Shroomish
+  '307': { nationalDex: 286, formIndex: 0 }, // Breloom
+  '308': { nationalDex: 327, formIndex: 0 }, // Spinda
+  '309': { nationalDex: 278, formIndex: 0 }, // Wingull
+  '310': { nationalDex: 279, formIndex: 0 }, // Pelipper
+  '311': { nationalDex: 283, formIndex: 0 }, // Surskit
+  '312': { nationalDex: 284, formIndex: 0 }, // Masquerain
+  '313': { nationalDex: 320, formIndex: 0 }, // Wailmer
+  '314': { nationalDex: 321, formIndex: 0 }, // Wailord
+  '315': { nationalDex: 300, formIndex: 0 }, // Skitty
+  '316': { nationalDex: 301, formIndex: 0 }, // Delcatty
+  '317': { nationalDex: 352, formIndex: 0 }, // Kecleon
+  '318': { nationalDex: 343, formIndex: 0 }, // Baltoy
+  '319': { nationalDex: 344, formIndex: 0 }, // Claydol
+  '320': { nationalDex: 299, formIndex: 0 }, // Nosepass
+  '321': { nationalDex: 324, formIndex: 0 }, // Torkoal
+  '322': { nationalDex: 302, formIndex: 0 }, // Sableye
+  '323': { nationalDex: 339, formIndex: 0 }, // Barboach
+  '324': { nationalDex: 340, formIndex: 0 }, // Whiscash
+  '325': { nationalDex: 370, formIndex: 0 }, // Luvdisc
+  '326': { nationalDex: 341, formIndex: 0 }, // Corphish
+  '327': { nationalDex: 342, formIndex: 0 }, // Crawdaunt
+  '328': { nationalDex: 349, formIndex: 0 }, // Feebas
+  '329': { nationalDex: 350, formIndex: 0 }, // Milotic
+  '330': { nationalDex: 318, formIndex: 0 }, // Carvanha
+  '331': { nationalDex: 319, formIndex: 0 }, // Sharpedo
+  '332': { nationalDex: 328, formIndex: 0 }, // Trapinch
+  '333': { nationalDex: 329, formIndex: 0 }, // Vibrava
+  '334': { nationalDex: 330, formIndex: 0 }, // Flygon
+  '335': { nationalDex: 296, formIndex: 0 }, // Makuhita
+  '336': { nationalDex: 297, formIndex: 0 }, // Hariyama
+  '337': { nationalDex: 309, formIndex: 0 }, // Electrike
+  '338': { nationalDex: 310, formIndex: 0 }, // Manectric
+  '339': { nationalDex: 322, formIndex: 0 }, // Numel
+  '340': { nationalDex: 323, formIndex: 0 }, // Camerupt
+  '341': { nationalDex: 363, formIndex: 0 }, // Spheal
+  '342': { nationalDex: 364, formIndex: 0 }, // Sealeo
+  '343': { nationalDex: 365, formIndex: 0 }, // Walrein
+  '344': { nationalDex: 331, formIndex: 0 }, // Cacnea
+  '345': { nationalDex: 332, formIndex: 0 }, // Cacturne
+  '346': { nationalDex: 361, formIndex: 0 }, // Snorunt
+  '347': { nationalDex: 362, formIndex: 0 }, // Glalie
+  '348': { nationalDex: 337, formIndex: 0 }, // Lunatone
+  '349': { nationalDex: 338, formIndex: 0 }, // Solrock
+  '350': { nationalDex: 298, formIndex: 0 }, // Azurill
+  '351': { nationalDex: 325, formIndex: 0 }, // Spoink
+  '352': { nationalDex: 326, formIndex: 0 }, // Grumpig
+  '353': { nationalDex: 311, formIndex: 0 }, // Plusle
+  '354': { nationalDex: 312, formIndex: 0 }, // Minun
+  '355': { nationalDex: 303, formIndex: 0 }, // Mawile
+  '356': { nationalDex: 307, formIndex: 0 }, // Meditite
+  '357': { nationalDex: 308, formIndex: 0 }, // Medicham
+  '358': { nationalDex: 333, formIndex: 0 }, // Swablu
+  '359': { nationalDex: 334, formIndex: 0 }, // Altaria
+  '360': { nationalDex: 360, formIndex: 0 }, // Wynaut
+  '361': { nationalDex: 355, formIndex: 0 }, // Duskull
+  '362': { nationalDex: 356, formIndex: 0 }, // Dusclops
+  '363': { nationalDex: 315, formIndex: 0 }, // Roselia
+  '364': { nationalDex: 287, formIndex: 0 }, // Slakoth
+  '365': { nationalDex: 288, formIndex: 0 }, // Vigoroth
+  '366': { nationalDex: 289, formIndex: 0 }, // Slaking
+  '367': { nationalDex: 316, formIndex: 0 }, // Gulpin
+  '368': { nationalDex: 317, formIndex: 0 }, // Swalot
+  '369': { nationalDex: 357, formIndex: 0 }, // Tropius
+  '370': { nationalDex: 293, formIndex: 0 }, // Whismur
+  '371': { nationalDex: 294, formIndex: 0 }, // Loudred
+  '372': { nationalDex: 295, formIndex: 0 }, // Exploud
+  '373': { nationalDex: 366, formIndex: 0 }, // Clamperl
+  '374': { nationalDex: 367, formIndex: 0 }, // Huntail
+  '375': { nationalDex: 368, formIndex: 0 }, // Gorebyss
+  '376': { nationalDex: 359, formIndex: 0 }, // Absol
+  '377': { nationalDex: 353, formIndex: 0 }, // Shuppet
+  '378': { nationalDex: 354, formIndex: 0 }, // Banette
+  '379': { nationalDex: 336, formIndex: 0 }, // Seviper
+  '380': { nationalDex: 335, formIndex: 0 }, // Zangoose
+  '381': { nationalDex: 369, formIndex: 0 }, // Relicanth
+  '382': { nationalDex: 304, formIndex: 0 }, // Aron
+  '383': { nationalDex: 305, formIndex: 0 }, // Lairon
+  '384': { nationalDex: 306, formIndex: 0 }, // Aggron
+  '385': { nationalDex: 351, formIndex: 0 }, // Castform
+  '386': { nationalDex: 313, formIndex: 0 }, // Volbeat
+  '387': { nationalDex: 314, formIndex: 0 }, // Illumise
+  '388': { nationalDex: 345, formIndex: 0 }, // Lileep
+  '389': { nationalDex: 346, formIndex: 0 }, // Cradily
+  '390': { nationalDex: 347, formIndex: 0 }, // Anorith
+  '391': { nationalDex: 348, formIndex: 0 }, // Armaldo
+  '392': { nationalDex: 280, formIndex: 0 }, // Ralts
+  '393': { nationalDex: 281, formIndex: 0 }, // Kirlia
+  '394': { nationalDex: 282, formIndex: 0 }, // Gardevoir
+  '395': { nationalDex: 371, formIndex: 0 }, // Bagon
+  '396': { nationalDex: 372, formIndex: 0 }, // Shelgon
+  '397': { nationalDex: 373, formIndex: 0 }, // Salamence
+  '398': { nationalDex: 374, formIndex: 0 }, // Beldum
+  '399': { nationalDex: 375, formIndex: 0 }, // Metang
+  '400': { nationalDex: 376, formIndex: 0 }, // Metagross
+  '401': { nationalDex: 377, formIndex: 0 }, // Regirock
+  '402': { nationalDex: 378, formIndex: 0 }, // Regice
+  '403': { nationalDex: 379, formIndex: 0 }, // Registeel
+  '404': { nationalDex: 382, formIndex: 0 }, // Kyogre
+  '405': { nationalDex: 383, formIndex: 0 }, // Groudon
+  '406': { nationalDex: 384, formIndex: 0 }, // Rayquaza
+  '407': { nationalDex: 380, formIndex: 0 }, // Latias
+  '408': { nationalDex: 381, formIndex: 0 }, // Latios
+  '409': { nationalDex: 385, formIndex: 0 }, // Jirachi
+  '410': { nationalDex: 386, formIndex: 0 }, // Deoxys
+  '411': { nationalDex: 358, formIndex: 0 }, // Chimecho
+  '412': null, // Bad.Egg (not found)
+  // '413': { nationalDex: 201, formIndex: 1 }, // Unown-B
+  // '414': { nationalDex: 201, formIndex: 2 }, // Unown-C
+  // '415': { nationalDex: 201, formIndex: 3 }, // Unown-D
+  // '416': { nationalDex: 201, formIndex: 4 }, // Unown-E
+  // '417': { nationalDex: 201, formIndex: 5 }, // Unown-F
+  // '418': { nationalDex: 201, formIndex: 6 }, // Unown-G
+  // '419': { nationalDex: 201, formIndex: 7 }, // Unown-H
+  // '420': { nationalDex: 201, formIndex: 8 }, // Unown-I
+  // '421': { nationalDex: 201, formIndex: 9 }, // Unown-J
+  // '422': { nationalDex: 201, formIndex: 10 }, // Unown-K
+  // '423': { nationalDex: 201, formIndex: 11 }, // Unown-L
+  // '424': { nationalDex: 201, formIndex: 12 }, // Unown-M
+  // '425': { nationalDex: 201, formIndex: 13 }, // Unown-N
+  // '426': { nationalDex: 201, formIndex: 14 }, // Unown-O
+  // '427': { nationalDex: 201, formIndex: 15 }, // Unown-P
+  // '428': { nationalDex: 201, formIndex: 16 }, // Unown-Q
+  // '429': { nationalDex: 201, formIndex: 17 }, // Unown-R
+  // '430': { nationalDex: 201, formIndex: 18 }, // Unown-S
+  // '431': { nationalDex: 201, formIndex: 19 }, // Unown-T
+  // '432': { nationalDex: 201, formIndex: 20 }, // Unown-U
+  // '433': { nationalDex: 201, formIndex: 21 }, // Unown-V
+  // '434': { nationalDex: 201, formIndex: 22 }, // Unown-W
+  // '435': { nationalDex: 201, formIndex: 23 }, // Unown-X
+  // '436': { nationalDex: 201, formIndex: 24 }, // Unown-Y
+  // '437': null, // Unown-Z (not found)
+  // '438': { nationalDex: 201, formIndex: 0 }, // Unown-!
+  // '439': { nationalDex: 201, formIndex: 0 }, // Unown-?
+  '440': { nationalDex: 387, formIndex: 0 }, // Turtwig
+  '441': { nationalDex: 388, formIndex: 0 }, // Grotle
+  '442': { nationalDex: 389, formIndex: 0 }, // Torterra
+  '443': { nationalDex: 390, formIndex: 0 }, // Chimchar
+  '444': { nationalDex: 391, formIndex: 0 }, // Monferno
+  '445': { nationalDex: 392, formIndex: 0 }, // Infernape
+  '446': { nationalDex: 393, formIndex: 0 }, // Piplup
+  '447': { nationalDex: 394, formIndex: 0 }, // Prinplup
+  '448': { nationalDex: 395, formIndex: 0 }, // Empoleon
+  '449': { nationalDex: 396, formIndex: 0 }, // Starly
+  '450': { nationalDex: 397, formIndex: 0 }, // Staravia
+  '451': { nationalDex: 398, formIndex: 0 }, // Staraptor
+  '452': { nationalDex: 399, formIndex: 0 }, // Bidoof
+  '453': { nationalDex: 400, formIndex: 0 }, // Bibarel
+  '454': { nationalDex: 401, formIndex: 0 }, // Kricketot
+  '455': { nationalDex: 402, formIndex: 0 }, // Kricketune
+  '456': { nationalDex: 403, formIndex: 0 }, // Shinx
+  '457': { nationalDex: 404, formIndex: 0 }, // Luxio
+  '458': { nationalDex: 405, formIndex: 0 }, // Luxray
+  '459': { nationalDex: 406, formIndex: 0 }, // Budew
+  '460': { nationalDex: 407, formIndex: 0 }, // Roserade
+  '461': { nationalDex: 408, formIndex: 0 }, // Cranidos
+  '462': { nationalDex: 409, formIndex: 0 }, // Rampardos
+  '463': { nationalDex: 410, formIndex: 0 }, // Shieldon
+  '464': { nationalDex: 411, formIndex: 0 }, // Bastiodon
+  '465': { nationalDex: 412, formIndex: 0 }, // Burmy
+  '466': { nationalDex: 413, formIndex: 0 }, // Wormadam
+  '467': { nationalDex: 414, formIndex: 0 }, // Mothim
+  '468': { nationalDex: 415, formIndex: 0 }, // Combee
+  '469': { nationalDex: 416, formIndex: 0 }, // Vespiquen
+  '470': { nationalDex: 417, formIndex: 0 }, // Pachirisu
+  '471': { nationalDex: 418, formIndex: 0 }, // Buizel
+  '472': { nationalDex: 419, formIndex: 0 }, // Floatzel
+  '473': { nationalDex: 420, formIndex: 0 }, // Cherubi
+  '474': { nationalDex: 421, formIndex: 0 }, // Cherrim
+  '475': { nationalDex: 422, formIndex: 0 }, // Shellos
+  '476': { nationalDex: 423, formIndex: 0 }, // Gastrodon
+  '477': { nationalDex: 424, formIndex: 0 }, // Ambipom
+  '478': { nationalDex: 425, formIndex: 0 }, // Drifloon
+  '479': { nationalDex: 426, formIndex: 0 }, // Drifblim
+  '480': { nationalDex: 427, formIndex: 0 }, // Buneary
+  '481': { nationalDex: 428, formIndex: 0 }, // Lopunny
+  '482': { nationalDex: 429, formIndex: 0 }, // Mismagius
+  '483': { nationalDex: 430, formIndex: 0 }, // Honchkrow
+  '484': { nationalDex: 431, formIndex: 0 }, // Glameow
+  '485': { nationalDex: 432, formIndex: 0 }, // Purugly
+  '486': { nationalDex: 433, formIndex: 0 }, // Chingling
+  '487': { nationalDex: 434, formIndex: 0 }, // Stunky
+  '488': { nationalDex: 435, formIndex: 0 }, // Skuntank
+  '489': { nationalDex: 436, formIndex: 0 }, // Bronzor
+  '490': { nationalDex: 437, formIndex: 0 }, // Bronzong
+  '491': { nationalDex: 438, formIndex: 0 }, // Bonsly
+  '492': { nationalDex: 439, formIndex: 0 }, // Mime Jr.
+  '493': { nationalDex: 440, formIndex: 0 }, // Happiny
+  '494': { nationalDex: 441, formIndex: 0 }, // Chatot
+  '495': { nationalDex: 442, formIndex: 0 }, // Spiritomb
+  '496': { nationalDex: 443, formIndex: 0 }, // Gible
+  '497': { nationalDex: 444, formIndex: 0 }, // Gabite
+  '498': { nationalDex: 445, formIndex: 0 }, // Garchomp
+  '499': { nationalDex: 446, formIndex: 0 }, // Munchlax
+  '500': { nationalDex: 447, formIndex: 0 }, // Riolu
+  '501': { nationalDex: 448, formIndex: 0 }, // Lucario
+  '502': { nationalDex: 449, formIndex: 0 }, // Hippopotas
+  '503': { nationalDex: 450, formIndex: 0 }, // Hippowdon
+  '504': { nationalDex: 451, formIndex: 0 }, // Skorupi
+  '505': { nationalDex: 452, formIndex: 0 }, // Drapion
+  '506': { nationalDex: 453, formIndex: 0 }, // Croagunk
+  '507': { nationalDex: 454, formIndex: 0 }, // Toxicroak
+  '508': { nationalDex: 455, formIndex: 0 }, // Carnivine
+  '509': { nationalDex: 456, formIndex: 0 }, // Finneon
+  '510': { nationalDex: 457, formIndex: 0 }, // Lumineon
+  '511': { nationalDex: 458, formIndex: 0 }, // Mantyke
+  '512': { nationalDex: 459, formIndex: 0 }, // Snover
+  '513': { nationalDex: 460, formIndex: 0 }, // Abomasnow
+  '514': { nationalDex: 461, formIndex: 0 }, // Weavile
+  '515': { nationalDex: 462, formIndex: 0 }, // Magnezone
+  '516': { nationalDex: 463, formIndex: 0 }, // Lickilicky
+  '517': { nationalDex: 464, formIndex: 0 }, // Rhyperior
+  '518': { nationalDex: 465, formIndex: 0 }, // Tangrowth
+  '519': { nationalDex: 466, formIndex: 0 }, // Electivire
+  '520': { nationalDex: 467, formIndex: 0 }, // Magmortar
+  '521': { nationalDex: 468, formIndex: 0 }, // Togekiss
+  '522': { nationalDex: 469, formIndex: 0 }, // Yanmega
+  '523': { nationalDex: 470, formIndex: 0 }, // Leafeon
+  '524': { nationalDex: 471, formIndex: 0 }, // Glaceon
+  '525': { nationalDex: 472, formIndex: 0 }, // Gliscor
+  '526': { nationalDex: 473, formIndex: 0 }, // Mamoswine
+  '527': { nationalDex: 474, formIndex: 0 }, // Porygon-Z
+  '528': { nationalDex: 475, formIndex: 0 }, // Gallade
+  '529': { nationalDex: 476, formIndex: 0 }, // Probopass
+  '530': { nationalDex: 477, formIndex: 0 }, // Dusknoir
+  '531': { nationalDex: 478, formIndex: 0 }, // Froslass
+  '532': { nationalDex: 479, formIndex: 0 }, // Rotom
+  '533': { nationalDex: 480, formIndex: 0 }, // Uxie
+  '534': { nationalDex: 481, formIndex: 0 }, // Mesprit
+  '535': { nationalDex: 482, formIndex: 0 }, // Azelf
+  '536': { nationalDex: 483, formIndex: 0 }, // Dialga
+  '537': { nationalDex: 484, formIndex: 0 }, // Palkia
+  '538': { nationalDex: 485, formIndex: 0 }, // Heatran
+  '539': { nationalDex: 486, formIndex: 0 }, // Regigigas
+  '540': { nationalDex: 487, formIndex: 0 }, // Giratina
+  '541': { nationalDex: 488, formIndex: 0 }, // Cresselia
+  '542': { nationalDex: 489, formIndex: 0 }, // Phione
+  '543': { nationalDex: 490, formIndex: 0 }, // Manaphy
+  '544': { nationalDex: 491, formIndex: 0 }, // Darkrai
+  '545': { nationalDex: 492, formIndex: 0 }, // Shaymin
+  '546': { nationalDex: 493, formIndex: 0 }, // Arceus
+  '547': { nationalDex: 494, formIndex: 0 }, // Victini
+  '548': { nationalDex: 495, formIndex: 0 }, // Snivy
+  '549': { nationalDex: 496, formIndex: 0 }, // Servine
+  '550': { nationalDex: 497, formIndex: 0 }, // Serperior
+  '551': { nationalDex: 498, formIndex: 0 }, // Tepig
+  '552': { nationalDex: 499, formIndex: 0 }, // Pignite
+  '553': { nationalDex: 500, formIndex: 0 }, // Emboar
+  '554': { nationalDex: 501, formIndex: 0 }, // Oshawott
+  '555': { nationalDex: 502, formIndex: 0 }, // Dewott
+  '556': { nationalDex: 503, formIndex: 0 }, // Samurott
+  '557': { nationalDex: 504, formIndex: 0 }, // Patrat
+  '558': { nationalDex: 505, formIndex: 0 }, // Watchog
+  '559': { nationalDex: 506, formIndex: 0 }, // Lillipup
+  '560': { nationalDex: 507, formIndex: 0 }, // Herdier
+  '561': { nationalDex: 508, formIndex: 0 }, // Stoutland
+  '562': { nationalDex: 509, formIndex: 0 }, // Purrloin
+  '563': { nationalDex: 510, formIndex: 0 }, // Liepard
+  '564': { nationalDex: 511, formIndex: 0 }, // Pansage
+  '565': { nationalDex: 512, formIndex: 0 }, // Simisage
+  '566': { nationalDex: 513, formIndex: 0 }, // Pansear
+  '567': { nationalDex: 514, formIndex: 0 }, // Simisear
+  '568': { nationalDex: 515, formIndex: 0 }, // Panpour
+  '569': { nationalDex: 516, formIndex: 0 }, // Simipour
+  '570': { nationalDex: 517, formIndex: 0 }, // Munna
+  '571': { nationalDex: 518, formIndex: 0 }, // Musharna
+  '572': { nationalDex: 519, formIndex: 0 }, // Pidove
+  '573': { nationalDex: 520, formIndex: 0 }, // Tranquill
+  '574': { nationalDex: 521, formIndex: 0 }, // Unfezant
+  '575': { nationalDex: 522, formIndex: 0 }, // Blitzle
+  '576': { nationalDex: 523, formIndex: 0 }, // Zebstrika
+  '577': { nationalDex: 524, formIndex: 0 }, // Roggenrola
+  '578': { nationalDex: 525, formIndex: 0 }, // Boldore
+  '579': { nationalDex: 526, formIndex: 0 }, // Gigalith
+  '580': { nationalDex: 527, formIndex: 0 }, // Woobat
+  '581': { nationalDex: 528, formIndex: 0 }, // Swoobat
+  '582': { nationalDex: 529, formIndex: 0 }, // Drilbur
+  '583': { nationalDex: 530, formIndex: 0 }, // Excadrill
+  '584': { nationalDex: 531, formIndex: 0 }, // Audino
+  '585': { nationalDex: 532, formIndex: 0 }, // Timburr
+  '586': { nationalDex: 533, formIndex: 0 }, // Gurdurr
+  '587': { nationalDex: 534, formIndex: 0 }, // Conkeldurr
+  '588': { nationalDex: 535, formIndex: 0 }, // Tympole
+  '589': { nationalDex: 536, formIndex: 0 }, // Palpitoad
+  '590': { nationalDex: 537, formIndex: 0 }, // Seismitoad
+  '591': { nationalDex: 538, formIndex: 0 }, // Throh
+  '592': { nationalDex: 539, formIndex: 0 }, // Sawk
+  '593': { nationalDex: 540, formIndex: 0 }, // Sewaddle
+  '594': { nationalDex: 541, formIndex: 0 }, // Swadloon
+  '595': { nationalDex: 542, formIndex: 0 }, // Leavanny
+  '596': { nationalDex: 543, formIndex: 0 }, // Venipede
+  '597': { nationalDex: 544, formIndex: 0 }, // Whirlipede
+  '598': { nationalDex: 545, formIndex: 0 }, // Scolipede
+  '599': { nationalDex: 546, formIndex: 0 }, // Cottonee
+  '600': { nationalDex: 547, formIndex: 0 }, // Whimsicott
+  '601': { nationalDex: 548, formIndex: 0 }, // Petilil
+  '602': { nationalDex: 549, formIndex: 0 }, // Lilligant
+  '603': { nationalDex: 550, formIndex: 0 }, // Basculin-Red-Striped
+  '604': { nationalDex: 551, formIndex: 0 }, // Sandile
+  '605': { nationalDex: 552, formIndex: 0 }, // Krokorok
+  '606': { nationalDex: 553, formIndex: 0 }, // Krookodile
+  '607': { nationalDex: 554, formIndex: 0 }, // Darumaka
+  '608': { nationalDex: 555, formIndex: 0 }, // Darmanitan
+  '609': { nationalDex: 556, formIndex: 0 }, // Maractus
+  '610': { nationalDex: 557, formIndex: 0 }, // Dwebble
+  '611': { nationalDex: 558, formIndex: 0 }, // Crustle
+  '612': { nationalDex: 559, formIndex: 0 }, // Scraggy
+  '613': { nationalDex: 560, formIndex: 0 }, // Scrafty
+  '614': { nationalDex: 561, formIndex: 0 }, // Sigilyph
+  '615': { nationalDex: 562, formIndex: 0 }, // Yamask
+  '616': { nationalDex: 563, formIndex: 0 }, // Cofagrigus
+  '617': { nationalDex: 564, formIndex: 0 }, // Tirtouga
+  '618': { nationalDex: 565, formIndex: 0 }, // Carracosta
+  '619': { nationalDex: 566, formIndex: 0 }, // Archen
+  '620': { nationalDex: 567, formIndex: 0 }, // Archeops
+  '621': { nationalDex: 568, formIndex: 0 }, // Trubbish
+  '622': { nationalDex: 569, formIndex: 0 }, // Garbodor
+  '623': { nationalDex: 570, formIndex: 0 }, // Zorua
+  '624': { nationalDex: 571, formIndex: 0 }, // Zoroark
+  '625': { nationalDex: 572, formIndex: 0 }, // Minccino
+  '626': { nationalDex: 573, formIndex: 0 }, // Cinccino
+  '627': { nationalDex: 574, formIndex: 0 }, // Gothita
+  '628': { nationalDex: 575, formIndex: 0 }, // Gothorita
+  '629': { nationalDex: 576, formIndex: 0 }, // Gothitelle
+  '630': { nationalDex: 577, formIndex: 0 }, // Solosis
+  '631': { nationalDex: 578, formIndex: 0 }, // Duosion
+  '632': { nationalDex: 579, formIndex: 0 }, // Reuniclus
+  '633': { nationalDex: 580, formIndex: 0 }, // Ducklett
+  '634': { nationalDex: 581, formIndex: 0 }, // Swanna
+  '635': { nationalDex: 582, formIndex: 0 }, // Vanillite
+  '636': { nationalDex: 583, formIndex: 0 }, // Vanillish
+  '637': { nationalDex: 584, formIndex: 0 }, // Vanilluxe
+  '638': { nationalDex: 585, formIndex: 0 }, // Deerling
+  '639': { nationalDex: 586, formIndex: 0 }, // Sawsbuck
+  '640': { nationalDex: 587, formIndex: 0 }, // Emolga
+  '641': { nationalDex: 588, formIndex: 0 }, // Karrablast
+  '642': { nationalDex: 589, formIndex: 0 }, // Escavalier
+  '643': { nationalDex: 590, formIndex: 0 }, // Foongus
+  '644': { nationalDex: 591, formIndex: 0 }, // Amoonguss
+  '645': { nationalDex: 592, formIndex: 0 }, // Frillish
+  '646': { nationalDex: 593, formIndex: 0 }, // Jellicent
+  '647': { nationalDex: 594, formIndex: 0 }, // Alomomola
+  '648': { nationalDex: 595, formIndex: 0 }, // Joltik
+  '649': { nationalDex: 596, formIndex: 0 }, // Galvantula
+  '650': { nationalDex: 597, formIndex: 0 }, // Ferroseed
+  '651': { nationalDex: 598, formIndex: 0 }, // Ferrothorn
+  '652': { nationalDex: 599, formIndex: 0 }, // Klink
+  '653': { nationalDex: 600, formIndex: 0 }, // Klang
+  '654': { nationalDex: 601, formIndex: 0 }, // Klinklang
+  '655': { nationalDex: 602, formIndex: 0 }, // Tynamo
+  '656': { nationalDex: 603, formIndex: 0 }, // Eelektrik
+  '657': { nationalDex: 604, formIndex: 0 }, // Eelektross
+  '658': { nationalDex: 605, formIndex: 0 }, // Elgyem
+  '659': { nationalDex: 606, formIndex: 0 }, // Beheeyem
+  '660': { nationalDex: 607, formIndex: 0 }, // Litwick
+  '661': { nationalDex: 608, formIndex: 0 }, // Lampent
+  '662': { nationalDex: 609, formIndex: 0 }, // Chandelure
+  '663': { nationalDex: 610, formIndex: 0 }, // Axew
+  '664': { nationalDex: 611, formIndex: 0 }, // Fraxure
+  '665': { nationalDex: 612, formIndex: 0 }, // Haxorus
+  '666': { nationalDex: 613, formIndex: 0 }, // Cubchoo
+  '667': { nationalDex: 614, formIndex: 0 }, // Beartic
+  '668': { nationalDex: 615, formIndex: 0 }, // Cryogonal
+  '669': { nationalDex: 616, formIndex: 0 }, // Shelmet
+  '670': { nationalDex: 617, formIndex: 0 }, // Accelgor
+  '671': { nationalDex: 618, formIndex: 0 }, // Stunfisk
+  '672': { nationalDex: 619, formIndex: 0 }, // Mienfoo
+  '673': { nationalDex: 620, formIndex: 0 }, // Mienshao
+  '674': { nationalDex: 621, formIndex: 0 }, // Druddigon
+  '675': { nationalDex: 622, formIndex: 0 }, // Golett
+  '676': { nationalDex: 623, formIndex: 0 }, // Golurk
+  '677': { nationalDex: 624, formIndex: 0 }, // Pawniard
+  '678': { nationalDex: 625, formIndex: 0 }, // Bisharp
+  '679': { nationalDex: 626, formIndex: 0 }, // Bouffalant
+  '680': { nationalDex: 627, formIndex: 0 }, // Rufflet
+  '681': { nationalDex: 628, formIndex: 0 }, // Braviary
+  '682': { nationalDex: 629, formIndex: 0 }, // Vullaby
+  '683': { nationalDex: 630, formIndex: 0 }, // Mandibuzz
+  '684': { nationalDex: 631, formIndex: 0 }, // Heatmor
+  '685': { nationalDex: 632, formIndex: 0 }, // Durant
+  '686': { nationalDex: 633, formIndex: 0 }, // Deino
+  '687': { nationalDex: 634, formIndex: 0 }, // Zweilous
+  '688': { nationalDex: 635, formIndex: 0 }, // Hydreigon
+  '689': { nationalDex: 636, formIndex: 0 }, // Larvesta
+  '690': { nationalDex: 637, formIndex: 0 }, // Volcarona
+  '691': { nationalDex: 638, formIndex: 0 }, // Cobalion
+  '692': { nationalDex: 639, formIndex: 0 }, // Terrakion
+  '693': { nationalDex: 640, formIndex: 0 }, // Virizion
+  '694': { nationalDex: 641, formIndex: 0 }, // Tornadus
+  '695': { nationalDex: 642, formIndex: 0 }, // Thundurus
+  '696': { nationalDex: 643, formIndex: 0 }, // Reshiram
+  '697': { nationalDex: 644, formIndex: 0 }, // Zekrom
+  '698': { nationalDex: 645, formIndex: 0 }, // Landorus
+  '699': { nationalDex: 646, formIndex: 0 }, // Kyurem
+  '700': { nationalDex: 647, formIndex: 0 }, // Keldeo
+  '701': { nationalDex: 648, formIndex: 0 }, // Meloetta
+  '702': { nationalDex: 649, formIndex: 0 }, // Genesect
+  '703': { nationalDex: 521, formIndex: 0 }, // Unfezant
+  '704': { nationalDex: 592, formIndex: 0 }, // Frillish
+  '705': { nationalDex: 593, formIndex: 0 }, // Jellicent
+  '706': null, // SPECIES_SHADOW_WARRIOR (not found)
+  '707': { nationalDex: 412, formIndex: 0 }, // Burmy
+  '708': { nationalDex: 412, formIndex: 0 }, // Burmy
+  '709': { nationalDex: 413, formIndex: 1 }, // Wormadam-Sandy
+  '710': { nationalDex: 413, formIndex: 2 }, // Wormadam-Trash
+  '711': { nationalDex: 422, formIndex: 1 }, // Shellos
+  '712': { nationalDex: 423, formIndex: 1 }, // Gastrodon
+  '713': { nationalDex: 479, formIndex: 1 }, // Rotom-Heat
+  '714': { nationalDex: 479, formIndex: 2 }, // Rotom-Wash
+  '715': { nationalDex: 479, formIndex: 3 }, // Rotom-Frost
+  '716': { nationalDex: 479, formIndex: 4 }, // Rotom-Fan
+  '717': { nationalDex: 479, formIndex: 5 }, // Rotom-Mow
+  '718': { nationalDex: 487, formIndex: 1 }, // Giratina-Origin
+  '719': { nationalDex: 492, formIndex: 1 }, // Shaymin-Sky
+  '720': { nationalDex: 493, formIndex: 1 }, // Arceus-Fighting
+  '721': { nationalDex: 493, formIndex: 2 }, // Arceus-Flying
+  '722': { nationalDex: 493, formIndex: 3 }, // Arceus-Poison
+  '723': { nationalDex: 493, formIndex: 4 }, // Arceus-Ground
+  '724': { nationalDex: 493, formIndex: 5 }, // Arceus-Rock
+  '725': { nationalDex: 493, formIndex: 6 }, // Arceus-Bug
+  '726': { nationalDex: 493, formIndex: 7 }, // Arceus-Ghost
+  '727': { nationalDex: 493, formIndex: 8 }, // Arceus-Steel
+  '728': { nationalDex: 493, formIndex: 9 }, // Arceus-Fire
+  '729': { nationalDex: 493, formIndex: 10 }, // Arceus-Water
+  '730': { nationalDex: 493, formIndex: 11 }, // Arceus-Grass
+  '731': { nationalDex: 493, formIndex: 12 }, // Arceus-Electric
+  '732': { nationalDex: 493, formIndex: 13 }, // Arceus-Psychic
+  '733': { nationalDex: 493, formIndex: 14 }, // Arceus-Ice
+  '734': { nationalDex: 493, formIndex: 15 }, // Arceus-Dragon
+  '735': { nationalDex: 493, formIndex: 16 }, // Arceus-Dark
+  '736': { nationalDex: 550, formIndex: 1 }, // Basculin-Blue-Striped
+  '737': { nationalDex: 555, formIndex: 1 }, // Darmanitan-Zen
+  '738': { nationalDex: 585, formIndex: 1 }, // Deerling
+  '739': { nationalDex: 585, formIndex: 2 }, // Deerling
+  '740': { nationalDex: 585, formIndex: 3 }, // Deerling
+  '741': { nationalDex: 586, formIndex: 1 }, // Sawsbuck
+  '742': { nationalDex: 586, formIndex: 2 }, // Sawsbuck
+  '743': { nationalDex: 586, formIndex: 3 }, // Sawsbuck
+  '744': { nationalDex: 449, formIndex: 0 }, // Hippopotas
+  '745': { nationalDex: 450, formIndex: 0 }, // Hippowdon
+  '746': { nationalDex: 648, formIndex: 1 }, // Meloetta-Pirouette
+  '747': { nationalDex: 649, formIndex: 2 }, // Genesect-Shock
+  '748': { nationalDex: 649, formIndex: 3 }, // Genesect-Burn
+  '749': { nationalDex: 649, formIndex: 4 }, // Genesect-Chill
+  '750': { nationalDex: 649, formIndex: 1 }, // Genesect-Douse
+  '751': { nationalDex: 421, formIndex: 1 }, // Cherrim-Sunshine
+  '752': { nationalDex: 646, formIndex: 2 }, // Kyurem-Black
+  '753': { nationalDex: 646, formIndex: 1 }, // Kyurem-White
+  '754': { nationalDex: 641, formIndex: 1 }, // Tornadus-Therian
+  '755': { nationalDex: 642, formIndex: 1 }, // Thundurus-Therian
+  '756': { nationalDex: 645, formIndex: 1 }, // Landorus-Therian
+  '757': { nationalDex: 647, formIndex: 1 }, // Keldeo-Resolute
+  '758': { nationalDex: 650, formIndex: 0 }, // Chespin
+  '759': { nationalDex: 651, formIndex: 0 }, // Quilladin
+  '760': { nationalDex: 652, formIndex: 0 }, // Chesnaught
+  '761': { nationalDex: 653, formIndex: 0 }, // Fennekin
+  '762': { nationalDex: 654, formIndex: 0 }, // Braixen
+  '763': { nationalDex: 655, formIndex: 0 }, // Delphox
+  '764': { nationalDex: 656, formIndex: 0 }, // Froakie
+  '765': { nationalDex: 657, formIndex: 0 }, // Frogadier
+  '766': { nationalDex: 658, formIndex: 0 }, // Greninja
+  '767': { nationalDex: 659, formIndex: 0 }, // Bunnelby
+  '768': { nationalDex: 660, formIndex: 0 }, // Diggersby
+  '769': { nationalDex: 661, formIndex: 0 }, // Fletchling
+  '770': { nationalDex: 662, formIndex: 0 }, // Fletchinder
+  '771': { nationalDex: 663, formIndex: 0 }, // Talonflame
+  '772': { nationalDex: 664, formIndex: 0 }, // Scatterbug
+  '773': { nationalDex: 665, formIndex: 0 }, // Spewpa
+  '774': { nationalDex: 666, formIndex: 0 }, // Vivillon
+  '775': { nationalDex: 667, formIndex: 0 }, // Litleo
+  '776': { nationalDex: 668, formIndex: 0 }, // Pyroar
+  '777': { nationalDex: 669, formIndex: 0 }, // Flabébé-Red
+  '778': { nationalDex: 670, formIndex: 0 }, // Floette-Red
+  '779': { nationalDex: 671, formIndex: 0 }, // Florges
+  '780': { nationalDex: 672, formIndex: 0 }, // Skiddo
+  '781': { nationalDex: 673, formIndex: 0 }, // Gogoat
+  '782': { nationalDex: 674, formIndex: 0 }, // Pancham
+  '783': { nationalDex: 675, formIndex: 0 }, // Pangoro
+  '784': { nationalDex: 676, formIndex: 0 }, // Furfrou-Natural
+  '785': { nationalDex: 677, formIndex: 0 }, // Espurr
+  '786': { nationalDex: 678, formIndex: 0 }, // Meowstic
+  '787': { nationalDex: 679, formIndex: 0 }, // Honedge
+  '788': { nationalDex: 680, formIndex: 0 }, // Doublade
+  '789': { nationalDex: 681, formIndex: 0 }, // Aegislash-Shield
+  '790': { nationalDex: 682, formIndex: 0 }, // Spritzee
+  '791': { nationalDex: 683, formIndex: 0 }, // Aromatisse
+  '792': { nationalDex: 684, formIndex: 0 }, // Swirlix
+  '793': { nationalDex: 685, formIndex: 0 }, // Slurpuff
+  '794': { nationalDex: 686, formIndex: 0 }, // Inkay
+  '795': { nationalDex: 687, formIndex: 0 }, // Malamar
+  '796': { nationalDex: 688, formIndex: 0 }, // Binacle
+  '797': { nationalDex: 689, formIndex: 0 }, // Barbaracle
+  '798': { nationalDex: 690, formIndex: 0 }, // Skrelp
+  '799': { nationalDex: 691, formIndex: 0 }, // Dragalge
+  '800': { nationalDex: 692, formIndex: 0 }, // Clauncher
+  '801': { nationalDex: 693, formIndex: 0 }, // Clawitzer
+  '802': { nationalDex: 694, formIndex: 0 }, // Helioptile
+  '803': { nationalDex: 695, formIndex: 0 }, // Heliolisk
+  '804': { nationalDex: 696, formIndex: 0 }, // Tyrunt
+  '805': { nationalDex: 697, formIndex: 0 }, // Tyrantrum
+  '806': { nationalDex: 698, formIndex: 0 }, // Amaura
+  '807': { nationalDex: 699, formIndex: 0 }, // Aurorus
+  '808': { nationalDex: 700, formIndex: 0 }, // Sylveon
+  '809': { nationalDex: 701, formIndex: 0 }, // Hawlucha
+  '810': { nationalDex: 702, formIndex: 0 }, // Dedenne
+  '811': { nationalDex: 703, formIndex: 0 }, // Carbink
+  '812': { nationalDex: 704, formIndex: 0 }, // Goomy
+  '813': { nationalDex: 705, formIndex: 0 }, // Sliggoo
+  '814': { nationalDex: 706, formIndex: 0 }, // Goodra
+  '815': { nationalDex: 707, formIndex: 0 }, // Klefki
+  '816': { nationalDex: 708, formIndex: 0 }, // Phantump
+  '817': { nationalDex: 709, formIndex: 0 }, // Trevenant
+  '818': { nationalDex: 710, formIndex: 0 }, // Pumpkaboo
+  '819': { nationalDex: 711, formIndex: 0 }, // Gourgeist
+  '820': { nationalDex: 712, formIndex: 0 }, // Bergmite
+  '821': { nationalDex: 713, formIndex: 0 }, // Avalugg
+  '822': { nationalDex: 714, formIndex: 0 }, // Noibat
+  '823': { nationalDex: 715, formIndex: 0 }, // Noivern
+  '824': { nationalDex: 716, formIndex: 0 }, // Xerneas-Active
+  '825': { nationalDex: 717, formIndex: 0 }, // Yveltal
+  '826': { nationalDex: 718, formIndex: 0 }, // Zygarde
+  '827': { nationalDex: 719, formIndex: 0 }, // Diancie
+  '828': { nationalDex: 720, formIndex: 0 }, // Hoopa
+  '829': { nationalDex: 720, formIndex: 1 }, // Hoopa-Unbound
+  '830': { nationalDex: 721, formIndex: 0 }, // Volcanion
+  '831': { nationalDex: 668, formIndex: 0 }, // Pyroar
+  '832': { nationalDex: 678, formIndex: 1 }, // Meowstic-F
+  '833': { nationalDex: 681, formIndex: 1 }, // Aegislash-Blade
+  '834': { nationalDex: 493, formIndex: 17 }, // Arceus-Fairy
+  '835': null, // SPECIES_ZYGARDE_CELL (not found)
+  '836': null, // SPECIES_ZYGARDE_CORE (not found)
+  '837': { nationalDex: 718, formIndex: 1 }, // Zygarde-10%
+  '838': { nationalDex: 718, formIndex: 4 }, // Zygarde-Complete
+  '839': { nationalDex: 658, formIndex: 2 }, // Greninja-Ash
+  '840': { nationalDex: 669, formIndex: 3 }, // Flabébé-Blue  // FLABEBE LINE
+  '841': { nationalDex: 669, formIndex: 2 }, // Flabébé-Orange
+  '842': { nationalDex: 669, formIndex: 1 }, // Flabébé-Yellow
+  '843': { nationalDex: 669, formIndex: 4 }, // Flabébé-White
+  '844': { nationalDex: 670, formIndex: 3 }, // Floette-Blue   // FLOETTE LINE
+  '845': { nationalDex: 670, formIndex: 2 }, // Floette-Orange
+  '846': { nationalDex: 670, formIndex: 1 }, // Floette-Yellow
+  '847': { nationalDex: 670, formIndex: 4 }, // Floette-White
+  '848': { nationalDex: 670, formIndex: 5 }, // Floette-Eternal
+  '849': { nationalDex: 671, formIndex: 3 }, // Florges-Blue   // FLORGES LINE
+  '850': { nationalDex: 671, formIndex: 2 }, // Florges-Orange
+  '851': { nationalDex: 671, formIndex: 1 }, // Florges-Yellow
+  '852': { nationalDex: 671, formIndex: 4 }, // Florges-White
+  '853': { nationalDex: 710, formIndex: 1 }, // Pumpkaboo
+  '854': { nationalDex: 710, formIndex: 2 }, // Pumpkaboo
+  '855': { nationalDex: 710, formIndex: 3 }, // Pumpkaboo
+  '856': { nationalDex: 711, formIndex: 1 }, // Gourgeist
+  '857': { nationalDex: 711, formIndex: 2 }, // Gourgeist
+  '858': { nationalDex: 711, formIndex: 3 }, // Gourgeist
+  '859': { nationalDex: 676, formIndex: 1 }, // Furfrou-Heart
+  '860': { nationalDex: 676, formIndex: 3 }, // Furfrou-Diamond
+  '861': { nationalDex: 676, formIndex: 2 }, // Furfrou-Star
+  '862': { nationalDex: 676, formIndex: 9 }, // Furfrou-Pharoah
+  '863': { nationalDex: 676, formIndex: 8 }, // Furfrou-Kabuki
+  '864': { nationalDex: 676, formIndex: 7 }, // Furfrou-La Reine
+  '865': { nationalDex: 676, formIndex: 5 }, // Furfrou-Matron
+  '866': { nationalDex: 676, formIndex: 6 }, // Furfrou-Dandy
+  '867': { nationalDex: 676, formIndex: 4 }, // Furfrou-Debutante
+  '868': { nationalDex: 666, formIndex: 18 }, // Vivillon-Fancy
+  '869': { nationalDex: 3, formIndex: 1 }, // Venusaur-Mega
+  '870': { nationalDex: 6, formIndex: 1 }, // Charizard-Mega-X
+  '871': { nationalDex: 6, formIndex: 2 }, // Charizard-Mega-Y
+  '872': { nationalDex: 9, formIndex: 1 }, // Blastoise-Mega
+  '873': { nationalDex: 15, formIndex: 1 }, // Beedrill-Mega
+  '874': { nationalDex: 18, formIndex: 1 }, // Pidgeot-Mega
+  '875': { nationalDex: 65, formIndex: 1 }, // Alakazam-Mega
+  '876': { nationalDex: 80, formIndex: 1 }, // Slowbro-Mega
+  '877': { nationalDex: 94, formIndex: 1 }, // Gengar-Mega
+  '878': { nationalDex: 115, formIndex: 1 }, // Kangaskhan-Mega
+  '879': { nationalDex: 127, formIndex: 1 }, // Pinsir-Mega
+  '880': { nationalDex: 130, formIndex: 1 }, // Gyarados-Mega
+  '881': { nationalDex: 142, formIndex: 1 }, // Aerodactyl-Mega
+  '882': { nationalDex: 150, formIndex: 1 }, // Mewtwo-Mega-X
+  '883': { nationalDex: 150, formIndex: 2 }, // Mewtwo-Mega-Y
+  '884': { nationalDex: 181, formIndex: 1 }, // Ampharos-Mega
+  '885': { nationalDex: 208, formIndex: 1 }, // Steelix-Mega
+  '886': { nationalDex: 212, formIndex: 1 }, // Scizor-Mega
+  '887': { nationalDex: 214, formIndex: 1 }, // Heracross-Mega
+  '888': { nationalDex: 229, formIndex: 1 }, // Houndoom-Mega
+  '889': { nationalDex: 248, formIndex: 1 }, // Tyranitar-Mega
+  '890': { nationalDex: 254, formIndex: 1 }, // Sceptile-Mega
+  '891': { nationalDex: 257, formIndex: 1 }, // Blaziken-Mega
+  '892': { nationalDex: 260, formIndex: 1 }, // Swampert-Mega
+  '893': { nationalDex: 282, formIndex: 1 }, // Gardevoir-Mega
+  '894': { nationalDex: 302, formIndex: 1 }, // Sableye-Mega
+  '895': { nationalDex: 303, formIndex: 1 }, // Mawile-Mega
+  '896': { nationalDex: 306, formIndex: 1 }, // Aggron-Mega
+  '897': { nationalDex: 308, formIndex: 1 }, // Medicham-Mega
+  '898': { nationalDex: 310, formIndex: 1 }, // Manectric-Mega
+  '899': { nationalDex: 319, formIndex: 1 }, // Sharpedo-Mega
+  '900': { nationalDex: 323, formIndex: 1 }, // Camerupt-Mega
+  '901': { nationalDex: 334, formIndex: 1 }, // Altaria-Mega
+  '902': { nationalDex: 354, formIndex: 1 }, // Banette-Mega
+  '903': { nationalDex: 359, formIndex: 1 }, // Absol-Mega
+  '904': { nationalDex: 362, formIndex: 1 }, // Glalie-Mega
+  '905': { nationalDex: 373, formIndex: 1 }, // Salamence-Mega
+  '906': { nationalDex: 376, formIndex: 1 }, // Metagross-Mega
+  '907': { nationalDex: 380, formIndex: 1 }, // Latias-Mega
+  '908': { nationalDex: 381, formIndex: 1 }, // Latios-Mega
+  '909': { nationalDex: 383, formIndex: 1 }, // Groudon-Primal
+  '910': { nationalDex: 382, formIndex: 1 }, // Kyogre-Primal
+  '911': { nationalDex: 384, formIndex: 1 }, // Rayquaza-Mega
+  '912': { nationalDex: 428, formIndex: 1 }, // Lopunny-Mega
+  '913': { nationalDex: 445, formIndex: 1 }, // Garchomp-Mega
+  '914': { nationalDex: 448, formIndex: 1 }, // Lucario-Mega
+  '915': { nationalDex: 460, formIndex: 1 }, // Abomasnow-Mega
+  '916': { nationalDex: 475, formIndex: 1 }, // Gallade-Mega
+  '917': { nationalDex: 531, formIndex: 1 }, // Audino-Mega
+  '918': { nationalDex: 719, formIndex: 1 }, // Diancie-Mega
+  '919': { nationalDex: 483, formIndex: 1 }, // Dialga-Origin
+  '920': { nationalDex: 484, formIndex: 1 }, // Palkia-Origin
+  '921': { nationalDex: 666, formIndex: 9 }, // Vivillon-Archipelago
+  '922': { nationalDex: 666, formIndex: 3 }, // Vivillon-Continental
+  '923': { nationalDex: 666, formIndex: 5 }, // Vivillon-Elegant
+  '924': { nationalDex: 666, formIndex: 4 }, // Vivillon-Garden
+  '925': { nationalDex: 666, formIndex: 10 }, // Vivillon-High-Plains
+  '926': { nationalDex: 666, formIndex: 0 }, // Vivillon-Icy Snow
+  '927': { nationalDex: 666, formIndex: 17 }, // Vivillon-Jungle
+  '928': { nationalDex: 666, formIndex: 8 }, // Vivillon-Marine
+  '929': { nationalDex: 666, formIndex: 7 }, // Vivillon-Modern
+  '930': { nationalDex: 666, formIndex: 13 }, // Vivillon-Monsoon
+  '931': { nationalDex: 666, formIndex: 16 }, // Vivillon-Ocean
+  '932': { nationalDex: 666, formIndex: 19 }, // Vivillon-Pokeball
+  '933': { nationalDex: 666, formIndex: 1 }, // Vivillon-Polar
+  '934': { nationalDex: 666, formIndex: 12 }, // Vivillon-River
+  '935': { nationalDex: 666, formIndex: 11 }, // Vivillon-Sandstorm
+  '936': { nationalDex: 666, formIndex: 14 }, // Vivillon-Savanna
+  '937': { nationalDex: 666, formIndex: 15 }, // Vivillon-Sun
+  '938': { nationalDex: 666, formIndex: 2 }, // Vivillon-Tundra
+  '939': { nationalDex: 722, formIndex: 0 }, // Rowlet
+  '940': { nationalDex: 723, formIndex: 0 }, // Dartrix
+  '941': { nationalDex: 724, formIndex: 0 }, // Decidueye
+  '942': { nationalDex: 725, formIndex: 0 }, // Litten
+  '943': { nationalDex: 726, formIndex: 0 }, // Torracat
+  '944': { nationalDex: 727, formIndex: 0 }, // Incineroar
+  '945': { nationalDex: 728, formIndex: 0 }, // Popplio
+  '946': { nationalDex: 729, formIndex: 0 }, // Brionne
+  '947': { nationalDex: 730, formIndex: 0 }, // Primarina
+  '948': { nationalDex: 731, formIndex: 0 }, // Pikipek
+  '949': { nationalDex: 732, formIndex: 0 }, // Trumbeak
+  '950': { nationalDex: 733, formIndex: 0 }, // Toucannon
+  '951': { nationalDex: 734, formIndex: 0 }, // Yungoos
+  '952': { nationalDex: 735, formIndex: 0 }, // Gumshoos
+  '953': { nationalDex: 736, formIndex: 0 }, // Grubbin
+  '954': { nationalDex: 737, formIndex: 0 }, // Charjabug
+  '955': { nationalDex: 738, formIndex: 0 }, // Vikavolt
+  '956': { nationalDex: 739, formIndex: 0 }, // Crabrawler
+  '957': { nationalDex: 740, formIndex: 0 }, // Crabominable
+  '958': { nationalDex: 741, formIndex: 0 }, // Oricorio
+  '959': { nationalDex: 742, formIndex: 0 }, // Cutiefly
+  '960': { nationalDex: 743, formIndex: 0 }, // Ribombee
+  '961': { nationalDex: 744, formIndex: 0 }, // Rockruff
+  '962': { nationalDex: 745, formIndex: 0 }, // Lycanroc
+  '963': { nationalDex: 746, formIndex: 0 }, // Wishiwashi
+  '964': { nationalDex: 747, formIndex: 0 }, // Mareanie
+  '965': { nationalDex: 748, formIndex: 0 }, // Toxapex
+  '966': { nationalDex: 749, formIndex: 0 }, // Mudbray
+  '967': { nationalDex: 750, formIndex: 0 }, // Mudsdale
+  '968': { nationalDex: 751, formIndex: 0 }, // Dewpider
+  '969': { nationalDex: 752, formIndex: 0 }, // Araquanid
+  '970': { nationalDex: 753, formIndex: 0 }, // Fomantis
+  '971': { nationalDex: 754, formIndex: 0 }, // Lurantis
+  '972': { nationalDex: 755, formIndex: 0 }, // Morelull
+  '973': { nationalDex: 756, formIndex: 0 }, // Shiinotic
+  '974': { nationalDex: 757, formIndex: 0 }, // Salandit
+  '975': { nationalDex: 758, formIndex: 0 }, // Salazzle
+  '976': { nationalDex: 759, formIndex: 0 }, // Stufful
+  '977': { nationalDex: 760, formIndex: 0 }, // Bewear
+  '978': { nationalDex: 761, formIndex: 0 }, // Bounsweet
+  '979': { nationalDex: 762, formIndex: 0 }, // Steenee
+  '980': { nationalDex: 763, formIndex: 0 }, // Tsareena
+  '981': { nationalDex: 764, formIndex: 0 }, // Comfey
+  '982': { nationalDex: 765, formIndex: 0 }, // Oranguru
+  '983': { nationalDex: 766, formIndex: 0 }, // Passimian
+  '984': { nationalDex: 767, formIndex: 0 }, // Wimpod
+  '985': { nationalDex: 768, formIndex: 0 }, // Golisopod
+  '986': { nationalDex: 769, formIndex: 0 }, // Sandygast
+  '987': { nationalDex: 770, formIndex: 0 }, // Palossand
+  '988': { nationalDex: 771, formIndex: 0 }, // Pyukumuku
+  '989': { nationalDex: 772, formIndex: 0 }, // Type: Null
+  '990': { nationalDex: 773, formIndex: 0 }, // Silvally
+  '991': { nationalDex: 774, formIndex: 0 }, // Minior-Meteor
+  '992': { nationalDex: 775, formIndex: 0 }, // Komala
+  '993': { nationalDex: 776, formIndex: 0 }, // Turtonator
+  '994': { nationalDex: 777, formIndex: 0 }, // Togedemaru
+  '995': { nationalDex: 778, formIndex: 0 }, // Mimikyu
+  '996': { nationalDex: 779, formIndex: 0 }, // Bruxish
+  '997': { nationalDex: 780, formIndex: 0 }, // Drampa
+  '998': { nationalDex: 781, formIndex: 0 }, // Dhelmise
+  '999': { nationalDex: 782, formIndex: 0 }, // Jangmo-o
+  '1000': { nationalDex: 783, formIndex: 0 }, // Hakamo-o
+  '1001': { nationalDex: 784, formIndex: 0 }, // Kommo-o
+  '1002': { nationalDex: 785, formIndex: 0 }, // Tapu Koko
+  '1003': { nationalDex: 786, formIndex: 0 }, // Tapu Lele
+  '1004': { nationalDex: 787, formIndex: 0 }, // Tapu Bulu
+  '1005': { nationalDex: 788, formIndex: 0 }, // Tapu Fini
+  '1006': { nationalDex: 789, formIndex: 0 }, // Cosmog
+  '1007': { nationalDex: 790, formIndex: 0 }, // Cosmoem
+  '1008': { nationalDex: 791, formIndex: 0 }, // Solgaleo
+  '1009': { nationalDex: 792, formIndex: 0 }, // Lunala
+  '1010': { nationalDex: 793, formIndex: 0 }, // Nihilego
+  '1011': { nationalDex: 794, formIndex: 0 }, // Buzzwole
+  '1012': { nationalDex: 795, formIndex: 0 }, // Pheromosa
+  '1013': { nationalDex: 796, formIndex: 0 }, // Xurkitree
+  '1014': { nationalDex: 797, formIndex: 0 }, // Celesteela
+  '1015': { nationalDex: 798, formIndex: 0 }, // Kartana
+  '1016': { nationalDex: 799, formIndex: 0 }, // Guzzlord
+  '1017': { nationalDex: 800, formIndex: 0 }, // Necrozma
+  '1018': { nationalDex: 801, formIndex: 0 }, // Magearna
+  '1019': { nationalDex: 802, formIndex: 0 }, // Marshadow
+  '1020': { nationalDex: 19, formIndex: 1 }, // Rattata-Alola
+  '1021': { nationalDex: 20, formIndex: 1 }, // Raticate-Alola
+  '1022': { nationalDex: 26, formIndex: 1 }, // Raichu-Alola
+  '1023': { nationalDex: 27, formIndex: 1 }, // Sandshrew-Alola
+  '1024': { nationalDex: 28, formIndex: 1 }, // Sandslash-Alola
+  '1025': { nationalDex: 37, formIndex: 1 }, // Vulpix-Alola
+  '1026': { nationalDex: 38, formIndex: 1 }, // Ninetales-Alola
+  '1027': { nationalDex: 50, formIndex: 1 }, // Diglett-Alola
+  '1028': { nationalDex: 51, formIndex: 1 }, // Dugtrio-Alola
+  '1029': { nationalDex: 52, formIndex: 1 }, // Meowth-Alola
+  '1030': { nationalDex: 53, formIndex: 1 }, // Persian-Alola
+  '1031': { nationalDex: 74, formIndex: 1 }, // Geodude-Alola
+  '1032': { nationalDex: 75, formIndex: 1 }, // Graveler-Alola
+  '1033': { nationalDex: 76, formIndex: 1 }, // Golem-Alola
+  '1034': { nationalDex: 88, formIndex: 1 }, // Grimer-Alola
+  '1035': { nationalDex: 89, formIndex: 1 }, // Muk-Alola
+  '1036': { nationalDex: 102, formIndex: 0 }, // Exeggcute
+  '1037': { nationalDex: 103, formIndex: 1 }, // Exeggutor-Alola
+  '1038': { nationalDex: 104, formIndex: 0 }, // Cubone-Alola
+  '1039': { nationalDex: 105, formIndex: 1 }, // Marowak-Alola
+  '1040': { nationalDex: 386, formIndex: 1 }, // Deoxys-Attack
+  '1041': { nationalDex: 386, formIndex: 2 }, // Deoxys-Defense
+  '1042': { nationalDex: 386, formIndex: 3 }, // Deoxys-Speed
+  '1043': { nationalDex: 741, formIndex: 1 }, // Oricorio-Pom-Pom
+  '1044': { nationalDex: 741, formIndex: 2 }, // Oricorio-Pa'u
+  '1045': { nationalDex: 741, formIndex: 3 }, // Oricorio-Sensu
+  '1046': { nationalDex: 745, formIndex: 1 }, // Lycanroc-Midnight
+  '1047': { nationalDex: 746, formIndex: 1 }, // Wishiwashi-School
+  '1048': { nationalDex: 773, formIndex: 1 }, // Silvally-Fighting
+  '1049': { nationalDex: 773, formIndex: 2 }, // Silvally-Flying
+  '1050': { nationalDex: 773, formIndex: 3 }, // Silvally-Poison
+  '1051': { nationalDex: 773, formIndex: 4 }, // Silvally-Ground
+  '1052': { nationalDex: 773, formIndex: 5 }, // Silvally-Rock
+  '1053': { nationalDex: 773, formIndex: 6 }, // Silvally-Bug
+  '1054': { nationalDex: 773, formIndex: 7 }, // Silvally-Ghost
+  '1055': { nationalDex: 773, formIndex: 8 }, // Silvally-Steel
+  '1056': { nationalDex: 773, formIndex: 9 }, // Silvally-Fire
+  '1057': { nationalDex: 773, formIndex: 10 }, // Silvally-Water
+  '1058': { nationalDex: 773, formIndex: 11 }, // Silvally-Grass
+  '1059': { nationalDex: 773, formIndex: 12 }, // Silvally-Electric
+  '1060': { nationalDex: 773, formIndex: 13 }, // Silvally-Psychic
+  '1061': { nationalDex: 773, formIndex: 14 }, // Silvally-Ice
+  '1062': { nationalDex: 773, formIndex: 15 }, // Silvally-Dragon
+  '1063': { nationalDex: 773, formIndex: 16 }, // Silvally-Dark
+  '1064': { nationalDex: 773, formIndex: 17 }, // Silvally-Fairy
+  '1065': { nationalDex: 774, formIndex: 0 }, // Minior
+  '1066': { nationalDex: 774, formIndex: 0 }, // Minior
+  '1067': { nationalDex: 774, formIndex: 0 }, // Minior
+  '1068': { nationalDex: 774, formIndex: 0 }, // Minior
+  '1069': { nationalDex: 774, formIndex: 0 }, // Minior
+  '1070': { nationalDex: 774, formIndex: 0 }, // Minior
+  '1071': { nationalDex: 774, formIndex: 0 }, // Minior
+  '1072': { nationalDex: 778, formIndex: 1 }, // Mimikyu-Busted
+  '1073': { nationalDex: 801, formIndex: 1 }, // Magearna-Original
+  '1074': { nationalDex: 803, formIndex: 0 }, // Poipole
+  '1075': { nationalDex: 804, formIndex: 0 }, // Naganadel
+  '1076': { nationalDex: 805, formIndex: 0 }, // Stakataka
+  '1077': { nationalDex: 806, formIndex: 0 }, // Blacephalon
+  '1078': { nationalDex: 807, formIndex: 0 }, // Zeraora
+  '1079': { nationalDex: 800, formIndex: 1 }, // Necrozma-Dusk-Mane
+  '1080': { nationalDex: 800, formIndex: 2 }, // Necrozma-Dawn-Wings
+  '1081': { nationalDex: 800, formIndex: 3 }, // Necrozma-Ultra
+  '1082': { nationalDex: 745, formIndex: 2 }, // Lycanroc-Dusk
+  '1083': { nationalDex: 808, formIndex: 0 }, // Meltan
+  '1084': { nationalDex: 809, formIndex: 0 }, // Melmetal
+  '1085': { nationalDex: 25, formIndex: 0, extraFormIndex: ExtraFormIndex.PikachuSurfing }, // Pikachu-Surfing
+  '1086': { nationalDex: 25, formIndex: 0, extraFormIndex: ExtraFormIndex.PikachuFlying }, // Pikachu-Flying
+  '1087': { nationalDex: 25, formIndex: 0, extraFormIndex: ExtraFormIndex.PikachuCosplay }, // Pikachu-Cosplay
+  '1088': { nationalDex: 25, formIndex: 0, extraFormIndex: ExtraFormIndex.PikachuLibre }, // Pikachu-Libre
+  '1089': { nationalDex: 25, formIndex: 0, extraFormIndex: ExtraFormIndex.PikachuPopStar }, // Pikachu-Pop-Star
+  '1090': { nationalDex: 25, formIndex: 0, extraFormIndex: ExtraFormIndex.PikachuRockStar }, // Pikachu-Rock-Star
+  '1091': { nationalDex: 25, formIndex: 0, extraFormIndex: ExtraFormIndex.PikachuBelle }, // Pikachu-Belle
+  '1092': { nationalDex: 25, formIndex: 0, extraFormIndex: ExtraFormIndex.PikachuPhD }, // Pikachu-PhD
+  '1093': { nationalDex: 25, formIndex: 1 }, // Pikachu-Original
+  '1094': { nationalDex: 25, formIndex: 2 }, // Pikachu-Hoenn
+  '1095': { nationalDex: 25, formIndex: 3 }, // Pikachu-Sinnoh
+  '1096': { nationalDex: 25, formIndex: 4 }, // Pikachu-Unova
+  '1097': { nationalDex: 25, formIndex: 5 }, // Pikachu-Kalos
+  '1098': { nationalDex: 25, formIndex: 6 }, // Pikachu-Alola
+  '1099': { nationalDex: 25, formIndex: 7 }, // Pikachu-Partner
+  '1100': { nationalDex: 172, formIndex: 1 }, // Pichu-Spiky-Eared
+  '1101': { nationalDex: 716, formIndex: 0 }, // Xerneas-Neutral
+  '1102': { nationalDex: 810, formIndex: 0 }, // Grookey
+  '1103': { nationalDex: 811, formIndex: 0 }, // Thwackey
+  '1104': { nationalDex: 812, formIndex: 0 }, // Rillaboom
+  '1105': { nationalDex: 813, formIndex: 0 }, // Scorbunny
+  '1106': { nationalDex: 814, formIndex: 0 }, // Raboot
+  '1107': { nationalDex: 815, formIndex: 0 }, // Cinderace
+  '1108': { nationalDex: 816, formIndex: 0 }, // Sobble
+  '1109': { nationalDex: 817, formIndex: 0 }, // Drizzile
+  '1110': { nationalDex: 818, formIndex: 0 }, // Inteleon
+  '1111': { nationalDex: 819, formIndex: 0 }, // Skwovet
+  '1112': { nationalDex: 820, formIndex: 0 }, // Greedent
+  '1113': { nationalDex: 821, formIndex: 0 }, // Rookidee
+  '1114': { nationalDex: 822, formIndex: 0 }, // Corvisquire
+  '1115': { nationalDex: 823, formIndex: 0 }, // Corviknight
+  '1116': { nationalDex: 824, formIndex: 0 }, // Blipbug
+  '1117': { nationalDex: 825, formIndex: 0 }, // Dottler
+  '1118': { nationalDex: 826, formIndex: 0 }, // Orbeetle
+  '1119': { nationalDex: 827, formIndex: 0 }, // Nickit
+  '1120': { nationalDex: 828, formIndex: 0 }, // Thievul
+  '1121': { nationalDex: 829, formIndex: 0 }, // Gossifleur
+  '1122': { nationalDex: 830, formIndex: 0 }, // Eldegoss
+  '1123': { nationalDex: 831, formIndex: 0 }, // Wooloo
+  '1124': { nationalDex: 832, formIndex: 0 }, // Dubwool
+  '1125': { nationalDex: 833, formIndex: 0 }, // Chewtle
+  '1126': { nationalDex: 834, formIndex: 0 }, // Drednaw
+  '1127': { nationalDex: 835, formIndex: 0 }, // Yamper
+  '1128': { nationalDex: 836, formIndex: 0 }, // Boltund
+  '1129': { nationalDex: 837, formIndex: 0 }, // Rolycoly
+  '1130': { nationalDex: 838, formIndex: 0 }, // Carkol
+  '1131': { nationalDex: 839, formIndex: 0 }, // Coalossal
+  '1132': { nationalDex: 840, formIndex: 0 }, // Applin
+  '1133': { nationalDex: 841, formIndex: 0 }, // Flapple
+  '1134': { nationalDex: 842, formIndex: 0 }, // Appletun
+  '1135': { nationalDex: 843, formIndex: 0 }, // Silicobra
+  '1136': { nationalDex: 844, formIndex: 0 }, // Sandaconda
+  '1137': { nationalDex: 845, formIndex: 0 }, // Cramorant
+  '1138': { nationalDex: 846, formIndex: 0 }, // Arrokuda
+  '1139': { nationalDex: 847, formIndex: 0 }, // Barraskewda
+  '1140': { nationalDex: 848, formIndex: 0 }, // Toxel
+  '1141': { nationalDex: 849, formIndex: 0 }, // Toxtricity
+  '1142': { nationalDex: 850, formIndex: 0 }, // Sizzlipede
+  '1143': { nationalDex: 851, formIndex: 0 }, // Centiskorch
+  '1144': { nationalDex: 852, formIndex: 0 }, // Clobbopus
+  '1145': { nationalDex: 853, formIndex: 0 }, // Grapploct
+  '1146': { nationalDex: 854, formIndex: 0 }, // Sinistea
+  '1147': { nationalDex: 855, formIndex: 0 }, // Polteageist
+  '1148': { nationalDex: 856, formIndex: 0 }, // Hatenna
+  '1149': { nationalDex: 857, formIndex: 0 }, // Hattrem
+  '1150': { nationalDex: 858, formIndex: 0 }, // Hatterene
+  '1151': { nationalDex: 859, formIndex: 0 }, // Impidimp
+  '1152': { nationalDex: 860, formIndex: 0 }, // Morgrem
+  '1153': { nationalDex: 861, formIndex: 0 }, // Grimmsnarl
+  '1154': { nationalDex: 862, formIndex: 0 }, // Obstagoon
+  '1155': { nationalDex: 863, formIndex: 0 }, // Perrserker
+  '1156': { nationalDex: 864, formIndex: 0 }, // Cursola
+  '1157': { nationalDex: 865, formIndex: 0 }, // Sirfetch'd
+  '1158': { nationalDex: 866, formIndex: 0 }, // Mr. Rime
+  '1159': { nationalDex: 867, formIndex: 0 }, // Runerigus
+  '1160': { nationalDex: 868, formIndex: 0 }, // Milcery
+  '1161': { nationalDex: 869, formIndex: 0 }, // Alcremie
+  '1162': { nationalDex: 870, formIndex: 0 }, // Falinks
+  '1163': { nationalDex: 871, formIndex: 0 }, // Pincurchin
+  '1164': { nationalDex: 872, formIndex: 0 }, // Snom
+  '1165': { nationalDex: 873, formIndex: 0 }, // Frosmoth
+  '1166': { nationalDex: 874, formIndex: 0 }, // Stonjourner
+  '1167': { nationalDex: 875, formIndex: 0 }, // Eiscue
+  '1168': { nationalDex: 876, formIndex: 0 }, // Indeedee
+  '1169': { nationalDex: 877, formIndex: 0 }, // Morpeko
+  '1170': { nationalDex: 878, formIndex: 0 }, // Cufant
+  '1171': { nationalDex: 879, formIndex: 0 }, // Copperajah
+  '1172': { nationalDex: 880, formIndex: 0 }, // Dracozolt
+  '1173': { nationalDex: 881, formIndex: 0 }, // Arctozolt
+  '1174': { nationalDex: 882, formIndex: 0 }, // Dracovish
+  '1175': { nationalDex: 883, formIndex: 0 }, // Arctovish
+  '1176': { nationalDex: 884, formIndex: 0 }, // Duraludon
+  '1177': { nationalDex: 885, formIndex: 0 }, // Dreepy
+  '1178': { nationalDex: 886, formIndex: 0 }, // Drakloak
+  '1179': { nationalDex: 887, formIndex: 0 }, // Dragapult
+  '1180': { nationalDex: 888, formIndex: 0 }, // Zacian
+  '1181': { nationalDex: 889, formIndex: 0 }, // Zamazenta
+  '1182': { nationalDex: 890, formIndex: 0 }, // Eternatus
+  '1183': { nationalDex: 891, formIndex: 0 }, // Kubfu
+  '1184': { nationalDex: 892, formIndex: 0 }, // Urshifu
+  '1185': { nationalDex: 893, formIndex: 0 }, // Zarude
+  '1186': { nationalDex: 894, formIndex: 0 }, // Regieleki
+  '1187': { nationalDex: 895, formIndex: 0 }, // Regidrago
+  '1188': { nationalDex: 896, formIndex: 0 }, // Glastrier
+  '1189': { nationalDex: 897, formIndex: 0 }, // Spectrier
+  '1190': { nationalDex: 898, formIndex: 0 }, // Calyrex
+  '1191': { nationalDex: 845, formIndex: 1 }, // Cramorant-Gulping
+  '1192': { nationalDex: 845, formIndex: 2 }, // Cramorant-Gorging
+  '1193': { nationalDex: 849, formIndex: 1 }, // Toxtricity-Low-Key
+  '1194': null, // SPECIES_SINISTEA_CHIPPED (not found)
+  '1195': null, // SPECIES_POLTEAGEIST_CHIPPED (not found)
+  '1196': null, // SPECIES_ALCREMIE_BERRY (not found)
+  '1197': null, // SPECIES_ALCREMIE_CLOVER (not found)
+  '1198': null, // SPECIES_ALCREMIE_FLOWER (not found)
+  '1199': null, // SPECIES_ALCREMIE_LOVE (not found)
+  '1200': null, // SPECIES_ALCREMIE_RIBBON (not found)
+  '1201': null, // SPECIES_ALCREMIE_STAR (not found)
+  '1202': { nationalDex: 875, formIndex: 1 }, // Eiscue-Noice
+  '1203': null, // Indeedee-F (not found)
+  '1204': { nationalDex: 877, formIndex: 1 }, // Morpeko-Hangry
+  '1205': { nationalDex: 888, formIndex: 1 }, // Zacian-Crowned
+  '1206': { nationalDex: 889, formIndex: 1 }, // Zamazenta-Crowned
+  '1207': { nationalDex: 890, formIndex: 1, extraFormIndex: ExtraFormIndex.EternatusEternamax }, // Eternatus-Eternamax
+  '1208': { nationalDex: 892, formIndex: 1 }, // Urshifu-Rapid-Strike
+  '1209': { nationalDex: 893, formIndex: 1 }, // Zarude-Dada
+  '1210': { nationalDex: 898, formIndex: 1 }, // Calyrex-Ice-Rider
+  '1211': { nationalDex: 898, formIndex: 2 }, // Calyrex-Shadow-Rider
+  '1212': { nationalDex: 52, formIndex: 2 }, // Meowth-Galar
+  '1213': { nationalDex: 77, formIndex: 1 }, // Ponyta-Galar
+  '1214': { nationalDex: 78, formIndex: 1 }, // Rapidash-Galar
+  '1215': { nationalDex: 79, formIndex: 1 }, // Slowpoke-Galar
+  '1216': { nationalDex: 80, formIndex: 2 }, // Slowbro-Galar
+  '1217': { nationalDex: 83, formIndex: 1 }, // Farfetch'd-Galar
+  '1218': { nationalDex: 109, formIndex: 0 }, // Koffing
+  '1219': { nationalDex: 110, formIndex: 1 }, // Weezing-Galar
+  '1220': { nationalDex: 122, formIndex: 1 }, // Mr. Mime-Galar
+  '1221': { nationalDex: 144, formIndex: 1 }, // Articuno-Galar
+  '1222': { nationalDex: 145, formIndex: 1 }, // Zapdos-Galar
+  '1223': { nationalDex: 146, formIndex: 1 }, // Moltres-Galar
+  '1224': { nationalDex: 199, formIndex: 1 }, // Slowking-Galar
+  '1225': { nationalDex: 222, formIndex: 1 }, // Corsola-Galar
+  '1226': { nationalDex: 263, formIndex: 1 }, // Zigzagoon-Galar
+  '1227': { nationalDex: 264, formIndex: 1 }, // Linoone-Galar
+  '1228': { nationalDex: 439, formIndex: 0 }, // Mime Jr.
+  '1229': { nationalDex: 554, formIndex: 1 }, // Darumaka-Galar
+  '1230': { nationalDex: 555, formIndex: 2 }, // Darmanitan-Galar
+  '1231': { nationalDex: 555, formIndex: 3 }, // Darmanitan-Galar-Zen
+  '1232': { nationalDex: 562, formIndex: 1 }, // Yamask-Galar
+  '1233': { nationalDex: 618, formIndex: 1 }, // Stunfisk-Galar
+  '1234': { nationalDex: 58, formIndex: 1 }, // Growlithe-Hisui
+  '1235': { nationalDex: 59, formIndex: 1 }, // Arcanine-Hisui
+  '1236': { nationalDex: 100, formIndex: 1 }, // Voltorb-Hisui
+  '1237': { nationalDex: 101, formIndex: 1 }, // Electrode-Hisui
+  '1238': { nationalDex: 157, formIndex: 1 }, // Typhlosion-Hisui
+  '1239': { nationalDex: 211, formIndex: 1 }, // Qwilfish-Hisui
+  '1240': { nationalDex: 215, formIndex: 1 }, // Sneasel-Hisui
+  '1241': { nationalDex: 503, formIndex: 1 }, // Samurott-Hisui
+  '1242': { nationalDex: 549, formIndex: 1 }, // Lilligant-Hisui
+  '1243': { nationalDex: 550, formIndex: 2 }, // Basculin-White-Striped
+  '1244': { nationalDex: 570, formIndex: 1 }, // Zorua-Hisui
+  '1245': { nationalDex: 571, formIndex: 1 }, // Zoroark-Hisui
+  '1246': { nationalDex: 628, formIndex: 1 }, // Braviary-Hisui
+  '1247': { nationalDex: 705, formIndex: 1 }, // Sliggoo-Hisui
+  '1248': { nationalDex: 706, formIndex: 1 }, // Goodra-Hisui
+  '1249': { nationalDex: 713, formIndex: 1 }, // Avalugg-Hisui
+  '1250': { nationalDex: 724, formIndex: 1 }, // Decidueye-Hisui
+  '1251': { nationalDex: 899, formIndex: 0 }, // Wyrdeer
+  '1252': { nationalDex: 900, formIndex: 0 }, // Kleavor
+  '1253': { nationalDex: 901, formIndex: 0 }, // Ursaluna
+  '1254': { nationalDex: 902, formIndex: 0 }, // Basculegion-M
+  '1255': { nationalDex: 902, formIndex: 1 }, // Basculegion-F
+  '1256': { nationalDex: 903, formIndex: 0 }, // Sneasler
+  '1257': { nationalDex: 904, formIndex: 0 }, // Overqwil
+  '1258': { nationalDex: 905, formIndex: 0 }, // Enamorus
+  '1259': { nationalDex: 905, formIndex: 1 }, // Enamorus-Therian
+  '1260': null, // SPECIES_VENUSAUR_GIGA (not found)
+  '1261': null, // SPECIES_CHARIZARD_GIGA (not found)
+  '1262': null, // SPECIES_BLASTOISE_GIGA (not found)
+  '1263': { nationalDex: 12, formIndex: 0, extraFormIndex: ExtraFormIndex.ButterfreeGiga }, // Butterfree-Mega
+  '1264': null, // SPECIES_PIKACHU_GIGA (not found)
+  '1265': null, // SPECIES_MEOWTH_GIGA (not found)
+  '1266': { nationalDex: 68, formIndex: 0, extraFormIndex: ExtraFormIndex.MachampGiga }, // Machamp-Mega
+  '1267': null, // SPECIES_GENGAR_GIGA (not found)
+  '1268': { nationalDex: 99, formIndex: 0, extraFormIndex: ExtraFormIndex.KinglerGiga }, // Kingler-Mega
+  '1269': { nationalDex: 131, formIndex: 0, extraFormIndex: ExtraFormIndex.LaprasGiga }, // Lapras-Mega
+  '1270': null, // SPECIES_EEVEE_GIGA (not found)
+  '1271': { nationalDex: 143, formIndex: 0, extraFormIndex: ExtraFormIndex.SnorlaxGiga }, // Snorlax-Mega
+  '1272': { nationalDex: 569, formIndex: 0, extraFormIndex: ExtraFormIndex.GarbodorGiga }, // Garbodor-Mega
+  '1273': null, // SPECIES_MELMETAL_GIGA (not found)
+  '1274': null, // SPECIES_RILLABOOM_GIGA (not found)
+  '1275': null, // SPECIES_CINDERACE_GIGA (not found)
+  '1276': null, // SPECIES_INTELEON_GIGA (not found)
+  '1277': null, // SPECIES_CORVIKNIGHT_GIGA (not found)
+  '1278': { nationalDex: 826, formIndex: 0, extraFormIndex: ExtraFormIndex.OrbeetleGiga }, // Orbeetle-Mega
+  '1279': { nationalDex: 834, formIndex: 0, extraFormIndex: ExtraFormIndex.DrednawGiga }, // Drednaw-Mega
+  '1280': { nationalDex: 839, formIndex: 0, extraFormIndex: ExtraFormIndex.CoalossalGiga }, // Coalossal-Mega
+  '1281': { nationalDex: 841, formIndex: 0, extraFormIndex: ExtraFormIndex.FlappleGiga }, // Flapple-Mega
+  '1282': { nationalDex: 842, formIndex: 0, extraFormIndex: ExtraFormIndex.AppletunGiga }, // Appletun-Mega
+  '1283': { nationalDex: 844, formIndex: 0, extraFormIndex: ExtraFormIndex.SandacondaGiga }, // Sandaconda-Mega
+  '1284': { nationalDex: 849, formIndex: 0, extraFormIndex: ExtraFormIndex.ToxtricityGiga }, // Toxtricity-Mega
+  '1285': null, // SPECIES_TOXTRICITY_LOW_KEY_GIGA (not found)
+  '1286': { nationalDex: 851, formIndex: 0, extraFormIndex: ExtraFormIndex.CentiskorchGiga }, // Centiskorch-Mega
+  '1287': null, // SPECIES_HATTERENE_GIGA (not found)
+  '1288': null, // SPECIES_GRIMMSNARL_GIGA (not found)
+  '1289': { nationalDex: 869, formIndex: 0, extraFormIndex: ExtraFormIndex.AlcremieGiga }, // Alcremie-Mega
+  '1290': { nationalDex: 879, formIndex: 0, extraFormIndex: ExtraFormIndex.CopperajahGiga }, // Copperajah-Mega
+  '1291': { nationalDex: 884, formIndex: 0, extraFormIndex: ExtraFormIndex.DuraludonGiga }, // Duraludon
+  '1292': null, // SPECIES_URSHIFU_SINGLE_GIGA (not found)
+  '1293': null, // SPECIES_URSHIFU_RAPID_GIGA (not found)
+}
+
+export const NationalDexToUnboundMap = makeNationalDexToGameMap(UnboundToNationalDexMap)
+export const ExtraFormToUnboundMap = makeExtraFormToGameMap(UnboundToNationalDexMap)

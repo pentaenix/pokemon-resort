@@ -1,0 +1,90 @@
+# dependencies
+/node_modules
+/pkm_rs_resources/generate/node_modules
+/pkm_rs/generate/node_modules
+/generate/node_modules
+
+/.pnp
+.pnp.js
+tsconfig.tsbuildinfo
+
+# testing
+/coverage
+tester.sh
+
+# production
+/out
+/dist
+
+# misc
+.DS_Store
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+/.erb/dll
+src/core/save/__test__/save-files/radicalred_modified.sav
+
+# python
+*.pyc
+__pycache__/
+.venv/
+
+*.log*
+.env
+
+# js
+generate/out/
+# if npm is accidentally used, this will regenerate
+package-lock.json
+
+planning.md
+
+# generated
+src/consts/JSON/version.json
+src-tauri/gen
+src-tauri/generate/node_modules
+src-tauri/target
+pkm_rs_derive/target
+src-tauri/target
+target/
+
+# IDE files
+*.code-workspace
+*.sublime-workspace
+*.sublime-project
+*.wakatime-project
+.idea
+
+# Pokemon Resort: vendored OpenHome is used for bridge/API/WASM only, not UI media assets.
+**/*.png
+**/*.webp
+**/*.apng
+**/*.avif
+**/*.jpg
+**/*.jpeg
+**/*.jpe
+**/*.gif
+**/*.bmp
+**/*.tif
+**/*.tiff
+**/*.svg
+**/*.ico
+**/*.heic
+**/*.heif
+
+**/*.mp3
+**/*.wav
+**/*.ogg
+**/*.oga
+**/*.opus
+**/*.flac
+**/*.m4a
+**/*.aac
+**/*.wma
+**/*.aiff
+**/*.aif
+**/*.caf
+**/*.weba
+**/*.mid
+**/*.midi

@@ -1,0 +1,180 @@
+mod commands;
+mod data_controller;
+mod deprecated;
+mod error;
+mod menu;
+mod pkm_storage;
+mod plugin;
+mod saves;
+mod startup;
+mod startup_config;
+mod state;
+mod util;
+mod versioning;
+
+use std::env;
+use tauri::Manager;
+
+use crate::{error::Error, state::synced_state::AllSyncedState};
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    tauri::Builder::default()
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_fs::init())
+        .setup(|app| {
+            let startup_config_state =
+                match startup_config::StartupConfigState::load_or_create(app.handle()) {
+                    Ok(state) => state,
+                    Err(err) => {
+                        util::show_error_dialog(
+                            app,
+                            err.to_string(),
+                            "OpenHome Failed to Launch - Startup Config Error",
+                        );
+
+                        app.handle().exit(1);
+                        std::process::exit(1);
+                    }
+                };
+            app.manage(startup_config_state);
+
+            let update_features_r = startup::run_app_startup(app);
+            let Ok(update_features) = update_features_r else {
+                let launch_error = update_features_r.unwrap_err();
+                match launch_error {
+                    Error::OutdatedVersion { .. } => app.handle().exit(1),
+                    _ => {
+                        util::show_error_dialog(
+                            app,
+                            launch_error.to_string(),
+                            "OpenHome Failed to Launch",
+                        );
+
+                        app.handle().exit(1);
+                    }
+                };
+                std::process::exit(1);
+            };
+
+            let ohpkm_store = match state::OhpkmBytesStore::load_from_mons_v2(app.handle()) {
+                Ok(state) => state,
+                Err(err) => {
+                    util::show_error_dialog(
+                        app,
+                        err.to_string(),
+                        "OpenHome Failed to Launch - OHPKM load error",
+                    );
+
+                    app.handle().exit(1);
+                    std::process::exit(1);
+                }
+            };
+
+            let lookup_state = match state::LookupState::load_from_storage(app.handle()) {
+                Ok(lookup) => lookup,
+                Err(err) => {
+                    util::show_error_dialog(
+                        app,
+                        err.to_string(),
+                        "OpenHome Failed to Launch - Lookup File Error",
+                    );
+
+                    app.handle().exit(1);
+                    std::process::exit(1);
+                }
+            };
+
+            let conversion_settings =
+                match state::ConvertStrategies::load_from_storage(app.handle()) {
+                    Ok(settings) => settings,
+                    Err(err) => {
+                        util::show_error_dialog(
+                            app,
+                            err.to_string(),
+                            "OpenHome Failed to Launch - Cannot Open Conversion Settings",
+                        );
+
+                        app.handle().exit(1);
+                        std::process::exit(1);
+                    }
+                };
+
+            let synced_state =
+                AllSyncedState::from_states(lookup_state, ohpkm_store, conversion_settings);
+            app.manage(synced_state);
+
+            let pokedex_state = match state::PokedexState::load_from_storage(app.handle()) {
+                Ok(pokedex) => pokedex,
+                Err(err) => {
+                    util::show_error_dialog(
+                        app,
+                        err.to_string(),
+                        "OpenHome Failed to Launch - Pokedex File Error",
+                    );
+
+                    app.handle().exit(1);
+                    std::process::exit(1);
+                }
+            };
+            app.manage(pokedex_state);
+
+            app.manage(state::AppState::from_update_features(update_features));
+
+            match menu::create_menu(app) {
+                Ok(menu) => {
+                    let _ = app.set_menu(menu);
+                    Ok(())
+                }
+                Err(e) => {
+                    eprintln!("Error creating menu: {}", e);
+                    Err(e)
+                }
+            }
+        })
+        .on_menu_event(|app_handle, event| {
+            menu::handle_menu_event(app_handle, event);
+        })
+        .plugin(tauri_plugin_os::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_shell::init())
+        .invoke_handler(tauri::generate_handler![
+            commands::get_state,
+            commands::get_file_bytes,
+            commands::get_file_created,
+            commands::get_image_data,
+            commands::get_storage_file_json,
+            commands::write_storage_file_json,
+            commands::write_file_bytes,
+            commands::find_suggested_saves,
+            commands::set_app_theme,
+            commands::validate_recent_saves,
+            commands::download_plugin,
+            commands::list_installed_plugins,
+            commands::load_plugin_code,
+            commands::delete_plugin,
+            commands::handle_windows_accelerator,
+            commands::open_directory,
+            commands::open_file_location,
+            startup_config::get_data_dir_path,
+            startup_config::change_data_dir,
+            pkm_storage::load_banks,
+            pkm_storage::write_banks,
+            state::get_lookups,
+            state::add_to_lookups,
+            state::get_ohpkm_store,
+            state::permanently_delete_ohpkms,
+            state::remove_dangling,
+            state::add_to_ohpkm_store,
+            state::get_pokedex,
+            state::update_pokedex,
+            state::get_convert_strategies,
+            state::update_convert_strategies,
+            state::start_transaction,
+            state::rollback_transaction,
+            state::commit_transaction,
+            state::synced_state::save_synced_state,
+        ])
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+}

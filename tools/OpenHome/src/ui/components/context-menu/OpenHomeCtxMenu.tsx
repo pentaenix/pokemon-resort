@@ -1,0 +1,139 @@
+import { Option } from '@openhome-core/util/functional'
+import { filterUndefined } from '@openhome-core/util/sort'
+import { Inset, ContextMenu as RadixCtxMenu } from '@radix-ui/themes'
+import { ReactNode, useMemo } from 'react'
+import './style.css'
+import {
+  CtxMenuElement,
+  CtxMenuElementBuilder,
+  CtxMenuSectionBuilders,
+  SeparatorBuilder,
+  renderContent,
+} from './types'
+
+type ContextMenuProps = { onOpenChange?: (open: boolean) => void } & (
+  | {
+      sections: Option<CtxMenuSectionBuilders>[]
+      elements?: undefined
+    }
+  | { sections?: undefined; elements: Option<CtxMenuElementBuilder>[] }
+) &
+  RadixCtxMenu.TriggerProps
+
+export default function OpenHomeCtxMenu(props: ContextMenuProps) {
+  const { elements, sections, onOpenChange, ...triggerProps } = props
+
+  const allElements = useMemo(() => {
+    const allBuilders =
+      elements?.filter(filterUndefined) ??
+      sections?.filter(filterUndefined).flatMap((section, i) => {
+        const builders = i > 0 ? [SeparatorBuilder, ...section] : section
+        return builders.filter(filterUndefined)
+      }) ??
+      []
+
+    return allBuilders.map(buildComponent)
+  }, [elements, sections])
+
+  return (
+    <RadixCtxMenu.Root modal={false} onOpenChange={onOpenChange}>
+      <RadixCtxMenu.Trigger
+        {...triggerProps}
+        onContextMenuCapture={(e) => {
+          // show native context menu if alt is held
+          if (e.altKey) {
+            e.stopPropagation()
+          }
+        }}
+      />
+      <CtxMenuContent>{allElements}</CtxMenuContent>
+    </RadixCtxMenu.Root>
+  )
+}
+
+export function CtxMenuContent(props: RadixCtxMenu.ContentProps) {
+  return <RadixCtxMenu.Content {...props} />
+}
+
+function CtxMenuItem(props: RadixCtxMenu.ItemProps) {
+  return <RadixCtxMenu.Item {...props} />
+}
+
+function CtxMenuLabel(props: RadixCtxMenu.LabelProps) {
+  return <RadixCtxMenu.Label className="ContextMenuLabel" {...props} />
+}
+
+function CtxMenuSeparator() {
+  return (
+    <Inset>
+      <RadixCtxMenu.Separator />
+    </Inset>
+  )
+}
+
+function CtxMenuSubmenu(props: RadixCtxMenu.SubProps) {
+  return <RadixCtxMenu.Sub {...props} />
+}
+
+function CtxMenuSubmenuTrigger(props: RadixCtxMenu.SubTriggerProps) {
+  return <RadixCtxMenu.SubTrigger {...props} />
+}
+
+function CtxMenuSubmenuContent(props: RadixCtxMenu.SubContentProps) {
+  return <RadixCtxMenu.SubContent {...props} />
+}
+
+function CtxMenuCheckboxItem(props: RadixCtxMenu.CheckboxItemProps) {
+  return <RadixCtxMenu.CheckboxItem {...props} style={{ color: 'inherit', ...props.style }} />
+}
+
+function buildComponent(builder: CtxMenuElementBuilder, index: number): ReactNode {
+  return componentFromElement(builder.build(), index)
+}
+
+function componentFromElement(element: CtxMenuElement, index: number): ReactNode {
+  switch (element.__cm_type_tag) {
+    case 'item':
+      return (
+        <CtxMenuItem
+          key={index}
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            element.action?.()
+          }}
+          disabled={element.disabled}
+        >
+          {renderContent(element.content)}
+        </CtxMenuItem>
+      )
+    case 'label':
+      return <CtxMenuLabel key={index}>{renderContent(element.content)}</CtxMenuLabel>
+    case 'separator':
+      return <CtxMenuSeparator key={index} />
+    case 'submenu':
+      return (
+        <CtxMenuSubmenu key={index}>
+          <CtxMenuSubmenuTrigger>{renderContent(element.content)}</CtxMenuSubmenuTrigger>
+          <CtxMenuSubmenuContent>{element.items.map(componentFromElement)}</CtxMenuSubmenuContent>
+        </CtxMenuSubmenu>
+      )
+    case 'checkbox':
+      return (
+        <CtxMenuCheckboxItem
+          key={index}
+          checked={element.getIsChecked()}
+          onClick={(e) => {
+            element.onValueChanged()
+
+            e.preventDefault()
+            e.stopPropagation()
+          }}
+        >
+          <div className="ContextMenuCheckboxItem" style={{ color: 'inherit' }}>
+            {renderContent(element.content)}
+          </div>
+        </CtxMenuCheckboxItem>
+      )
+  }
+}

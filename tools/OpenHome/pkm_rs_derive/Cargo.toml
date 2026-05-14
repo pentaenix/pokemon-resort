@@ -1,0 +1,15 @@
+[package]
+name = "pkm_rs_derive"
+version = "1.11.0"
+authors = ["Pokemon Resort (vendored OpenHome-derived sources)"]
+edition = "2024"
+description = "Macros for the pkm_rs crate (vendored in Pokemon Resort)"
+license = "GPL-3.0+"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = { version = "2.0.117", features = ["full"] }
+quote = "1"
+proc-macro2 = "1.0.106"

@@ -1,0 +1,91 @@
+import { OHPKM } from '@openhome-core/pkm/OHPKM'
+import { PluginIdentifier } from '@openhome-core/save/interfaces'
+import { gameOrPluginSorter, SortableColumn, stringSorter } from '@openhome-core/util/sort'
+import { OriginGameIndicator } from '@openhome-ui/components/pokemon/indicator/OriginGame'
+import PokemonIcon from '@openhome-ui/components/PokemonIcon'
+import SortableDataGrid from '@openhome-ui/components/SortableDataGrid'
+import { useLookups } from '@openhome-ui/state/lookups/useLookups'
+import { useOhpkmStore } from '@openhome-ui/state/ohpkm'
+import { OriginGames } from '@pkm-rs/pkg'
+
+type G12LookupRow = {
+  gen12ID: string
+  homeID: string
+  homeMon?: OHPKM
+}
+
+type Gen12LookupProps = {
+  onSelectMon: (mon: OHPKM) => void
+}
+
+export default function Gen12Lookup({ onSelectMon }: Gen12LookupProps) {
+  const ohpkmStore = useOhpkmStore()
+  const { lookups } = useLookups()
+
+  const columns: SortableColumn<G12LookupRow>[] = [
+    {
+      key: 'Pokémon',
+      name: 'Mon',
+      width: '5rem',
+      renderValue: (value) =>
+        value.homeMon && (
+          <button
+            onClick={() => value.homeMon && onSelectMon(value.homeMon)}
+            className="mon-icon-button"
+          >
+            <PokemonIcon
+              dexNumber={value.homeMon.dexNum}
+              formeNumber={value.homeMon.formNum}
+              style={{ width: 30, height: 30 }}
+            />
+          </button>
+        ),
+      cellClass: 'centered-cell',
+    },
+    {
+      key: 'game',
+      name: 'Original Game',
+      width: '10rem',
+      renderValue: (value) => (
+        <OriginGameIndicator
+          originGame={value.homeMon?.gameOfOrigin}
+          plugin={value.homeMon?.pluginOrigin as PluginIdentifier}
+          withName
+        />
+      ),
+      getFilterValue: (val) =>
+        val.homeMon ? OriginGames.gameName(val.homeMon.gameOfOrigin) : '(Unknown)',
+      sortFunction: gameOrPluginSorter(
+        (val) => val.homeMon?.gameOfOrigin,
+        (val) => val.homeMon?.pluginOrigin
+      ),
+      cellClass: 'centered-cell',
+    },
+    {
+      key: 'gen12ID',
+      name: 'Gen 1/2',
+      width: '14rem',
+      sortFunction: stringSorter((val) => val.gen12ID),
+      cellClass: 'mono-cell',
+    },
+    {
+      key: 'homeID',
+      name: 'OpenHome',
+      minWidth: 180,
+      sortFunction: stringSorter((val) => val.homeID),
+      cellClass: 'mono-cell',
+    },
+  ]
+
+  return (
+    <SortableDataGrid
+      rows={Object.entries(lookups.gen12).map(([gen12ID, homeID]) => ({
+        gen12ID,
+        homeID,
+        homeMon: ohpkmStore.getById(homeID),
+      }))}
+      columns={columns}
+      enableVirtualization={Object.entries(lookups.gen12).length > 2000} // maybe this should be user-togglable
+    />
+  )
+}

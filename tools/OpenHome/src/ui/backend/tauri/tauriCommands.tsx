@@ -1,0 +1,274 @@
+import { OhpkmIdentifier } from '@openhome-core/pkm/Lookup'
+import { PossibleSaves } from '@openhome-core/save/util/path'
+import { Errorable, R } from '@openhome-core/util/functional'
+import { JSONArray, JSONObject, JSONValue, SaveRef } from '@openhome-core/util/types'
+import { AppTheme } from '@openhome-ui/state/appInfo'
+import { PluginMetadataWithIcon } from '@openhome-ui/util/plugin'
+import { Pokedex, PokedexUpdate } from '@openhome-ui/util/pokedex'
+import { invoke, InvokeArgs, InvokeOptions } from '@tauri-apps/api/core'
+import { ConvertStrategies } from 'src/ui/state/convert-strategies/ConvertStrategiesProvider'
+import { DEFAULT_CONVERT_STRATEGY } from 'src/ui/state/convert-strategies/useConvertStrategies'
+import { AppState, ImageResponse, StoredLookups } from '../backendInterface'
+import { RustResult } from './types'
+
+export type StringToBytes = Record<string, Uint8Array>
+export type StringToB64 = Record<string, string>
+
+function invokeAndCatch<C extends OhCommand>(
+  cmd: C,
+  args?: InvokeArgs,
+  options?: InvokeOptions
+): Promise<Errorable<OhCommandResult<C>>> {
+  return R.tryPromise(invoke(cmd, args, options))
+}
+
+// remove this after node 25 is lts
+if (!('fromBase64' in Uint8Array)) {
+  // @ts-expect-error – intentionally adding this static constructor because it is relatively new to javascript
+  Uint8Array.fromBase64 = function (base64: string): Uint8Array {
+    const binary = atob(base64)
+    const len = binary.length
+    const bytes = new Uint8Array(len)
+
+    for (let i = 0; i < len; i++) {
+      bytes[i] = binary.charCodeAt(i)
+    }
+
+    return bytes
+  }
+}
+
+const ZERO_UUID = '00000000-0000-0000-0000-000000000000'
+
+type RustUnitResultByString = Record<string, RustResult<null, string>>
+
+type OhTauriApi = {
+  get_state(): AppState
+  save_synced_state(): void
+  get_file_bytes(absolutePath: string): number[]
+  get_file_created(absolutePath: string): number
+  write_storage_file_json(relativePath: string, value: JSONValue): null
+  get_storage_file_json(relativePath: string): JSONObject | JSONArray
+  find_suggested_saves(saveFolders: string[]): PossibleSaves
+  write_file_bytes(absolutePath: string, bytes: Uint8Array): null
+  set_app_theme(appTheme: AppTheme): null
+  validate_recent_saves(): Record<string, SaveRef>
+  get_image_data(absolutePath: string): ImageResponse
+  open_directory(absolutePath: string): null
+  open_file_location(filePath: string): null
+  download_plugin(remoteUrl: string): string
+  list_installed_plugins(): PluginMetadataWithIcon[]
+  load_plugin_code(pluginId: string): string
+  delete_plugin(pluginId: string): string
+  handle_windows_accelerator(menuEventId: string): null
+
+  permanently_delete_ohpkms(identifiers: OhpkmIdentifier[]): RustUnitResultByString
+
+  change_data_dir(): null
+  get_data_dir_path(): string
+
+  load_banks(): StoredBankDataSerialized
+  write_banks(bankData: StoredBankDataSerialized): null
+
+  get_lookups(): StoredLookups
+  add_to_lookups(newEntries: StoredLookups): null
+  remove_dangling(): null
+
+  get_ohpkm_store(): StringToB64
+  add_to_ohpkm_store(updates: StringToBytes): null
+
+  get_pokedex(): Pokedex
+  update_pokedex(updates: PokedexUpdate[]): null
+
+  get_convert_strategies(): ConvertStrategies
+  update_convert_strategies(updates: ConvertStrategies): null
+
+  start_transaction(): null
+  rollback_transaction(): null
+  commit_transaction(): null
+}
+
+type OhCommand = keyof OhTauriApi
+
+type OhCommandArgs<C extends OhCommand> = Parameters<OhTauriApi[C]>
+
+type OhCommandResult<C extends OhCommand> = ReturnType<OhTauriApi[C]>
+
+type OhTauriApiNoThrow = {
+  [C in OhCommand]: (...args: OhCommandArgs<C>) => Promise<Errorable<OhCommandResult<C>>>
+}
+
+export const Commands: OhTauriApiNoThrow = {
+  get_state() {
+    return invokeAndCatch('get_state')
+  },
+
+  save_synced_state() {
+    return invokeAndCatch('save_synced_state')
+  },
+
+  get_file_bytes(absolutePath: string) {
+    return invokeAndCatch('get_file_bytes', { absolutePath })
+  },
+
+  get_file_created(absolutePath: string) {
+    return invokeAndCatch('get_file_created', { absolutePath })
+  },
+
+  get_lookups() {
+    return invokeAndCatch('get_lookups')
+  },
+
+  add_to_lookups(newEntries: StoredLookups) {
+    return invokeAndCatch('add_to_lookups', { newEntries })
+  },
+
+  remove_dangling() {
+    return invokeAndCatch('remove_dangling')
+  },
+
+  get_ohpkm_store() {
+    return invokeAndCatch('get_ohpkm_store')
+  },
+
+  permanently_delete_ohpkms(identifiers: OhpkmIdentifier[]) {
+    return invokeAndCatch('permanently_delete_ohpkms', { openhomeIds: identifiers })
+  },
+
+  add_to_ohpkm_store(updates: StringToBytes): Promise<Errorable<null>> {
+    return invokeAndCatch('add_to_ohpkm_store', { updates })
+  },
+
+  get_pokedex() {
+    return invokeAndCatch('get_pokedex')
+  },
+
+  update_pokedex(updates: PokedexUpdate[]) {
+    return invokeAndCatch('update_pokedex', { updates })
+  },
+
+  get_convert_strategies() {
+    return invokeAndCatch('get_convert_strategies').then(
+      R.map((strategies) => {
+        return ZERO_UUID in strategies.strategies_by_id
+          ? strategies
+          : {
+              ...strategies,
+              strategies_by_id: {
+                ...strategies.strategies_by_id,
+                [ZERO_UUID]: { name: 'Default', strategy: DEFAULT_CONVERT_STRATEGY },
+              },
+              default_strategy_id: ZERO_UUID,
+            }
+      })
+    )
+  },
+
+  update_convert_strategies(updates: ConvertStrategies) {
+    return invokeAndCatch('update_convert_strategies', { updates })
+  },
+
+  get_storage_file_json(relativePath: string) {
+    return invokeAndCatch('get_storage_file_json', { relativePath })
+  },
+
+  write_storage_file_json(relativePath: string, data: JSONValue) {
+    return invokeAndCatch('write_storage_file_json', { relativePath, data })
+  },
+
+  change_data_dir() {
+    return invokeAndCatch('change_data_dir')
+  },
+
+  get_data_dir_path() {
+    return invokeAndCatch('get_data_dir_path')
+  },
+
+  load_banks() {
+    return invokeAndCatch('load_banks')
+  },
+
+  write_banks(bankData: StoredBankDataSerialized) {
+    return invokeAndCatch('write_banks', { bankData })
+  },
+
+  write_file_bytes(absolutePath: string, bytes: Uint8Array) {
+    return invokeAndCatch('write_file_bytes', { absolutePath, bytes })
+  },
+
+  start_transaction() {
+    return invokeAndCatch('start_transaction')
+  },
+
+  rollback_transaction() {
+    return invokeAndCatch('rollback_transaction')
+  },
+
+  commit_transaction() {
+    return invokeAndCatch('commit_transaction')
+  },
+
+  find_suggested_saves(saveFolders: string[]) {
+    return invokeAndCatch('find_suggested_saves', { saveFolders })
+  },
+
+  set_app_theme(appTheme: AppTheme) {
+    return invokeAndCatch('set_app_theme', { appTheme })
+  },
+
+  validate_recent_saves() {
+    return invokeAndCatch('validate_recent_saves')
+  },
+
+  get_image_data(absolutePath: string) {
+    return invokeAndCatch('get_image_data', { absolutePath })
+  },
+
+  download_plugin(remoteUrl: string) {
+    return invokeAndCatch('download_plugin', { remoteUrl })
+  },
+
+  list_installed_plugins() {
+    return invokeAndCatch('list_installed_plugins')
+  },
+
+  load_plugin_code(pluginId: string) {
+    return invokeAndCatch('load_plugin_code', { pluginId })
+  },
+
+  delete_plugin(pluginId: string) {
+    return invokeAndCatch('delete_plugin', { pluginId })
+  },
+
+  handle_windows_accelerator(menuEventId: string) {
+    return invokeAndCatch('handle_windows_accelerator', { menuEventId })
+  },
+
+  open_directory(absolutePath: string) {
+    return invokeAndCatch('open_directory', { absolutePath })
+  },
+
+  open_file_location(filePath: string) {
+    return invokeAndCatch('open_file_location', { filePath })
+  },
+}
+
+export type StoredBankDataSerialized = {
+  banks: OpenHomeBankSerialized[]
+  current_bank: number
+}
+
+export type OpenHomeBankSerialized = {
+  id: string
+  index: number
+  name: string | undefined
+  boxes: OpenHomeBoxSerialized[]
+  current_box: number
+}
+
+export type OpenHomeBoxSerialized = {
+  id: string
+  index: number
+  name: string | null
+  identifiers: Record<number, string>
+}
