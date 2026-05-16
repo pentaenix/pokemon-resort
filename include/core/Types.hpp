@@ -246,6 +246,18 @@ struct GameTransferBoxViewportStyle {
     double box_space_sprite_scale = 2.0;
     int box_space_sprite_offset_x = 0;
     int box_space_sprite_offset_y = 0;
+
+    // --- Transfer slot markers (legacy JSON keys; meanings are Tier-0 / Tier-1 / session staging) ---
+    bool visited_resort_marker_enabled = true;
+    int visited_resort_marker_radius = 4;
+    int visited_resort_marker_offset_x = -6;
+    int visited_resort_marker_offset_y = -6;
+    /// Legacy default green; also fallback when per-kind return-visitor color is omitted in JSON.
+    Color visited_resort_marker_color{46, 176, 92, 255};
+    Color marker_return_visitor_color{46, 176, 92, 255};
+    Color marker_staging_from_resort_color{220, 180, 40, 255};
+    Color marker_first_visit_color{50, 120, 220, 255};
+    Color marker_return_visitor_carry_color{46, 176, 92, 255};
 };
 
 /// Small “mini preview” box that slides in to preview hovered boxes.

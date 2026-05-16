@@ -6,6 +6,9 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
 
 namespace pr::resort {
 
@@ -37,6 +40,12 @@ public:
         std::int64_t updated_at_unix);
 
     std::optional<std::string> findOpenHomeIdForPokemon(const std::string& pkrid) const;
+    /// Batched lookup for Tier-1 marker hints (one query per phase; ignores empty `pkrids` entries).
+    std::unordered_map<std::string, std::string> findOpenHomeIdsForPokemon(const std::vector<std::string>& pkrids) const;
+
+    /// Keys compatible with `pr::openHomeProfileMatchKeyFromSlot` for Resort rows with a valid OpenHome id.
+    void loadPidEcOtOpenHomeProfileMatchKeys(std::unordered_set<std::string>& out) const;
+
     std::optional<std::string> findPokemonForOpenHomeId(const std::string& openhome_id) const;
 
     void recordPlacement(const PokemonPlacementRecord& placement);

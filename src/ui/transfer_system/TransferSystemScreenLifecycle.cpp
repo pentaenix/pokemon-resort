@@ -374,6 +374,7 @@ void TransferSystemScreen::enter(const TransferSaveSelection& selection, SDL_Ren
     deferred_save_for_successful_exit_pending_ = false;
     cross_panel_game_to_resort_moves_ = 0;
     cross_panel_resort_to_game_moves_ = 0;
+    resetTransferMarkerSession();
     pending_openhome_pulls_.clear();
     pending_openhome_import_payloads_.clear();
     selection_cursor_hidden_after_mouse_ = false;
@@ -576,6 +577,7 @@ void TransferSystemScreen::enter(const TransferSaveSelection& selection, SDL_Ren
                 m.disabled_slots[i] = true;
             }
         }
+        fillTransferSlotMarkers(m, BoxViewportRole::ExternalGameSave, box_index);
         return m;
     };
 

@@ -131,6 +131,11 @@ bool TransferSystemScreen::dropHeldMultiPokemonAt(const transfer_system::Pokemon
     } else if (from_panel == Move::Panel::Resort && to_panel == Move::Panel::Game) {
         noteCrossPanelResortToGameMoves(static_cast<int>(entries.size()));
     }
+    for (std::size_t i = 0; i < entries.size(); ++i) {
+        if (const PcSlotSpecies* placed = pokemonAt((*slots)[i])) {
+            notifyTransferMarkerAfterCrossPanelDrop(drop_ok, *placed, entries[i].return_slot, (*slots)[i]);
+        }
+    }
     std::cerr << "[TEMP_TRANSFER_LOG_DELETE] UI multi Pokemon drop count=" << entries.size()
               << " source_panel="
               << (entries.empty() || entries.front().return_slot.panel == transfer_system::PokemonMoveController::Panel::Game
@@ -247,6 +252,11 @@ bool TransferSystemScreen::dropHeldMultiPokemonIntoFirstEmptyResortBox(int box_i
         }
         noteCrossPanelGameToResortMoves(static_cast<int>(entries.size()));
     }
+    for (std::size_t i = 0; i < entries.size(); ++i) {
+        if (const PcSlotSpecies* placed = pokemonAt(targets[i])) {
+            notifyTransferMarkerAfterCrossPanelDrop(true, *placed, entries[i].return_slot, targets[i]);
+        }
+    }
     std::cerr << "[TEMP_TRANSFER_LOG_DELETE] UI multi Pokemon quick-drop to Resort count=" << entries.size()
               << " target_box=" << box_index
               << " commit pending Save+Exit\n";
@@ -284,6 +294,11 @@ bool TransferSystemScreen::dropHeldMultiPokemonIntoFirstEmptySlotsInBox(int box_
     }
     if (!entries.empty() && entries.front().return_slot.panel == transfer_system::PokemonMoveController::Panel::Resort) {
         noteCrossPanelResortToGameMoves(static_cast<int>(entries.size()));
+    }
+    for (std::size_t i = 0; i < entries.size(); ++i) {
+        if (const PcSlotSpecies* placed = pokemonAt(targets[i])) {
+            notifyTransferMarkerAfterCrossPanelDrop(true, *placed, entries[i].return_slot, targets[i]);
+        }
     }
     std::cerr << "[TEMP_TRANSFER_LOG_DELETE] UI multi Pokemon quick-drop to Game count=" << entries.size()
               << " target_box=" << box_index

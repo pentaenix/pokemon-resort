@@ -122,6 +122,8 @@ add_executable(title_screen_demo
     src/ui/transfer_system/TransferSystemScreenActionMenuPointer.cpp
     src/ui/transfer_system/TransferSystemScreenBoxSpaceQuickDrop.cpp
     src/ui/transfer_system/TransferSystemScreenViewportModels.cpp
+    src/ui/transfer_system/TransferSystemScreenTransferMarkers.cpp
+    src/ui/transfer_system/markers/TransferMarkerState.cpp
     src/ui/transfer_system/TransferSystemScreenBoxSpaceMode.cpp
     src/ui/transfer_system/TransferSystemScreenMultiMarquee.cpp
     src/ui/transfer_system/TransferSystemScreenDebugHooks.cpp
@@ -194,6 +196,12 @@ add_executable(openhome_bridge_tests
 )
 target_include_directories(openhome_bridge_tests PRIVATE include)
 add_test(NAME openhome_bridge_tests COMMAND openhome_bridge_tests)
+
+add_executable(transfer_marker_resolve_tests
+    tests/native/transfer_marker_resolve_tests.cpp
+)
+target_include_directories(transfer_marker_resolve_tests PRIVATE include)
+add_test(NAME transfer_marker_resolve_tests COMMAND transfer_marker_resolve_tests)
 
 add_executable(mutable_merge_policy_tests
     tests/native/resort/mutable_merge_policy_tests.cpp
@@ -484,6 +492,8 @@ add_executable(transfer_system_flow_harness_tests
     src/ui/transfer_system/TransferSystemScreenActionMenuPointer.cpp
     src/ui/transfer_system/TransferSystemScreenBoxSpaceQuickDrop.cpp
     src/ui/transfer_system/TransferSystemScreenViewportModels.cpp
+    src/ui/transfer_system/TransferSystemScreenTransferMarkers.cpp
+    src/ui/transfer_system/markers/TransferMarkerState.cpp
     src/ui/transfer_system/TransferSystemScreenBoxSpaceMode.cpp
     src/ui/transfer_system/TransferSystemScreenMultiMarquee.cpp
     src/ui/transfer_system/TransferSystemScreenDebugHooks.cpp

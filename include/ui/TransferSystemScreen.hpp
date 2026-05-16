@@ -36,6 +36,10 @@ class PokemonResortService;
 struct PokemonSlotView;
 }
 
+namespace pr::transfer_system {
+class TransferMarkerState;
+}
+
 namespace pr {
 
 class TransferSystemScreen : public Screen {
@@ -50,6 +54,7 @@ public:
         const char* bridge_argv0,
         resort::PokemonResortService* resort_service = nullptr);
 
+    ~TransferSystemScreen();
     void enter(const TransferSaveSelection& selection, SDL_Renderer* renderer, int initial_game_box_index);
     void update(double dt) override;
     void render(SDL_Renderer* renderer) override;
@@ -249,6 +254,7 @@ private:
     void noteCrossPanelResortToGameMoves(int count);
     void markGameBoxesDirty();
     void markResortBoxesDirty();
+    void resetTransferMarkerSession();
     bool hasPendingOpenHomeMovement() const;
     // Uses `save_path_override` for OpenHome CLI side effects so we can stage writes and only replace
     // the user's real save file after all commits succeed.
@@ -391,6 +397,7 @@ private:
     int resort_pc_box_count_ = 60;
     std::vector<TransferSaveSelection::PcBox> resort_pc_boxes_{};
     resort::PokemonResortService* resort_service_{nullptr};
+    std::unique_ptr<transfer_system::TransferMarkerState> transfer_marker_state_{};
     transfer_system::GameBoxBrowserController resort_box_browser_{};
     mutable std::vector<TextureHandle> resort_dropdown_item_textures_{};
     mutable bool resort_dropdown_labels_dirty_ = false;
@@ -622,6 +629,12 @@ private:
     void stepDropdownHighlight(int delta);
     void applyGameBoxDropdownSelection();
     BoxViewportModel gameBoxViewportModelAt(int box_index) const;
+    void fillTransferSlotMarkers(BoxViewportModel& model, BoxViewportRole role, int box_index) const;
+    void notifyTransferMarkerAfterCrossPanelDrop(
+        bool marker_commit_ok,
+        const PcSlotSpecies& moved_mon,
+        const transfer_system::PokemonMoveController::SlotRef& from,
+        const transfer_system::PokemonMoveController::SlotRef& to);
     transfer_system::TransferInfoBannerContext activeInfoBannerContext() const;
     const PcSlotSpecies* activeInfoBannerPokemon() const;
     FontHandle infoBannerFont(int font_pt) const;

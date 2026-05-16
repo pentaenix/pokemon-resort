@@ -56,6 +56,36 @@ void setDrawColor(SDL_Renderer* renderer, const Color& c) {
         static_cast<Uint8>(c.a));
 }
 
+void fillDisk(SDL_Renderer* renderer, int cx, int cy, int r, const Color& c) {
+    if (r < 1) {
+        return;
+    }
+    setDrawColor(renderer, c);
+    const int rr = r * r + r;
+    for (int dy = -r; dy <= r; ++dy) {
+        for (int dx = -r; dx <= r; ++dx) {
+            if (dx * dx + dy * dy <= rr) {
+                SDL_RenderDrawPoint(renderer, cx + dx, cy + dy);
+            }
+        }
+    }
+}
+
+Color transferMarkerDotColor(const GameTransferBoxViewportStyle& st, TransferSlotMarkerKind k) {
+    switch (k) {
+        case TransferSlotMarkerKind::ReturnVisitor:
+            return st.marker_return_visitor_color;
+        case TransferSlotMarkerKind::StagingFromResort:
+            return st.marker_staging_from_resort_color;
+        case TransferSlotMarkerKind::FirstVisitStaging:
+            return st.marker_first_visit_color;
+        case TransferSlotMarkerKind::ReturnVisitorOnResortUntilSave:
+            return st.marker_return_visitor_carry_color;
+        default:
+            return Color{0, 0, 0, 0};
+    }
+}
+
 void fillRoundedRectScanlines(SDL_Renderer* renderer, int x, int y, int w, int h, int radius, const Color& c) {
     if (w <= 0 || h <= 0) {
         return;
@@ -817,16 +847,52 @@ void BoxViewport::renderBelowNamePlate(SDL_Renderer* renderer) const {
         }
     };
 
+    auto draw_slot_transfer_markers_only = [&](const BoxViewportModel& m, int dx) {
+        const bool box_space_grid = (header_mode_ == HeaderMode::BoxSpace);
+        if (box_space_grid || !style_.visited_resort_marker_enabled) {
+            return;
+        }
+        const int r = std::max(1, style_.visited_resort_marker_radius);
+        const SDL_Rect grid = slotGridRect(m, vx, vy);
+        const int cols = clampedSlotColumns(m);
+        const int slots = clampedVisibleSlotCount(m);
+        for (int idx_int = 0; idx_int < slots; ++idx_int) {
+            const std::size_t idx = static_cast<std::size_t>(idx_int);
+            const int row = idx_int / cols;
+            const int col = idx_int % cols;
+            const int wdx = idx < m.slot_wiggle_dx.size() ? m.slot_wiggle_dx[idx] : 0;
+            const int sx = grid.x + col * (kSlotW + kSlotGapX) + dx + wdx;
+            const int sy = grid.y + row * (kSlotH + kSlotGapY);
+            if (idx >= m.slot_markers.size()) {
+                continue;
+            }
+            const TransferSlotMarkerKind mk = m.slot_markers[idx];
+            if (mk == TransferSlotMarkerKind::None) {
+                continue;
+            }
+            const Color dot = transferMarkerDotColor(style_, mk);
+            if (dot.a == 0) {
+                continue;
+            }
+            const int cx = sx + kSlotW + style_.visited_resort_marker_offset_x;
+            const int cy = sy + kSlotH + style_.visited_resort_marker_offset_y;
+            fillDisk(renderer, cx, cy, r, dot);
+        }
+    };
+
     const int base_dx = static_cast<int>(std::lround(content_slide_offset_x_));
     if (!content_slide_active_) {
         draw_slot_backgrounds_only(model_, 0);
         draw_slot_sprites_only(model_, 0);
+        draw_slot_transfer_markers_only(model_, 0);
     } else {
         const int incoming_dx = content_slide_dir_ * BoxViewport::kViewportWidth;
         draw_slot_backgrounds_only(model_, base_dx);
         draw_slot_backgrounds_only(incoming_model_, base_dx + incoming_dx);
         draw_slot_sprites_only(model_, base_dx);
         draw_slot_sprites_only(incoming_model_, base_dx + incoming_dx);
+        draw_slot_transfer_markers_only(model_, base_dx);
+        draw_slot_transfer_markers_only(incoming_model_, base_dx + incoming_dx);
     }
 
     SDL_RenderSetClipRect(renderer, nullptr);

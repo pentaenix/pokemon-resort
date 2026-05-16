@@ -96,7 +96,7 @@ void TransferSystemScreen::onBackPressed() {
         return;
     }
     // Pull UI away before returning.
-    ui_state_.startExit();
+    requestReturnToTicketList();
 }
 
 } // namespace pr

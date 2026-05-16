@@ -634,7 +634,7 @@ void TransferSystemScreen::activateExitSaveModalRow(int row) {
             }
             successful_save_exit_requested_ = false;
             closeExitSaveModal();
-            ui_state_.startExit();
+            requestReturnToTicketList();
             return;
         }
         deferred_save_for_successful_exit_pending_ = true;
@@ -646,7 +646,7 @@ void TransferSystemScreen::activateExitSaveModalRow(int row) {
         resort_boxes_dirty_ = false;
     }
     closeExitSaveModal();
-    ui_state_.startExit();
+    requestReturnToTicketList();
 }
 
 bool TransferSystemScreen::runDeferredSaveForSuccessfulExit() {
@@ -670,14 +670,6 @@ bool TransferSystemScreen::handleExitSaveModalPointerPressed(int logical_x, int 
     }
     // Click outside: keep modal open.
     return true;
-}
-
-void TransferSystemScreen::markGameBoxesDirty() {
-    game_boxes_dirty_ = true;
-}
-
-void TransferSystemScreen::markResortBoxesDirty() {
-    resort_boxes_dirty_ = true;
 }
 
 void TransferSystemScreen::noteCrossPanelGameToResortMoves(int count) {
@@ -1300,6 +1292,7 @@ bool TransferSystemScreen::saveGameBoxEditsOverlayAndClearDirty() {
     if (!game_boxes_dirty_ && !resort_boxes_dirty_) {
         game_boxes_dirty_ = false;
         resort_boxes_dirty_ = false;
+        resetTransferMarkerSession();
         return true;
     }
     if (!preparePendingResortMirrorPayloadsForSave()) {
@@ -1419,6 +1412,7 @@ bool TransferSystemScreen::saveGameBoxEditsOverlayAndClearDirty() {
         fs::remove(fs::path(save_directory_) / "transfer_box_edits.json", overlay_rm_error);
         game_boxes_dirty_ = false;
         resort_boxes_dirty_ = false;
+        resetTransferMarkerSession();
         return true;
     }
     if (!commitPendingGameToResortImportsBeforeSave()) {
@@ -1429,11 +1423,13 @@ bool TransferSystemScreen::saveGameBoxEditsOverlayAndClearDirty() {
             return false;
         }
         resort_boxes_dirty_ = false;
+        resetTransferMarkerSession();
         return true;
     }
     if (save_directory_.empty()) {
         game_boxes_dirty_ = false;
         resort_boxes_dirty_ = false;
+        resetTransferMarkerSession();
         return true;
     }
     // Require import-grade payloads for every occupied PC slot so we never write guessed PKM bytes.
@@ -1491,6 +1487,7 @@ bool TransferSystemScreen::saveGameBoxEditsOverlayAndClearDirty() {
     fs::remove(dir / "transfer_box_edits.json", rm_error);
     game_boxes_dirty_ = false;
     resort_boxes_dirty_ = false;
+    resetTransferMarkerSession();
     return true;
 }
 

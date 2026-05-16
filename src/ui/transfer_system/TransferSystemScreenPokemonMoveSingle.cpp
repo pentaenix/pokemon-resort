@@ -206,6 +206,11 @@ bool TransferSystemScreen::dropHeldPokemonAt(const transfer_system::PokemonMoveC
         refreshHeldMoveSpriteTexture();
     }
 
+    const bool marker_commit_ok = drop_ok && persist_ok && !revert_game_to_resort && !revert_resort_to_game;
+    if (const PcSlotSpecies* placed = pokemonAt(target)) {
+        notifyTransferMarkerAfterCrossPanelDrop(marker_commit_ok, *placed, return_slot, target);
+    }
+
     if (!game_box_browser_.gameBoxSpaceMode()) {
         if (target.panel == Move::Panel::Game) {
             focus_.setCurrent(2000 + target.slot_index);
