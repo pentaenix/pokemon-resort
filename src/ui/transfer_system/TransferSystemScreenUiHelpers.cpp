@@ -96,7 +96,11 @@ bool TransferSystemScreen::consumeSuccessfulSaveExitRequest() {
 }
 
 void TransferSystemScreen::requestReturnToTicketList() {
-    // Kept for call sites that still phrase this as a screen-level request.
+    // Transfer slot markers are per opened-save session; clear as soon as we leave the game so the next
+    // `enter()` / save load cannot inherit yellow/blue/green staging or Tier-1 box caches from this visit.
+    resetTransferMarkerSession();
+    refreshGameBoxViewportModel();
+    refreshResortBoxViewportModel();
     ui_state_.startExit();
 }
 

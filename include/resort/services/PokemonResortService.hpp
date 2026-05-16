@@ -25,6 +25,8 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace pr::resort {
@@ -91,6 +93,8 @@ public:
         const std::string& pkrid,
         const openhome::OpenHomePokemonPayload& payload);
     std::optional<std::string> getOpenHomeIdForPokemon(const std::string& pkrid) const;
+    std::unordered_map<std::string, std::string> getOpenHomeIdsForPokemonBatch(const std::vector<std::string>& pkrids) const;
+    void loadOpenHomeProfileMatchKeys(std::unordered_set<std::string>& out) const;
     std::optional<std::string> getPokemonIdForOpenHomeId(const std::string& openhome_id) const;
     void recordPokemonInGamePlacement(
         const std::string& pkrid,

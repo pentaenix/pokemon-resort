@@ -1,6 +1,11 @@
 #include "resort/persistence/OpenHomeLinkRepository.hpp"
 
+#include "core/domain/PcSlotOpenHomeProfileKey.hpp"
+#include "resort/openhome/OpenHomeIdentity.hpp"
+
+#include <sstream>
 #include <stdexcept>
+#include <unordered_set>
 
 namespace pr::resort {
 
@@ -102,6 +107,105 @@ std::optional<std::string> OpenHomeLinkRepository::findOpenHomeIdForPokemon(cons
         return legacy.columnText(0);
     }
     return std::nullopt;
+}
+
+std::unordered_map<std::string, std::string> OpenHomeLinkRepository::findOpenHomeIdsForPokemon(
+    const std::vector<std::string>& pkrids) const {
+    std::unordered_map<std::string, std::string> out;
+    std::vector<std::string> uniq;
+    uniq.reserve(pkrids.size());
+    std::unordered_set<std::string> seen;
+    for (const std::string& p : pkrids) {
+        if (p.empty() || seen.count(p)) {
+            continue;
+        }
+        seen.insert(p);
+        uniq.push_back(p);
+    }
+    if (uniq.empty()) {
+        return out;
+    }
+
+    auto run_in_query = [&](const char* sql_prefix, const char* sql_suffix, const std::vector<std::string>& keys) {
+        if (keys.empty()) {
+            return;
+        }
+        std::ostringstream oss;
+        oss << sql_prefix;
+        for (std::size_t i = 0; i < keys.size(); ++i) {
+            oss << (i == 0 ? "?" : ",?");
+        }
+        oss << sql_suffix;
+        auto stmt = connection_.prepare(oss.str());
+        for (std::size_t i = 0; i < keys.size(); ++i) {
+            stmt.bindText(static_cast<int>(i) + 1, keys[i]);
+        }
+        while (stmt.stepRow()) {
+            out[stmt.columnText(0)] = stmt.columnText(1);
+        }
+    };
+
+    run_in_query("SELECT pkrid, openhome_id FROM openhome_payloads WHERE pkrid IN (", ")", uniq);
+
+    std::vector<std::string> missing;
+    missing.reserve(uniq.size());
+    for (const std::string& p : uniq) {
+        if (!out.count(p)) {
+            missing.push_back(p);
+        }
+    }
+    run_in_query(
+        "SELECT pkrid, home_tracker FROM pokemon WHERE pkrid IN (",
+        ") AND home_tracker IS NOT NULL AND length(home_tracker) > 0",
+        missing);
+    return out;
+}
+
+void OpenHomeLinkRepository::loadPidEcOtOpenHomeProfileMatchKeys(std::unordered_set<std::string>& out) const {
+    auto insert_if_valid = [&](std::uint32_t pid,
+                               std::uint32_t ec,
+                               const std::optional<std::uint16_t>& tid,
+                               const std::optional<std::uint16_t>& sid,
+                               const std::string& ot,
+                               const std::string& openhome_candidate) {
+        if (!openhome::isValidOpenHomeId(openhome_candidate)) {
+            return;
+        }
+        const std::string k = pr::openHomeProfileMatchKey(pid, ec, tid, sid, ot);
+        if (!k.empty()) {
+            out.insert(k);
+        }
+    };
+
+    {
+        auto stmt = connection_.prepare(R"sql(
+SELECT p.pid, p.encryption_constant, p.tid16, p.sid16, p.ot_name, op.openhome_id
+FROM pokemon p
+INNER JOIN openhome_payloads op ON op.pkrid = p.pkrid
+WHERE p.pid IS NOT NULL AND p.encryption_constant IS NOT NULL
+)sql");
+        while (stmt.stepRow()) {
+            const auto pid = static_cast<std::uint32_t>(stmt.columnInt64(0));
+            const auto ec = static_cast<std::uint32_t>(stmt.columnInt64(1));
+            insert_if_valid(pid, ec, optionalU16(stmt, 2), optionalU16(stmt, 3), stmt.columnText(4), stmt.columnText(5));
+        }
+    }
+
+    {
+        auto stmt = connection_.prepare(R"sql(
+SELECT p.pid, p.encryption_constant, p.tid16, p.sid16, p.ot_name, p.home_tracker
+FROM pokemon p
+LEFT JOIN openhome_payloads op ON op.pkrid = p.pkrid
+WHERE op.pkrid IS NULL
+  AND p.pid IS NOT NULL AND p.encryption_constant IS NOT NULL
+  AND p.home_tracker IS NOT NULL AND length(p.home_tracker) > 0
+)sql");
+        while (stmt.stepRow()) {
+            const auto pid = static_cast<std::uint32_t>(stmt.columnInt64(0));
+            const auto ec = static_cast<std::uint32_t>(stmt.columnInt64(1));
+            insert_if_valid(pid, ec, optionalU16(stmt, 2), optionalU16(stmt, 3), stmt.columnText(4), stmt.columnText(5));
+        }
+    }
 }
 
 std::optional<std::string> OpenHomeLinkRepository::findPokemonForOpenHomeId(const std::string& openhome_id) const {

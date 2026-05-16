@@ -37,6 +37,7 @@ BoxViewportModel TransferSystemScreen::gameBoxViewportModelAt(int box_index) con
          ++i) {
         incoming.disabled_slots[i] = true;
     }
+    fillTransferSlotMarkers(incoming, BoxViewportRole::ExternalGameSave, box_index);
     return incoming;
 }
 
@@ -118,6 +119,7 @@ BoxViewportModel TransferSystemScreen::resortBoxViewportModelAt(int box_index) c
                 item.texture ? std::optional<TextureHandle>(std::move(item)) : std::nullopt;
         }
     }
+    fillTransferSlotMarkers(incoming, BoxViewportRole::ResortStorage, box_index);
     return incoming;
 }
 

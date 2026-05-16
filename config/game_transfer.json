@@ -52,7 +52,15 @@
       "sprite_scale": 1.3,
       "sprite_offset_x": 0,
       "sprite_offset_y": 0
-    }
+    },
+    "visited_resort_marker_enabled": true,
+    "visited_resort_marker_radius": 4,
+    "visited_resort_marker_offset_x": -6,
+    "visited_resort_marker_offset_y": -6,
+    "visited_resort_marker_color": "$teal_0",
+    "marker_staging_from_resort_color": "#dcb028",
+    "marker_first_visit_color": "#3278dc",
+    "marker_return_visitor_carry_color": "$teal_0"
   },
   "mini_preview": {
     "enabled": true,

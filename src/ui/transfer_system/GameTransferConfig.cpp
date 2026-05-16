@@ -382,6 +382,50 @@ LoadedGameTransfer loadGameTransfer(const std::string& project_root) {
                         intFromObjectOrDefault(*bs, "sprite_offset_y", out.box_viewport.box_space_sprite_offset_y);
                 }
             }
+
+            out.box_viewport.visited_resort_marker_enabled =
+                boolFromObjectOrDefault(o, "visited_resort_marker_enabled", out.box_viewport.visited_resort_marker_enabled);
+            out.box_viewport.visited_resort_marker_radius =
+                std::max(1, intFromObjectOrDefault(o, "visited_resort_marker_radius", out.box_viewport.visited_resort_marker_radius));
+            out.box_viewport.visited_resort_marker_offset_x =
+                intFromObjectOrDefault(o, "visited_resort_marker_offset_x", out.box_viewport.visited_resort_marker_offset_x);
+            out.box_viewport.visited_resort_marker_offset_y =
+                intFromObjectOrDefault(o, "visited_resort_marker_offset_y", out.box_viewport.visited_resort_marker_offset_y);
+            if (const JsonValue* c = o.get("visited_resort_marker_color")) {
+                if (c->isString()) {
+                    out.box_viewport.visited_resort_marker_color =
+                        parseColorString(c->asString(), out.box_viewport.visited_resort_marker_color, design_tokens);
+                }
+            }
+            const Color marker_rv_fallback = out.box_viewport.visited_resort_marker_color;
+            if (const JsonValue* c = o.get("marker_return_visitor_color")) {
+                if (c->isString()) {
+                    out.box_viewport.marker_return_visitor_color =
+                        parseColorString(c->asString(), out.box_viewport.marker_return_visitor_color, design_tokens);
+                }
+            } else {
+                out.box_viewport.marker_return_visitor_color = marker_rv_fallback;
+            }
+            if (const JsonValue* c = o.get("marker_staging_from_resort_color")) {
+                if (c->isString()) {
+                    out.box_viewport.marker_staging_from_resort_color =
+                        parseColorString(c->asString(), out.box_viewport.marker_staging_from_resort_color, design_tokens);
+                }
+            }
+            if (const JsonValue* c = o.get("marker_first_visit_color")) {
+                if (c->isString()) {
+                    out.box_viewport.marker_first_visit_color =
+                        parseColorString(c->asString(), out.box_viewport.marker_first_visit_color, design_tokens);
+                }
+            }
+            if (const JsonValue* c = o.get("marker_return_visitor_carry_color")) {
+                if (c->isString()) {
+                    out.box_viewport.marker_return_visitor_carry_color =
+                        parseColorString(c->asString(), out.box_viewport.marker_return_visitor_carry_color, design_tokens);
+                }
+            } else {
+                out.box_viewport.marker_return_visitor_carry_color = out.box_viewport.marker_return_visitor_color;
+            }
         }
     }
 

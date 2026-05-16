@@ -2,6 +2,7 @@
 
 #include "core/assets/Assets.hpp"
 #include "core/Types.hpp"
+#include "ui/transfer_system/markers/TransferSlotMarkerTypes.hpp"
 
 #include <SDL.h>
 #include <array>
@@ -33,6 +34,8 @@ struct BoxViewportModel {
     std::array<bool, 30> disabled_slots{};
     /// Pixel nudge for Box Space long-press feedback (horizontal shake); visual only.
     std::array<int, 30> slot_wiggle_dx{};
+    /// Per-slot transfer marker dot (Resort / external save normal grids only; Box Space leaves default `None`).
+    std::array<TransferSlotMarkerKind, 30> slot_markers{};
 };
 
 class BoxViewport {

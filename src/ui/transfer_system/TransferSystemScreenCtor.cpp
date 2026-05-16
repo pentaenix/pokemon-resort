@@ -2,6 +2,7 @@
 
 #include "ui/transfer_system/GameTransferConfig.hpp"
 #include "ui/transfer_system/TransferSaveConfig.hpp"
+#include "ui/transfer_system/markers/TransferMarkerState.hpp"
 #include "ui/transfer_system/detail/TextureLoad.hpp"
 
 #include <SDL.h>
@@ -36,6 +37,7 @@ TransferSystemScreen::TransferSystemScreen(
       font_path_(font_path),
       sprite_assets_(std::move(sprite_assets)),
       resort_service_(resort_service),
+      transfer_marker_state_(std::make_unique<transfer_system::TransferMarkerState>()),
       background_(loadTexture(
           renderer,
           resolvePath(project_root_, "assets/transfer_select_save/background.png"))) {
@@ -117,6 +119,8 @@ TransferSystemScreen::TransferSystemScreen(
         game_box_x,
         kBoxViewportY);
 }
+
+TransferSystemScreen::~TransferSystemScreen() = default;
 
 } // namespace pr
 

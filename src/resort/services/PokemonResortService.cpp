@@ -15,6 +15,8 @@
 #include <random>
 #include <sstream>
 #include <string_view>
+#include <unordered_map>
+#include <unordered_set>
 
 namespace pr::resort {
 
@@ -396,6 +398,15 @@ void PokemonResortService::linkOpenHomePayloadToPokemon(
 
 std::optional<std::string> PokemonResortService::getOpenHomeIdForPokemon(const std::string& pkrid) const {
     return openhome_links_->findOpenHomeIdForPokemon(pkrid);
+}
+
+std::unordered_map<std::string, std::string> PokemonResortService::getOpenHomeIdsForPokemonBatch(
+    const std::vector<std::string>& pkrids) const {
+    return openhome_links_->findOpenHomeIdsForPokemon(pkrids);
+}
+
+void PokemonResortService::loadOpenHomeProfileMatchKeys(std::unordered_set<std::string>& out) const {
+    openhome_links_->loadPidEcOtOpenHomeProfileMatchKeys(out);
 }
 
 std::optional<std::string> PokemonResortService::getPokemonIdForOpenHomeId(const std::string& openhome_id) const {
