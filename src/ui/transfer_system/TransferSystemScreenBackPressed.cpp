@@ -22,6 +22,10 @@ void TransferSystemScreen::onBackPressed() {
         ui_state_.requestButtonSfx();
         return;
     }
+    if (pokemon_summary_target_open_) {
+        closePokemonSummaryPanel();
+        return;
+    }
     if (keyboard_multi_marquee_active_) {
         keyboard_multi_marquee_active_ = false;
         ui_state_.requestButtonSfx();
@@ -100,4 +104,3 @@ void TransferSystemScreen::onBackPressed() {
 }
 
 } // namespace pr
-

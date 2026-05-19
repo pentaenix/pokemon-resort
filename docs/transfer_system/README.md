@@ -32,7 +32,11 @@ For transfer persistence/safety (staged Save+Exit, OpenHome movement commits, ‚Ä
 - [`TransferSystemFocusGraph.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/transfer_system/TransferSystemFocusGraph.cpp) and [`FocusManager.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/FocusManager.cpp)
   Keyboard/controller topology, explicit directional edges, current focus, activation callbacks, and focus bounds.
 - [`PokemonActionMenuController.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/transfer_system/PokemonActionMenuController.cpp)
-  Pure normal-tool Pokemon modal state, placement geometry, row hit testing, and row selection.
+  Pure normal-tool Pokemon modal state, placement geometry, row hit testing, and row selection. The Summary row opens the side-aware Summary panel shell.
+- [`PokemonSummaryConfig.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/transfer_system/summary/PokemonSummaryConfig.cpp)
+  Parses [`pokemon_summary.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/pokemon_summary.json). Summary panel size, edge motion, and chrome belong there; content will grow in the same config surface.
+- [`summary/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/transfer_system/summary/README.md)
+  Handoff notes for the current Summary shell, temporary content, integration points, and next implementation steps.
 - [`ItemActionMenuController.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/transfer_system/ItemActionMenuController.cpp)
   Pure item-tool modal state, root/put-away pages, labels, placement geometry, row hit testing, and row selection.
 - [`PokemonMoveController.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/transfer_system/PokemonMoveController.cpp)
@@ -161,6 +165,19 @@ Use this section when you have a symptom and want the fastest landing zone.
 - **Menu opens/closes but screen glue is wrong**
   - Start in `src/ui/transfer_system/TransferSystemScreenActionMenuHelpers.cpp` (menu glue) and `TransferSystemScreenActionMenuPointer.cpp` (pointer glue).
 
+### Pokemon Summary panel
+
+- **Summary opens on the wrong side or covers the focused box**
+  - Start in `src/ui/transfer_system/summary/TransferSystemSummaryPanel.cpp`.
+  - The rule is opposite-side replacement: focused game box opens Summary from the left edge; focused Resort box opens Summary from the right edge.
+- **Opposite box does not retract while Summary enters**
+  - Start in `src/ui/transfer_system/TransferSystemScreenUpdateSync.cpp`.
+- **Panel dimensions, border, colors, or motion feel wrong**
+  - Start in `config/pokemon_summary.json` and `src/ui/transfer_system/summary/PokemonSummaryConfig.cpp`.
+- **Displayed Summary data does not update on click/key movement**
+  - Start in `src/ui/transfer_system/summary/TransferSystemSummaryPanel.cpp` for selection sync.
+  - Temporary placeholder drawing lives in `src/ui/transfer_system/summary/PokemonSummaryContent.cpp`; replace it feature-by-feature as real Summary sections are added.
+
 ### Lower info banner
 
 - **Wrong text/fields for the current context (logic bug)**
@@ -208,6 +225,8 @@ Use this section as the first decision point.
 | Change selected box, dropdown, Box Space browse behavior | `GameBoxBrowserController.cpp` | `game_box_browser_controller_tests`; harness for screen wiring |
 | Change pill, carousel, enter/exit, panel reveal state | `TransferSystemUiStateController.cpp` | `transfer_system_ui_state_controller_tests` |
 | Change Pokemon action-menu geometry/rows/navigation | `PokemonActionMenuController.cpp` | `pokemon_action_menu_controller_tests`; harness for accept/pointer flow |
+| Change Pokemon Summary shell dimensions/chrome/motion | `pokemon_summary.json` plus `summary/PokemonSummaryConfig.cpp` / `summary/TransferSystemSummaryPanel.cpp` | `pokemon_summary_config_tests`; harness once content or focus behavior is player-visible |
+| Change temporary Pokemon Summary data/content | `summary/TransferSystemSummaryPanel.cpp` for selected-slot sync, then `summary/PokemonSummaryContent.cpp` or a new `summary/<feature>/` module | `transfer_system_flow_harness_tests` once behavior has stable hooks |
 | Change item modal pages/rows/navigation | `ItemActionMenuController.cpp` | add focused controller coverage if missing; harness for item player flow |
 | Change held Pokemon semantics | `PokemonMoveController.cpp`, then screen application path | focused move/controller tests where possible; `transfer_system_flow_harness_tests` for wiring |
 | Change target-game Pok√©mon compatibility / grey-out rules | `TransferSystemScreenSmallQueries.cpp`, `TransferSystemScreenViewportModels.cpp`, then each game-drop caller | OpenHome `supports-mons` sanity check; native build; harness for player-visible drop refusal when available |
@@ -230,6 +249,7 @@ Before adding state or branches to `TransferSystemScreen.cpp`, ask:
 - Is this keyboard/controller topology? Put it in `TransferSystemFocusGraph`.
 - Is this temporary held-object state? Put it in `PokemonMoveController`, `MultiPokemonMoveController`, or `HeldMoveController`.
 - Is this render-only chrome? Put it in `TransferSystemRenderer`, `TransferInfoBannerRenderer`, or `BoxViewport`.
+- Is this Summary panel layout or chrome? Put authored values in `pokemon_summary.json`; keep side/open rules in the Summary panel shard.
 - Is this bridge/save data? Keep it in `SaveLibrary`, `TransferSelectionBuilder`, or a backend adapter.
 - Is this durable Pokemon/storage state? Design it through the Resort backend rather than mutating UI arrays as the source of truth.
 - Does it need player-visible coverage? Add the narrowest focused test first, then one harness assertion when SDL wiring matters.
@@ -252,7 +272,7 @@ Do not obscure these boundaries. If a change makes movement persistent, imports 
 
 ## Config Boundary
 
-[`docs/config/game_transfer.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/config/game_transfer.md) is the config reference for this screen.
+[`docs/config/game_transfer.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/config/game_transfer.md) is the main config reference for this screen. [`docs/config/pokemon_summary.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/config/pokemon_summary.md) owns the Basic-tool Summary panel config.
 
 Good config additions:
 
@@ -326,6 +346,7 @@ For transfer-system changes, the usual order is:
 Common targets:
 
 - `game_transfer_config_tests`
+- `pokemon_summary_config_tests`
 - `transfer_info_banner_presenter_tests`
 - `transfer_system_ui_state_controller_tests`
 - `game_box_browser_controller_tests`
@@ -343,6 +364,7 @@ Update this guide when:
 - a new transfer-system seam is added
 - ownership moves out of or into `TransferSystemScreen.cpp`
 - `game_transfer.json` gains a new major authoring concept
+- `pokemon_summary.json` gains a new major authoring concept
 - movement becomes persistent
 - backend-backed Resort storage replaces any in-memory transfer slot source
 - bridge/write-back behavior becomes player-visible from the transfer screen

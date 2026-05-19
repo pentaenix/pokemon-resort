@@ -18,6 +18,8 @@ Runtime code owns state transitions, input semantics, parsing, persistence, brid
   Post-ticket transfer system layout and tuning. See [`game_transfer.md`](game_transfer.md).
 - [`transfer_save.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/transfer_save.json)
   Transfer system save/exit UX tuning (e.g. exit-save modal styling and animation).
+- [`pokemon_summary.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/pokemon_summary.json)
+  Transfer-system Pokemon Summary panel shell and future Summary content authoring. See [`pokemon_summary.md`](pokemon_summary.md).
 
 ## Adding Or Moving Config
 

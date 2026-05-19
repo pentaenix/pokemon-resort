@@ -113,6 +113,9 @@ New transfer-system behavior should first look for one of these smaller seams:
 - [`TransferInfoBannerPresenter.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/transfer_system/TransferInfoBannerPresenter.cpp) maps active context into lower-banner field values.
 - [`TransferInfoBannerRenderer.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/transfer_system/TransferInfoBannerRenderer.cpp) draws the lower info banner, text fitting, generated symbols, PokeSprite item icons, and PokeSprite misc icons.
 - [`PokemonActionMenuController.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/transfer_system/PokemonActionMenuController.cpp) owns the normal-tool Pokemon action menu state, geometry, hit testing, and row selection.
+- [`PokemonSummaryConfig.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/transfer_system/summary/PokemonSummaryConfig.cpp) parses [`pokemon_summary.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/pokemon_summary.json) for the Basic-tool Summary panel shell and future Summary content authoring.
+- [`summary/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/transfer_system/summary/README.md) is the Summary handoff note: current behavior, integration points, and next implementation steps.
+- [`summary/PokemonSummaryContent.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/transfer_system/summary/PokemonSummaryContent.cpp) is the temporary Summary content module. It only renders selected Pokemon names until the real Summary sections replace it feature-by-feature.
 - [`ItemActionMenuController.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/transfer_system/ItemActionMenuController.cpp) owns the item-tool modal pages, labels, geometry, hit testing, and row selection.
 - [`PokemonMoveController.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/transfer_system/PokemonMoveController.cpp) owns temporary Pokemon-in-hand state for action-menu moves and swap-tool moves.
 - [`MultiPokemonMoveController.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/transfer_system/MultiPokemonMoveController.cpp) owns temporary multi-Pokemon group state, original return slots, layout offsets, pointer mode, and pattern placement checks for the green multi tool.
@@ -242,6 +245,7 @@ Screen config lives in:
 - [`loading_screen.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/loading_screen.json)
 - [`transfer_select_save.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/transfer_select_save.json)
 - [`game_transfer.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/game_transfer.json)
+- [`pokemon_summary.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/pokemon_summary.json)
 
 See [`docs/config/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/config/README.md) for ownership guidance and [`docs/config/game_transfer.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/config/game_transfer.md) for the transfer-system config reference.
 

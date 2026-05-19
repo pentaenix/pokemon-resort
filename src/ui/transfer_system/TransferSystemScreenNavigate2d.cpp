@@ -148,8 +148,8 @@ void TransferSystemScreen::onNavigate2d(int dx, int dy) {
     focus_.navigate(dx, dy, window_config_.virtual_width, window_config_.virtual_height);
     if (focus_.current() != focus_before) {
         ui_state_.requestUiMoveSfx();
+        syncPokemonSummaryToFocus();
     }
 }
 
 } // namespace pr
-

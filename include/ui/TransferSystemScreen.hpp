@@ -14,6 +14,8 @@
 #include "ui/transfer_system/MultiPokemonMoveController.hpp"
 #include "ui/transfer_system/PokemonActionMenuController.hpp"
 #include "ui/transfer_system/PokemonMoveController.hpp"
+#include "ui/transfer_system/summary/PokemonSummaryConfig.hpp"
+#include "ui/transfer_system/summary/PokemonSummaryContent.hpp"
 #include "ui/transfer_system/ItemActionMenuController.hpp"
 #include "ui/transfer_system/move/Gestures.hpp"
 #include "ui/transfer_system/move/HeldMoveController.hpp"
@@ -350,6 +352,7 @@ private:
     GameTransferBoxSpaceLongPressStyle box_space_long_press_style_;
     GameTransferInfoBannerStyle info_banner_style_;
     transfer_system::ExitSaveModalStyle exit_save_modal_style_;
+    transfer_system::PokemonSummaryPanelStyle pokemon_summary_style_;
     std::array<TextureHandle, 4> tool_icons_{};
     TextureHandle exit_button_icon_{};
     FontHandle pill_font_;
@@ -358,6 +361,7 @@ private:
     FontHandle speech_bubble_font_;
     FontHandle pokemon_action_menu_font_;
     FontHandle exit_save_modal_font_;
+    FontHandle pokemon_summary_font_;
     TextureHandle pill_label_pokemon_black_;
     TextureHandle pill_label_items_black_;
     TextureHandle pill_label_pokemon_white_;
@@ -379,6 +383,33 @@ private:
     mutable std::optional<SDL_Rect> debug_mini_preview_first_sprite_rect_{};
     mutable SDL_Point debug_mini_preview_cell_size_{0, 0};
 #endif
+
+    // --- Pokemon summary panel (Basic tool / Summary row) ---
+    enum class PokemonSummarySide {
+        Left,
+        Right,
+    };
+    bool pokemon_summary_target_open_ = false;
+    double pokemon_summary_reveal_ = 0.0;
+    PokemonSummarySide pokemon_summary_side_ = PokemonSummarySide::Left;
+    transfer_system::PokemonMoveController::Panel pokemon_summary_source_panel_ =
+        transfer_system::PokemonMoveController::Panel::Game;
+    int pokemon_summary_box_index_ = -1;
+    int pokemon_summary_slot_index_ = -1;
+    void openPokemonSummaryPanel(
+        transfer_system::PokemonMoveController::Panel source_panel,
+        int box_index,
+        int slot_index);
+    void closePokemonSummaryPanel(bool play_sfx = true);
+    void updatePokemonSummaryPanel(double dt);
+    bool pokemonSummaryPanelVisible() const;
+    bool pokemonSummaryPanelOpenOnLeft() const;
+    SDL_Rect pokemonSummaryPanelRect() const;
+    void drawPokemonSummaryPanel(SDL_Renderer* renderer) const;
+    bool handlePokemonSummaryPointerPressed(int logical_x, int logical_y);
+    void setPokemonSummarySelection(const transfer_system::PokemonMoveController::SlotRef& ref);
+    void syncPokemonSummaryToFocus();
+    const PcSlotSpecies* pokemonSummarySelectedPokemon() const;
 
     // --- Game save box data + navigation (right box only) ---
     std::vector<TransferSaveSelection::PcBox> game_pc_boxes_{};

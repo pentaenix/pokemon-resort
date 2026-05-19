@@ -102,6 +102,7 @@ void TransferSystemScreen::update(double dt) {
     }
     updateGameBoxDropdown(dt);
     updateResortBoxDropdown(dt);
+    updatePokemonSummaryPanel(dt);
     updateMiniPreview(dt);
     updateActionMenus(dt);
     updateBoxSpaceLongPressGestures(dt);

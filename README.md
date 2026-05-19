@@ -88,6 +88,7 @@ Important config files:
 - [`config/loading_screen.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/loading_screen.json): transfer loading animation.
 - [`config/transfer_select_save.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/transfer_select_save.json): transfer-ticket screen layout, ticket art/text, rip animation, palette.
 - [`config/game_transfer.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/game_transfer.json): transfer-system layout, box viewport tuning, Box Space timing, tool carousel, action menus, item tool visuals, info banner, mini preview, dropdown, selection cursor, and speech bubbles.
+- [`config/pokemon_summary.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/pokemon_summary.json): Basic-tool Pokemon Summary panel shell, opposite-side replacement motion, and future Summary content authoring.
 
 See [`docs/config/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/config/README.md) and [`docs/config/game_transfer.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/config/game_transfer.md) before adding new transfer UI config.
 

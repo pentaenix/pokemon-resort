@@ -104,7 +104,7 @@ void TransferSystemScreen::syncBoxSpaceMiniPreviewFromFocusedBoxSpaceCell() {
 void TransferSystemScreen::updateMiniPreview(double dt) {
     const bool have_game_preview = game_save_box_viewport_ && !game_pc_boxes_.empty();
     const bool have_resort_preview = resort_box_viewport_ && !resort_pc_boxes_.empty();
-    if (!mini_preview_style_.enabled || (!have_game_preview && !have_resort_preview)) {
+    if (!mini_preview_style_.enabled || pokemonSummaryPanelVisible() || (!have_game_preview && !have_resort_preview)) {
         mini_preview_target_ = 0.0;
         approachExponential(mini_preview_t_, mini_preview_target_, dt, std::max(1.0, mini_preview_style_.enter_smoothing));
         // Keep the last rendered model while we animate out; clear once fully hidden.
@@ -326,4 +326,3 @@ void TransferSystemScreen::drawMiniPreview(SDL_Renderer* renderer) const {
 }
 
 } // namespace pr
-

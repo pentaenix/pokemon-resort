@@ -1,0 +1,18 @@
+{
+  "panel": {
+    "enabled": true,
+    "enter_smoothing": 18.0,
+    "exit_smoothing": 18.0,
+    "retracted_box_smoothing": 26.0,
+    "width": 650,
+    "height": 577,
+    "top_y": 100,
+    "corner_radius": 16,
+    "border_thickness": 3,
+    "fill_color": "$paper_1",
+    "border_color": "$outline_0",
+    "open_when_game_box_absent": true,
+    "temporary_name_font_pt": 34,
+    "temporary_name_color": "$ink_0"
+  }
+}

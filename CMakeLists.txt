@@ -134,7 +134,10 @@ add_executable(title_screen_demo
     src/ui/transfer_system/TransferSystemScreenSmallQueries.cpp
     src/ui/transfer_system/TransferSystemScreenUiHelpers.cpp
     src/ui/transfer_system/GameTransferConfig.cpp
+    src/ui/transfer_system/summary/PokemonSummaryConfig.cpp
+    src/ui/transfer_system/summary/PokemonSummaryContent.cpp
     src/ui/transfer_system/TransferSaveConfig.cpp
+    src/ui/transfer_system/summary/TransferSystemSummaryPanel.cpp
     src/ui/transfer_system/GameBoxBrowserController.cpp
     src/ui/transfer_system/MultiPokemonMoveController.cpp
     src/ui/transfer_system/move/HeldMoveController.cpp
@@ -298,6 +301,14 @@ add_executable(game_transfer_config_tests
 )
 target_include_directories(game_transfer_config_tests PRIVATE include)
 add_test(NAME game_transfer_config_tests COMMAND game_transfer_config_tests)
+
+add_executable(pokemon_summary_config_tests
+    tests/native/transfer_system/pokemon_summary_config_tests.cpp
+    src/core/config/Json.cpp
+    src/ui/transfer_system/summary/PokemonSummaryConfig.cpp
+)
+target_include_directories(pokemon_summary_config_tests PRIVATE include)
+add_test(NAME pokemon_summary_config_tests COMMAND pokemon_summary_config_tests)
 
 add_executable(transfer_info_banner_presenter_tests
     tests/native/transfer_system/transfer_info_banner_presenter_tests.cpp
@@ -504,7 +515,10 @@ add_executable(transfer_system_flow_harness_tests
     src/ui/transfer_system/TransferSystemScreenSmallQueries.cpp
     src/ui/transfer_system/TransferSystemScreenUiHelpers.cpp
     src/ui/transfer_system/GameTransferConfig.cpp
+    src/ui/transfer_system/summary/PokemonSummaryConfig.cpp
+    src/ui/transfer_system/summary/PokemonSummaryContent.cpp
     src/ui/transfer_system/TransferSaveConfig.cpp
+    src/ui/transfer_system/summary/TransferSystemSummaryPanel.cpp
     src/ui/transfer_system/GameBoxBrowserController.cpp
     src/ui/transfer_system/MultiPokemonMoveController.cpp
     src/ui/transfer_system/move/HeldMoveController.cpp

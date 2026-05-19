@@ -15,6 +15,11 @@ bool TransferSystemScreen::handlePointerPressed(int logical_x, int logical_y) {
     if (box_rename_modal_open_) {
         return handleBoxRenameModalPointerPressed(logical_x, logical_y);
     }
+    if (pokemonSummaryPanelVisible() || pokemon_summary_target_open_) {
+        if (handlePokemonSummaryPointerPressed(logical_x, logical_y)) {
+            return true;
+        }
+    }
 
     // Dropdown is modal: while open, block other interactions.
     if (box_name_dropdown_style_.enabled && game_box_browser_.dropdownOpenTarget() && game_box_browser_.dropdownExpandT() > 0.08 &&
