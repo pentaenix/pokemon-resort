@@ -51,6 +51,7 @@ void TransferSystemScreen::render(SDL_Renderer* renderer) {
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer);
     drawBackground(renderer);
+    drawPokemonSummaryPanel(renderer);
 
     if (resort_box_viewport_) {
         const bool resort_dropdown_visible = box_name_dropdown_style_.enabled && !resort_pc_boxes_.empty() &&
@@ -114,4 +115,3 @@ void TransferSystemScreen::render(SDL_Renderer* renderer) {
 }
 
 } // namespace pr
-

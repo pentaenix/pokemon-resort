@@ -72,7 +72,8 @@ std::optional<int> TransferSystemScreen::pokemonActionMenuRowAtPoint(int logical
 }
 
 void TransferSystemScreen::activatePokemonActionMenuRow(int row) {
-    if (pokemon_action_menu_.actionForRow(row) == transfer_system::PokemonActionMenuController::Action::Move) {
+    const auto action = pokemon_action_menu_.actionForRow(row);
+    if (action == transfer_system::PokemonActionMenuController::Action::Move) {
         using Move = transfer_system::PokemonMoveController;
         const Move::SlotRef ref{
             pokemon_action_menu_.fromGameBox() ? Move::Panel::Game : Move::Panel::Resort,
@@ -82,6 +83,15 @@ void TransferSystemScreen::activatePokemonActionMenuRow(int row) {
             ? Move::InputMode::Pointer
             : Move::InputMode::Keyboard;
         (void)beginPokemonMoveFromSlot(ref, input_mode, Move::PickupSource::ActionMenu, last_pointer_position_);
+        return;
+    }
+    if (action == transfer_system::PokemonActionMenuController::Action::Summary) {
+        using Move = transfer_system::PokemonMoveController;
+        const Move::Panel panel = pokemon_action_menu_.fromGameBox() ? Move::Panel::Game : Move::Panel::Resort;
+        openPokemonSummaryPanel(
+            panel,
+            panel == Move::Panel::Game ? game_box_browser_.gameBoxIndex() : resort_box_browser_.gameBoxIndex(),
+            pokemon_action_menu_.slotIndex());
         return;
     }
     closePokemonActionMenu();
@@ -95,4 +105,3 @@ void TransferSystemScreen::hoverPokemonActionMenuRow(int logical_x, int logical_
 }
 
 } // namespace pr
-

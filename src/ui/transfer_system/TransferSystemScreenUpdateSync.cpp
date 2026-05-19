@@ -3,6 +3,19 @@
 #include <cmath>
 
 namespace pr {
+namespace {
+
+double easeOutCubic(double t) {
+    if (t < 0.0) {
+        t = 0.0;
+    } else if (t > 1.0) {
+        t = 1.0;
+    }
+    const double inv = 1.0 - t;
+    return 1.0 - inv * inv * inv;
+}
+
+} // namespace
 
 void TransferSystemScreen::updateAnimations(double dt) {
     ui_state_.update(dt, pill_style_, carousel_style_);
@@ -22,11 +35,17 @@ void TransferSystemScreen::syncBoxViewportPositions() {
     const int game_hidden_x = screen_w;
     const int resort_rest_x = 40; // kLeftBoxColumnX in original TU
     const int game_rest_x = screen_w - 40 - BoxViewport::kViewportWidth;
+    const double summary_t = easeOutCubic(pokemon_summary_reveal_);
+    const bool summary_left = pokemonSummaryPanelOpenOnLeft();
 
     const int resort_x =
-        static_cast<int>(std::round(resort_hidden_x + (resort_rest_x - resort_hidden_x) * ui_state_.panelsReveal()));
+        static_cast<int>(std::round(resort_rest_x + (resort_hidden_x - resort_rest_x) *
+            (summary_left ? summary_t : 0.0) +
+            (1.0 - ui_state_.panelsReveal()) * (resort_hidden_x - resort_rest_x)));
     const int game_x =
-        static_cast<int>(std::round(game_hidden_x + (game_rest_x - game_hidden_x) * ui_state_.panelsReveal()));
+        static_cast<int>(std::round(game_rest_x + (game_hidden_x - game_rest_x) *
+            (!summary_left ? summary_t : 0.0) +
+            (1.0 - ui_state_.panelsReveal()) * (game_hidden_x - game_rest_x)));
 
     constexpr int kBoxViewportY = 100;
     if (resort_box_viewport_) {
@@ -94,4 +113,3 @@ std::optional<int> TransferSystemScreen::focusedResortSlotIndex() const {
 }
 
 } // namespace pr
-
