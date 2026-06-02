@@ -91,6 +91,9 @@ bool InputRouter::handleEvent(
     }
 
     if (event.type == SDL_MOUSEMOTION && config.accept_mouse) {
+        if (input && input->handleUnroutedSdlEvent(event)) {
+            return true;
+        }
         if (input) {
             input->handlePointerMoved(event.motion.x, event.motion.y);
         }

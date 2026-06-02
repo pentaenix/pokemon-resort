@@ -1,0 +1,17 @@
+{
+  "follower": {
+    "followStepDurationMs": 250,
+    "ballAnimation": {
+      "durationMs": 230,
+      "pokeball_hold_animation": 10,
+      "fullAnimation": true,
+      "fallEnabled": true,
+      "fallHeightWorld": 10.0
+    },
+    "entryAnimation": {
+      "durationMs": 180,
+      "startScale": 0.0,
+      "colorRgba": [255, 255, 255, 255]
+    }
+  }
+}

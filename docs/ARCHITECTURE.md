@@ -2,6 +2,10 @@
 
 This is the central architecture map for the SDL2 app in [`pokemon-resort`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort). It should stay accurate enough that a human or AI agent can decide where a change belongs before editing code.
 
+Domain-first groundwork references:
+- [`docs/architecture/system-map.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/architecture/system-map.md)
+- [`docs/architecture/module-rules.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/architecture/module-rules.md)
+
 For test strategy, use [`tests/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/tests/README.md) as the canonical test map. For config ownership, use [`docs/config/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/config/README.md). For transfer-system work, read [`docs/transfer_system/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/transfer_system/README.md) before editing transfer screen code. For OpenHome-first transfer persistence and safety, read [`docs/transfer_system/SAVE_EXIT_SAFETY.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/transfer_system/SAVE_EXIT_SAFETY.md) plus the OpenHome integration notes (`docs/openhome-*.md`). For bridge work, use [`PKHEX_BRIDGE.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/PKHEX_BRIDGE.md).
 
 ## Current State

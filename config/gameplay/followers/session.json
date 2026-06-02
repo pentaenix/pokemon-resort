@@ -1,0 +1,9 @@
+{
+  "follower": {
+    "enabled": true,
+    "pokemonSpecies": "psyduck",
+    "pokeballId": "poke_ball",
+    "nature": "Jolly",
+    "forcedBehavior": "circle_player"
+  }
+}

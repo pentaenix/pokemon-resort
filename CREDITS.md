@@ -32,3 +32,20 @@ This file tracks people whose work contributed to this project, including borrow
 - Source: [Mega Absol Sword and Shield Icon](https://www.deviantart.com/acpeters/art/Mega-Absol-Sword-and-Shield-Icon-1188104467)
 - Contribution:
   Unofficial sprite assets merged for now, including custom mega forms and other additional Pokemon or form icons such as Mega Absol, Mega Garchomp Z, Mega Meowstic, Mega Lucario Z, Mega Zeraora, Mega Raichu X/Y, Rotom Stereo, Mega Golurk, and the Gen 10 concepts Pombon, Browt, and Gecqua.
+
+
+
+
+OW Sprites:
+https://eeveeexpo.com/resources/516/
+NoNonever
+Golisopod User
+Help-14
+zingzags
+Rayd12smitty
+mej71
+PurpleZaffre
+Akizakura16
+Thundaga
+Armin (Fairies Resource Pack)
+Maruno

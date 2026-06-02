@@ -1,0 +1,7 @@
+{
+  "profile": "default",
+  "follow_lerp": 0.14,
+  "max_pitch_deg": 30,
+  "min_pitch_deg": 12,
+  "distance": 7.5
+}

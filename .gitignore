@@ -40,6 +40,8 @@ compile_commands.json
 
 # Runtime save data
 /save/
+/screenshots/
+/recordings/
 *.sav
 *.sav.bak
 *.bak

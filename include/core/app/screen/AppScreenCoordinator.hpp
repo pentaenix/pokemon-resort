@@ -15,13 +15,15 @@ class Screen;
 class ScreenInput;
 class TitleScreen;
 class TransferFlowCoordinator;
+class Overworld3DTestScreen;
 
 class AppScreenCoordinator {
 public:
     AppScreenCoordinator(
         TitleScreen& title_screen,
         AppLoadingCoordinator& loading,
-        TransferFlowCoordinator& transfer_flow);
+        TransferFlowCoordinator& transfer_flow,
+        Overworld3DTestScreen& overworld3d_test);
 
     Screen* activeScreen();
     ScreenInput* activeInput();
@@ -32,12 +34,14 @@ public:
     std::optional<UserSettings> consumeUserSettingsSaveRequest();
     float sfxVolume() const;
     double transitionOverlayAlpha() const;
+    std::string screenshotNameContext() const;
 
 private:
     enum class ActiveScreen {
         Title,
         ResortLoading,
-        TransferFlow
+        TransferFlow,
+        Overworld3DTest
     };
 
     enum class LoadingReturnTarget {
@@ -49,6 +53,7 @@ private:
     void updateTitle(double dt);
     void updateLoading(double dt);
     void updateTransfer(double dt);
+    void updateOverworld3D(double dt);
     void updateTransition(double dt);
     void startSuccessfulSaveQuickTransition();
     void beginSuccessfulSaveLoadingScreen();
@@ -58,6 +63,7 @@ private:
     TitleScreen& title_screen_;
     AppLoadingCoordinator& loading_;
     TransferFlowCoordinator& transfer_flow_;
+    Overworld3DTestScreen& overworld3d_test_;
     AppFrameRequests frame_requests_;
     AppTransitionController transition_controller_;
     ActiveScreen active_screen_ = ActiveScreen::Title;

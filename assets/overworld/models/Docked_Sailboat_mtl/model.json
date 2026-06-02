@@ -1,0 +1,54 @@
+{
+  "manifestVersion": 1,
+  "storageFormat": "glb",
+  "id": "Docked_Sailboat_mtl",
+  "displayName": "Docked_Sailboat_mtl",
+  "compiledAt": "2026-06-02T03:40:29.688Z",
+  "sourceFormat": "obj",
+  "sourceFile": "Docked_Sailboat_mtl.glb",
+  "glbFile": "Docked_Sailboat_mtl.glb",
+  "modelFile": "Docked_Sailboat_mtl.glb",
+  "modelByteSize": 13644,
+  "modelHash": "c88e6fe080b1e6b8",
+  "footprintTiles": {
+    "w": 7,
+    "d": 3,
+    "h": 7
+  },
+  "aabb": {
+    "min": [
+      -44.941410064697266,
+      -7.871094226837158,
+      -23.238279342651367
+    ],
+    "max": [
+      53.92578125,
+      90.91796875,
+      23.628910064697266
+    ]
+  },
+  "vertexCount": 198,
+  "triangleCount": 137,
+  "materials": [
+    "as_yachtwave",
+    "yacht_sbf",
+    "yacht_s"
+  ],
+  "textureCount": 3,
+  "convertedFromObj": true,
+  "sourceObj": "Docked Sailboat.obj",
+  "materialsMeta": {
+    "as_yachtwave": {
+      "textureResolved": "as_yachtwave.png",
+      "textureName": "as_yachtwave.png"
+    },
+    "yacht_s": {
+      "textureResolved": "yacht_s.png",
+      "textureName": "yacht_s.png"
+    },
+    "yacht_sbf": {
+      "textureResolved": "yacht_sbf.png",
+      "textureName": "yacht_sbf.png"
+    }
+  }
+}

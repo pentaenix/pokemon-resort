@@ -1,0 +1,59 @@
+{
+  "manifestVersion": 1,
+  "storageFormat": "glb",
+  "id": "pc_1_png",
+  "displayName": "pc_1_png",
+  "compiledAt": "2026-06-02T03:35:45.362Z",
+  "sourceFormat": "obj",
+  "sourceFile": "pc_1_png.glb",
+  "glbFile": "pc_1_png.glb",
+  "modelFile": "pc_1_png.glb",
+  "modelByteSize": 18364,
+  "modelHash": "93f623f49f80c7e9",
+  "footprintTiles": {
+    "w": 6,
+    "d": 4,
+    "h": 4
+  },
+  "aabb": {
+    "min": [
+      -41,
+      1,
+      -29.419919967651367
+    ],
+    "max": [
+      41.638671875,
+      63.75,
+      28.580080032348633
+    ]
+  },
+  "vertexCount": 315,
+  "triangleCount": 183,
+  "materials": [
+    "h_kage",
+    "light_a",
+    "pc_1",
+    "pc_2"
+  ],
+  "textureCount": 4,
+  "convertedFromObj": true,
+  "sourceObj": "PokeÌmon Center.obj",
+  "materialsMeta": {
+    "h_kage": {
+      "textureResolved": "h_kage.png",
+      "textureName": "h_kage.png"
+    },
+    "light_a": {
+      "textureResolved": "light_a.png",
+      "textureName": "light_a.png"
+    },
+    "pc_1": {
+      "textureResolved": "pc_1.png",
+      "textureName": "pc_1.png"
+    },
+    "pc_2": {
+      "textureResolved": "pc_2.png",
+      "textureName": "pc_2.png"
+    }
+  }
+}

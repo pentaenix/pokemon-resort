@@ -1,0 +1,6 @@
+{
+  "occlusion": {
+    "_comment": "How far (in tiles) toward the camera a placed model's occlusion anchor is biased when depth-sorting it against the player/follower. Larger = the building starts hiding the character sooner (further forward). Tune so a character entering a doorway is hidden by the building rather than drawing over its roof.",
+    "modelBehindBiasTiles": 1.0
+  }
+}

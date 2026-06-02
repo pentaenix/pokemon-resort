@@ -67,6 +67,8 @@ void applyInputConfig(InputConfig& out, const JsonValue& obj) {
     if (auto v = child(obj, "navigate_right_keys")) applyStringVector(out.navigate_right_keys, *v, "input.navigate_right_keys");
     if (auto v = child(obj, "forward_keys")) applyStringVector(out.forward_keys, *v, "input.forward_keys");
     if (auto v = child(obj, "back_keys")) applyStringVector(out.back_keys, *v, "input.back_keys");
+    if (auto v = child(obj, "record_toggle_keys")) applyStringVector(out.record_toggle_keys, *v, "input.record_toggle_keys");
+    if (auto v = child(obj, "screenshot_keys")) applyStringVector(out.screenshot_keys, *v, "input.screenshot_keys");
 }
 
 void applyAudioConfig(AudioConfig& out, const JsonValue& obj) {
@@ -127,6 +129,15 @@ AppConfig loadAppConfigFromJson(const std::string& path) {
     }
     if (auto section = child(root, "audio")) {
         applyAudioConfig(config.audio, *section);
+    }
+    if (auto section = child(root, "recording")) {
+        if (auto v = child(*section, "enabled")) config.recording.enabled = asBool(*v);
+        if (auto v = child(*section, "hotkey")) config.recording.hotkey = asString(*v);
+    }
+    if (auto v = child(root, "target_fps")) config.target_fps = asInt(*v);
+    if (auto v = child(root, "enable_frame_counter")) config.enable_frame_counter = asBool(*v);
+    if (auto v = child(root, "enable_active_idle_behavior_debug")) {
+        config.enable_active_idle_behavior_debug = asBool(*v);
     }
     return config;
 }

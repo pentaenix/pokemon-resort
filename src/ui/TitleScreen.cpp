@@ -82,8 +82,15 @@ void TitleScreen::update(double dt) {
         case TitleState::OptionsOutro:
             if (state_time_ >= config_.menu.animation.outro_duration) changeState(TitleState::MainMenuIdle);
             break;
+        case TitleState::ResortIntro:
+            if (state_time_ >= config_.menu.animation.intro_duration) changeState(TitleState::ResortIdle);
+            break;
+        case TitleState::ResortOutro:
+            if (state_time_ >= config_.menu.animation.outro_duration) changeState(TitleState::MainMenuIdle);
+            break;
         case TitleState::MainMenuIdle:
         case TitleState::OptionsIdle:
+        case TitleState::ResortIdle:
         case TitleState::SectionScreen:
             break;
     }
@@ -100,6 +107,9 @@ void TitleScreen::onAdvancePressed() {
         case TitleState::OptionsIdle:
             activateOptionSelection();
             return;
+        case TitleState::ResortIdle:
+            activateResortSelection();
+            return;
         case TitleState::SectionScreen:
             restartFromSplash();
             return;
@@ -112,7 +122,9 @@ void TitleScreen::onAdvancePressed() {
 }
 
 bool TitleScreen::canNavigate() const {
-    return state_ == TitleState::MainMenuIdle || state_ == TitleState::OptionsIdle;
+    return state_ == TitleState::MainMenuIdle ||
+           state_ == TitleState::OptionsIdle ||
+           state_ == TitleState::ResortIdle;
 }
 
 void TitleScreen::onNavigate(int delta) {
@@ -122,6 +134,10 @@ void TitleScreen::onNavigate(int delta) {
         }
     } else if (state_ == TitleState::OptionsIdle) {
         if (options_menu_.navigate(delta)) {
+            emitEvent(TitleScreenEvent::ButtonSfxRequested);
+        }
+    } else if (state_ == TitleState::ResortIdle) {
+        if (resort_menu_.navigate(delta)) {
             emitEvent(TitleScreenEvent::ButtonSfxRequested);
         }
     }
@@ -134,6 +150,8 @@ void TitleScreen::onBackPressed() {
         changeState(TitleState::WaitingForStart);
     } else if (state_ == TitleState::OptionsIdle) {
         changeState(TitleState::OptionsOutro);
+    } else if (state_ == TitleState::ResortIdle) {
+        changeState(TitleState::ResortOutro);
     } else if (state_ == TitleState::SectionScreen) {
         restartFromSplash();
     }
@@ -157,6 +175,15 @@ bool TitleScreen::handlePointerPressed(int logical_x, int logical_y) {
                 return true;
             }
         }
+    } else if (state_ == TitleState::ResortIdle) {
+        const auto labels = resortLabels();
+        for (std::size_t i = 0; i < labels.size(); ++i) {
+            if (pointInRect(logical_x, logical_y, optionButtonRect(i))) {
+                resort_menu_.selectIndex(static_cast<int>(i));
+                activateResortSelection();
+                return true;
+            }
+        }
     } else if (state_ == TitleState::SectionScreen) {
         if (pointInRect(logical_x, logical_y, sectionBackButtonRect())) {
             restartFromSplash();
@@ -174,6 +201,7 @@ bool TitleScreen::acceptsAdvanceInput() const {
     return state_ == TitleState::WaitingForStart ||
            state_ == TitleState::MainMenuIdle ||
            state_ == TitleState::OptionsIdle ||
+           state_ == TitleState::ResortIdle ||
            state_ == TitleState::SectionScreen ||
            canSkipCurrentState();
 }
@@ -257,10 +285,14 @@ void TitleScreen::changeState(TitleState next) {
 
     if (next == TitleState::OptionsIntro) {
         options_menu_.resetSelection();
+    } else if (next == TitleState::ResortIntro) {
+        resort_menu_.resetSelection();
     } else if (next == TitleState::SectionScreen) {
         cached_section_title_.clear();
     } else if (next == TitleState::MainMenuIdle && state_ == TitleState::OptionsOutro) {
         main_menu_.selectOptions();
+    } else if (next == TitleState::MainMenuIdle && state_ == TitleState::ResortOutro) {
+        main_menu_.reset();
     }
 
     state_ = next;
@@ -333,6 +365,9 @@ bool TitleScreen::canSkipCurrentState() const {
         case TitleState::OptionsIntro:
         case TitleState::OptionsIdle:
         case TitleState::OptionsOutro:
+        case TitleState::ResortIntro:
+        case TitleState::ResortIdle:
+        case TitleState::ResortOutro:
         case TitleState::SectionScreen:
             return false;
     }
@@ -365,10 +400,7 @@ void TitleScreen::activateMainMenuSelection() {
     emitEvent(TitleScreenEvent::ButtonSfxRequested);
     switch (main_menu_.activate()) {
         case MainMenuAction::OpenResort:
-            pending_transfer_after_fade_ = false;
-            pending_resort_after_fade_ = true;
-            pending_trade_after_fade_ = false;
-            changeState(TitleState::MainMenuToSection);
+            changeState(TitleState::ResortIntro);
             break;
         case MainMenuAction::OpenTransfer:
             pending_resort_after_fade_ = false;
@@ -410,6 +442,22 @@ void TitleScreen::activateOptionSelection() {
     }
 }
 
+void TitleScreen::activateResortSelection() {
+    emitEvent(TitleScreenEvent::ButtonSfxRequested);
+    switch (resort_menu_.activate()) {
+        case title_screen::ResortMenuAction::Open3DTest:
+            emitEvent(TitleScreenEvent::OpenResort3DTestRequested);
+            break;
+        case title_screen::ResortMenuAction::StartCinematic:
+            break;
+        case title_screen::ResortMenuAction::CloseResortMenu:
+            changeState(TitleState::ResortOutro);
+            break;
+        case title_screen::ResortMenuAction::None:
+            break;
+    }
+}
+
 void TitleScreen::returnToMainMenu() {
     if (state_ == TitleState::SectionScreen) {
         switch (section_screen_.currentSection()) {
@@ -431,6 +479,7 @@ void TitleScreen::restartFromSplash() {
     title_scene_elapsed_ = 0.0;
     main_menu_.reset();
     options_menu_.resetSelection();
+    resort_menu_.resetSelection();
     pending_transfer_after_fade_ = false;
     pending_resort_after_fade_ = false;
     pending_trade_after_fade_ = false;

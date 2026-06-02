@@ -41,6 +41,7 @@ public:
 
     Screen* activeScreen();
     ScreenKind activeScreenKind() const { return flow_controller_.activeScreenKind(); }
+    std::string activeGameKeyForScreenshot() const;
     bool isActive() const { return flow_controller_.isActive(); }
 
     bool consumeReturnToTitleRequest();

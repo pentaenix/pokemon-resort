@@ -1,7 +1,7 @@
 {
   "window": {
-    "width": 640,
-    "height": 400,
+    "width": 800,
+    "height": 500,
     "virtual_width": 1280,
     "virtual_height": 800,
     "design_width": 1280,
@@ -17,7 +17,9 @@
     "navigate_left_keys": ["LEFT", "A"],
     "navigate_right_keys": ["RIGHT", "D"],
     "forward_keys": ["M", "RETURN", "SPACE"],
-    "back_keys": ["N", "ESCAPE", "BACKSPACE"]
+    "back_keys": ["N", "ESCAPE", "BACKSPACE"],
+    "record_toggle_keys": ["R"],
+    "screenshot_keys": ["T"]
   },
   "audio": {
     "menu_music": "assets/music/ui_menu_music.mp3",
@@ -30,5 +32,12 @@
     "save_sfx": "assets/sfx/save.mp3",
     "music_volume": 3,
     "sfx_volume": 8
-  }
+  },
+  "recording": {
+    "enabled": true,
+    "hotkey": "R"
+  },
+  "target_fps": 60,
+  "enable_frame_counter": true,
+  "enable_active_idle_behavior_debug": true
 }

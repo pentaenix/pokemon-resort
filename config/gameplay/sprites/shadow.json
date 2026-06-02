@@ -1,0 +1,26 @@
+{
+  "shadow": {
+    "enabled": true,
+    "opacity": 1.0,
+    "pixelCoherent": true,
+    "feetToShadowBottomPx": 3,
+    "screenOffsetPx": [0, 0],
+    "colorRgba": [55, 56, 59, 148],
+    "radiusXTiles": 0.32,
+    "radiusZTiles": 0.20,
+    "worldYLift": 0.10,
+    "textureWidthPx": 17,
+    "textureHeightPx": 9,
+    "mask": [
+      "OOOOOXXXXXXXOOOOO",
+      "OOXXXXXXXXXXXXXOO",
+      "OXXXXXXXXXXXXXXXO",
+      "XXXXXXXXXXXXXXXXX",
+      "XXXXXXXXXXXXXXXXX",
+      "XXXXXXXXXXXXXXXXX",
+      "OXXXXXXXXXXXXXXXO",
+      "OOXXXXXXXXXXXXXOO",
+      "OOOOOXXXXXXXOOOOO"
+    ]
+  }
+}

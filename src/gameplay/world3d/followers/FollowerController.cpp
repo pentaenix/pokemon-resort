@@ -1,0 +1,722 @@
+#include "gameplay/world3d/followers/FollowerController.hpp"
+
+#include "gameplay/world3d/data/JsonOverworldLoader.hpp"
+
+#include <algorithm>
+#include <cmath>
+#include <random>
+
+namespace pr::gameplay::world3d::followers {
+
+namespace {
+
+double ballReleasePhaseSeconds(const FollowerSummonConfig& config) {
+    return static_cast<double>(config.ball_animation.duration_ms) / 1000.0;
+}
+
+double ballReleaseTotalSeconds(const FollowerSummonConfig& config) {
+    return static_cast<double>(config.ball_animation.duration_ms + config.ball_animation.hold_last_frame_ms) / 1000.0;
+}
+
+SDL_Rect sourceRectForFrame(const CharacterSpriteDefinition& def, int frame) {
+    const int safe_columns = std::max(1, def.columns);
+    const int safe_rows = std::max(1, def.rows);
+    const int safe_frame = std::max(0, frame);
+    const int col = safe_frame % safe_columns;
+    const int row = std::min(safe_rows - 1, safe_frame / safe_columns);
+    return SDL_Rect{col * def.frame_width, row * def.frame_height, def.frame_width, def.frame_height};
+}
+
+camera::Vec3 facingOffset(FacingDirection facing, double amount) {
+    if (facing == FacingDirection::North) return camera::Vec3{0.0f, 0.0f, static_cast<float>(-amount)};
+    if (facing == FacingDirection::South) return camera::Vec3{0.0f, 0.0f, static_cast<float>(amount)};
+    if (facing == FacingDirection::East) return camera::Vec3{static_cast<float>(amount), 0.0f, 0.0f};
+    return camera::Vec3{static_cast<float>(-amount), 0.0f, 0.0f};
+}
+
+const char* behaviorLabel(IdleBehaviorId behavior) {
+    switch (behavior) {
+        case IdleBehaviorId::RandomWalk: return "random_walk";
+        case IdleBehaviorId::RandomExplore: return "random_explore";
+        case IdleBehaviorId::WatchPlayer: return "watch_player";
+        case IdleBehaviorId::ApproachPlayerSide: return "approach_player_side";
+        case IdleBehaviorId::CirclePlayer: return "circle_player";
+        case IdleBehaviorId::DanceCircle: return "dance_circle";
+        case IdleBehaviorId::SpinOrbit: return "spin_orbit";
+        case IdleBehaviorId::PokePlayer: return "poke_player";
+        case IdleBehaviorId::PokeInPlace: return "poke_in_place";
+        case IdleBehaviorId::Sleep: return "sleep";
+        case IdleBehaviorId::FaceAway: return "face_away";
+        case IdleBehaviorId::DriftAway: return "drift_away";
+        case IdleBehaviorId::InspectPoi: return "inspect_poi";
+        case IdleBehaviorId::JumpFidget: return "jump_fidget";
+        case IdleBehaviorId::HopWander: return "hop_wander";
+        case IdleBehaviorId::GuardPost: return "guard_post";
+        case IdleBehaviorId::ShyHide: return "shy_hide";
+        case IdleBehaviorId::FollowNpc: return "follow_npc";
+        case IdleBehaviorId::None: return "none";
+    }
+    return "none";
+}
+
+} // namespace
+
+FollowerController::FollowerController(
+    const std::string& project_root,
+    const SceneConfig& scene,
+    const FollowerSummonConfig& summon_config,
+    const FollowerSessionConfig& session_config)
+    : project_root_(project_root),
+      scene_(scene),
+      summon_config_(summon_config),
+      session_config_(session_config),
+      idle_config_(loadNatureIdleBehaviorConfig(project_root)) {}
+
+void FollowerController::initialize(SDL_Renderer* renderer) {
+    if (!session_config_.enabled || session_config_.pokemon_species.empty()) {
+        state_ = State::Hidden;
+        return;
+    }
+    if (!initialized_rng_) {
+        rng_.seed(std::random_device{}());
+        initialized_rng_ = true;
+    }
+
+    follower_def_ = data::loadCharacterDefinition(
+        project_root_,
+        resolveFollowerPokemonCharbinPath(project_root_, session_config_.pokemon_species));
+    follower_animator_ = std::make_unique<characters::SpriteSheetAnimator>(follower_def_);
+    follower_renderer_ = std::make_unique<rendering::BillboardSpriteRenderer>(renderer, follower_def_, scene_.sprite_shadow);
+
+    ball_def_ = data::loadCharacterDefinition(
+        project_root_,
+        resolveFollowerPokeballCharbinPath(project_root_, session_config_.pokeball_id));
+    ball_renderer_ = std::make_unique<rendering::BillboardSpriteRenderer>(renderer, ball_def_, scene_.sprite_shadow);
+    ball_frames_ = ball_def_.play.frames.empty() ? std::vector<int>{0} : ball_def_.play.frames;
+    follower_step_duration_s_ = std::max(0.01f, static_cast<float>(summon_config_.follow_step_duration_ms) / 1000.0f);
+}
+
+void FollowerController::beginStepToTile(const TilePoint& target, double speed_multiplier, bool hop_movement) {
+    const TilePoint from_tile = follower_tile_;
+    follower_move_from_ = follower_pos_;
+    follower_move_to_ = tileToWorldCenter(target.x, target.y);
+    follower_tile_ = target;
+    follower_move_t_ = 0.0f;
+    follower_moving_ = true;
+    current_step_speed_multiplier_ = std::max(0.1, speed_multiplier);
+    current_step_hop_height_tiles_ = hop_movement ? 0.25 : 0.0;
+    const int dx = target.x - from_tile.x;
+    const int dy = target.y - from_tile.y;
+    if (dx > 0) follower_facing_ = FacingDirection::East;
+    else if (dx < 0) follower_facing_ = FacingDirection::West;
+    else if (dy > 0) follower_facing_ = FacingDirection::South;
+    else if (dy < 0) follower_facing_ = FacingDirection::North;
+    follower_animator_->setFacing(follower_facing_);
+    follower_animator_->setMoving(true);
+}
+
+void FollowerController::updateActiveStep(double dt) {
+    render_offset_ = camera::Vec3{};
+    if (!follower_moving_) return;
+    follower_move_t_ += static_cast<float>(dt) / std::max(0.001f, follower_step_duration_s_ / static_cast<float>(current_step_speed_multiplier_));
+    if (follower_move_t_ >= 1.0f) {
+        follower_move_t_ = 1.0f;
+        follower_pos_ = follower_move_to_;
+        follower_moving_ = false;
+        current_step_hop_height_tiles_ = 0.0;
+        return;
+    }
+    follower_pos_.x = follower_move_from_.x + ((follower_move_to_.x - follower_move_from_.x) * follower_move_t_);
+    follower_pos_.y = follower_move_from_.y + ((follower_move_to_.y - follower_move_from_.y) * follower_move_t_);
+    follower_pos_.z = follower_move_from_.z + ((follower_move_to_.z - follower_move_from_.z) * follower_move_t_);
+    if (current_step_hop_height_tiles_ > 0.0) {
+        const double t = std::clamp(static_cast<double>(follower_move_t_), 0.0, 1.0);
+        render_offset_.y = static_cast<float>((4.0 * t * (1.0 - t)) * current_step_hop_height_tiles_ * scene_.grid.tile_size);
+    }
+}
+
+void FollowerController::finishNatureIdle(bool natural_end) {
+    idle_behavior_active_ = false;
+    returning_to_origin_ = false;
+    cancel_return_active_ = false;
+    sleep_action_active_ = false;
+    idle_actions_.clear();
+    action_elapsed_seconds_ = 0.0;
+    action_jump_landings_emitted_ = 0;
+    render_offset_ = camera::Vec3{};
+    render_screen_offset_y_px_ = 0;
+    active_behavior_label_ = "none";
+    pending_landing_dust_spawn_.reset();
+    if (natural_end && idle_config_.restore_original_direction_on_natural_end) {
+        follower_facing_ = idle_origin_facing_;
+    }
+    if (natural_end) {
+        idle_cooldown_seconds_ = idle_config_.cooldown_between_behaviors_seconds.min +
+            (idle_config_.cooldown_between_behaviors_seconds.max - idle_config_.cooldown_between_behaviors_seconds.min) * 0.5;
+    }
+}
+
+void FollowerController::cancelNatureIdle() {
+    idle_behavior_active_ = false;
+    returning_to_origin_ = false;
+    sleep_action_active_ = false;
+    idle_actions_.clear();
+    path_.clear();
+    action_elapsed_seconds_ = 0.0;
+    action_jump_landings_emitted_ = 0;
+    render_offset_ = camera::Vec3{};
+    render_screen_offset_y_px_ = 0;
+    cancel_return_active_ = true;
+    cancel_soft_snap_elapsed_seconds_ = 0.0;
+    idle_seconds_ = 0.0;
+    active_behavior_label_ = "cancel_return";
+    pending_landing_dust_spawn_.reset();
+}
+
+bool FollowerController::beginNextIdleAction() {
+    while (!idle_actions_.empty()) {
+        IdleAction& action = idle_actions_.front();
+        action_elapsed_seconds_ = 0.0;
+        action_jump_landings_emitted_ = 0;
+        if (action.type == IdleActionType::Face) {
+            follower_facing_ = action.facing;
+            idle_actions_.pop_front();
+            continue;
+        }
+        if (action.type == IdleActionType::MovePath && action.path.empty()) {
+            idle_actions_.pop_front();
+            continue;
+        }
+        sleep_action_active_ = action.type == IdleActionType::Sleep;
+        return true;
+    }
+    sleep_action_active_ = false;
+    return false;
+}
+
+void FollowerController::updateNormalFollow() {
+    if (follower_moving_) return;
+    if (path_.empty()) {
+        const bool player_has_moved =
+            last_player_tile_.x != player_tile_.x || last_player_tile_.y != player_tile_.y;
+        const bool follower_not_at_target =
+            follower_tile_.x != last_player_tile_.x || follower_tile_.y != last_player_tile_.y;
+        if (player_has_moved && follower_not_at_target) {
+            const GridPoint occupied{player_tile_.x, player_tile_.y};
+            const auto catchup_path = buildFollowerPath(
+                scene_,
+                GridPoint{follower_tile_.x, follower_tile_.y},
+                GridPoint{last_player_tile_.x, last_player_tile_.y},
+                &occupied);
+            for (const GridPoint& step : catchup_path) {
+                path_.push_back(TilePoint{step.x, step.y});
+            }
+        }
+        if (path_.empty()) return;
+    }
+    const TilePoint next = path_.front();
+    path_.pop_front();
+    const double speed = cancel_return_active_
+        ? idle_config_.cancel_return_speed_multiplier
+        : 1.0;
+    beginStepToTile(next, speed, false);
+}
+
+void FollowerController::updateNatureIdle(double dt) {
+    if (!idle_behavior_active_) return;
+    if (follower_moving_) return;
+    if (idle_actions_.empty() && !returning_to_origin_) {
+        const GridPoint occupied{player_tile_.x, player_tile_.y};
+        const std::optional<GridPoint> exit_target = selectIdleExitTarget(
+            scene_,
+            GridPoint{player_tile_.x, player_tile_.y},
+            GridPoint{follower_tile_.x, follower_tile_.y},
+            GridPoint{idle_origin_tile_.x, idle_origin_tile_.y},
+            &occupied);
+        if (idle_config_.restore_original_position_on_natural_end &&
+            exit_target &&
+            (follower_tile_.x != exit_target->x || follower_tile_.y != exit_target->y)) {
+            auto return_path = buildFollowerPath(
+                scene_,
+                GridPoint{follower_tile_.x, follower_tile_.y},
+                *exit_target,
+                &occupied);
+            if (!return_path.empty()) {
+                IdleAction return_action;
+                return_action.type = IdleActionType::MovePath;
+                return_action.path.assign(return_path.begin(), return_path.end());
+                return_action.speed_multiplier = idle_config_.return_to_origin_speed_multiplier;
+                idle_actions_.push_back(std::move(return_action));
+                if (idle_config_.restore_original_direction_on_natural_end) {
+                    IdleAction face_restore;
+                    face_restore.type = IdleActionType::Face;
+                    face_restore.facing = idle_origin_facing_;
+                    idle_actions_.push_back(face_restore);
+                }
+                returning_to_origin_ = true;
+            } else {
+                follower_pos_ = tileToWorldCenter(exit_target->x, exit_target->y);
+                follower_tile_ = TilePoint{exit_target->x, exit_target->y};
+            }
+        } else {
+            finishNatureIdle(true);
+            return;
+        }
+    }
+    if (!beginNextIdleAction()) {
+        finishNatureIdle(true);
+        return;
+    }
+
+    IdleAction& action = idle_actions_.front();
+    if (action.type == IdleActionType::MovePath) {
+        beginStepToTile(TilePoint{action.path.front().x, action.path.front().y}, action.speed_multiplier, action.hop_movement);
+        action.path.erase(action.path.begin());
+        return;
+    }
+
+    action_elapsed_seconds_ += dt;
+    if (action.type == IdleActionType::Wait) {
+        if (action_elapsed_seconds_ >= action.duration_seconds) {
+            idle_actions_.pop_front();
+        }
+        return;
+    }
+    if (action.type == IdleActionType::Poke) {
+        const double cycle = action.phase_a_seconds + action.phase_b_seconds;
+        const double total = cycle * static_cast<double>(std::max(1, action.repeat_count));
+        const double phase = std::fmod(action_elapsed_seconds_, cycle);
+        const double forward = (phase <= action.phase_a_seconds)
+            ? (phase / std::max(0.001, action.phase_a_seconds))
+            : (1.0 - ((phase - action.phase_a_seconds) / std::max(0.001, action.phase_b_seconds)));
+        render_offset_ = facingOffset(follower_facing_, forward * action.poke_distance_tiles * scene_.grid.tile_size);
+        if (action_elapsed_seconds_ >= total) {
+            render_offset_ = camera::Vec3{};
+            idle_actions_.pop_front();
+        }
+        return;
+    }
+    if (action.type == IdleActionType::Jump) {
+        const double cycle = std::max(0.001, action.duration_seconds);
+        const double total = cycle * static_cast<double>(std::max(1, action.repeat_count));
+        const double phase = std::fmod(action_elapsed_seconds_, cycle) / cycle;
+        render_screen_offset_y_px_ = -static_cast<int>(std::lround((4.0 * phase * (1.0 - phase)) * static_cast<double>(action.jump_height_pixels)));
+        const int completed_landings = std::min(
+            std::max(0, action.repeat_count),
+            static_cast<int>(std::floor(action_elapsed_seconds_ / cycle)));
+        while (action_jump_landings_emitted_ < completed_landings) {
+            pending_landing_dust_spawn_ = effects::LandingDustSpawnRequest{
+                reinterpret_cast<std::uintptr_t>(this),
+                follower_pos_,
+                cycle};
+            ++action_jump_landings_emitted_;
+        }
+        if (action_elapsed_seconds_ >= total) {
+            render_screen_offset_y_px_ = 0;
+            idle_actions_.pop_front();
+        }
+        return;
+    }
+    if (action.type == IdleActionType::Sleep) {
+        if (action_elapsed_seconds_ >= action.duration_seconds) {
+            sleep_action_active_ = false;
+            idle_actions_.pop_front();
+        }
+    }
+}
+
+void FollowerController::updateManualDebugAction(double dt) {
+    if (manual_debug_action_ == ManualDebugActionType::None) return;
+
+    render_offset_ = camera::Vec3{};
+    render_screen_offset_y_px_ = 0;
+    manual_debug_elapsed_seconds_ += dt;
+
+    if (manual_debug_action_ == ManualDebugActionType::Jump) {
+        const double duration = std::max(0.01, idle_config_.jump.duration_seconds);
+        const double phase = std::clamp(manual_debug_elapsed_seconds_ / duration, 0.0, 1.0);
+        render_screen_offset_y_px_ =
+            -static_cast<int>(std::lround((4.0 * phase * (1.0 - phase)) * static_cast<double>(idle_config_.jump.height_pixels)));
+        if (manual_debug_elapsed_seconds_ >= duration) {
+            pending_landing_dust_spawn_ = effects::LandingDustSpawnRequest{
+                reinterpret_cast<std::uintptr_t>(this),
+                follower_pos_,
+                duration};
+            manual_debug_action_ = ManualDebugActionType::None;
+            manual_debug_elapsed_seconds_ = 0.0;
+            render_screen_offset_y_px_ = 0;
+            active_behavior_label_ = "none";
+        }
+        return;
+    }
+
+    const double forward = std::max(0.01, idle_config_.poke.forward_seconds);
+    const double back = std::max(0.01, idle_config_.poke.return_seconds);
+    const double total = forward + back;
+    const double phase = std::clamp(manual_debug_elapsed_seconds_, 0.0, total);
+    double amount = 0.0;
+    if (phase <= forward) {
+        amount = (phase / forward) * idle_config_.poke.distance_tiles * scene_.grid.tile_size;
+    } else {
+        amount = (1.0 - ((phase - forward) / back)) * idle_config_.poke.distance_tiles * scene_.grid.tile_size;
+    }
+    render_offset_ = facingOffset(follower_facing_, amount);
+    if (manual_debug_elapsed_seconds_ >= total) {
+        manual_debug_action_ = ManualDebugActionType::None;
+        manual_debug_elapsed_seconds_ = 0.0;
+        render_offset_ = camera::Vec3{};
+        active_behavior_label_ = "none";
+    }
+}
+
+void FollowerController::update(
+    double dt,
+    const camera::Vec3& player_world_pos,
+    FacingDirection player_facing,
+    bool player_idle,
+    bool player_activity) {
+    if (!follower_renderer_ || !session_config_.enabled) return;
+
+    player_facing_ = player_facing;
+    player_idle_ = player_idle;
+    const float ts = std::max(1.0f, scene_.grid.tile_size);
+    const TilePoint player_tile{
+        static_cast<int>(std::floor(player_world_pos.x / ts)),
+        static_cast<int>(std::floor(player_world_pos.z / ts))};
+    player_tile_ = player_tile;
+
+    if (!have_last_player_tile_) {
+        last_player_tile_ = player_tile;
+        player_tile_ = player_tile;
+        follower_tile_ = player_tile;
+        have_last_player_tile_ = true;
+    }
+    if (player_tile.x != last_player_tile_.x || player_tile.y != last_player_tile_.y) {
+        path_.push_back(last_player_tile_);
+        if (path_.size() > 24) path_.pop_front();
+        if (state_ == State::Hidden) {
+            state_ = State::BallRelease;
+            state_elapsed_seconds_ = 0.0;
+            ball_pos_ = tileToWorldCenter(last_player_tile_.x, last_player_tile_.y);
+            follower_pos_ = ball_pos_;
+            follower_tile_ = last_player_tile_;
+        }
+        last_player_tile_ = player_tile;
+    }
+
+    state_elapsed_seconds_ += dt;
+    if (state_ == State::BallRelease) {
+        if (state_elapsed_seconds_ >= ballReleaseTotalSeconds(summon_config_)) {
+            state_ = State::EntryFlash;
+            state_elapsed_seconds_ = 0.0;
+        }
+        return;
+    }
+    if (state_ == State::EntryFlash) {
+        if (state_elapsed_seconds_ * 1000.0 >= static_cast<double>(summon_config_.entry_animation.duration_ms)) {
+            state_ = State::Active;
+            state_elapsed_seconds_ = 0.0;
+        }
+        return;
+    }
+
+    updateActiveStep(dt);
+    if (follower_animator_) {
+        follower_animator_->setFacing(follower_facing_);
+        follower_animator_->setMoving(follower_moving_);
+        if (manual_debug_action_ == ManualDebugActionType::None) {
+            follower_animator_->update(dt);
+        }
+    }
+
+    if (player_activity && idle_behavior_active_) {
+        cancelNatureIdle();
+    }
+
+    if (cancel_return_active_) {
+        cancel_soft_snap_elapsed_seconds_ += dt;
+        const GridPoint occupied{player_tile_.x, player_tile_.y};
+        const std::optional<GridPoint> exit_target = selectIdleExitTarget(
+            scene_,
+            GridPoint{player_tile_.x, player_tile_.y},
+            GridPoint{follower_tile_.x, follower_tile_.y},
+            GridPoint{idle_origin_tile_.x, idle_origin_tile_.y},
+            &occupied);
+        if (!follower_moving_ && path_.empty() &&
+            exit_target &&
+            (follower_tile_.x != exit_target->x || follower_tile_.y != exit_target->y)) {
+            const auto return_path = buildFollowerPath(
+                scene_,
+                GridPoint{follower_tile_.x, follower_tile_.y},
+                *exit_target,
+                &occupied);
+            for (const GridPoint& step : return_path) {
+                path_.push_back(TilePoint{step.x, step.y});
+            }
+        }
+
+        if (!follower_moving_ && !path_.empty()) {
+            const TilePoint next = path_.front();
+            path_.pop_front();
+            beginStepToTile(next, idle_config_.cancel_return_speed_multiplier, false);
+        }
+
+        if (exit_target &&
+            !follower_moving_ &&
+            follower_tile_.x == exit_target->x &&
+            follower_tile_.y == exit_target->y) {
+            if (idle_config_.restore_original_direction_on_natural_end) {
+                follower_facing_ = idle_origin_facing_;
+            }
+            cancel_return_active_ = false;
+            active_behavior_label_ = "none";
+        } else if (!follower_moving_ && path_.empty() &&
+                   idle_config_.allow_soft_snap_on_cancel_return &&
+                   cancel_soft_snap_elapsed_seconds_ >= idle_config_.soft_snap_delay_seconds) {
+            const GridPoint fallback_target = exit_target.value_or(GridPoint{idle_origin_tile_.x, idle_origin_tile_.y});
+            follower_tile_ = TilePoint{fallback_target.x, fallback_target.y};
+            follower_pos_ = tileToWorldCenter(follower_tile_.x, follower_tile_.y);
+            if (idle_config_.restore_original_direction_on_natural_end) {
+                follower_facing_ = idle_origin_facing_;
+            }
+            cancel_return_active_ = false;
+            active_behavior_label_ = "none";
+        }
+        return;
+    }
+
+    if (idle_behavior_active_) {
+        updateNatureIdle(dt);
+        return;
+    }
+
+    if (manual_debug_action_ != ManualDebugActionType::None) {
+        updateManualDebugAction(dt);
+        return;
+    }
+
+    updateNormalFollow();
+    if (!player_idle_ || follower_moving_ || !path_.empty() || !idle_config_.enabled) {
+        idle_seconds_ = 0.0;
+        if (idle_cooldown_seconds_ > 0.0) idle_cooldown_seconds_ = std::max(0.0, idle_cooldown_seconds_ - dt);
+        return;
+    }
+    if (idle_cooldown_seconds_ > 0.0) {
+        idle_cooldown_seconds_ = std::max(0.0, idle_cooldown_seconds_ - dt);
+        return;
+    }
+
+    std::string canonical_nature;
+    if (!normalizeNatureName(session_config_.nature, canonical_nature)) {
+        idle_seconds_ = 0.0;
+        return;
+    }
+
+    idle_seconds_ += dt;
+    if (idle_seconds_ < idle_config_.start_after_idle_seconds) return;
+    idle_seconds_ = 0.0;
+    idle_origin_tile_ = follower_tile_;
+    idle_origin_facing_ = follower_facing_;
+    IdlePlan plan;
+    IdleBehaviorId forced_behavior = IdleBehaviorId::None;
+    const bool has_forced_behavior =
+        !session_config_.forced_behavior.empty() &&
+        idleBehaviorIdFromString(session_config_.forced_behavior, forced_behavior) &&
+        forced_behavior != IdleBehaviorId::None;
+    if (has_forced_behavior) {
+        NatureIdleBehaviorConfig forced_config = idle_config_;
+        const GridPoint occupied{player_tile.x, player_tile.y};
+        for (auto& [group_name, weights] : forced_config.group_weights) {
+            (void)group_name;
+            for (auto& [behavior_name, weight] : weights) {
+                IdleBehaviorId behavior_id = IdleBehaviorId::None;
+                if (idleBehaviorIdFromString(behavior_name, behavior_id)) {
+                    weight = (behavior_id == forced_behavior) ? forced_config.behavior_weight_clamp.max : 0;
+                }
+            }
+        }
+        plan = planNatureIdleBehavior(
+            scene_,
+            forced_config,
+            canonical_nature,
+            GridPoint{player_tile.x, player_tile.y},
+            player_facing_,
+            GridPoint{follower_tile_.x, follower_tile_.y},
+            follower_facing_,
+            &occupied,
+            false,
+            rng_);
+    } else {
+        const GridPoint occupied{player_tile.x, player_tile.y};
+        plan = planNatureIdleBehavior(
+            scene_,
+            idle_config_,
+            canonical_nature,
+            GridPoint{player_tile.x, player_tile.y},
+            player_facing_,
+            GridPoint{follower_tile_.x, follower_tile_.y},
+            follower_facing_,
+            &occupied,
+            false,
+            rng_);
+    }
+    if (!plan.valid || plan.actions.empty()) return;
+    idle_actions_.assign(plan.actions.begin(), plan.actions.end());
+    idle_behavior_active_ = true;
+    returning_to_origin_ = false;
+    active_behavior_label_ = behaviorLabel(plan.behavior);
+}
+
+void FollowerController::render(
+    SDL_Renderer* renderer,
+    const camera::Gen4FollowCamera& camera,
+    int viewport_w,
+    int viewport_h,
+    float tint_r,
+    float tint_g,
+    float tint_b,
+    float brightness) {
+    if (!activeForRender()) return;
+    if (state_ == State::BallRelease && ball_renderer_ && ball_renderer_->valid()) {
+        const double animation_seconds = std::max(0.001, ballReleasePhaseSeconds(summon_config_));
+        const double held_elapsed_seconds = std::min(state_elapsed_seconds_, animation_seconds);
+        const float t = std::clamp(
+            static_cast<float>(held_elapsed_seconds / animation_seconds),
+            0.0f, 1.0f);
+        int frame = ball_frames_.front();
+        if (summon_config_.ball_animation.full_animation) {
+            const int idx = std::clamp(static_cast<int>(std::round(t * static_cast<float>(std::max(0, static_cast<int>(ball_frames_.size()) - 1)))),
+                0, static_cast<int>(ball_frames_.size()) - 1);
+            frame = ball_frames_[static_cast<std::size_t>(idx)];
+        } else if (t > 0.5f) {
+            frame = ball_frames_.back();
+        }
+        camera::Vec3 draw = ball_pos_;
+        if (summon_config_.ball_animation.fall_enabled) draw.y += (1.0f - t) * summon_config_.ball_animation.fall_height_world;
+        ball_renderer_->render(
+            renderer,
+            camera,
+            draw,
+            sourceRectForFrame(ball_def_, frame),
+            viewport_w,
+            viewport_h,
+            1.0f,
+            1.0f,
+            1.0f,
+            1.0f,
+            1.0f,
+            1.0f,
+            0.0f,
+            &ball_pos_);
+        return;
+    }
+    if (!follower_animator_ || !follower_renderer_) return;
+    float scale_mul = 1.0f;
+    float tr = tint_r;
+    float tg = tint_g;
+    float tb = tint_b;
+    float alpha_mul = 1.0f;
+    float white_overlay_alpha = 0.0f;
+    if (state_ == State::EntryFlash) {
+        const float t = std::clamp(
+            static_cast<float>((state_elapsed_seconds_ * 1000.0) / std::max(1.0, static_cast<double>(summon_config_.entry_animation.duration_ms))),
+            0.0f,
+            1.0f);
+        scale_mul = summon_config_.entry_animation.start_scale + ((1.0f - summon_config_.entry_animation.start_scale) * t);
+        tr = summon_config_.entry_animation.tint_r;
+        tg = summon_config_.entry_animation.tint_g;
+        tb = summon_config_.entry_animation.tint_b;
+        alpha_mul = summon_config_.entry_animation.alpha;
+        white_overlay_alpha = 1.0f;
+    }
+    camera::Vec3 draw_pos = follower_pos_;
+    draw_pos.x += render_offset_.x;
+    draw_pos.y += render_offset_.y;
+    draw_pos.z += render_offset_.z;
+    const SDL_Rect src = follower_animator_->sourceRect();
+    follower_renderer_->render(
+        renderer,
+        camera,
+        draw_pos,
+        src,
+        viewport_w,
+        viewport_h,
+        tr,
+        tg,
+        tb,
+        brightness,
+        scale_mul,
+        alpha_mul,
+        white_overlay_alpha,
+        nullptr,
+        0,
+        render_screen_offset_y_px_);
+}
+
+bool FollowerController::activeForRender() const {
+    return state_ != State::Hidden && follower_renderer_ && follower_renderer_->valid();
+}
+
+std::optional<float> FollowerController::renderDepth(
+    const camera::Gen4FollowCamera& camera,
+    int viewport_w,
+    int viewport_h) const {
+    if (!activeForRender()) return std::nullopt;
+    camera::Vec3 p = (state_ == State::BallRelease) ? ball_pos_ : follower_pos_;
+    float sx = 0.0f, sy = 0.0f, depth = 0.0f;
+    if (!camera.worldToScreen(p, viewport_w, viewport_h, sx, sy, depth)) return std::nullopt;
+    return depth;
+}
+
+bool FollowerController::triggerDebugJump() {
+    if (state_ != State::Active || follower_moving_ || idle_behavior_active_ || cancel_return_active_ ||
+        manual_debug_action_ != ManualDebugActionType::None) {
+        return false;
+    }
+    manual_debug_action_ = ManualDebugActionType::Jump;
+    manual_debug_elapsed_seconds_ = 0.0;
+    render_offset_ = camera::Vec3{};
+    render_screen_offset_y_px_ = 0;
+    pending_landing_dust_spawn_.reset();
+    active_behavior_label_ = "debug_jump";
+    return true;
+}
+
+bool FollowerController::triggerDebugPoke() {
+    if (state_ != State::Active || follower_moving_ || idle_behavior_active_ || cancel_return_active_ ||
+        manual_debug_action_ != ManualDebugActionType::None) {
+        return false;
+    }
+    manual_debug_action_ = ManualDebugActionType::Poke;
+    manual_debug_elapsed_seconds_ = 0.0;
+    render_offset_ = camera::Vec3{};
+    render_screen_offset_y_px_ = 0;
+    pending_landing_dust_spawn_.reset();
+    active_behavior_label_ = "debug_poke";
+    return true;
+}
+
+std::string FollowerController::debugActivityLabel() const {
+    return active_behavior_label_;
+}
+
+std::optional<effects::LandingDustSpawnRequest> FollowerController::consumeLandingDustSpawn() {
+    std::optional<effects::LandingDustSpawnRequest> out = pending_landing_dust_spawn_;
+    pending_landing_dust_spawn_.reset();
+    return out;
+}
+
+int FollowerController::tileHeightUnits(int tx, int ty) const {
+    if (scene_.terrain.heights.empty()) return 0;
+    if (ty < 0 || ty >= static_cast<int>(scene_.terrain.heights.size())) return 0;
+    const auto& row = scene_.terrain.heights[static_cast<std::size_t>(ty)];
+    if (tx < 0 || tx >= static_cast<int>(row.size())) return 0;
+    return static_cast<int>(row[static_cast<std::size_t>(tx)]);
+}
+
+camera::Vec3 FollowerController::tileToWorldCenter(int tx, int ty) const {
+    const float ts = std::max(1.0f, scene_.grid.tile_size);
+    return camera::Vec3{(static_cast<float>(tx) + 0.5f) * ts, static_cast<float>(tileHeightUnits(tx, ty)) * ts, (static_cast<float>(ty) + 0.5f) * ts};
+}
+
+} // namespace pr::gameplay::world3d::followers

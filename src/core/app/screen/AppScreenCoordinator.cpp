@@ -2,6 +2,7 @@
 
 #include "ui/Screen.hpp"
 #include "ui/ScreenInput.hpp"
+#include "ui/Overworld3DTestScreen.hpp"
 #include "ui/TitleScreen.hpp"
 #include "ui/TransferFlowCoordinator.hpp"
 
@@ -10,10 +11,12 @@ namespace pr {
 AppScreenCoordinator::AppScreenCoordinator(
     TitleScreen& title_screen,
     AppLoadingCoordinator& loading,
-    TransferFlowCoordinator& transfer_flow)
+    TransferFlowCoordinator& transfer_flow,
+    Overworld3DTestScreen& overworld3d_test)
     : title_screen_(title_screen),
       loading_(loading),
-      transfer_flow_(transfer_flow) {}
+      transfer_flow_(transfer_flow),
+      overworld3d_test_(overworld3d_test) {}
 
 Screen* AppScreenCoordinator::activeScreen() {
     switch (active_screen_) {
@@ -23,6 +26,8 @@ Screen* AppScreenCoordinator::activeScreen() {
             return loading_.activeScreen();
         case ActiveScreen::TransferFlow:
             return transfer_flow_.activeScreen();
+        case ActiveScreen::Overworld3DTest:
+            return &overworld3d_test_;
     }
     return nullptr;
 }
@@ -44,6 +49,9 @@ void AppScreenCoordinator::update(double dt) {
             break;
         case ActiveScreen::TransferFlow:
             updateTransfer(dt);
+            break;
+        case ActiveScreen::Overworld3DTest:
+            updateOverworld3D(dt);
             break;
     }
 
@@ -82,6 +90,32 @@ float AppScreenCoordinator::sfxVolume() const {
 
 double AppScreenCoordinator::transitionOverlayAlpha() const {
     return transition_controller_.overlayAlpha();
+}
+
+std::string AppScreenCoordinator::screenshotNameContext() const {
+    switch (active_screen_) {
+        case ActiveScreen::Title:
+            return "title_screen";
+        case ActiveScreen::ResortLoading:
+            return "resort_loading";
+        case ActiveScreen::TransferFlow: {
+            if (transfer_flow_.activeScreenKind() == TransferFlowCoordinator::ScreenKind::TransferSystem) {
+                std::string game = transfer_flow_.activeGameKeyForScreenshot();
+                const std::string prefix = "pokemon_";
+                if (game.rfind(prefix, 0) == 0) {
+                    game = game.substr(prefix.size());
+                }
+                return game.empty() ? "game_transfer" : ("game_transfer_" + game);
+            }
+            if (transfer_flow_.activeScreenKind() == TransferFlowCoordinator::ScreenKind::TicketList) {
+                return "transfer_tickets";
+            }
+            return "transfer_loading";
+        }
+        case ActiveScreen::Overworld3DTest:
+            return "overworld3d_test";
+    }
+    return "screen";
 }
 
 } // namespace pr

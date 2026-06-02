@@ -241,22 +241,23 @@ void testTransferSelectionRaisesOpenTransferAfterFade() {
            "TRANSFER should raise open-transfer event after the fade completes");
 }
 
-void testResortSelectionRaisesOpenResortLoadingAfterFade() {
+void testResortSelectionOpensResortSubmenuAnd3DTest() {
     TitleFlowHarness harness;
     harness.reachMainMenuIdle();
 
     harness.press(SDLK_m);
-    expect(harness.state() == pr::TitleState::MainMenuToSection,
-           "activating RESORT should start the shared menu-to-section transition");
+    expect(harness.state() == pr::TitleState::ResortIntro,
+           "activating RESORT should open the RESORT submenu intro");
     std::vector<pr::TitleScreenEvent> activation_events = harness.consumeEvents();
     expect(containsEvent(activation_events, pr::TitleScreenEvent::ButtonSfxRequested),
            "activating RESORT should request button SFX event");
-    expect(!containsEvent(activation_events, pr::TitleScreenEvent::OpenResortLoadingRequested),
-           "resort loading should not open until after the fade completes");
-
-    harness.completeSectionFade();
-    expect(containsEvent(harness.consumeEvents(), pr::TitleScreenEvent::OpenResortLoadingRequested),
-           "RESORT should raise open-resort-loading event after the fade completes");
+    harness.advance(harness.config().menu.animation.intro_duration + 0.01);
+    expect(harness.state() == pr::TitleState::ResortIdle,
+           "RESORT submenu intro should settle into ResortIdle");
+    harness.press(SDLK_m);
+    const std::vector<pr::TitleScreenEvent> open_events = harness.consumeEvents();
+    expect(containsEvent(open_events, pr::TitleScreenEvent::OpenResort3DTestRequested),
+           "3D TEST should emit open-resort-3d-test event");
 }
 
 void testTradeSelectionRaisesOpenTradeLoadingAfterFade() {
@@ -312,7 +313,7 @@ int main() {
         {"keyboard menu navigation and back return to title prompt", testKeyboardMenuNavigationAndBackReturnToTitlePrompt},
         {"options flow changes settings and returns to menu", testOptionsFlowChangesSettingsAndReturnsToMenu},
         {"transfer selection raises open-transfer after fade", testTransferSelectionRaisesOpenTransferAfterFade},
-        {"resort selection raises open-resort-loading after fade", testResortSelectionRaisesOpenResortLoadingAfterFade},
+        {"resort selection opens resort submenu and 3d test", testResortSelectionOpensResortSubmenuAnd3DTest},
         {"trade selection raises open-trade-loading after fade", testTradeSelectionRaisesOpenTradeLoadingAfterFade},
         {"controller can drive start and menu navigation", testControllerCanDriveStartAndMenuNavigation},
     };

@@ -1,0 +1,36 @@
+{
+  "manifestVersion": 1,
+  "storageFormat": "glb",
+  "id": "truck_texture_png",
+  "displayName": "truck_texture_png",
+  "compiledAt": "2026-06-02T04:31:51.224Z",
+  "sourceFormat": "glb",
+  "sourceFile": "truck_texture_png.glb",
+  "glbFile": "truck_texture_png.glb",
+  "modelFile": "truck_texture_png.glb",
+  "modelByteSize": 29232,
+  "modelHash": "f7b68ed66f0cc746",
+  "footprintTiles": {
+    "w": 4,
+    "d": 4,
+    "h": 3
+  },
+  "aabb": {
+    "min": [
+      -27.489999771118164,
+      -1.6028844918025698e-15,
+      -29.269981384277344
+    ],
+    "max": [
+      27.489999771118164,
+      39.97998046875,
+      29.269981384277344
+    ]
+  },
+  "vertexCount": 111,
+  "triangleCount": 134,
+  "materials": [
+    "White"
+  ],
+  "textureCount": 1
+}

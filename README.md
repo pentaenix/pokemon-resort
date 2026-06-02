@@ -7,6 +7,8 @@ The current codebase is no longer just a title-screen demo. Treat this README as
 ## Start Here
 
 - [`docs/ARCHITECTURE.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/ARCHITECTURE.md) is the central architecture map.
+- [`docs/architecture/system-map.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/architecture/system-map.md) is the domain-first map for `engine`/`gameplay`/`transfer` boundaries.
+- [`docs/architecture/module-rules.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/architecture/module-rules.md) defines enforceable dependency rules.
 - [`tests/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/tests/README.md) is the canonical testing map.
 - [`docs/config/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/config/README.md) explains which JSON files own which UI surfaces.
 - [`docs/transfer_system/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/transfer_system/README.md) is the practical field guide for transfer-system changes.
@@ -117,6 +119,10 @@ The full launch order, JSON contract, import-grade model, and guarded write-proj
 ## Testing
 
 The canonical test guide is [`tests/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/tests/README.md).
+
+Architecture guard checks are also wired into CTest:
+- `architecture_module_rules_check`
+- `architecture_docs_freshness_check`
 
 Before finishing behavior or architecture changes, run the relevant focused tests and then the native suite:
 
