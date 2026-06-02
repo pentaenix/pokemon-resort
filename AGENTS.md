@@ -11,6 +11,10 @@ Always start with:
 1. [`README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/README.md)
 2. [`docs/ARCHITECTURE.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/ARCHITECTURE.md)
 3. [`tests/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/tests/README.md)
+4. [`docs/architecture/system-map.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/architecture/system-map.md)
+5. [`docs/architecture/module-rules.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/architecture/module-rules.md)
+6. [`docs/agents/agent-playbook.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/agents/agent-playbook.md)
+7. [`docs/agents/token-budget-policy.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/agents/token-budget-policy.md)
 
 Then follow the task-specific path:
 
@@ -83,6 +87,7 @@ tests/run_all_tests.sh
 - Summarize assumptions before large refactors.
 - Before editing behavior, state whether the source of truth is JSON config, runtime code, or persisted save/profile data.
 - Update [`docs/ARCHITECTURE.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/ARCHITECTURE.md) whenever module boundaries, runtime flow, or extension guidance changes.
+- If domain boundaries change, update `docs/architecture/system-map.md`, `docs/architecture/module-rules.md`, and add an ADR under `docs/architecture/adrs/`.
 - Update config docs when adding or moving JSON fields.
 - If you add another recurring contributor-facing guide, keep it short, link it from the nearest higher-level doc, and identify its source-of-truth scope.
 - Keep scripts and one-off utilities small: **no script should grow beyond 500 lines**. Split large automation into modules or dedicated tools with clear contracts.

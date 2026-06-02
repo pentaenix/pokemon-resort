@@ -1,0 +1,96 @@
+{
+  "profiles": {
+    "character": {
+      "frameWidth": 32,
+      "frameHeight": 32,
+      "columns": 4,
+      "rows": 4,
+      "directions": {
+        "south": { "row": 0 },
+        "west": { "row": 1 },
+        "east": { "row": 2 },
+        "north": { "row": 3 }
+      },
+      "animations": {
+        "idle": { "frames": [0], "frameTimeMs": 250 },
+        "walk": { "frames": [0, 1, 2, 3], "frameTimeMs": 120 }
+      },
+      "rendering": {
+        "worldHeight": 28.0,
+        "spriteScale": 4.8,
+        "anchor": "bottom_center",
+        "worldOffset": [0.0, 0.0, 0.0],
+        "screenOffsetPx": [0, 8]
+      }
+    },
+    "pokemon_small": {
+      "frameWidth": 32,
+      "frameHeight": 32,
+      "columns": 4,
+      "rows": 4,
+      "directions": {
+        "south": { "row": 0 },
+        "west": { "row": 1 },
+        "east": { "row": 2 },
+        "north": { "row": 3 }
+      },
+      "animations": {
+        "walk": { "frames": [0, 1, 2, 3], "frameTimeMs": 120 },
+        "pause": { "frames": [0], "frameTimeMs": 400 },
+        "sleep": { "frames": [0, 1], "frameTimeMs": 400, "loop": true }
+      },
+      "rendering": {
+        "worldHeight": 28.0,
+        "spriteScale": 4.8,
+        "anchor": "bottom_center",
+        "worldOffset": [0.0, 0.0, 0.0],
+        "screenOffsetPx": [0, 8]
+      }
+    },
+    "pokemon_large": {
+      "frameWidth": 64,
+      "frameHeight": 64,
+      "columns": 4,
+      "rows": 4,
+      "directions": {
+        "south": { "row": 0 },
+        "west": { "row": 1 },
+        "east": { "row": 2 },
+        "north": { "row": 3 }
+      },
+      "animations": {
+        "walk": { "frames": [0, 1, 2, 3], "frameTimeMs": 120 },
+        "pause": { "frames": [0], "frameTimeMs": 400 },
+        "sleep": { "frames": [0, 1], "frameTimeMs": 400, "loop": true }
+      },
+      "rendering": {
+        "worldHeight": 36.0,
+        "spriteScale": 4.8,
+        "worldOffset": [0.0, 0.0, 0.0],
+        "screenOffsetPx": [0, 0]
+      }
+    },
+    "object": {
+      "frameWidth": 32,
+      "frameHeight": 32,
+      "columns": 4,
+      "rows": 4,
+      "directions": {
+        "south": { "row": 0 },
+        "west": { "row": 0 },
+        "east": { "row": 0 },
+        "north": { "row": 0 }
+      },
+      "animations": {
+        "play": { "frames": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], "frameTimeMs": 120 },
+        "pause": { "frames": [0], "frameTimeMs": 400 }
+      },
+      "rendering": {
+        "worldHeight": 10.0,
+        "spriteScale": 2.5,
+        "worldOffset": [0.0, 0.0, 0.0],
+        "screenOffsetPx": [0, 0]
+      }
+    }
+  }
+}

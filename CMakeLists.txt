@@ -53,6 +53,7 @@ add_executable(title_screen_demo
     src/core/app/loading/AppLoadingCoordinator.cpp
     src/core/app/AppPaths.cpp
     src/core/app/screen/AppScreenCoordinator.cpp
+    src/core/app/screen/AppScreenCoordinatorOverworld3D.cpp
     src/core/app/screen/AppScreenCoordinatorLoading.cpp
     src/core/app/screen/AppScreenCoordinatorTitle.cpp
     src/core/app/screen/AppScreenCoordinatorTransfer.cpp
@@ -68,6 +69,28 @@ add_executable(title_screen_demo
     src/core/assets/PokeSpriteAssets.cpp
     src/core/config/ConfigLoader.cpp
     src/core/bridge/SaveBridgeClient.cpp
+    src/transfer/application/NullTransferService.cpp
+    src/transfer/application/OpenHomeMovementOrchestrator.cpp
+    src/transfer/application/TransferCommitOrchestrator.cpp
+    src/gameplay/world3d/events/InMemoryWorldEventBus.cpp
+    src/gameplay/world3d/camera/Gen4CameraPreset.cpp
+    src/gameplay/world3d/camera/Gen4FollowCamera.cpp
+    src/gameplay/world3d/characters/SpriteSheetAnimator.cpp
+    src/gameplay/world3d/characters/CharacterController.cpp
+    src/gameplay/world3d/data/SceneMetadataParser.cpp
+    src/gameplay/world3d/data/JsonOverworldLoader.cpp
+    src/gameplay/world3d/data/OwmapOverworldLoader.cpp
+    src/gameplay/world3d/data/GlbModelLoader.cpp
+    src/gameplay/world3d/rendering/GlbModelRenderer.cpp
+    src/gameplay/world3d/effects/LandingDustSystem.cpp
+    src/gameplay/world3d/followers/FollowerConfig.cpp
+    src/gameplay/world3d/followers/FollowerController.cpp
+    src/gameplay/world3d/followers/FollowerIdleExitTarget.cpp
+    src/gameplay/world3d/followers/NatureIdleConfig.cpp
+    src/gameplay/world3d/followers/NatureIdlePlanner.cpp
+    src/gameplay/world3d/rendering/BillboardSpriteRenderer.cpp
+    src/gameplay/world3d/rendering/FallbackTerrainRenderer.cpp
+    src/gameplay/world3d/rendering/OverworldMapRenderer.cpp
     src/core/save/SaveLibrary.cpp
     src/core/save/SaveDataStore.cpp
     src/core/app/persistence/UserSettingsPersistence.cpp
@@ -81,9 +104,11 @@ add_executable(title_screen_demo
     src/ui/loading/ResortTransferLoadingScreen.cpp
     src/ui/loading/ResortTransferLoadingScreenMotion.cpp
     src/ui/TitleScreen.cpp
+    src/ui/Overworld3DTestScreen.cpp
     src/ui/TransferFlowCoordinator.cpp
     src/ui/title_screen/MainMenuController.cpp
     src/ui/title_screen/OptionsMenuController.cpp
+    src/ui/title_screen/ResortMenuController.cpp
     src/ui/title_screen/SectionScreenController.cpp
     src/ui/transfer_flow/TransferFlowController.cpp
     src/ui/transfer_flow/TransferSelectionBuilder.cpp
@@ -205,6 +230,30 @@ add_executable(transfer_marker_resolve_tests
 )
 target_include_directories(transfer_marker_resolve_tests PRIVATE include)
 add_test(NAME transfer_marker_resolve_tests COMMAND transfer_marker_resolve_tests)
+
+add_executable(transfer_contracts_tests
+    tests/native/architecture/transfer_contracts_tests.cpp
+    src/transfer/application/NullTransferService.cpp
+)
+target_include_directories(transfer_contracts_tests PRIVATE include)
+add_test(NAME transfer_contracts_tests COMMAND transfer_contracts_tests)
+
+add_executable(world_event_bus_tests
+    tests/native/architecture/world_event_bus_tests.cpp
+    src/gameplay/world3d/events/InMemoryWorldEventBus.cpp
+)
+target_include_directories(world_event_bus_tests PRIVATE include)
+add_test(NAME world_event_bus_tests COMMAND world_event_bus_tests)
+
+add_test(
+    NAME architecture_module_rules_check
+    COMMAND bash ${CMAKE_SOURCE_DIR}/scripts/check_module_boundaries.sh
+)
+
+add_test(
+    NAME architecture_docs_freshness_check
+    COMMAND bash ${CMAKE_SOURCE_DIR}/scripts/check_docs_freshness.sh
+)
 
 add_executable(mutable_merge_policy_tests
     tests/native/resort/mutable_merge_policy_tests.cpp
@@ -374,6 +423,16 @@ add_executable(config_loader_tests
 target_include_directories(config_loader_tests PRIVATE include)
 add_test(NAME config_loader_tests COMMAND config_loader_tests)
 
+add_executable(owmap_overworld_loader_tests
+    tests/native/world3d/owmap_overworld_loader_tests.cpp
+    src/core/config/Json.cpp
+    src/gameplay/world3d/data/SceneMetadataParser.cpp
+    src/gameplay/world3d/data/JsonOverworldLoader.cpp
+    src/gameplay/world3d/data/OwmapOverworldLoader.cpp
+)
+target_include_directories(owmap_overworld_loader_tests PRIVATE include)
+add_test(NAME owmap_overworld_loader_tests COMMAND owmap_overworld_loader_tests)
+
 add_executable(transfer_box_edits_store_tests
     tests/native/core/transfer_box_edits_store_tests.cpp
     src/core/save/TransferBoxEditsStore.cpp
@@ -451,6 +510,7 @@ add_executable(title_screen_flow_harness_tests
     src/ui/TitleScreen.cpp
     src/ui/title_screen/MainMenuController.cpp
     src/ui/title_screen/OptionsMenuController.cpp
+    src/ui/title_screen/ResortMenuController.cpp
     src/ui/title_screen/SectionScreenController.cpp
     src/ui/title_screen/TitleScreenRender.cpp
 )
@@ -461,6 +521,8 @@ add_test(NAME title_screen_flow_harness_tests COMMAND title_screen_flow_harness_
 
 add_executable(transfer_system_flow_harness_tests
     tests/e2e/native/transfer_system_flow_harness_tests.cpp
+    src/transfer/application/OpenHomeMovementOrchestrator.cpp
+    src/transfer/application/TransferCommitOrchestrator.cpp
     src/core/assets/Assets.cpp
     src/core/config/ConfigLoader.cpp
     src/core/assets/Font.cpp
@@ -471,6 +533,7 @@ add_executable(transfer_system_flow_harness_tests
     src/core/bridge/SaveBridgeClient.cpp
     src/core/save/TransferBoxEditsStore.cpp
     src/core/bridge/BridgeImportMerge.cpp
+    src/transfer/application/TransferCommitOrchestrator.cpp
     ${RESORT_STORAGE_SOURCES}
     src/ui/TransferSystemScreen.cpp
     src/ui/transfer_system/TransferSystemScreenLifecycle.cpp

@@ -5,6 +5,7 @@
 #include "ui/Screen.hpp"
 #include "ui/title_screen/MainMenuController.hpp"
 #include "ui/title_screen/OptionsMenuController.hpp"
+#include "ui/title_screen/ResortMenuController.hpp"
 #include "ui/title_screen/SectionScreenController.hpp"
 #include <SDL.h>
 #include <cstdint>
@@ -30,12 +31,16 @@ enum class TitleState {
     OptionsIntro,
     OptionsIdle,
     OptionsOutro,
+    ResortIntro,
+    ResortIdle,
+    ResortOutro,
     SectionScreen
 };
 
 enum class TitleScreenEvent {
     ButtonSfxRequested,
     UserSettingsSaveRequested,
+    OpenResort3DTestRequested,
     OpenResortLoadingRequested,
     OpenTradeLoadingRequested,
     OpenTransferRequested
@@ -85,6 +90,7 @@ private:
 
     void activateMainMenuSelection();
     void activateOptionSelection();
+    void activateResortSelection();
     void returnToMainMenu();
     void restartFromSplash();
     void emitEvent(TitleScreenEvent event);
@@ -126,6 +132,7 @@ private:
     bool pointInRect(int x, int y, const SDL_Rect& rect) const;
     std::string currentSectionTitle() const;
     std::vector<std::string> optionLabels() const;
+    std::vector<std::string> resortLabels() const;
 
     double scaleX() const;
     double scaleY() const;
@@ -136,6 +143,7 @@ private:
     Assets assets_;
     title_screen::MainMenuController main_menu_;
     title_screen::OptionsMenuController options_menu_;
+    title_screen::ResortMenuController resort_menu_;
     title_screen::SectionScreenController section_screen_;
     TitleState state_ = TitleState::SplashFadeIn;
     double state_time_ = 0.0;

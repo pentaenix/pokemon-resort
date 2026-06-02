@@ -57,6 +57,15 @@ void TitleScreen::render(SDL_Renderer* renderer) {
         case TitleState::OptionsOutro:
             renderOptions(renderer, optionsTransitionProgress(), false);
             break;
+        case TitleState::ResortIntro:
+            renderOptions(renderer, optionsTransitionProgress(), true);
+            break;
+        case TitleState::ResortIdle:
+            renderOptions(renderer, 1.0, true);
+            break;
+        case TitleState::ResortOutro:
+            renderOptions(renderer, optionsTransitionProgress(), false);
+            break;
         case TitleState::SectionScreen:
             renderSection(renderer);
             break;
@@ -141,7 +150,7 @@ void TitleScreen::renderMenuToSectionTransition(SDL_Renderer* renderer) const {
 void TitleScreen::renderOptions(SDL_Renderer* renderer, double transition_t, bool transitioning_in) const {
     drawTextureTopLeft(renderer, assets_.background_b, config_.layout.background_b_top_left.x, config_.layout.background_b_top_left.y, 255);
 
-    if (state_ == TitleState::OptionsIntro) {
+    if (state_ == TitleState::OptionsIntro || state_ == TitleState::ResortIntro) {
         if (transition_t < 0.5) {
             const double menu_out_t = transition_t * 2.0;
             for (std::size_t i = 0; i < assets_.menu_labels.size(); ++i) {
@@ -149,15 +158,15 @@ void TitleScreen::renderOptions(SDL_Renderer* renderer, double transition_t, boo
             }
         } else {
             const double options_in_t = (transition_t - 0.5) * 2.0;
-            const auto labels = optionLabels();
+            const auto labels = (state_ == TitleState::ResortIntro) ? resortLabels() : optionLabels();
             for (std::size_t i = 0; i < labels.size(); ++i) {
                 drawOptionButton(renderer, i, options_in_t, true);
             }
         }
-    } else if (state_ == TitleState::OptionsOutro) {
+    } else if (state_ == TitleState::OptionsOutro || state_ == TitleState::ResortOutro) {
         if (transition_t < 0.5) {
             const double options_out_t = transition_t * 2.0;
-            const auto labels = optionLabels();
+            const auto labels = (state_ == TitleState::ResortOutro) ? resortLabels() : optionLabels();
             for (std::size_t i = 0; i < labels.size(); ++i) {
                 drawOptionButton(renderer, i, options_out_t, false);
             }
@@ -167,8 +176,8 @@ void TitleScreen::renderOptions(SDL_Renderer* renderer, double transition_t, boo
                 drawMainMenuButton(renderer, i, menu_in_t, true);
             }
         }
-    } else if (state_ == TitleState::OptionsIdle || transitioning_in) {
-        const auto labels = optionLabels();
+    } else if (state_ == TitleState::OptionsIdle || state_ == TitleState::ResortIdle || transitioning_in) {
+        const auto labels = (state_ == TitleState::ResortIdle) ? resortLabels() : optionLabels();
         for (std::size_t i = 0; i < labels.size(); ++i) {
             drawOptionButton(renderer, i, 1.0, true);
         }
@@ -358,12 +367,16 @@ void TitleScreen::updateShinePixels() const {
 }
 
 void TitleScreen::ensureOptionTextures(SDL_Renderer* renderer) const {
-    if (!option_textures_dirty_ && option_textures_.size() == optionLabels().size()) {
+    const std::vector<std::string> labels =
+        (state_ == TitleState::ResortIntro || state_ == TitleState::ResortIdle || state_ == TitleState::ResortOutro)
+            ? resortLabels()
+            : optionLabels();
+    if (!option_textures_dirty_ && option_textures_.size() == labels.size()) {
         return;
     }
 
     option_textures_.clear();
-    for (const std::string& label : optionLabels()) {
+    for (const std::string& label : labels) {
         option_textures_.push_back(
             renderTextTexture(renderer, assets_.ui_font.get(), label, config_.menu.text_color));
     }
@@ -467,7 +480,10 @@ void TitleScreen::drawMainMenuButton(SDL_Renderer* renderer, std::size_t index, 
 
 void TitleScreen::drawOptionButton(SDL_Renderer* renderer, std::size_t index, double transition_t, bool entering) const {
     ensureOptionTextures(renderer);
-    const bool selected = options_menu_.selectedIndex() == static_cast<int>(index);
+    const bool resort_mode =
+        (state_ == TitleState::ResortIntro || state_ == TitleState::ResortIdle || state_ == TitleState::ResortOutro);
+    const int selected_index = resort_mode ? resort_menu_.selectedIndex() : options_menu_.selectedIndex();
+    const bool selected = selected_index == static_cast<int>(index);
     const int center_x = buttonAnimatedCenterX(index, transition_t, entering);
     const int center_y = optionButtonBaseY(index);
     const unsigned char alpha = selected ? 255 : 220;
@@ -587,6 +603,10 @@ std::string TitleScreen::currentSectionTitle() const {
 
 std::vector<std::string> TitleScreen::optionLabels() const {
     return options_menu_.labels();
+}
+
+std::vector<std::string> TitleScreen::resortLabels() const {
+    return resort_menu_.labels();
 }
 
 double TitleScreen::scaleX() const {

@@ -1,0 +1,41 @@
+{
+  "sceneDefaults": {
+    "id": "overworld_test",
+    "grid": {
+      "enabled": true,
+      "tileSize": 16.0,
+      "width": 32,
+      "height": 32
+    },
+    "player": {
+      "spawnTile": [16, 16],
+      "spawnHeight": 0.0,
+      "facing": "south"
+    },
+    "camera": {
+      "preset": "gen4_platinum_default_exterior",
+      "distance": -1.0,
+      "pitchDeg": -59.051514,
+      "yawDeg": 0.0,
+      "rollDeg": 0.0,
+      "nearClip": 150.0,
+      "farClip": 900.0,
+      "fovYDeg": 30.0,
+      "aspect": [4.0, 3.0]
+    },
+    "freecam": {
+      "moveSpeed": 220.0,
+      "mouseSensitivity": 0.12,
+      "initialOffset": [0.0, 260.0, 320.0],
+      "initialYawDeg": 180.0,
+      "initialPitchDeg": -30.0,
+      "pitchClampMinDeg": -75.0,
+      "pitchClampMaxDeg": 75.0
+    },
+    "lighting": {
+      "preset": "gen4_default_exterior",
+      "brightness": 1.0,
+      "tint": [1.0, 1.0, 1.0]
+    }
+  }
+}

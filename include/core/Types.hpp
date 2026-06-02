@@ -128,6 +128,9 @@ struct InputConfig {
     std::vector<std::string> navigate_right_keys{"RIGHT", "D"};
     std::vector<std::string> forward_keys{"M", "RETURN", "SPACE"};
     std::vector<std::string> back_keys{"N", "ESCAPE", "BACKSPACE"};
+    /// Optional app-level bindings. Missing/empty means disabled.
+    std::vector<std::string> record_toggle_keys{};
+    std::vector<std::string> screenshot_keys{};
 };
 
 struct AudioConfig {
@@ -194,9 +197,18 @@ struct TitleScreenConfig {
 };
 
 struct AppConfig {
+    struct RecordingConfig {
+        bool enabled = false;
+        std::string hotkey = "R";
+    };
+
     WindowConfig window;
     InputConfig input;
     AudioConfig audio;
+    RecordingConfig recording;
+    int target_fps = 60;
+    bool enable_frame_counter = false;
+    bool enable_active_idle_behavior_debug = false;
 };
 
 /// Authoring for `BoxViewport` (`config/game_transfer.json` key `box_viewport`).

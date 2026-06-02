@@ -1,0 +1,5 @@
+printWidth: 120
+overrides:
+  - files: "*.map.json"
+    options:
+      printWidth: 120

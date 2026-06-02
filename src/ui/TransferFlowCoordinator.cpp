@@ -74,6 +74,13 @@ Screen* TransferFlowCoordinator::activeScreen() {
     return nullptr;
 }
 
+std::string TransferFlowCoordinator::activeGameKeyForScreenshot() const {
+    if (flow_controller_.activeScreenKind() == ScreenKind::TransferSystem && transfer_system_screen_) {
+        return transfer_system_screen_->currentGameKey();
+    }
+    return {};
+}
+
 bool TransferFlowCoordinator::consumeReturnToTitleRequest() {
     return flow_controller_.consumeReturnToTitleRequest();
 }
