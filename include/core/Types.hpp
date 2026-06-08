@@ -201,11 +201,16 @@ struct AppConfig {
         bool enabled = false;
         std::string hotkey = "R";
     };
+    struct RendererConfig {
+        std::string world3d_backend = "bgfx";
+        std::string bgfx_preference = "auto";
+    };
 
     WindowConfig window;
     InputConfig input;
     AudioConfig audio;
     RecordingConfig recording;
+    RendererConfig renderer;
     int target_fps = 60;
     bool enable_frame_counter = false;
     bool enable_active_idle_behavior_debug = false;

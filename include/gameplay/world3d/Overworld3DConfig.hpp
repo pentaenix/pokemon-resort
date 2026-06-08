@@ -61,6 +61,13 @@ struct GridConfig {
     int height = 0;
 };
 
+struct TerrainColor {
+    std::uint8_t r = 255;
+    std::uint8_t g = 255;
+    std::uint8_t b = 255;
+    std::uint8_t a = 255;
+};
+
 struct SpriteShadowConfig {
     bool enabled = true;
     float opacity = 0.33f;
@@ -97,6 +104,20 @@ struct TerrainConfig {
     std::vector<std::vector<std::uint8_t>> heights;
     std::vector<std::vector<std::uint8_t>> specials;
     std::vector<std::vector<std::uint8_t>> collision;
+    // Renderer-facing terrain presentation. height_per_floor controls vertical world
+    // units per encoded height level; <= 0 keeps the historical tile_size behavior.
+    float height_per_floor = 0.0f;
+    TerrainColor floor_color_a{116, 156, 190, 255};
+    TerrainColor floor_color_b{125, 166, 200, 255};
+    bool floor_height_recolor_enabled = false;
+    TerrainColor first_non_base_floor_color_a{196, 84, 86, 255};
+    TerrainColor first_non_base_floor_color_b{214, 102, 92, 255};
+    bool ramp_recolor_enabled = false;
+    TerrainColor ramp_color_a{116, 156, 190, 255};
+    TerrainColor ramp_color_b{125, 166, 200, 255};
+    TerrainColor wall_color_ns{88, 117, 145, 255};
+    TerrainColor wall_color_ew{80, 108, 136, 255};
+    TerrainColor wire_color{102, 138, 170, 120};
 };
 
 struct ModelPlacementConfig {
@@ -158,6 +179,9 @@ struct SceneConfig {
     // sooner (further forward), so a character stepping into a doorway is occluded by the
     // building instead of drawing over its roof. Loaded from config/gameplay/world3d/render.json.
     float model_behind_bias_tiles = 0.0f;
+    // Gen4 presentation: shift billboards along camera forward/right on the ground plane (tiles).
+    float billboard_tile_anchor_forward = 0.0f;
+    float billboard_tile_anchor_right = 0.0f;
     SpriteShadowConfig sprite_shadow;
     MapVisualConfig visual;
     GridConfig grid;

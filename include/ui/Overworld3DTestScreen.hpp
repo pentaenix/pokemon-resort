@@ -9,6 +9,7 @@
 #include "gameplay/world3d/rendering/BillboardSpriteRenderer.hpp"
 #include "gameplay/world3d/rendering/GlbModelRenderer.hpp"
 #include "gameplay/world3d/rendering/OverworldMapRenderer.hpp"
+#include "gameplay/world3d/rendering/bgfx/OverworldBgfxRenderer.hpp"
 #include "core/assets/Assets.hpp"
 #include "core/assets/Font.hpp"
 #include "core/Types.hpp"
@@ -26,6 +27,15 @@ public:
 
     void update(double dt) override;
     void render(SDL_Renderer* renderer) override;
+    bool renderBgfx(
+        SDL_Window* window,
+        int framebuffer_w,
+        int framebuffer_h,
+        int logical_w,
+        int logical_h,
+        void* sdl_metal_view);
+    bool wantsBgfxRenderer() const;
+    bool isBgfxActive() const;
     void renderPresentationOverlay(SDL_Renderer* renderer);
 
     bool canNavigate2d() const override { return true; }
@@ -35,6 +45,7 @@ public:
     void onBackPressed() override;
 
     bool consumeReturnToTitleRequested();
+    void shutdownBgfx();
     void resetForNextLaunch();
 
 private:
@@ -48,6 +59,7 @@ private:
     gameplay::world3d::characters::SpriteSheetAnimator animator_;
     gameplay::world3d::rendering::OverworldMapRenderer map_;
     std::vector<std::unique_ptr<gameplay::world3d::rendering::GlbModelRenderer>> placed_models_;
+    std::unique_ptr<gameplay::world3d::rendering::bgfx_backend::OverworldBgfxRenderer> bgfx_renderer_;
 
     int input_dx_ = 0;
     int input_dy_ = 0;
@@ -64,6 +76,7 @@ private:
 
     bool map_loaded_ = false;
     bool initialized_renderer_ = false;
+    bool bgfx_init_failed_ = false;
     AppConfig app_config_{};
     FontHandle debug_font_{};
     TextureHandle aib_texture_{};

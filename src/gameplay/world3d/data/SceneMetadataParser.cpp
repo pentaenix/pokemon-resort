@@ -24,6 +24,19 @@ int intOr(const JsonValue* v, int fallback) {
     return (v && v->isNumber()) ? static_cast<int>(v->asNumber()) : fallback;
 }
 
+bool boolOr(const JsonValue* v, bool fallback) {
+    return (v && v->isBool()) ? v->asBool() : fallback;
+}
+
+void applyColor(TerrainColor& out, const JsonValue* color) {
+    if (!color || !color->isArray()) return;
+    const auto& arr = color->asArray();
+    if (arr.size() > 0 && arr[0].isNumber()) out.r = static_cast<std::uint8_t>(std::clamp(intOr(&arr[0], out.r), 0, 255));
+    if (arr.size() > 1 && arr[1].isNumber()) out.g = static_cast<std::uint8_t>(std::clamp(intOr(&arr[1], out.g), 0, 255));
+    if (arr.size() > 2 && arr[2].isNumber()) out.b = static_cast<std::uint8_t>(std::clamp(intOr(&arr[2], out.b), 0, 255));
+    if (arr.size() > 3 && arr[3].isNumber()) out.a = static_cast<std::uint8_t>(std::clamp(intOr(&arr[3], out.a), 0, 255));
+}
+
 FacingDirection parseFacing(const std::string& value) {
     if (value == "north") return FacingDirection::North;
     if (value == "west") return FacingDirection::West;
@@ -115,6 +128,47 @@ void applyLightingConfig(SceneConfig& out, const JsonValue* lighting) {
         if (arr.size() > 1 && arr[1].isNumber()) out.lighting_tint_g = static_cast<float>(arr[1].asNumber());
         if (arr.size() > 2 && arr[2].isNumber()) out.lighting_tint_b = static_cast<float>(arr[2].asNumber());
     }
+}
+
+void applyTerrainRenderConfig(TerrainConfig& out, const JsonValue* terrain) {
+    if (!terrain || !terrain->isObject()) return;
+    out.height_per_floor = static_cast<float>(numOr(terrain->get("heightPerFloor"), out.height_per_floor));
+
+    if (const JsonValue* floor = terrain->get("floorColors"); floor && floor->isObject()) {
+        applyColor(out.floor_color_a, floor->get("checkerA"));
+        applyColor(out.floor_color_b, floor->get("checkerB"));
+    }
+    applyColor(out.floor_color_a, terrain->get("floorColorA"));
+    applyColor(out.floor_color_b, terrain->get("floorColorB"));
+
+    if (const JsonValue* floor_heights = terrain->get("floorHeightColors"); floor_heights && floor_heights->isObject()) {
+        out.floor_height_recolor_enabled = boolOr(floor_heights->get("enabled"), out.floor_height_recolor_enabled);
+        if (const JsonValue* first = floor_heights->get("firstNonBase"); first && first->isObject()) {
+            applyColor(out.first_non_base_floor_color_a, first->get("checkerA"));
+            applyColor(out.first_non_base_floor_color_b, first->get("checkerB"));
+        }
+    }
+    out.floor_height_recolor_enabled =
+        boolOr(terrain->get("floorHeightRecolorEnabled"), out.floor_height_recolor_enabled);
+    applyColor(out.first_non_base_floor_color_a, terrain->get("firstNonBaseFloorColorA"));
+    applyColor(out.first_non_base_floor_color_b, terrain->get("firstNonBaseFloorColorB"));
+
+    if (const JsonValue* ramps = terrain->get("rampColors"); ramps && ramps->isObject()) {
+        out.ramp_recolor_enabled = boolOr(ramps->get("enabled"), out.ramp_recolor_enabled);
+        applyColor(out.ramp_color_a, ramps->get("checkerA"));
+        applyColor(out.ramp_color_b, ramps->get("checkerB"));
+    }
+    out.ramp_recolor_enabled = boolOr(terrain->get("rampRecolorEnabled"), out.ramp_recolor_enabled);
+    applyColor(out.ramp_color_a, terrain->get("rampColorA"));
+    applyColor(out.ramp_color_b, terrain->get("rampColorB"));
+
+    if (const JsonValue* walls = terrain->get("wallColors"); walls && walls->isObject()) {
+        applyColor(out.wall_color_ns, walls->get("northSouth"));
+        applyColor(out.wall_color_ew, walls->get("eastWest"));
+    }
+    applyColor(out.wall_color_ns, terrain->get("wallColorNS"));
+    applyColor(out.wall_color_ew, terrain->get("wallColorEW"));
+    applyColor(out.wire_color, terrain->get("wireColor"));
 }
 
 } // namespace
@@ -242,9 +296,19 @@ SceneConfig parseSceneMetadata(
         (fs::path(project_root) / "config" / "gameplay" / "world3d" / "render.json").string();
     const JsonValue render_root = parseJsonFile(render_cfg_path);
     if (render_root.isObject()) {
+        applyTerrainRenderConfig(out.terrain, render_root.get("terrain"));
         if (const JsonValue* occ = render_root.get("occlusion"); occ && occ->isObject()) {
             out.model_behind_bias_tiles =
                 static_cast<float>(numOr(occ->get("modelBehindBiasTiles"), out.model_behind_bias_tiles));
+        }
+        if (const JsonValue* billboard = render_root.get("billboard"); billboard && billboard->isObject()) {
+            if (const JsonValue* tile_offset = billboard->get("tileAnchorOffsetTiles");
+                tile_offset && tile_offset->isObject()) {
+                out.billboard_tile_anchor_forward = static_cast<float>(
+                    numOr(tile_offset->get("forward"), out.billboard_tile_anchor_forward));
+                out.billboard_tile_anchor_right = static_cast<float>(
+                    numOr(tile_offset->get("right"), out.billboard_tile_anchor_right));
+            }
         }
     }
 

@@ -20,7 +20,7 @@
         "spriteScale": 4.8,
         "anchor": "bottom_center",
         "worldOffset": [0.0, 0.0, 0.0],
-        "screenOffsetPx": [0, 8]
+        "screenOffsetPx": [0, 13]
       }
     },
     "pokemon_small": {
@@ -44,7 +44,7 @@
         "spriteScale": 4.8,
         "anchor": "bottom_center",
         "worldOffset": [0.0, 0.0, 0.0],
-        "screenOffsetPx": [0, 8]
+        "screenOffsetPx": [0, 13]
       }
     },
     "pokemon_large": {
@@ -64,10 +64,11 @@
         "sleep": { "frames": [0, 1], "frameTimeMs": 400, "loop": true }
       },
       "rendering": {
-        "worldHeight": 36.0,
+        "worldHeight": 56.0,
         "spriteScale": 4.8,
+        "anchor": "bottom_center",
         "worldOffset": [0.0, 0.0, 0.0],
-        "screenOffsetPx": [0, 0]
+        "screenOffsetPx": [0, 13]
       }
     },
     "object": {
@@ -86,8 +87,9 @@
         "pause": { "frames": [0], "frameTimeMs": 400 }
       },
       "rendering": {
-        "worldHeight": 10.0,
-        "spriteScale": 2.5,
+        "worldHeight": 28.0,
+        "spriteScale": 4.8,
+        "anchor": "bottom_center",
         "worldOffset": [0.0, 0.0, 0.0],
         "screenOffsetPx": [0, 0]
       }

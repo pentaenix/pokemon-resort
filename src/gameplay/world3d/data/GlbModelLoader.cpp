@@ -291,7 +291,16 @@ int resolveMaterial(
     }
     if (const JsonValue* alpha = mat.get("alphaMode"); alpha && alpha->isString()) {
         const std::string mode = alpha->asString();
-        gmat.alpha_blend = (mode == "MASK" || mode == "BLEND");
+        if (mode == "MASK") {
+            gmat.alpha_mode = GlbMaterial::AlphaMode::Mask;
+            gmat.alpha_blend = true;
+        } else if (mode == "BLEND") {
+            gmat.alpha_mode = GlbMaterial::AlphaMode::Blend;
+            gmat.alpha_blend = true;
+        }
+    }
+    if (const JsonValue* cutoff = mat.get("alphaCutoff"); cutoff && cutoff->isNumber()) {
+        gmat.alpha_cutoff = std::clamp(static_cast<float>(cutoff->asNumber()), 0.0f, 1.0f);
     }
 
     const int local_index = static_cast<int>(out.materials.size());

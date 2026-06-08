@@ -37,6 +37,7 @@ public:
         resort::PokemonResortService* resort_service = nullptr);
 
     void beginTicketScan();
+    void rebindRenderer(SDL_Renderer* renderer);
     void update(double dt);
 
     Screen* activeScreen();

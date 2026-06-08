@@ -34,6 +34,14 @@ Indexing for all layers is row-major:
   - `2..5`: directional ramps (N/E/S/W)
   - `6..9`: convex corner ramps (NE/SE/SW/NW)
   - `10..13`: concave corner ramps (NE/SE/SW/NW)
+
+### Cardinal ramp ownership (runtime + editor)
+
+Directional ramp specials (`2` = north, `3` = east, `4` = south, `5` = west) are stored on the **lower-height cell** (the tile with the smaller `height` value). The high side of the slope faces the neighboring cell that is one height unit taller (e.g. `RAMP_N` on tile `(x,y)` means north neighbor `(x,y-1)` has `height[y][x]+1`).
+
+Mesh corners, movement height (`TerrainSurface`), and the map editor preview all use the same rule: the ramp mesh is drawn on the tile that owns the special, not on the upper plateau tile.
+
+Grid axes in the game: `tile_x` → world +X (east), `tile_y` → world +Z (south), north is `tile_y - 1`.
 - `collision` on disk: 1 bit per cell (`1` blocked, `0` walkable)
   - unpacked at runtime to `terrain.collision[y][x]` as `uint8` `0/1`
 

@@ -16,6 +16,7 @@ void AppScreenCoordinator::updateTitle(double dt) {
                 frame_requests_.requestUserSettingsSave();
                 break;
             case TitleScreenEvent::OpenResort3DTestRequested:
+                title_screen_.prepareForOverworld3D();
                 active_screen_ = ActiveScreen::Overworld3DTest;
                 break;
             case TitleScreenEvent::OpenResortLoadingRequested:

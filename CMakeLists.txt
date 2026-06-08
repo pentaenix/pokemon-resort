@@ -5,10 +5,52 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+include(FetchContent)
+
+set(BGFX_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(BGFX_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(BGFX_BUILD_TOOLS ON CACHE BOOL "" FORCE)
+set(BGFX_BUILD_TOOLS_BIN2C OFF CACHE BOOL "" FORCE)
+set(BGFX_BUILD_TOOLS_GEOMETRY OFF CACHE BOOL "" FORCE)
+set(BGFX_BUILD_TOOLS_TEXTURE OFF CACHE BOOL "" FORCE)
+set(BGFX_BUILD_TOOLS_SHADER ON CACHE BOOL "" FORCE)
+set(BGFX_INSTALL OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(
+    bgfx_cmake
+    GIT_REPOSITORY https://github.com/bkaradzic/bgfx.cmake.git
+    GIT_TAG 4ba3843dd96f39252cb4e995f28070fdfd12a3d3
+    GIT_SHALLOW TRUE
+    GIT_SUBMODULES bgfx bimg bx
+)
+FetchContent_MakeAvailable(bgfx_cmake)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
 find_package(SDL2 REQUIRED)
 find_package(SDL2_image REQUIRED)
 find_package(SDL2_ttf REQUIRED)
 find_package(SQLite3)
+
+set(WORLD3D_BGFX_SHADER_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/gameplay/world3d/rendering/bgfx/shaders)
+set(WORLD3D_BGFX_SHADER_OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated/world3d-shaders)
+bgfx_compile_shaders(
+    TYPE VERTEX
+    SHADERS ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/vs_world.sc ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/vs_billboard.sc
+    VARYING_DEF ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/varying.def.sc
+    OUTPUT_DIR ${WORLD3D_BGFX_SHADER_OUTPUT_DIR}
+    INCLUDE_DIRS ${bgfx_cmake_SOURCE_DIR}/bgfx/src
+    OUT_FILES_VAR WORLD3D_BGFX_VERTEX_SHADERS
+)
+bgfx_compile_shaders(
+    TYPE FRAGMENT
+    SHADERS ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/fs_textured_cutout.sc
+    VARYING_DEF ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/varying.def.sc
+    OUTPUT_DIR ${WORLD3D_BGFX_SHADER_OUTPUT_DIR}
+    INCLUDE_DIRS ${bgfx_cmake_SOURCE_DIR}/bgfx/src
+    OUT_FILES_VAR WORLD3D_BGFX_FRAGMENT_SHADERS
+)
+add_custom_target(world3d_bgfx_shaders DEPENDS ${WORLD3D_BGFX_VERTEX_SHADERS} ${WORLD3D_BGFX_FRAGMENT_SHADERS})
 
 set(RESORT_STORAGE_SOURCES
     src/core/crypto/Sha256.cpp
@@ -45,6 +87,19 @@ set(RESORT_STORAGE_SOURCES
     src/resort/integration/Gen12DvBytes.cpp
 )
 
+add_library(world3d_bgfx_renderer STATIC
+    src/gameplay/world3d/rendering/bgfx/BgfxBackend.cpp
+    src/gameplay/world3d/rendering/bgfx/BillboardBgfxDrawer.cpp
+    src/gameplay/world3d/rendering/bgfx/OverworldBgfxRenderer.cpp
+    src/gameplay/world3d/rendering/BillboardPlacement.cpp
+    src/gameplay/world3d/rendering/CharacterTextureCache.cpp
+    src/gameplay/world3d/rendering/SpriteShadowDecal.cpp
+    src/gameplay/world3d/terrain/TerrainSurface.cpp
+)
+target_include_directories(world3d_bgfx_renderer PUBLIC include)
+target_compile_features(world3d_bgfx_renderer PRIVATE cxx_std_20)
+target_link_libraries(world3d_bgfx_renderer PUBLIC bgfx bx bimg SDL2::SDL2 SDL2_image::SDL2_image)
+
 add_executable(title_screen_demo
     src/main.cpp
     src/core/App.cpp
@@ -77,6 +132,8 @@ add_executable(title_screen_demo
     src/gameplay/world3d/camera/Gen4FollowCamera.cpp
     src/gameplay/world3d/characters/SpriteSheetAnimator.cpp
     src/gameplay/world3d/characters/CharacterController.cpp
+    src/gameplay/world3d/terrain/ActorTerrainBinding.cpp
+    src/gameplay/world3d/terrain/GridStepMotor.cpp
     src/gameplay/world3d/data/SceneMetadataParser.cpp
     src/gameplay/world3d/data/JsonOverworldLoader.cpp
     src/gameplay/world3d/data/OwmapOverworldLoader.cpp
@@ -187,8 +244,15 @@ add_executable(title_screen_demo
 )
 
 target_include_directories(title_screen_demo PRIVATE include)
+add_dependencies(title_screen_demo world3d_bgfx_shaders)
+add_custom_command(
+    TARGET title_screen_demo POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${WORLD3D_BGFX_SHADER_OUTPUT_DIR}
+            $<TARGET_FILE_DIR:title_screen_demo>/shaders
+)
 
-target_link_libraries(title_screen_demo PRIVATE SDL2::SDL2 SDL2::SDL2main SDL2_image::SDL2_image SDL2_ttf::SDL2_ttf)
+target_link_libraries(title_screen_demo PRIVATE world3d_bgfx_renderer SDL2::SDL2 SDL2::SDL2main SDL2_image::SDL2_image SDL2_ttf::SDL2_ttf)
 if(SQLite3_FOUND)
     target_link_libraries(title_screen_demo PRIVATE SQLite3::SQLite3)
 else()
@@ -429,8 +493,17 @@ add_executable(owmap_overworld_loader_tests
     src/gameplay/world3d/data/SceneMetadataParser.cpp
     src/gameplay/world3d/data/JsonOverworldLoader.cpp
     src/gameplay/world3d/data/OwmapOverworldLoader.cpp
+    src/gameplay/world3d/characters/CharacterController.cpp
+    src/gameplay/world3d/terrain/ActorTerrainBinding.cpp
+    src/gameplay/world3d/terrain/GridStepMotor.cpp
+    src/gameplay/world3d/terrain/TerrainSurface.cpp
+    src/gameplay/world3d/followers/FollowerConfig.cpp
+    src/gameplay/world3d/rendering/BillboardPlacement.cpp
+    src/gameplay/world3d/camera/Gen4CameraPreset.cpp
+    src/gameplay/world3d/camera/Gen4FollowCamera.cpp
 )
 target_include_directories(owmap_overworld_loader_tests PRIVATE include)
+target_link_libraries(owmap_overworld_loader_tests PRIVATE SDL2::SDL2)
 add_test(NAME owmap_overworld_loader_tests COMMAND owmap_overworld_loader_tests)
 
 add_executable(transfer_box_edits_store_tests

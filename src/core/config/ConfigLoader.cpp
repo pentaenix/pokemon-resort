@@ -134,6 +134,10 @@ AppConfig loadAppConfigFromJson(const std::string& path) {
         if (auto v = child(*section, "enabled")) config.recording.enabled = asBool(*v);
         if (auto v = child(*section, "hotkey")) config.recording.hotkey = asString(*v);
     }
+    if (auto section = child(root, "renderer")) {
+        if (auto v = child(*section, "world3d_backend")) config.renderer.world3d_backend = asString(*v);
+        if (auto v = child(*section, "bgfx_preference")) config.renderer.bgfx_preference = asString(*v);
+    }
     if (auto v = child(root, "target_fps")) config.target_fps = asInt(*v);
     if (auto v = child(root, "enable_frame_counter")) config.enable_frame_counter = asBool(*v);
     if (auto v = child(root, "enable_active_idle_behavior_debug")) {

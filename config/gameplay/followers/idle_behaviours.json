@@ -32,7 +32,7 @@
       "frameWidth": 32,
       "frameHeight": 32,
       "frameCount": 3,
-      "spriteScale": 4.8,
+      "spriteScale": 1.0,
       "screenOffsetYPx": 8
     },
     "fallbackOrder": ["watch_player", "face_away", "random_walk", "do_nothing"],

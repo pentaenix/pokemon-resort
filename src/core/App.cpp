@@ -20,8 +20,10 @@
 
 #include <SDL.h>
 #include <SDL_image.h>
+#include <SDL_metal.h>
 #include <SDL_ttf.h>
 #include <algorithm>
+#include <cctype>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
@@ -52,6 +54,69 @@ using RendererPtr = std::unique_ptr<SDL_Renderer, RendererDestroy>;
 
 double clamp01(double value) {
     return std::max(0.0, std::min(1.0, value));
+}
+
+std::string lower(std::string value) {
+    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
+        return static_cast<char>(std::tolower(c));
+    });
+    return value;
+}
+
+bool world3dBackendWantsBgfx(const AppConfig& config) {
+    const std::string backend = lower(config.renderer.world3d_backend);
+    return backend == "bgfx" || backend == "auto";
+}
+
+enum class WindowPresentation {
+    Sdl2D,
+    Bgfx3D
+};
+
+RendererPtr createAppRenderer(SDL_Window* window, const WindowConfig& window_config) {
+    RendererPtr renderer(SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED));
+    if (!renderer) {
+        throw std::runtime_error(std::string("Failed to create renderer: ") + SDL_GetError());
+    }
+    if (SDL_RenderSetLogicalSize(renderer.get(), window_config.virtual_width, window_config.virtual_height) != 0) {
+        throw std::runtime_error(std::string("Failed to set renderer logical size: ") + SDL_GetError());
+    }
+    return renderer;
+}
+
+void logRendererInfo(SDL_Renderer* renderer) {
+    SDL_RendererInfo renderer_info{};
+    if (SDL_GetRendererInfo(renderer, &renderer_info) == 0) {
+        std::cerr << "[App] SDL renderer: "
+                  << (renderer_info.name ? renderer_info.name : "unknown")
+                  << '\n';
+    }
+}
+
+void rebindSdlUi(
+    RendererPtr& renderer,
+    SDL_Window* window,
+    const TitleScreenConfig& config,
+    const std::string& root,
+    TitleScreen& title_screen,
+    AppLoadingCoordinator& loading,
+    TransferFlowCoordinator& transfer_flow) {
+    renderer = createAppRenderer(window, config.window);
+    logRendererInfo(renderer.get());
+    title_screen.replaceAssets(loadAssets(renderer.get(), config, root));
+    loading.rebindRenderer(renderer.get());
+    transfer_flow.rebindRenderer(renderer.get());
+}
+
+void releaseSdlUi(
+    RendererPtr& renderer,
+    TitleScreen& title_screen,
+    AppLoadingCoordinator& loading,
+    TransferFlowCoordinator& transfer_flow) {
+    title_screen.replaceAssets(Assets{});
+    loading.rebindRenderer(nullptr);
+    transfer_flow.rebindRenderer(nullptr);
+    renderer.reset();
 }
 
 void renderFilledCircle(SDL_Renderer* renderer, int cx, int cy, int radius) {
@@ -476,12 +541,9 @@ int runApplication(const char* argv0, const char* config_path_override) {
         SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE));
     if (!window) throw std::runtime_error(std::string("Failed to create window: ") + SDL_GetError());
 
-    RendererPtr renderer(SDL_CreateRenderer(window.get(), -1, SDL_RENDERER_ACCELERATED));
-    if (!renderer) throw std::runtime_error(std::string("Failed to create renderer: ") + SDL_GetError());
-
-    if (SDL_RenderSetLogicalSize(renderer.get(), config.window.virtual_width, config.window.virtual_height) != 0) {
-        throw std::runtime_error(std::string("Failed to set renderer logical size: ") + SDL_GetError());
-    }
+    const bool bgfx_world3d_enabled = world3dBackendWantsBgfx(app_config);
+    RendererPtr renderer = createAppRenderer(window.get(), config.window);
+    logRendererInfo(renderer.get());
 
     Assets assets = loadAssets(renderer.get(), config, root);
     TitleScreen title_screen(config, std::move(assets));
@@ -538,6 +600,9 @@ int runApplication(const char* argv0, const char* config_path_override) {
     bool screenshot_requested = false;
     Uint64 last_counter = SDL_GetPerformanceCounter();
     InputRouter input_router;
+    WindowPresentation presentation = WindowPresentation::Sdl2D;
+    int pending_sdl_recreate_frames = 0;
+    SDL_MetalView sdl_metal_view = nullptr;
 
     while (running) {
         const Uint64 frame_start_counter = SDL_GetPerformanceCounter();
@@ -549,7 +614,7 @@ int runApplication(const char* argv0, const char* config_path_override) {
             }
             if (event.type == SDL_KEYDOWN && !event.key.repeat) {
                 const SDL_Keycode key = event.key.keysym.sym;
-                if (!record_toggle_keys.empty() && matchesBinding(key, record_toggle_keys)) {
+                if (renderer && !record_toggle_keys.empty() && matchesBinding(key, record_toggle_keys)) {
                     recorder.toggle(renderer.get(), config.window);
                     continue;
                 }
@@ -576,33 +641,134 @@ int runApplication(const char* argv0, const char* config_path_override) {
             user_settings_persistence.save(*settings);
         }
 
-        if (Screen* screen = screen_coordinator.activeScreen()) {
-            screen->render(renderer.get());
-        }
+        const bool overworld_wants_bgfx =
+            screen_coordinator.activeScreen() == &overworld3d_test && overworld3d_test.wantsBgfxRenderer();
 
-        renderBlackOverlay(renderer.get(), config.window, screen_coordinator.transitionOverlayAlpha());
-        recorder.capture(renderer.get(), config.window);
-        if (screenshot_requested) {
-            if (captureScreenshot(
-                    renderer.get(),
-                    config.window,
-                    root,
-                    screen_coordinator.screenshotNameContext())) {
-                screenshot_flash.trigger();
+        if (overworld_wants_bgfx) {
+            if (presentation != WindowPresentation::Bgfx3D) {
+                releaseSdlUi(renderer, title_screen, loading, transfer_flow);
+                SDL_PumpEvents();
+#if defined(__APPLE__)
+                if (!sdl_metal_view) {
+                    sdl_metal_view = SDL_Metal_CreateView(window.get());
+                    if (!sdl_metal_view) {
+                        std::cerr << "[App] SDL_Metal_CreateView failed: " << SDL_GetError() << '\n';
+                    } else {
+                        std::cerr << "[App] Created SDL_MetalView for bgfx presentation\n";
+                    }
+                }
+                if (!sdl_metal_view) {
+                    presentation = WindowPresentation::Sdl2D;
+                    pending_sdl_recreate_frames = 0;
+                } else
+#endif
+                {
+                    presentation = WindowPresentation::Bgfx3D;
+                    pending_sdl_recreate_frames = 0;
+                    std::cerr << "[App] Presentation: Sdl2D -> Bgfx3D (SDL renderer released before bgfx init)\n";
+                }
             }
-            screenshot_requested = false;
+        } else if (presentation == WindowPresentation::Bgfx3D) {
+#if defined(__APPLE__)
+            if (sdl_metal_view) {
+                SDL_Metal_DestroyView(sdl_metal_view);
+                sdl_metal_view = nullptr;
+                std::cerr << "[App] Destroyed SDL_MetalView before SDL UI recreate\n";
+            }
+#endif
+            presentation = WindowPresentation::Sdl2D;
+            pending_sdl_recreate_frames = 1;
+            std::cerr << "[App] Presentation: Bgfx3D -> Sdl2D (waiting before SDL recreate)\n";
         }
 
-        if (frame_counter) {
-            frame_counter->update(renderer.get(), dt);
-            frame_counter->render(renderer.get(), config.window.virtual_width, config.window.virtual_height);
+        if (presentation == WindowPresentation::Sdl2D && !renderer && bgfx_world3d_enabled) {
+            if (pending_sdl_recreate_frames > 0) {
+                pending_sdl_recreate_frames--;
+            } else {
+                rebindSdlUi(
+                    renderer,
+                    window.get(),
+                    config,
+                    root,
+                    title_screen,
+                    loading,
+                    transfer_flow);
+                std::cerr << "[App] Presentation: SDL renderer recreated for 2D UI\n";
+            }
         }
-        if (screen_coordinator.activeScreen() == &overworld3d_test) {
-            overworld3d_test.renderPresentationOverlay(renderer.get());
+
+        const bool use_bgfx_presenter = presentation == WindowPresentation::Bgfx3D && overworld_wants_bgfx;
+
+        bool bgfx_frame_presented = false;
+        if (use_bgfx_presenter) {
+            int framebuffer_w = 0;
+            int framebuffer_h = 0;
+#if defined(__APPLE__)
+            if (sdl_metal_view) {
+                SDL_Metal_GetDrawableSize(window.get(), &framebuffer_w, &framebuffer_h);
+            } else
+#endif
+            {
+                SDL_GetWindowSize(window.get(), &framebuffer_w, &framebuffer_h);
+            }
+            const int logical_w = config.window.virtual_width;
+            const int logical_h = config.window.virtual_height;
+            bgfx_frame_presented = overworld3d_test.renderBgfx(
+                window.get(),
+                std::max(1, framebuffer_w),
+                std::max(1, framebuffer_h),
+                std::max(1, logical_w),
+                std::max(1, logical_h),
+                sdl_metal_view);
+            if (!bgfx_frame_presented && presentation == WindowPresentation::Bgfx3D) {
+#if defined(__APPLE__)
+                if (sdl_metal_view) {
+                    SDL_Metal_DestroyView(sdl_metal_view);
+                    sdl_metal_view = nullptr;
+                }
+#endif
+                presentation = WindowPresentation::Sdl2D;
+                pending_sdl_recreate_frames = 1;
+                std::cerr << "[App] Presentation: Bgfx3D init failed, falling back to Sdl2D\n";
+            }
         }
-        renderRecordingIndicator(renderer.get(), config.window, recorder.isRecording());
-        screenshot_flash.render(renderer.get(), config.window);
-        SDL_RenderPresent(renderer.get());
+
+        if (!bgfx_frame_presented && renderer) {
+            if (Screen* screen = screen_coordinator.activeScreen()) {
+                screen->render(renderer.get());
+            }
+
+            renderBlackOverlay(renderer.get(), config.window, screen_coordinator.transitionOverlayAlpha());
+            recorder.capture(renderer.get(), config.window);
+            if (screenshot_requested) {
+                if (captureScreenshot(
+                        renderer.get(),
+                        config.window,
+                        root,
+                        screen_coordinator.screenshotNameContext())) {
+                    screenshot_flash.trigger();
+                }
+                screenshot_requested = false;
+            }
+
+            if (frame_counter) {
+                frame_counter->update(renderer.get(), dt);
+                frame_counter->render(renderer.get(), config.window.virtual_width, config.window.virtual_height);
+            }
+            if (screen_coordinator.activeScreen() == &overworld3d_test) {
+                overworld3d_test.renderPresentationOverlay(renderer.get());
+            }
+            renderRecordingIndicator(renderer.get(), config.window, recorder.isRecording());
+            screenshot_flash.render(renderer.get(), config.window);
+            SDL_RenderPresent(renderer.get());
+        } else if (bgfx_frame_presented) {
+            screenshot_requested = false;
+            if (screen_coordinator.activeScreen() == &overworld3d_test && renderer) {
+                overworld3d_test.renderPresentationOverlay(renderer.get());
+                SDL_SetRenderDrawBlendMode(renderer.get(), SDL_BLENDMODE_BLEND);
+                SDL_RenderPresent(renderer.get());
+            }
+        }
 
         if (app_config.target_fps > 0) {
             const double target_seconds = 1.0 / static_cast<double>(app_config.target_fps);
@@ -617,6 +783,12 @@ int runApplication(const char* argv0, const char* config_path_override) {
             }
         }
     }
+
+#if defined(__APPLE__)
+    if (sdl_metal_view) {
+        SDL_Metal_DestroyView(sdl_metal_view);
+    }
+#endif
 
     return 0;
 }

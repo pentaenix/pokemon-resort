@@ -127,4 +127,53 @@ bool AppLoadingCoordinator::isLoadingAnimationComplete() const {
     return active_screen_ && active_screen_->isLoadingAnimationComplete();
 }
 
+void AppLoadingCoordinator::rebindRenderer(SDL_Renderer* renderer) {
+    renderer_ = renderer;
+    if (!renderer_) {
+        resort_transfer_screen_.reset();
+        pokeball_screen_.reset();
+        quick_boat_pass_screen_.reset();
+        active_screen_ = nullptr;
+        return;
+    }
+
+    enum class ActiveKind { ResortTransfer, Pokeball, QuickBoatPass } active_kind = ActiveKind::ResortTransfer;
+    if (active_screen_ == pokeball_screen_.get()) {
+        active_kind = ActiveKind::Pokeball;
+    } else if (active_screen_ == quick_boat_pass_screen_.get()) {
+        active_kind = ActiveKind::QuickBoatPass;
+    }
+
+    resort_transfer_screen_ = createLoadingScreen(
+        LoadingScreenType::ResortTransfer,
+        renderer_,
+        window_config_,
+        font_path_,
+        project_root_);
+    pokeball_screen_ = createLoadingScreen(
+        LoadingScreenType::Pokeball,
+        renderer_,
+        window_config_,
+        font_path_,
+        project_root_);
+    quick_boat_pass_screen_ = createLoadingScreen(
+        LoadingScreenType::QuickBoatPass,
+        renderer_,
+        window_config_,
+        font_path_,
+        project_root_);
+
+    switch (active_kind) {
+        case ActiveKind::Pokeball:
+            active_screen_ = pokeball_screen_.get();
+            break;
+        case ActiveKind::QuickBoatPass:
+            active_screen_ = quick_boat_pass_screen_.get();
+            break;
+        case ActiveKind::ResortTransfer:
+            active_screen_ = resort_transfer_screen_.get();
+            break;
+    }
+}
+
 } // namespace pr

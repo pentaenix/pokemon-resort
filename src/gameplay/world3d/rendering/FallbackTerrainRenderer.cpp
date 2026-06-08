@@ -1,5 +1,7 @@
 #include "gameplay/world3d/rendering/FallbackTerrainRenderer.hpp"
 
+#include "gameplay/world3d/terrain/TerrainSurface.hpp"
+
 #include <SDL.h>
 
 #include <algorithm>
@@ -8,6 +10,14 @@
 #include <vector>
 
 namespace pr::gameplay::world3d::rendering {
+
+namespace {
+
+SDL_Color toSdlColor(const TerrainColor& color) {
+    return SDL_Color{color.r, color.g, color.b, color.a};
+}
+
+} // namespace
 
 void renderFallbackTerrain(
     SDL_Renderer* renderer,
@@ -58,32 +68,14 @@ void renderFallbackTerrain(
         return best_dir;
     };
     const auto corner_heights = [&](int tx, int ty, float (&out)[4]) {
-        const int h = tile_h(tx, ty);
-        const float flat = static_cast<float>(std::max(0, h)) * tile_size;
-        out[0] = flat;
-        out[1] = flat;
-        out[2] = flat;
-        out[3] = flat;
-        const int dir = ramp_direction(tx, ty);
-        if (dir != 0) {
-            const float low = static_cast<float>(h) * tile_size;
-            const float high = static_cast<float>(h + 1) * tile_size;
-            if (dir == 2) {
-                out[0] = high; out[1] = high; out[2] = low; out[3] = low;
-            } else if (dir == 3) {
-                out[0] = low; out[1] = high; out[2] = high; out[3] = low;
-            } else if (dir == 4) {
-                out[0] = low; out[1] = low; out[2] = high; out[3] = high;
-            } else if (dir == 5) {
-                out[0] = high; out[1] = low; out[2] = low; out[3] = high;
-            }
-        }
+        terrain::fillTileCornerHeights(scene, tx, ty, out);
     };
     const auto curved_corner_heights = [&](int tx, int ty, float (&out)[4]) {
         const int h = tile_h(tx, ty);
-        const float base = static_cast<float>(h) * tile_size;
+        const float floor_height = terrain::heightPerFloor(scene);
+        const float base = static_cast<float>(h) * floor_height;
         const auto sample = [&](int sx, int sy) -> float {
-            return static_cast<float>(tile_h(sx, sy)) * tile_size;
+            return static_cast<float>(tile_h(sx, sy)) * floor_height;
         };
         const float n = sample(tx, ty - 1);
         const float e = sample(tx + 1, ty);
@@ -222,12 +214,21 @@ void renderFallbackTerrain(
     for (int z = 0; z < grid_h; ++z) {
         for (int x = 0; x < grid_w; ++x) {
             const bool checker = ((x + z) & 1) == 0;
-            const SDL_Color color = checker ? SDL_Color{116, 156, 190, 255} : SDL_Color{125, 166, 200, 255};
+            const bool slope = terrain::isSlopeSpecial(tile_special(x, z));
+            SDL_Color color = checker ? toSdlColor(scene.terrain.floor_color_a) : toSdlColor(scene.terrain.floor_color_b);
+            if (scene.terrain.floor_height_recolor_enabled && tile_h(x, z) == 1) {
+                color = checker
+                    ? toSdlColor(scene.terrain.first_non_base_floor_color_a)
+                    : toSdlColor(scene.terrain.first_non_base_floor_color_b);
+            }
+            if (slope && scene.terrain.ramp_recolor_enabled) {
+                color = checker ? toSdlColor(scene.terrain.ramp_color_a) : toSdlColor(scene.terrain.ramp_color_b);
+            }
             emit_tile_top(x, z, color, false);
         }
     }
-    const SDL_Color wall_color_ns{88, 117, 145, 255};
-    const SDL_Color wall_color_ew{80, 108, 136, 255};
+    const SDL_Color wall_color_ns = toSdlColor(scene.terrain.wall_color_ns);
+    const SDL_Color wall_color_ew = toSdlColor(scene.terrain.wall_color_ew);
     for (int z = 0; z < grid_h; ++z) {
         for (int x = 0; x < grid_w; ++x) {
             float c[4]{};
@@ -259,7 +260,7 @@ void renderFallbackTerrain(
     }
 
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-    const SDL_Color wire_color{102, 138, 170, 120};
+    const SDL_Color wire_color = toSdlColor(scene.terrain.wire_color);
     for (int z = 0; z < grid_h; ++z) {
         for (int x = 0; x < grid_w; ++x) {
             emit_tile_top(x, z, wire_color, true);

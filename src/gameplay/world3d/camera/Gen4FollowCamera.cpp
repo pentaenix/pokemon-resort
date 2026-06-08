@@ -43,8 +43,9 @@ void Gen4FollowCamera::setManualPose(Vec3 position, float yaw_deg, float pitch_d
         std::sin(pitch),
         std::cos(yaw) * std::cos(pitch)});
     const Vec3 world_up{0.0f, 1.0f, 0.0f};
-    right_ = normalize(cross(forward_, world_up));
-    up_ = normalize(cross(right_, forward_));
+    // Match bx::mtxLookAt (left-handed default): right = cross(up, view), up = cross(view, right).
+    right_ = normalize(cross(world_up, forward_));
+    up_ = normalize(cross(forward_, right_));
 }
 
 void Gen4FollowCamera::rebuildBasis() {
@@ -59,8 +60,8 @@ void Gen4FollowCamera::rebuildBasis() {
     position_ = add(target_, mul(orbit, preset_.distance));
     forward_ = normalize(sub(target_, position_));
     const Vec3 world_up{0.0f, 1.0f, 0.0f};
-    right_ = normalize(cross(forward_, world_up));
-    up_ = normalize(cross(right_, forward_));
+    right_ = normalize(cross(world_up, forward_));
+    up_ = normalize(cross(forward_, right_));
 }
 
 bool Gen4FollowCamera::worldToScreen(
@@ -82,7 +83,8 @@ bool Gen4FollowCamera::worldToScreen(
 
     const float fov_y = preset_.fov_y_deg * (kPi / 180.0f);
     const float f = 1.0f / std::tan(std::max(0.001f, fov_y * 0.5f));
-    const float aspect = (preset_.aspect_width / std::max(0.001f, preset_.aspect_height));
+    const float aspect =
+        static_cast<float>(std::max(1, viewport_w)) / static_cast<float>(std::max(1, viewport_h));
 
     const float ndc_x = (cam_x * f / aspect) / cam_z;
     const float ndc_y = (cam_y * f) / cam_z;
@@ -94,6 +96,21 @@ bool Gen4FollowCamera::worldToScreen(
 
 float Gen4FollowCamera::perspectiveScale(float depth) const {
     return std::max(0.05f, preset_.distance / std::max(preset_.near_clip, depth));
+}
+
+Vec3 Gen4FollowCamera::screenOffsetToWorldOffset(int offset_y_px, float depth, int viewport_h) const {
+    if (offset_y_px == 0) {
+        return Vec3{};
+    }
+    const float fov_y = preset_.fov_y_deg * (kPi / 180.0f);
+    const float f = 1.0f / std::tan(std::max(0.001f, fov_y * 0.5f));
+    const float world = (-static_cast<float>(offset_y_px)) * depth /
+        (f * static_cast<float>(std::max(1, viewport_h)) * 0.5f);
+    return Vec3{up_.x * world, up_.y * world, up_.z * world};
+}
+
+Gen4FollowCamera::Pose Gen4FollowCamera::pose() const {
+    return Pose{position_, forward_, right_, up_, preset_};
 }
 
 } // namespace pr::gameplay::world3d::camera

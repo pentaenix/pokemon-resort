@@ -22,9 +22,17 @@ struct GlbVertex {
 };
 
 struct GlbMaterial {
+    enum class AlphaMode {
+        Opaque,
+        Mask,
+        Blend
+    };
+
     std::vector<std::uint8_t> image_bytes; // embedded PNG/JPEG; empty when untextured
     bool has_texture = false;
-    bool alpha_blend = false;              // glTF alphaMode MASK or BLEND
+    bool alpha_blend = false;              // legacy SDL fallback flag: glTF alphaMode MASK or BLEND
+    AlphaMode alpha_mode = AlphaMode::Opaque;
+    float alpha_cutoff = 0.5f;
     float base_color[4] = {1.0f, 1.0f, 1.0f, 1.0f};
 };
 

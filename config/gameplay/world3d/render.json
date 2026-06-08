@@ -1,6 +1,38 @@
 {
+  "terrain": {
+    "_comment": "Renderer-facing terrain defaults. tileSize still controls cell width/depth; heightPerFloor controls vertical units per encoded terrain height. Disable floorHeightColors/rampColors once authored per-cell textures should own those colors.",
+    "heightPerFloor": 16.0,
+    "floorColors": {
+      "checkerA": [116, 156, 190, 255],
+      "checkerB": [125, 166, 200, 255]
+    },
+    "floorHeightColors": {
+      "enabled": true,
+      "firstNonBase": {
+        "checkerA": [196, 84, 86, 255],
+        "checkerB": [214, 102, 92, 255]
+      }
+    },
+    "rampColors": {
+      "enabled": true,
+      "checkerA": [232, 198, 84, 255],
+      "checkerB": [246, 214, 104, 255]
+    },
+    "wallColors": {
+      "northSouth": [88, 117, 145, 255],
+      "eastWest": [80, 108, 136, 255]
+    },
+    "wireColor": [102, 138, 170, 120]
+  },
   "occlusion": {
     "_comment": "How far (in tiles) toward the camera a placed model's occlusion anchor is biased when depth-sorting it against the player/follower. Larger = the building starts hiding the character sooner (further forward). Tune so a character entering a doorway is hidden by the building rather than drawing over its roof.",
     "modelBehindBiasTiles": 1.0
+  },
+  "billboard": {
+    "_comment": "Actor billboard feet should stay on the simulation XZ position. Keep offsets at 0 unless a purely visual mode is added that cannot affect collision feel.",
+    "tileAnchorOffsetTiles": {
+      "forward": 0.0,
+      "right": 0.0
+    }
   }
 }

@@ -8,7 +8,9 @@
 #include "gameplay/world3d/followers/FollowerIdleExitTarget.hpp"
 #include "gameplay/world3d/followers/NatureIdleConfig.hpp"
 #include "gameplay/world3d/followers/NatureIdlePlanner.hpp"
-#include "gameplay/world3d/rendering/BillboardSpriteRenderer.hpp"
+#include "gameplay/world3d/rendering/BillboardPlacement.hpp"
+#include "gameplay/world3d/terrain/ActorTerrainBinding.hpp"
+#include "gameplay/world3d/terrain/GridStepMotor.hpp"
 
 #include <SDL.h>
 #include <deque>
@@ -26,24 +28,22 @@ public:
         const FollowerSummonConfig& summon_config,
         const FollowerSessionConfig& session_config);
 
-    void initialize(SDL_Renderer* renderer);
+    // Loads charbin packages without SDL; required for update() on bgfx path.
+    bool initializeResources();
+    bool resourcesReady() const { return resources_ready_; }
+
+    void collectBillboardDraws(
+        const camera::Gen4FollowCamera& camera,
+        int viewport_w,
+        int viewport_h,
+        std::vector<rendering::CharacterBillboardDraw>& out) const;
     void update(
         double dt,
         const camera::Vec3& player_world_pos,
         FacingDirection player_facing,
         bool player_idle,
         bool player_activity);
-    void render(
-        SDL_Renderer* renderer,
-        const camera::Gen4FollowCamera& camera,
-        int viewport_w,
-        int viewport_h,
-        float tint_r,
-        float tint_g,
-        float tint_b,
-        float brightness);
-
-    bool activeForRender() const;
+    bool visibleForSimulation() const;
     std::optional<float> renderDepth(
         const camera::Gen4FollowCamera& camera,
         int viewport_w,
@@ -80,9 +80,7 @@ private:
     State state_ = State::Hidden;
     CharacterSpriteDefinition follower_def_{};
     std::unique_ptr<characters::SpriteSheetAnimator> follower_animator_;
-    std::unique_ptr<rendering::BillboardSpriteRenderer> follower_renderer_;
     CharacterSpriteDefinition ball_def_{};
-    std::unique_ptr<rendering::BillboardSpriteRenderer> ball_renderer_;
     NatureIdleBehaviorConfig idle_config_{};
 
     camera::Vec3 follower_pos_{};
@@ -97,6 +95,8 @@ private:
     TilePoint last_player_tile_{};
     TilePoint player_tile_{};
     TilePoint follower_tile_{};
+    TilePoint step_dest_tile_{};
+    terrain::GridStepMotor step_motor_{};
     TilePoint idle_origin_tile_{};
     bool have_last_player_tile_ = false;
     bool follower_moving_ = false;
@@ -123,8 +123,10 @@ private:
     int action_jump_landings_emitted_ = 0;
     std::optional<effects::LandingDustSpawnRequest> pending_landing_dust_spawn_;
     bool initialized_rng_ = false;
+    bool resources_ready_ = false;
     std::mt19937 rng_{};
 
+    terrain::ActorTerrainBinding terrainBinding() const;
     int tileHeightUnits(int tx, int ty) const;
     camera::Vec3 tileToWorldCenter(int tx, int ty) const;
     void beginStepToTile(const TilePoint& target, double speed_multiplier, bool hop_movement);

@@ -66,6 +66,8 @@ public:
     std::vector<TitleScreenEvent> consumeEvents();
     UserSettings currentUserSettings() const;
     void applyUserSettings(const UserSettings& settings);
+    void prepareForOverworld3D();
+    void replaceAssets(Assets assets);
     void returnToMainMenuFromResort();
     void returnToMainMenuFromTradeLoading();
     void returnToMainMenuFromTransfer();

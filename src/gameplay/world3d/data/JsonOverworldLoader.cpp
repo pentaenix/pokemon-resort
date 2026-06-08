@@ -8,6 +8,7 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <iostream>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
@@ -315,6 +316,18 @@ CharacterSpriteDefinition loadCharacterDefinition(const std::string& project_roo
     }
 
     return out;
+}
+
+std::optional<CharacterSpriteDefinition> tryLoadCharacterDefinition(
+    const std::string& project_root,
+    const std::string& character_package_path) {
+    try {
+        return loadCharacterDefinition(project_root, character_package_path);
+    } catch (const std::exception& ex) {
+        std::cerr << "[Overworld3D] Failed to load character package '" << character_package_path
+                  << "': " << ex.what() << std::endl;
+        return std::nullopt;
+    }
 }
 
 } // namespace pr::gameplay::world3d::data

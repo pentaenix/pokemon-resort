@@ -2,6 +2,7 @@
 
 #include "core/config/ConfigLoader.hpp"
 #include "gameplay/world3d/camera/Gen4CameraPreset.hpp"
+#include "gameplay/world3d/camera/Gen4FollowCamera.hpp"
 #include "gameplay/world3d/data/GlbModelLoader.hpp"
 #include "gameplay/world3d/data/JsonOverworldLoader.hpp"
 #include "gameplay/world3d/followers/NatureIdleConfig.hpp"
@@ -9,6 +10,8 @@
 
 #include <SDL.h>
 #include <algorithm>
+#include <cmath>
+#include <cctype>
 #include <filesystem>
 #include <functional>
 #include <iostream>
@@ -31,6 +34,66 @@ gameplay::world3d::camera::Vec3 initialFreecamPosition(const gameplay::world3d::
     pos.y += scene.freecam_initial_offset_y;
     pos.z += scene.freecam_initial_offset_z;
     return pos;
+}
+
+std::string lower(std::string value) {
+    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
+        return static_cast<char>(std::tolower(c));
+    });
+    return value;
+}
+
+// Map screen-oriented input (up/down/left/right) to world grid steps using the Gen 4 camera basis on XZ.
+std::pair<int, int> gridStepFromCameraInput(
+    const gameplay::world3d::camera::Gen4FollowCamera& camera,
+    int input_dx,
+    int input_dy) {
+    if (input_dx == 0 && input_dy == 0) {
+        return {0, 0};
+    }
+
+    const auto pose = camera.pose();
+    const float forward_x = pose.forward.x;
+    const float forward_z = pose.forward.z;
+    const float right_x = pose.right.x;
+    const float right_z = pose.right.z;
+
+    // Up on screen follows camera forward; strafe follows camera right (matches Gen 4 field camera).
+    const float world_x = forward_x * static_cast<float>(-input_dy) + right_x * static_cast<float>(input_dx);
+    const float world_z = forward_z * static_cast<float>(-input_dy) + right_z * static_cast<float>(input_dx);
+    const float mag = std::sqrt(world_x * world_x + world_z * world_z);
+    if (mag < 1e-4f) {
+        return {0, 0};
+    }
+
+    // Pick the grid axis that best matches the camera-relative XZ direction.
+    // CharacterController: dx -> world +X (East), dy -> world +Z (South).
+    struct GridDir {
+        int dx;
+        int dy;
+        float wx;
+        float wz;
+    };
+    static constexpr GridDir kDirs[] = {
+        {0, -1, 0.0f, -1.0f}, // North
+        {0, 1, 0.0f, 1.0f},   // South
+        {1, 0, 1.0f, 0.0f},   // East
+        {-1, 0, -1.0f, 0.0f}, // West
+    };
+    int best_dx = 0;
+    int best_dy = 0;
+    float best_dot = -2.0f;
+    const float nx = world_x / mag;
+    const float nz = world_z / mag;
+    for (const GridDir& dir : kDirs) {
+        const float dot = nx * dir.wx + nz * dir.wz;
+        if (dot > best_dot) {
+            best_dot = dot;
+            best_dx = dir.dx;
+            best_dy = dir.dy;
+        }
+    }
+    return {best_dx, best_dy};
 }
 
 } // namespace
@@ -61,11 +124,26 @@ void Overworld3DTestScreen::initializeSceneState() {
         scene_,
         follower_summon_config_,
         follower_session_config_);
-    landing_dust_system_ = std::make_unique<gameplay::world3d::effects::LandingDustSystem>(
-        project_root_,
+    if (follower_controller_) {
+        follower_controller_->initializeResources();
+    }
+    gameplay::world3d::followers::NatureIdleLandingDustConfig landing_dust_config =
         follower_controller_
             ? gameplay::world3d::followers::loadNatureIdleBehaviorConfig(project_root_).landing_dust
-            : gameplay::world3d::followers::NatureIdleLandingDustConfig{});
+            : gameplay::world3d::followers::NatureIdleLandingDustConfig{};
+    if (follower_summon_config_.landing_dust.override_idle_config) {
+        landing_dust_config.sprite_scale = follower_summon_config_.landing_dust.sprite_scale;
+        landing_dust_config.screen_offset_y_px = follower_summon_config_.landing_dust.screen_offset_y_px;
+        landing_dust_config.world_offset_x = follower_summon_config_.landing_dust.world_offset_x;
+        landing_dust_config.world_offset_y = follower_summon_config_.landing_dust.world_offset_y;
+        landing_dust_config.world_offset_z = follower_summon_config_.landing_dust.world_offset_z;
+    }
+    landing_dust_system_ = std::make_unique<gameplay::world3d::effects::LandingDustSystem>(
+        project_root_,
+        landing_dust_config);
+    if (landing_dust_system_) {
+        landing_dust_system_->initializeResources();
+    }
     gameplay::world3d::camera::Gen4CameraPreset preset =
         gameplay::world3d::camera::loadGen4PresetById(scene_.camera_preset.c_str());
     if (scene_.camera_distance > 0.0f) {
@@ -104,14 +182,25 @@ void Overworld3DTestScreen::initializeSceneState() {
     freecam_pitch_deg_ = scene_.freecam_initial_pitch_deg;
     return_to_title_requested_ = false;
     sprite_renderer_.reset();
+    bgfx_renderer_.reset();
+    bgfx_init_failed_ = false;
     aib_texture_ = TextureHandle{};
     cached_aib_label_.clear();
     debug_font_ = FontHandle{};
     initialized_renderer_ = false;
 }
 
+void Overworld3DTestScreen::shutdownBgfx() {
+    if (bgfx_renderer_) {
+        bgfx_renderer_->shutdown();
+    }
+    bgfx_renderer_.reset();
+    bgfx_init_failed_ = false;
+}
+
 void Overworld3DTestScreen::resetForNextLaunch() {
     SDL_SetRelativeMouseMode(SDL_FALSE);
+    shutdownBgfx();
     initializeSceneState();
 }
 
@@ -129,7 +218,8 @@ void Overworld3DTestScreen::update(double dt) {
             input_dy_ = keyboard_dy;
         }
 
-        player_.moveInput(input_dx_, input_dy_, dt);
+        const auto [grid_dx, grid_dy] = gridStepFromCameraInput(camera_, input_dx_, input_dy_);
+        player_.moveInput(grid_dx, grid_dy, dt);
         if (input_dx_ == 0 && input_dy_ == 0) {
             player_.stop();
         }
@@ -181,6 +271,9 @@ void Overworld3DTestScreen::update(double dt) {
 }
 
 void Overworld3DTestScreen::render(SDL_Renderer* renderer) {
+    if (wantsBgfxRenderer()) {
+        return;
+    }
     if (!initialized_renderer_) {
         sprite_renderer_ = std::make_unique<gameplay::world3d::rendering::BillboardSpriteRenderer>(
             renderer,
@@ -190,9 +283,6 @@ void Overworld3DTestScreen::render(SDL_Renderer* renderer) {
             const TitleScreenConfig title_config =
                 loadConfigFromJson((fs::path(project_root_) / "config" / "title_screen.json").string());
             debug_font_ = loadFontPreferringUnicode(title_config.assets.font, 20, project_root_);
-        }
-        if (follower_controller_) {
-            follower_controller_->initialize(renderer);
         }
         if (landing_dust_system_) {
             landing_dust_system_->initialize(renderer);
@@ -242,17 +332,7 @@ void Overworld3DTestScreen::render(SDL_Renderer* renderer) {
         }
     };
     const auto draw_follower = [&]() {
-        if (follower_controller_) {
-            follower_controller_->render(
-                renderer,
-                camera_,
-                w,
-                h,
-                scene_.lighting_tint_r,
-                scene_.lighting_tint_g,
-                scene_.lighting_tint_b,
-                scene_.lighting_brightness);
-        }
+        // Follower billboards render on the bgfx path only.
     };
     const auto player_depth = [&]() -> std::optional<float> {
         float sx = 0.0f, sy = 0.0f, d = 0.0f;
@@ -317,6 +397,75 @@ void Overworld3DTestScreen::render(SDL_Renderer* renderer) {
             scene_.lighting_brightness);
     }
 
+}
+
+bool Overworld3DTestScreen::wantsBgfxRenderer() const {
+    const std::string backend = lower(app_config_.renderer.world3d_backend);
+    return !bgfx_init_failed_ && (backend == "bgfx" || backend == "auto");
+}
+
+bool Overworld3DTestScreen::isBgfxActive() const {
+    return bgfx_renderer_ != nullptr && bgfx_renderer_->valid();
+}
+
+bool Overworld3DTestScreen::renderBgfx(
+    SDL_Window* window,
+    int framebuffer_w,
+    int framebuffer_h,
+    int logical_w,
+    int logical_h,
+    void* sdl_metal_view) {
+    if (!wantsBgfxRenderer()) {
+        return false;
+    }
+    if (!bgfx_renderer_) {
+#if defined(__APPLE__)
+        if (!sdl_metal_view) {
+            std::cerr << "[Overworld3D] Refusing bgfx::init on macOS without SDL_MetalView. "
+                      << "Create SDL_Metal_CreateView after releasing SDL_Renderer." << std::endl;
+            return false;
+        }
+#endif
+        bgfx_renderer_ =
+            std::make_unique<gameplay::world3d::rendering::bgfx_backend::OverworldBgfxRenderer>(
+                project_root_,
+                scene_,
+                character_);
+        if (!bgfx_renderer_->initialize(
+                window,
+                framebuffer_w,
+                framebuffer_h,
+                app_config_.renderer.bgfx_preference,
+                sdl_metal_view)) {
+            std::cerr << "[Overworld3D] bgfx renderer initialization failed: "
+                      << bgfx_renderer_->lastError()
+                      << ". Falling back to SDL 3D renderer." << std::endl;
+            bgfx_renderer_.reset();
+            bgfx_init_failed_ = true;
+            return false;
+        }
+    }
+    std::vector<gameplay::world3d::rendering::CharacterBillboardDraw> character_draws;
+    if (follower_controller_) {
+        follower_controller_->collectBillboardDraws(camera_, logical_w, logical_h, character_draws);
+    }
+    std::vector<gameplay::world3d::rendering::TextureBillboardDraw> texture_draws;
+    if (landing_dust_system_) {
+        landing_dust_system_->collectTextureBillboardDraws(
+            scene_, camera_, logical_w, logical_h, texture_draws);
+    }
+    bgfx_renderer_->render(
+        camera_,
+        player_.position(),
+        animator_.sourceRect(),
+        player_.terrainBinding(),
+        logical_w,
+        logical_h,
+        framebuffer_w,
+        framebuffer_h,
+        character_draws,
+        texture_draws);
+    return true;
 }
 
 void Overworld3DTestScreen::renderPresentationOverlay(SDL_Renderer* renderer) {

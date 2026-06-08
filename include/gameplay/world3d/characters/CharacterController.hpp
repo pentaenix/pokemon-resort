@@ -2,6 +2,8 @@
 
 #include "gameplay/world3d/Overworld3DConfig.hpp"
 #include "gameplay/world3d/camera/Gen4FollowCamera.hpp"
+#include "gameplay/world3d/terrain/ActorTerrainBinding.hpp"
+#include "gameplay/world3d/terrain/GridStepMotor.hpp"
 #include <cstdint>
 #include <vector>
 
@@ -17,6 +19,9 @@ public:
     FacingDirection facing() const { return facing_; }
     bool moving() const { return moving_; }
     camera::Vec3 position() const { return pos_; }
+    int tileX() const { return tile_x_; }
+    int tileY() const { return tile_y_; }
+    terrain::ActorTerrainBinding terrainBinding() const;
 
 private:
     float move_speed_units_per_second_ = 64.0f;
@@ -32,10 +37,13 @@ private:
     camera::Vec3 move_target_{};
     int tile_x_ = 0;
     int tile_y_ = 0;
+    int step_dest_x_ = 0;
+    int step_dest_y_ = 0;
+    terrain::GridStepMotor step_motor_{};
     float move_t_ = 1.0f;
+    SceneConfig terrain_scene_{};
     FacingDirection facing_ = FacingDirection::South;
     bool moving_ = false;
-    bool interpolate_y_during_step_ = false;
     FacingDirection pending_turn_facing_ = FacingDirection::South;
     int pending_turn_dx_ = 0;
     int pending_turn_dy_ = 0;
@@ -44,7 +52,6 @@ private:
 
     int tileBaseHeightUnits(int tx, int ty) const;
     float tileWorldHeight(int tx, int ty) const;
-    float worldHeightAtPosition(float world_x, float world_z, int fallback_tx, int fallback_ty) const;
     int tileSpecial(int tx, int ty) const;
     int rampDirection(int tx, int ty) const;
     static void rampAscendVector(int direction, int& out_dx, int& out_dy);

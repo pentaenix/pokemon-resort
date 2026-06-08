@@ -1,8 +1,11 @@
 #include "gameplay/world3d/rendering/BillboardSpriteRenderer.hpp"
 
+#include "gameplay/world3d/rendering/CharacterTextureCache.hpp"
+
 #include <SDL_image.h>
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 
 namespace pr::gameplay::world3d::rendering {
 
@@ -86,27 +89,55 @@ BillboardSpriteRenderer::BillboardSpriteRenderer(
     SDL_SetTextureBlendMode(texture_.get(), SDL_BLENDMODE_BLEND);
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
 
-    SDL_Surface* white_surface = SDL_ConvertSurfaceFormat(surface, SDL_PIXELFORMAT_RGBA32, 0);
-    if (white_surface) {
-        SDL_LockSurface(white_surface);
-        auto* pixels = static_cast<Uint32*>(white_surface->pixels);
-        const std::size_t pixel_count =
-            static_cast<std::size_t>(white_surface->w) * static_cast<std::size_t>(white_surface->h);
-        for (std::size_t i = 0; i < pixel_count; ++i) {
-            Uint8 r = 0;
-            Uint8 g = 0;
-            Uint8 b = 0;
-            Uint8 a = 0;
-            SDL_GetRGBA(pixels[i], white_surface->format, &r, &g, &b, &a);
-            pixels[i] = SDL_MapRGBA(white_surface->format, 255, 255, 255, a);
+    auto uploadWhiteSurface = [&](SDL_Surface* white_surface) {
+        if (!white_surface) {
+            return;
         }
-        SDL_UnlockSurface(white_surface);
         SDL_Texture* white_raw = SDL_CreateTextureFromSurface(renderer, white_surface);
         if (white_raw) {
             white_texture_.reset(white_raw, SDL_DestroyTexture);
             SDL_SetTextureBlendMode(white_texture_.get(), SDL_BLENDMODE_BLEND);
         }
         SDL_FreeSurface(white_surface);
+    };
+
+    const RgbaImage white_rgba = buildWhiteSilhouetteFromPngBytes(def.texture_png_bytes);
+    if (white_rgba.valid()) {
+        SDL_Surface* white_surface = SDL_CreateRGBSurfaceFrom(
+            0,
+            white_rgba.width,
+            white_rgba.height,
+            32,
+            white_rgba.width * 4,
+            0x000000ff,
+            0x0000ff00,
+            0x00ff0000,
+            0xff000000);
+        if (white_surface) {
+            std::memcpy(
+                white_surface->pixels,
+                white_rgba.pixels.data(),
+                white_rgba.pixels.size());
+            uploadWhiteSurface(white_surface);
+        }
+    } else {
+        SDL_Surface* white_surface = SDL_ConvertSurfaceFormat(surface, SDL_PIXELFORMAT_RGBA32, 0);
+        if (white_surface) {
+            SDL_LockSurface(white_surface);
+            auto* pixels = static_cast<Uint32*>(white_surface->pixels);
+            const std::size_t pixel_count =
+                static_cast<std::size_t>(white_surface->w) * static_cast<std::size_t>(white_surface->h);
+            for (std::size_t i = 0; i < pixel_count; ++i) {
+                Uint8 r = 0;
+                Uint8 g = 0;
+                Uint8 b = 0;
+                Uint8 a = 0;
+                SDL_GetRGBA(pixels[i], white_surface->format, &r, &g, &b, &a);
+                pixels[i] = SDL_MapRGBA(white_surface->format, 255, 255, 255, a);
+            }
+            SDL_UnlockSurface(white_surface);
+            uploadWhiteSurface(white_surface);
+        }
     }
     SDL_FreeSurface(surface);
 

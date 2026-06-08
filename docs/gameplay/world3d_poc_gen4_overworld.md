@@ -88,6 +88,12 @@ Shared rendering profile supports:
 - `rendering.worldOffset`
 - `rendering.screenOffsetPx`
 
+Global billboard presentation (`config/gameplay/world3d/render.json`):
+- `billboard.tileAnchorOffsetTiles.forward` — legacy presentation offset; keep `0.0` so actor feet stay on the simulation XZ position.
+- `billboard.tileAnchorOffsetTiles.right` — legacy lateral offset; keep `0.0` for collision-aligned actor rendering.
+
+Per-character `worldOffset` from charbin is unchanged.
+
 Global sprite shadow supports:
 - `shadow.enabled`
 - `shadow.opacity` (0..1)

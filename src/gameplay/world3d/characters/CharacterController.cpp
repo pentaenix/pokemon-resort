@@ -1,5 +1,9 @@
 #include "gameplay/world3d/characters/CharacterController.hpp"
 
+#include "gameplay/world3d/terrain/ActorTerrainBinding.hpp"
+#include "gameplay/world3d/terrain/GridStepMotor.hpp"
+#include "gameplay/world3d/terrain/TerrainSurface.hpp"
+
 #include <algorithm>
 
 namespace pr::gameplay::world3d::characters {
@@ -8,6 +12,10 @@ namespace {
 
 bool isSlopeSpecial(int special) {
     return special >= 2 && special <= 13;
+}
+
+bool isCardinalRampSpecial(int special) {
+    return special >= 2 && special <= 5;
 }
 
 constexpr float kTurnOnlyTapWindowSeconds = 0.065f;
@@ -22,8 +30,13 @@ CharacterController::CharacterController(const SceneConfig& scene) {
     terrain_heights_ = scene.terrain.heights;
     terrain_specials_ = scene.terrain.specials;
     collision_map_ = scene.terrain.collision;
+    terrain_scene_.grid = scene.grid;
+    terrain_scene_.terrain.heights = terrain_heights_;
+    terrain_scene_.terrain.specials = terrain_specials_;
     tile_x_ = std::clamp(scene.player.spawn_tile_x, 0, grid_width_ - 1);
     tile_y_ = std::clamp(scene.player.spawn_tile_y, 0, grid_height_ - 1);
+    step_dest_x_ = tile_x_;
+    step_dest_y_ = tile_y_;
     pos_.x = (static_cast<float>(tile_x_) + 0.5f) * tile_size_;
     pos_.z = (static_cast<float>(tile_y_) + 0.5f) * tile_size_;
     pos_.y = tileWorldHeight(tile_x_, tile_y_);
@@ -33,65 +46,21 @@ CharacterController::CharacterController(const SceneConfig& scene) {
 }
 
 float CharacterController::tileWorldHeight(int tx, int ty) const {
-    const int h = tileBaseHeightUnits(tx, ty);
-    float y = static_cast<float>(h) * tile_size_;
-    const int special = tileSpecial(tx, ty);
-    if (isSlopeSpecial(special)) {
-        // Ramp tile occupant stands in the middle of the incline.
-        y += tile_size_ * 0.5f;
-    }
-    return y;
+    return terrain::heightAtTileCenter(terrain_scene_, tx, ty);
 }
 
-float CharacterController::worldHeightAtPosition(float world_x, float world_z, int fallback_tx, int fallback_ty) const {
-    const float safe_tile = std::max(0.001f, tile_size_);
-    int tx = static_cast<int>(std::floor(world_x / safe_tile));
-    int ty = static_cast<int>(std::floor(world_z / safe_tile));
-    if (tx < 0 || tx >= grid_width_ || ty < 0 || ty >= grid_height_) {
-        tx = fallback_tx;
-        ty = fallback_ty;
+terrain::ActorTerrainBinding CharacterController::terrainBinding() const {
+    if (moving_ && step_motor_.interpolate_y) {
+        const terrain::TileCoord sample = step_motor_.activeSampleTile(move_t_);
+        terrain::ActorTerrainBinding binding{};
+        binding.logical_tx = tile_x_;
+        binding.logical_ty = tile_y_;
+        binding.height_sample_tx = sample.x;
+        binding.height_sample_ty = sample.y;
+        binding.simulation_y = pos_.y;
+        return binding;
     }
-
-    const int h = tileBaseHeightUnits(tx, ty);
-    const float base = static_cast<float>(h) * tile_size_;
-    const int special = tileSpecial(tx, ty);
-    const float local_x = (world_x - (static_cast<float>(tx) * tile_size_)) / safe_tile;
-    const float local_z = (world_z - (static_cast<float>(ty) * tile_size_)) / safe_tile;
-    const float u = std::clamp(local_x, 0.0f, 1.0f);
-    const float v = std::clamp(local_z, 0.0f, 1.0f);
-
-    if (special < 2 || special > 13) {
-        return tileWorldHeight(tx, ty);
-    }
-
-    if (special >= 6 && special <= 13) {
-        // Match renderer corner order:
-        // c0=(x0,z0), c1=(x1,z0), c2=(x1,z1), c3=(x0,z1)
-        float c0 = base;
-        float c1 = base;
-        float c2 = base;
-        float c3 = base;
-        const float high = base + tile_size_;
-        switch (special) {
-            case 6: c2 = high; break;                     // convex NE
-            case 7: c1 = high; break;                     // convex SE (project orientation)
-            case 8: c0 = high; break;                     // convex SW
-            case 9: c3 = high; break;                     // convex NW
-            case 10: c0 = high; c1 = high; c3 = high; break; // concave NE
-            case 11: c0 = high; c3 = high; break;           // concave SE
-            case 12: c2 = high; break;                      // concave SW
-            case 13: c1 = high; c2 = high; break;           // concave NW
-            default: break;
-        }
-        const float north = c0 + ((c1 - c0) * u);
-        const float south = c3 + ((c2 - c3) * u);
-        return north + ((south - north) * v);
-    }
-
-    if (special == 2) return base + ((1.0f - v) * tile_size_); // north ascends toward smaller tile y
-    if (special == 3) return base + (u * tile_size_);           // east
-    if (special == 4) return base + (v * tile_size_);           // south
-    return base + ((1.0f - u) * tile_size_);                    // west
+    return terrain::bindActorStanding(terrain_scene_, tile_x_, tile_y_, pos_.x, pos_.z);
 }
 
 int CharacterController::tileBaseHeightUnits(int tx, int ty) const {
@@ -137,11 +106,31 @@ bool CharacterController::canTraverseHeightDelta(
     const int from_h = tileBaseHeightUnits(from_x, from_y);
     const int to_h = tileBaseHeightUnits(to_x, to_y);
     const int dh = to_h - from_h;
+    const auto ramp_step_uses_tile = [&](int ramp_tile_x, int ramp_tile_y) -> bool {
+        const int dir = rampDirection(ramp_tile_x, ramp_tile_y);
+        if (dir == 0) return false;
+        int ax = 0;
+        int ay = 0;
+        rampAscendVector(dir, ax, ay);
+        return (dx == ax && dy == ay) || (dx == -ax && dy == -ay);
+    };
+
     if (dh == 0) {
-        const bool from_is_ramp = isSlopeSpecial(tileSpecial(from_x, from_y));
-        const bool to_is_ramp = isSlopeSpecial(tileSpecial(to_x, to_y));
-        // Smoothly blend onto/off ramp midpoint even when base tile heights match.
-        smooth_ramp = from_is_ramp || to_is_ramp;
+        const int from_special = tileSpecial(from_x, from_y);
+        const int to_special = tileSpecial(to_x, to_y);
+        const bool from_cardinal = isCardinalRampSpecial(from_special);
+        const bool to_cardinal = isCardinalRampSpecial(to_special);
+        const bool from_uses_ramp = from_cardinal && ramp_step_uses_tile(from_x, from_y);
+        const bool to_uses_ramp = to_cardinal && ramp_step_uses_tile(to_x, to_y);
+        const bool lateral_between_matching_ramps =
+            from_cardinal && to_cardinal && from_special == to_special;
+        if (!lateral_between_matching_ramps &&
+            ((from_cardinal && !from_uses_ramp) || (to_cardinal && !to_uses_ramp))) {
+            return false;
+        }
+        const bool from_corner_slope = isSlopeSpecial(from_special) && !from_cardinal;
+        const bool to_corner_slope = isSlopeSpecial(to_special) && !to_cardinal;
+        smooth_ramp = from_uses_ramp || to_uses_ramp || from_corner_slope || to_corner_slope;
         return true;
     }
     if (std::abs(dh) > 1) return false;
@@ -156,7 +145,7 @@ bool CharacterController::canTraverseHeightDelta(
         }
         return dx == -ax && dy == -ay;
     };
-    const bool valid = ramp_allows(from_x, from_y) || ramp_allows(to_x, to_y);
+    const bool valid = dh > 0 ? ramp_allows(from_x, from_y) : ramp_allows(to_x, to_y);
     smooth_ramp = valid;
     return valid;
 }
@@ -170,6 +159,10 @@ bool CharacterController::tileBlocked(int tx, int ty) const {
 }
 
 void CharacterController::moveInput(int dx, int dy, double dt) {
+    if (!moving_) {
+        pos_.y = terrainBinding().simulation_y;
+    }
+
     bool finished_step_this_tick = false;
     if (moving_) {
         const float step_time = std::max(0.001f, tile_size_ / std::max(1.0f, move_speed_units_per_second_));
@@ -182,8 +175,8 @@ void CharacterController::moveInput(int dx, int dy, double dt) {
         } else {
             pos_.x = move_start_.x + ((move_target_.x - move_start_.x) * move_t_);
             pos_.z = move_start_.z + ((move_target_.z - move_start_.z) * move_t_);
-            if (interpolate_y_during_step_) {
-                pos_.y = worldHeightAtPosition(pos_.x, pos_.z, tile_x_, tile_y_);
+            if (step_motor_.interpolate_y) {
+                pos_.y = terrain::actorHeightDuringStep(terrain_scene_, pos_.x, pos_.z, step_motor_, move_t_);
             } else {
                 pos_.y = move_start_.y;
             }
@@ -198,8 +191,6 @@ void CharacterController::moveInput(int dx, int dy, double dt) {
         pending_turn_dx_ = 0;
         pending_turn_dy_ = 0;
         pending_turn_elapsed_s_ = 0.0f;
-        // Preserve walking state for the frame that completed a step so animation
-        // does not reset between chained grid steps while input is held.
         if (!finished_step_this_tick) {
             moving_ = false;
         }
@@ -246,29 +237,42 @@ void CharacterController::moveInput(int dx, int dy, double dt) {
     pending_turn_dy_ = 0;
     pending_turn_elapsed_s_ = 0.0f;
 
-    const int next_x = tile_x_ + dx;
-    const int next_y = tile_y_ + dy;
-    if (next_x < 0 || next_x >= grid_width_ || next_y < 0 || next_y >= grid_height_) {
+    const int dest_x = tile_x_ + dx;
+    const int dest_y = tile_y_ + dy;
+    if (dest_x < 0 || dest_x >= grid_width_ || dest_y < 0 || dest_y >= grid_height_) {
         moving_ = false;
         return;
     }
-    if (tileBlocked(next_x, next_y)) {
+    if (tileBlocked(dest_x, dest_y)) {
         moving_ = false;
         return;
     }
     bool smooth_ramp = false;
-    if (!canTraverseHeightDelta(tile_x_, tile_y_, next_x, next_y, dx, dy, smooth_ramp)) {
+    if (!canTraverseHeightDelta(tile_x_, tile_y_, dest_x, dest_y, dx, dy, smooth_ramp)) {
         moving_ = false;
         return;
     }
-    tile_x_ = next_x;
-    tile_y_ = next_y;
 
+    step_dest_x_ = dest_x;
+    step_dest_y_ = dest_y;
+    step_motor_ = terrain::GridStepMotor::beginStep(
+        terrain_scene_,
+        tile_x_,
+        tile_y_,
+        dest_x,
+        dest_y,
+        dx,
+        dy,
+        tileBaseHeightUnits(tile_x_, tile_y_),
+        tileBaseHeightUnits(dest_x, dest_y));
+    tile_x_ = dest_x;
+    tile_y_ = dest_y;
     move_start_ = pos_;
-    move_target_.x = (static_cast<float>(tile_x_) + 0.5f) * tile_size_;
-    move_target_.z = (static_cast<float>(tile_y_) + 0.5f) * tile_size_;
-    move_target_.y = tileWorldHeight(tile_x_, tile_y_);
-    interpolate_y_during_step_ = smooth_ramp;
+    move_target_.x = (static_cast<float>(step_dest_x_) + 0.5f) * tile_size_;
+    move_target_.z = (static_cast<float>(step_dest_y_) + 0.5f) * tile_size_;
+    move_target_.y = terrain::bindActorStanding(
+        terrain_scene_, step_dest_x_, step_dest_y_, move_target_.x, move_target_.z)
+                         .simulation_y;
     move_t_ = 0.0f;
     moving_ = true;
 }

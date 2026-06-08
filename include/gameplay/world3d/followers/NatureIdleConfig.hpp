@@ -33,8 +33,11 @@ struct NatureIdleLandingDustConfig {
     int frame_width = 32;
     int frame_height = 32;
     int frame_count = 3;
-    float sprite_scale = 4.8f;
+    float sprite_scale = 1.0f;
     int screen_offset_y_px = 0;
+    float world_offset_x = 0.0f;
+    float world_offset_y = 0.0f;
+    float world_offset_z = 0.0f;
 };
 
 struct NatureIdleBehaviorConfig {
