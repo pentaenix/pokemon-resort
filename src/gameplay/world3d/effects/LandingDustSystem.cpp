@@ -1,5 +1,6 @@
 #include "gameplay/world3d/effects/LandingDustSystem.hpp"
 
+#include "gameplay/world3d/rendering/PixelScale.hpp"
 #include "gameplay/world3d/terrain/ActorTerrainBinding.hpp"
 
 #include <SDL_image.h>
@@ -88,6 +89,7 @@ void LandingDustSystem::spawn(const LandingDustSpawnRequest& request) {
 
 void LandingDustSystem::render(
     SDL_Renderer* renderer,
+    const SceneConfig& scene,
     const camera::Gen4FollowCamera& camera,
     int viewport_w,
     int viewport_h,
@@ -108,24 +110,38 @@ void LandingDustSystem::render(
         world_pos.x += config_.world_offset_x;
         world_pos.y += config_.world_offset_y;
         world_pos.z += config_.world_offset_z;
-        float sx = 0.0f;
-        float sy = 0.0f;
-        float depth = 0.0f;
-        if (!camera.worldToScreen(world_pos, viewport_w, viewport_h, sx, sy, depth)) continue;
+
+        const float tile_size = std::max(1.0f, scene.grid.tile_size);
+        const int tx = static_cast<int>(std::floor(world_pos.x / tile_size));
+        const int ty = static_cast<int>(std::floor(world_pos.z / tile_size));
+        const auto binding = terrain::bindActorStanding(scene, tx, ty, world_pos.x, world_pos.z);
+        const SDL_Rect source_rect{0, 0, frame_width, frame_height};
+        const auto placement = rendering::buildTextureBillboardPlacement(
+            scene,
+            camera,
+            binding,
+            world_pos,
+            source_rect,
+            viewport_w,
+            viewport_h,
+            config_.sprite_scale,
+            config_.screen_offset_y_px);
+        if (!placement.visible) continue;
+
+        int sprite_x = 0;
+        int sprite_y = 0;
+        int sprite_w = 0;
+        int sprite_h = 0;
+        if (!rendering::projectBillboardScreenRect(
+                camera, placement, viewport_w, viewport_h, sprite_x, sprite_y, sprite_w, sprite_h)) {
+            continue;
+        }
 
         const float progress = static_cast<float>(
             std::clamp(instance.elapsed_seconds / std::max(0.01, instance.duration_seconds), 0.0, 0.999999));
         const int frame = std::clamp(static_cast<int>(std::floor(progress * static_cast<float>(frame_count))), 0, frame_count - 1);
         const SDL_Rect src{frame * frame_width, 0, frame_width, frame_height};
-
-        const float scale = camera.perspectiveScale(depth) * config_.sprite_scale;
-        const int w = std::max(2, static_cast<int>(std::round(static_cast<float>(frame_width) * scale * 0.60f)));
-        const int h = std::max(2, static_cast<int>(std::round(static_cast<float>(frame_height) * scale * 0.60f)));
-        const SDL_Rect dst{
-            static_cast<int>(std::round(sx)) - (w / 2),
-            static_cast<int>(std::round(sy)) - h + config_.screen_offset_y_px,
-            w,
-            h};
+        const SDL_Rect dst{sprite_x, sprite_y, sprite_w, sprite_h};
 
         const float br = std::max(0.0f, brightness);
         SDL_SetTextureColorMod(

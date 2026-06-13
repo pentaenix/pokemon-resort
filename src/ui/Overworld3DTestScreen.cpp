@@ -2,6 +2,7 @@
 
 #include "core/config/ConfigLoader.hpp"
 #include "gameplay/world3d/camera/Gen4CameraPreset.hpp"
+#include "gameplay/world3d/rendering/PixelScale.hpp"
 #include "gameplay/world3d/camera/Gen4FollowCamera.hpp"
 #include "gameplay/world3d/data/GlbModelLoader.hpp"
 #include "gameplay/world3d/data/JsonOverworldLoader.hpp"
@@ -157,6 +158,7 @@ void Overworld3DTestScreen::initializeSceneState() {
     preset.aspect_width = scene_.camera_aspect_width;
     preset.aspect_height = scene_.camera_aspect_height;
     preset.fov_y_deg = scene_.camera_fov_y_deg;
+    gameplay::world3d::rendering::applyPixelScaleToCameraPreset(preset, scene_.pixel_scale);
     camera_ = gameplay::world3d::camera::Gen4FollowCamera(preset);
     map_loaded_ = map_.load();
     placed_models_.clear();
@@ -277,6 +279,7 @@ void Overworld3DTestScreen::render(SDL_Renderer* renderer) {
     if (!initialized_renderer_) {
         sprite_renderer_ = std::make_unique<gameplay::world3d::rendering::BillboardSpriteRenderer>(
             renderer,
+            scene_,
             character_,
             scene_.sprite_shadow);
         if (app_config_.enable_active_idle_behavior_debug) {
@@ -321,6 +324,7 @@ void Overworld3DTestScreen::render(SDL_Renderer* renderer) {
             sprite_renderer_->render(
                 renderer,
                 camera_,
+                player_.terrainBinding(),
                 player_.position(),
                 animator_.sourceRect(),
                 w,
@@ -388,6 +392,7 @@ void Overworld3DTestScreen::render(SDL_Renderer* renderer) {
     if (landing_dust_system_) {
         landing_dust_system_->render(
             renderer,
+            scene_,
             camera_,
             w,
             h,
@@ -445,6 +450,10 @@ bool Overworld3DTestScreen::renderBgfx(
             return false;
         }
     }
+    if (!pending_bgfx_screenshot_.empty()) {
+        bgfx_renderer_->queueScreenshot(pending_bgfx_screenshot_);
+        pending_bgfx_screenshot_.clear();
+    }
     std::vector<gameplay::world3d::rendering::CharacterBillboardDraw> character_draws;
     if (follower_controller_) {
         follower_controller_->collectBillboardDraws(camera_, logical_w, logical_h, character_draws);
@@ -466,6 +475,10 @@ bool Overworld3DTestScreen::renderBgfx(
         character_draws,
         texture_draws);
     return true;
+}
+
+void Overworld3DTestScreen::queueBgfxScreenshot(const std::string& output_path) {
+    pending_bgfx_screenshot_ = output_path;
 }
 
 void Overworld3DTestScreen::renderPresentationOverlay(SDL_Renderer* renderer) {

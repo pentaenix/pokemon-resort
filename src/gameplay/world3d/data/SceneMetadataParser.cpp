@@ -28,6 +28,22 @@ bool boolOr(const JsonValue* v, bool fallback) {
     return (v && v->isBool()) ? v->asBool() : fallback;
 }
 
+void applyPixelScaleConfig(PixelScaleConfig& out, const JsonValue* pixel_scale) {
+    if (!pixel_scale || !pixel_scale->isObject()) return;
+    out.map_pixels_per_tile = std::max(1, intOr(pixel_scale->get("mapPixelsPerTile"), out.map_pixels_per_tile));
+    out.world_units_per_pixel =
+        static_cast<float>(numOr(pixel_scale->get("worldUnitsPerPixel"), out.world_units_per_pixel));
+    out.zoom = static_cast<float>(numOr(pixel_scale->get("zoom"), out.zoom));
+    out.zoom_min = static_cast<float>(numOr(pixel_scale->get("zoomMin"), out.zoom_min));
+    out.zoom_max = static_cast<float>(numOr(pixel_scale->get("zoomMax"), out.zoom_max));
+    out.zoom_min = std::max(0.01f, out.zoom_min);
+    out.zoom_max = std::max(out.zoom_min, out.zoom_max);
+    out.zoom = std::clamp(out.zoom, out.zoom_min, out.zoom_max);
+    if (out.world_units_per_pixel > 0.0f) {
+        out.world_units_per_pixel = std::max(0.001f, out.world_units_per_pixel);
+    }
+}
+
 void applyColor(TerrainColor& out, const JsonValue* color) {
     if (!color || !color->isArray()) return;
     const auto& arr = color->asArray();
@@ -372,6 +388,7 @@ SceneConfig parseSceneMetadata(
                     numOr(tile_offset->get("right"), out.billboard_tile_anchor_right));
             }
         }
+        applyPixelScaleConfig(out.pixel_scale, render_root.get("pixelScale"));
     }
 
     applyLightingConfig(out, root.get("lighting"));

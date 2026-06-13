@@ -50,6 +50,8 @@ public:
         const std::vector<rendering::CharacterBillboardDraw>& character_draws = {},
         const std::vector<rendering::TextureBillboardDraw>& texture_draws = {});
 
+    void queueScreenshot(const std::string& output_path);
+
 private:
     class Impl;
     std::unique_ptr<Impl> impl_;

@@ -93,6 +93,7 @@ add_library(world3d_bgfx_renderer STATIC
     src/gameplay/world3d/rendering/bgfx/OverworldBgfxRenderer.cpp
     src/gameplay/world3d/data/RtpksTilePackageLoader.cpp
     src/gameplay/world3d/rendering/BillboardPlacement.cpp
+    src/gameplay/world3d/rendering/PixelScale.cpp
     src/gameplay/world3d/rendering/CharacterTextureCache.cpp
     src/gameplay/world3d/rendering/SpriteShadowDecal.cpp
     src/gameplay/world3d/terrain/TerrainSurface.cpp
@@ -501,6 +502,7 @@ add_executable(owmap_overworld_loader_tests
     src/gameplay/world3d/terrain/TerrainSurface.cpp
     src/gameplay/world3d/followers/FollowerConfig.cpp
     src/gameplay/world3d/rendering/BillboardPlacement.cpp
+    src/gameplay/world3d/rendering/PixelScale.cpp
     src/gameplay/world3d/camera/Gen4CameraPreset.cpp
     src/gameplay/world3d/camera/Gen4FollowCamera.cpp
 )

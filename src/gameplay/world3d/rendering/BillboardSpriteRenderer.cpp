@@ -1,6 +1,8 @@
 #include "gameplay/world3d/rendering/BillboardSpriteRenderer.hpp"
 
+#include "gameplay/world3d/rendering/BillboardPlacement.hpp"
 #include "gameplay/world3d/rendering/CharacterTextureCache.hpp"
+#include "gameplay/world3d/rendering/PixelScale.hpp"
 
 #include <SDL_image.h>
 #include <algorithm>
@@ -54,9 +56,10 @@ bool isMaskValid(const std::vector<std::string>& mask, int w, int h) {
 
 BillboardSpriteRenderer::BillboardSpriteRenderer(
     SDL_Renderer* renderer,
+    const SceneConfig& scene,
     const CharacterSpriteDefinition& def,
     const SpriteShadowConfig& shadow_config)
-    : def_(def), shadow_config_(shadow_config.enabled ? shadow_config : defaultGen4ShadowConfig()) {
+    : scene_(scene), def_(def), shadow_config_(shadow_config.enabled ? shadow_config : defaultGen4ShadowConfig()) {
     SDL_Surface* surface = nullptr;
     if (!def.texture_png_bytes.empty()) {
         SDL_RWops* rw = SDL_RWFromConstMem(
@@ -192,7 +195,8 @@ BillboardSpriteRenderer::BillboardSpriteRenderer(
 void BillboardSpriteRenderer::render(
     SDL_Renderer* renderer,
     const camera::Gen4FollowCamera& camera,
-    const camera::Vec3& world_pos,
+    const terrain::ActorTerrainBinding& binding,
+    const camera::Vec3& simulation_pos,
     const SDL_Rect& source_rect,
     int viewport_w,
     int viewport_h,
@@ -210,27 +214,34 @@ void BillboardSpriteRenderer::render(
         return;
     }
 
-    float sx = 0.0f;
-    float sy = 0.0f;
-    float depth = 0.0f;
-    camera::Vec3 world_anchor = world_pos;
-    world_anchor.x += def_.world_offset_x;
-    world_anchor.y += def_.world_offset_y;
-    world_anchor.z += def_.world_offset_z;
-    if (!camera.worldToScreen(world_anchor, viewport_w, viewport_h, sx, sy, depth)) {
+    const BillboardPlacement placement = buildCharacterBillboardPlacement(
+        scene_,
+        camera,
+        binding,
+        def_,
+        simulation_pos,
+        source_rect,
+        viewport_w,
+        viewport_h,
+        sprite_scale_multiplier);
+    if (!placement.visible) {
         return;
     }
 
-    const float scale = camera.perspectiveScale(depth) * std::max(0.1f, def_.sprite_scale) * std::max(0.1f, sprite_scale_multiplier);
-    const int w = std::max(2, static_cast<int>(std::round(source_rect.w * scale * 0.60f)));
-    const int h = std::max(2, static_cast<int>(std::round(source_rect.h * scale * 0.60f)));
-    const int anchor_y = (def_.anchor == "center") ? (h / 2) : h;
-    const int sprite_screen_x = static_cast<int>(std::round(sx));
-    const int sprite_screen_y = static_cast<int>(std::round(sy));
+    int sprite_x = 0;
+    int sprite_y = 0;
+    int sprite_w = 0;
+    int sprite_h = 0;
+    if (!projectBillboardScreenRect(
+            camera, placement, viewport_w, viewport_h, sprite_x, sprite_y, sprite_w, sprite_h)) {
+        return;
+    }
+    sprite_x += def_.screen_offset_x_px + extra_screen_offset_x_px;
+    sprite_y += def_.screen_offset_y_px + extra_screen_offset_y_px;
 
     if (shadow_texture_) {
-        camera::Vec3 shadow_world = shadow_world_override ? *shadow_world_override : world_pos;
-        shadow_world.y += shadow_config_.world_y_lift;
+        const camera::Vec3 shadow_world =
+            shadow_world_override ? *shadow_world_override : placement.shadow_ground;
         float shx = 0.0f;
         float shy = 0.0f;
         float shd = 0.0f;
@@ -238,16 +249,18 @@ void BillboardSpriteRenderer::render(
             int shadow_w = 2;
             int shadow_h = 2;
             if (shadow_config_.pixel_coherent) {
+                const float px_scale =
+                    static_cast<float>(sprite_w) / std::max(1.0f, static_cast<float>(source_rect.w));
                 shadow_w = std::max(
                     2,
-                    static_cast<int>(std::round(static_cast<float>(shadow_config_.texture_width_px) * scale * 0.60f)));
+                    static_cast<int>(std::round(static_cast<float>(shadow_config_.texture_width_px) * px_scale)));
                 shadow_h = std::max(
                     2,
-                    static_cast<int>(std::round(static_cast<float>(shadow_config_.texture_height_px) * scale * 0.60f)));
+                    static_cast<int>(std::round(static_cast<float>(shadow_config_.texture_height_px) * px_scale)));
             } else {
                 const float shadow_scale = camera.perspectiveScale(shd);
-                const float sprite_w_px = static_cast<float>(source_rect.w) * std::max(0.1f, def_.sprite_scale) * 0.60f;
-                const float sprite_h_px = static_cast<float>(source_rect.h) * std::max(0.1f, def_.sprite_scale) * 0.60f;
+                const float sprite_w_px = static_cast<float>(source_rect.w);
+                const float sprite_h_px = static_cast<float>(source_rect.h);
                 shadow_w = std::max(
                     2,
                     static_cast<int>(std::round(sprite_w_px * shadow_scale * (shadow_config_.radius_x_tiles * 2.0f))));
@@ -255,11 +268,9 @@ void BillboardSpriteRenderer::render(
                     2,
                     static_cast<int>(std::round(sprite_h_px * shadow_scale * (shadow_config_.radius_z_tiles * 2.0f))));
             }
-            const int shadow_anchor_y = shadow_world_override
-                ? static_cast<int>(std::round(shy))
-                : (sprite_screen_y + def_.screen_offset_y_px);
             const int shadow_bottom =
-                shadow_anchor_y + shadow_config_.feet_to_shadow_bottom_px + shadow_config_.screen_offset_y_px;
+                static_cast<int>(std::round(shy)) + shadow_config_.feet_to_shadow_bottom_px +
+                shadow_config_.screen_offset_y_px;
             SDL_Rect shadow_dst{
                 static_cast<int>(std::round(shx)) - (shadow_w / 2) + shadow_config_.screen_offset_x_px,
                 shadow_bottom - shadow_h,
@@ -270,11 +281,7 @@ void BillboardSpriteRenderer::render(
         }
     }
 
-    SDL_Rect dst{
-        sprite_screen_x - (w / 2) + def_.screen_offset_x_px + extra_screen_offset_x_px,
-        sprite_screen_y - anchor_y + def_.screen_offset_y_px + extra_screen_offset_y_px,
-        w,
-        h};
+    SDL_Rect dst{sprite_x, sprite_y, sprite_w, sprite_h};
     const float br = std::max(0.0f, brightness);
     SDL_SetTextureColorMod(
         texture_.get(),

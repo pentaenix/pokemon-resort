@@ -37,6 +37,7 @@ public:
     bool wantsBgfxRenderer() const;
     bool isBgfxActive() const;
     void renderPresentationOverlay(SDL_Renderer* renderer);
+    void queueBgfxScreenshot(const std::string& output_path);
 
     bool canNavigate2d() const override { return true; }
     bool capturesUnroutedKeyboardFocus() const override { return true; }
@@ -77,6 +78,7 @@ private:
     bool map_loaded_ = false;
     bool initialized_renderer_ = false;
     bool bgfx_init_failed_ = false;
+    std::string pending_bgfx_screenshot_;
     AppConfig app_config_{};
     FontHandle debug_font_{};
     TextureHandle aib_texture_{};

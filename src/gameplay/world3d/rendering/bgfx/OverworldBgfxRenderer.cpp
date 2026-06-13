@@ -192,6 +192,7 @@ public:
         int framebuffer_h,
         const std::vector<rendering::CharacterBillboardDraw>& character_draws,
         const std::vector<rendering::TextureBillboardDraw>& texture_draws);
+    void queueScreenshot(const std::string& output_path);
 
 private:
     struct Vertex {
@@ -402,6 +403,16 @@ void OverworldBgfxRenderer::render(
             character_draws,
             texture_draws);
     }
+}
+
+void OverworldBgfxRenderer::queueScreenshot(const std::string& output_path) {
+    if (impl_) {
+        impl_->queueScreenshot(output_path);
+    }
+}
+
+void OverworldBgfxRenderer::Impl::queueScreenshot(const std::string& output_path) {
+    backend_.queueScreenshot(output_path);
 }
 
 bool OverworldBgfxRenderer::Impl::initialize(

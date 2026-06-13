@@ -1,5 +1,6 @@
 #include "gameplay/world3d/rendering/bgfx/BgfxBackend.hpp"
 
+#include <bgfx/bgfx.h>
 #include <bgfx/platform.h>
 
 #include <SDL_syswm.h>
@@ -165,8 +166,17 @@ void BgfxBackend::beginFrame(float clear_r, float clear_g, float clear_b, float 
 
 void BgfxBackend::endFrame() {
     if (initialized_) {
+        if (!pending_screenshot_path_.empty()) {
+            bgfx::requestScreenShot(BGFX_INVALID_HANDLE, pending_screenshot_path_.c_str());
+            std::cout << "Screenshot saved: " << pending_screenshot_path_ << '\n';
+            pending_screenshot_path_.clear();
+        }
         bgfx::frame();
     }
+}
+
+void BgfxBackend::queueScreenshot(const std::string& output_path) {
+    pending_screenshot_path_ = output_path;
 }
 
 std::string BgfxBackend::shaderDirectory() const {

@@ -220,11 +220,14 @@ Links game logic to a sheet + profile animation name.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `id` | `string` | yes | Unique action id (e.g. `idle`, `walk`). |
-| `type` | `string` | yes | `idle`, `movement`, or `walk` (movement-like). |
+| `id` | `string` | yes | Unique action id (e.g. `idle`, `walk`, `fishing`). |
+| `type` | `string` | yes | `idle`, `movement`, `walk` (legacy), or `activity` (see below). |
 | `sheetId` | `string` | yes | Must match a `spriteSheets[].id`. |
-| `animationName` | `string` | yes | Key in sprite profile `animations` (e.g. `idle`, `walk`). |
-| `movementDriven` | `boolean` | no | `true` for walk-style actions. |
+| `animationName` | `string` | yes* | Key in sprite profile `animations` or sheet override. *Not used on `activity` (phases name clips). |
+| `movementDriven` | `boolean` | no | `true` for walk-style actions; always `false` for `activity`. |
+| `activityKind` | `string` | activity only | `"single"` or `"session"`. |
+| `phases` | `object` | activity only | Phase id → `{ animationName, loop? }`. |
+| `facingMode` | `string` | no | `activity` only: `"four_direction"` (default) or `"south_only"`. |
 
 Recommended pair for trainers / NPCs (`character` profile):
 
@@ -250,6 +253,55 @@ Recommended for `metadata.characterType: "object"` (`object` profile, sheet id `
 | `play` | `idle` | `play` | `false` | Row-major 4×4 grid, up to 10 non-empty cells, **no loop** (`loop: false`). |
 
 Per-sheet `spriteSheets[].animations.play.frames` overrides detected frames after import. Objects must **not** use movement / walk actions.
+
+### Activity actions (proposed)
+
+Stationary overworld clips that use the 4-direction grid but **do not** move tiles (fishing, watering plants, petting). Same sheet layout as walk/run; gameplay does not advance world position.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `type` | `string` | yes | `"activity"` |
+| `activityKind` | `string` | yes | `"single"` (one `play` phase) or `"session"` (`enter` → `stay` → `exit`) |
+| `sheetId` | `string` | yes | Sheet with PNG + `animations` overrides |
+| `movementDriven` | `boolean` | yes | Always `false` |
+| `facingMode` | `string` | no | `"four_direction"` (default) or `"south_only"` |
+| `phases` | `object` | yes | Phase id → `{ animationName, loop? }` |
+
+**Phase ids:** `single` → `play` only. `session` → `enter`, `stay`, `exit` (all required). Each `animationName` resolves on the sheet's `animations` map. Set `loop: true` on `stay`; `enter`, `exit`, and `play` default to one-shot (`loop: false`).
+
+Example session action (fishing):
+
+```json
+{
+  "id": "fishing",
+  "type": "activity",
+  "activityKind": "session",
+  "sheetId": "fishing",
+  "movementDriven": false,
+  "phases": {
+    "enter": { "animationName": "cast", "loop": false },
+    "stay": { "animationName": "fishing", "loop": true },
+    "exit": { "animationName": "exit", "loop": false }
+  }
+}
+```
+
+Example single action (water plants):
+
+```json
+{
+  "id": "water",
+  "type": "activity",
+  "activityKind": "single",
+  "sheetId": "water",
+  "movementDriven": false,
+  "phases": {
+    "play": { "animationName": "water", "loop": false }
+  }
+}
+```
+
+Not yet validated in SPMK or loaded by C++ (`SpriteSheetAnimator` only toggles idle/walk today). Author via debug export JSON until tooling ships.
 
 ### metadata.itemApi (objects from PokéAPI)
 
@@ -487,6 +539,7 @@ Embedded assets: `{ "walk_png": <PNG bytes> }` — typically 128×128 (4×4 cell
 | POST | `/api/packages/draft/open-path` | Open file into draft |
 | PATCH | `/api/packages/draft` | Merge fields into draft package |
 | POST | `/api/packages/draft/asset` | Upload PNG (`assetId`, file) |
+| POST | `/api/packages/draft/add-sheet` | Upload PNG + merge sheet: `mode` (`primary` \| `replace_primary` \| `walk_variant` \| `custom_anim`), `label`, optional `walkSheetId`, `animKind` (`movement` \| `idle` \| `south_only`), `includeIdle`, `frameCount`, `frameTimeMs` — writes `spriteSheets[].animations` + `actions[]` |
 | POST | `/api/packages/save` | Write draft to `{id}.charbin` |
 | POST | `/api/packages/validate` | Run validator |
 | POST | `/api/packages/delete/{package_id}` | Delete library file (preferred) |
@@ -529,4 +582,5 @@ For inspecting packages without parsing binary.
 | 2026-05-31 | `metadata.pokeapi` snapshot; Pokémon idle→`walk`, `pause` action + profile anim. |
 | 2026-05-31 | Pokémon batch: `animationVariant` + `importMode`; multi-sheet `walk_*` actions per species. |
 | 2026-05-31 | Pokémon batch: parse `female` / numeric forms + combinable `shiny`/`swim`/`eating` layers; `overworldSpriteKeys`. |
-| 2026-05-31 | Batch: PokéAPI fuzzy slug; large sheets 512→256 (`pokemon_large`, 64px cells); base import no longer wipes forms. |
+| 2026-06-12 | Add-sheet: general animation sheet flow (`custom_anim`) for all character types; Pokémon walk variants stay on batch import. |
+| 2026-06-12 | Proposed `type: activity` actions with `activityKind` and `phases` (single play and enter/stay/exit sessions). |

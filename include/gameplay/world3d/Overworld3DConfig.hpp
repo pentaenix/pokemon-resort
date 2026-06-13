@@ -30,7 +30,7 @@ struct CharacterSpriteDefinition {
     int row_west = 1;
     int row_east = 2;
     int row_north = 3;
-    float world_height = 28.0f;
+    float world_height = 32.0f;
     float sprite_scale = 1.0f;
     float world_offset_x = 0.0f;
     float world_offset_y = 0.0f;
@@ -59,6 +59,17 @@ struct GridConfig {
     float tile_size = 0.0f;
     int width = 0;
     int height = 0;
+};
+
+struct PixelScaleConfig {
+    // Authored map tile texture size in pixels (RTPKS tiles are typically 16×16 per cell).
+    int map_pixels_per_tile = 16;
+    // World units per source art pixel. <= 0 derives tile_size / map_pixels_per_tile.
+    float world_units_per_pixel = 0.0f;
+    // Single presentation zoom: larger moves the camera closer (sprites and map scale together).
+    float zoom = 1.0f;
+    float zoom_min = 0.5f;
+    float zoom_max = 3.0f;
 };
 
 struct TerrainColor {
@@ -205,6 +216,7 @@ struct SceneConfig {
     // Gen4 presentation: shift billboards along camera forward/right on the ground plane (tiles).
     float billboard_tile_anchor_forward = 0.0f;
     float billboard_tile_anchor_right = 0.0f;
+    PixelScaleConfig pixel_scale;
     SpriteShadowConfig sprite_shadow;
     MapVisualConfig visual;
     GridConfig grid;

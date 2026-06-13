@@ -31,6 +31,7 @@
 #include <iomanip>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -201,6 +202,26 @@ bool ffmpegSupportsWebpEncoding() {
     return supported;
 }
 
+std::optional<fs::path> buildScreenshotOutputPath(
+    const std::string& project_root,
+    const std::string& context_slug,
+    bool force_png = false) {
+    const fs::path screenshot_dir = fs::path(project_root) / "screenshots";
+    std::error_code ec;
+    fs::create_directories(screenshot_dir, ec);
+    if (ec) {
+        std::cerr << "Screenshot error: cannot create screenshots directory: "
+                  << ec.message() << '\n';
+        return std::nullopt;
+    }
+
+    const std::string slug = sanitizeFilenameSlug(context_slug);
+    const std::string basename = slug.empty() ? ("screenshot_" + timestampNow()) : slug;
+    const std::string extension =
+        force_png ? ".png" : (ffmpegSupportsWebpEncoding() ? ".webp" : ".png");
+    return uniqueOutputPath(screenshot_dir, basename, extension);
+}
+
 bool captureScreenshot(
     SDL_Renderer* renderer,
     const WindowConfig& window,
@@ -232,27 +253,18 @@ bool captureScreenshot(
         return false;
     }
 
-    const fs::path screenshot_dir = fs::path(project_root) / "screenshots";
-    std::error_code ec;
-    fs::create_directories(screenshot_dir, ec);
-    if (ec) {
-        std::cerr << "Screenshot error: cannot create screenshots directory: "
-                  << ec.message() << '\n';
+    const auto output_path = buildScreenshotOutputPath(project_root, context_slug);
+    if (!output_path) {
         return false;
     }
-
-    const std::string slug = sanitizeFilenameSlug(context_slug);
-    const std::string basename = slug.empty() ? ("screenshot_" + timestampNow()) : slug;
-    const bool can_encode_webp = ffmpegSupportsWebpEncoding();
-    const std::string extension = can_encode_webp ? ".webp" : ".png";
-    const fs::path output_path = uniqueOutputPath(screenshot_dir, basename, extension);
+    const bool can_encode_webp = output_path->extension() == ".webp";
 
     std::ostringstream cmd;
     cmd << "ffmpeg -y -f rawvideo -pix_fmt rgb24 -s "
         << frame_width << "x" << frame_height
         << " -i - -frames:v 1 "
         << (can_encode_webp ? "-c:v libwebp -lossless 1 " : "-c:v png ")
-        << "\"" << output_path.string() << "\" >/dev/null 2>&1";
+        << "\"" << output_path->string() << "\" >/dev/null 2>&1";
     FILE* ffmpeg_pipe = popen(cmd.str().c_str(), "w");
     if (!ffmpeg_pipe) {
         std::cerr << "Screenshot error: could not start ffmpeg. Is ffmpeg installed?\n";
@@ -268,7 +280,7 @@ bool captureScreenshot(
     if (!can_encode_webp) {
         std::cerr << "Screenshot note: ffmpeg WebP encoder not found; saved PNG instead.\n";
     }
-    std::cout << "Screenshot saved: " << output_path << '\n';
+    std::cout << "Screenshot saved: " << *output_path << '\n';
     return true;
 }
 
@@ -614,8 +626,16 @@ int runApplication(const char* argv0, const char* config_path_override) {
             }
             if (event.type == SDL_KEYDOWN && !event.key.repeat) {
                 const SDL_Keycode key = event.key.keysym.sym;
-                if (renderer && !record_toggle_keys.empty() && matchesBinding(key, record_toggle_keys)) {
-                    recorder.toggle(renderer.get(), config.window);
+                const bool overworld_bgfx_keys =
+                    screen_coordinator.activeScreen() == &overworld3d_test &&
+                    overworld3d_test.wantsBgfxRenderer();
+                if (!record_toggle_keys.empty() && matchesBinding(key, record_toggle_keys)) {
+                    if (renderer) {
+                        recorder.toggle(renderer.get(), config.window);
+                    } else if (overworld_bgfx_keys) {
+                        std::cerr << "[App] Screen recording is not available in bgfx 3D mode yet. "
+                                  << "Press T for screenshots.\n";
+                    }
                     continue;
                 }
                 if (!screenshot_keys.empty() && matchesBinding(key, screenshot_keys)) {
@@ -700,6 +720,7 @@ int runApplication(const char* argv0, const char* config_path_override) {
         const bool use_bgfx_presenter = presentation == WindowPresentation::Bgfx3D && overworld_wants_bgfx;
 
         bool bgfx_frame_presented = false;
+        bool bgfx_screenshot_this_frame = false;
         if (use_bgfx_presenter) {
             int framebuffer_w = 0;
             int framebuffer_h = 0;
@@ -713,6 +734,14 @@ int runApplication(const char* argv0, const char* config_path_override) {
             }
             const int logical_w = config.window.virtual_width;
             const int logical_h = config.window.virtual_height;
+            if (screenshot_requested) {
+                if (const auto output_path = buildScreenshotOutputPath(
+                        root, screen_coordinator.screenshotNameContext(), true)) {
+                    overworld3d_test.queueBgfxScreenshot(output_path->string());
+                    bgfx_screenshot_this_frame = true;
+                }
+                screenshot_requested = false;
+            }
             bgfx_frame_presented = overworld3d_test.renderBgfx(
                 window.get(),
                 std::max(1, framebuffer_w),
@@ -762,7 +791,12 @@ int runApplication(const char* argv0, const char* config_path_override) {
             screenshot_flash.render(renderer.get(), config.window);
             SDL_RenderPresent(renderer.get());
         } else if (bgfx_frame_presented) {
-            screenshot_requested = false;
+            if (bgfx_screenshot_this_frame) {
+                screenshot_flash.trigger();
+            }
+            if (renderer) {
+                screenshot_flash.render(renderer.get(), config.window);
+            }
             if (screen_coordinator.activeScreen() == &overworld3d_test && renderer) {
                 overworld3d_test.renderPresentationOverlay(renderer.get());
                 SDL_SetRenderDrawBlendMode(renderer.get(), SDL_BLENDMODE_BLEND);

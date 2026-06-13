@@ -25,6 +25,14 @@
     },
     "wireColor": [102, 138, 170, 120]
   },
+  "pixelScale": {
+    "_comment": "Single pixel-art ruler for map tiles and sprite billboards. worldUnitsPerPixel <= 0 derives tileSize / mapPixelsPerTile. zoom moves the camera closer (larger) or farther (smaller) without changing authored world sizes.",
+    "mapPixelsPerTile": 16,
+    "worldUnitsPerPixel": 0.0,
+    "zoom": 1.0,
+    "zoomMin": 0.5,
+    "zoomMax": 3.0
+  },
   "occlusion": {
     "_comment": "How far (in tiles) toward the camera a placed model's occlusion anchor is biased when depth-sorting it against the player/follower. Larger = the building starts hiding the character sooner (further forward). Tune so a character entering a doorway is hidden by the building rather than drawing over its roof.",
     "modelBehindBiasTiles": 1.0

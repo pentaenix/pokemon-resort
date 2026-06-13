@@ -16,7 +16,7 @@
         "walk": { "frames": [0, 1, 2, 3], "frameTimeMs": 120 }
       },
       "rendering": {
-        "worldHeight": 28.0,
+        "worldHeight": 32.0,
         "spriteScale": 4.8,
         "anchor": "bottom_center",
         "worldOffset": [0.0, 0.0, 0.0],
@@ -40,7 +40,7 @@
         "sleep": { "frames": [0, 1], "frameTimeMs": 400, "loop": true }
       },
       "rendering": {
-        "worldHeight": 28.0,
+        "worldHeight": 32.0,
         "spriteScale": 4.8,
         "anchor": "bottom_center",
         "worldOffset": [0.0, 0.0, 0.0],
@@ -64,7 +64,7 @@
         "sleep": { "frames": [0, 1], "frameTimeMs": 400, "loop": true }
       },
       "rendering": {
-        "worldHeight": 56.0,
+        "worldHeight": 64.0,
         "spriteScale": 4.8,
         "anchor": "bottom_center",
         "worldOffset": [0.0, 0.0, 0.0],
@@ -87,7 +87,7 @@
         "pause": { "frames": [0], "frameTimeMs": 400 }
       },
       "rendering": {
-        "worldHeight": 28.0,
+        "worldHeight": 32.0,
         "spriteScale": 4.8,
         "anchor": "bottom_center",
         "worldOffset": [0.0, 0.0, 0.0],

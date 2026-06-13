@@ -23,6 +23,7 @@ public:
     void reset(int width, int height);
     void beginFrame(float clear_r, float clear_g, float clear_b, float clear_a);
     void endFrame();
+    void queueScreenshot(const std::string& output_path);
 
     bool valid() const { return initialized_; }
     bool homogeneousDepth() const { return homogeneous_depth_; }
@@ -38,6 +39,7 @@ private:
     int height_ = 0;
     int renderer_type_ = 0;
     std::string last_error_;
+    std::string pending_screenshot_path_;
 };
 
 } // namespace pr::gameplay::world3d::rendering::bgfx_backend

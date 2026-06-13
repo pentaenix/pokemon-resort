@@ -298,7 +298,7 @@ CharacterSpriteDefinition loadCharacterDefinition(const std::string& project_roo
 
         const JsonValue* rendering = selected_profile->get("rendering");
         if (rendering && rendering->isObject()) {
-            out.world_height = static_cast<float>(numOr(rendering->get("worldHeight"), 28.0));
+            out.world_height = static_cast<float>(numOr(rendering->get("worldHeight"), 32.0));
             out.sprite_scale = static_cast<float>(numOr(rendering->get("spriteScale"), 1.0));
             out.anchor = strOr(rendering->get("anchor"), "bottom_center");
             if (const JsonValue* world_offset = rendering->get("worldOffset"); world_offset && world_offset->isArray()) {

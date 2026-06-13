@@ -4,6 +4,7 @@
 #include "gameplay/world3d/data/JsonOverworldLoader.hpp"
 #include "gameplay/world3d/followers/FollowerConfig.hpp"
 #include "gameplay/world3d/rendering/BillboardPlacement.hpp"
+#include "gameplay/world3d/rendering/PixelScale.hpp"
 #include "gameplay/world3d/terrain/ActorTerrainBinding.hpp"
 #include "gameplay/world3d/terrain/GridStepMotor.hpp"
 #include "gameplay/world3d/terrain/TerrainSurface.hpp"
@@ -94,6 +95,10 @@ void testTerrainRenderConfigLoads() {
     expect(std::abs(scene.terrain.ramp_incline_inset_px - 6.0f) < 0.001f, "ramp incline inset loads from render config");
     expect(scene.terrain.wall_color_ns.g == 117, "terrain wall NS color loads");
     expect(scene.terrain.wire_color.a == 120, "terrain wire alpha loads");
+    expect(scene.pixel_scale.map_pixels_per_tile == 16, "pixel scale mapPixelsPerTile loads");
+    expect(std::abs(scene.pixel_scale.zoom - 1.0f) < 0.001f, "pixel scale zoom loads");
+    expect(std::abs(pr::gameplay::world3d::rendering::worldUnitsPerPixel(scene) - 1.0f) < 0.001f,
+        "pixel scale derives one world unit per map pixel");
 }
 
 void testCameraEastProjectsScreenRight() {
@@ -395,7 +400,7 @@ void testBillboardFeetStayOnSimulationPosition() {
     expect(placement.visible, "placement should project for test camera");
     expect(std::abs(placement.feet.x - wx) < 0.01f, "billboard feet X stays on simulation position");
     expect(std::abs(placement.feet.z - wz) < 0.01f, "billboard feet Z stays on simulation position");
-    expect(std::abs(placement.world_h - 28.0f) < 0.01f, "32px character billboard uses shared pixel scale");
+    expect(std::abs(placement.world_h - 32.0f) < 0.01f, "32px character billboard uses shared pixel scale");
 
     const SDL_Rect large_source_rect{0, 0, 64, 64};
     const auto large_placement = pr::gameplay::world3d::rendering::buildCharacterBillboardPlacement(
@@ -408,7 +413,7 @@ void testBillboardFeetStayOnSimulationPosition() {
         320,
         240);
     expect(large_placement.visible, "large placement should project for test camera");
-    expect(std::abs(large_placement.world_h - 56.0f) < 0.01f, "64px character billboard keeps matching pixel scale");
+    expect(std::abs(large_placement.world_h - 64.0f) < 0.01f, "64px character billboard keeps matching pixel scale");
 }
 
 void testTextureBillboardScaleUsesAuthoredSpritePixels() {
@@ -444,7 +449,7 @@ void testTextureBillboardScaleUsesAuthoredSpritePixels() {
         1.0f,
         0);
     expect(placement.visible, "texture billboard should project for test camera");
-    expect(std::abs(placement.world_h - 28.0f) < 0.01f, "texture billboard uses shared authored sprite scale");
+    expect(std::abs(placement.world_h - 32.0f) < 0.01f, "texture billboard uses shared authored sprite scale");
 }
 
 void testFollowerSummonRenderConfigLoads() {

@@ -2,6 +2,7 @@
 
 #include "gameplay/world3d/Overworld3DConfig.hpp"
 #include "gameplay/world3d/camera/Gen4FollowCamera.hpp"
+#include "gameplay/world3d/terrain/ActorTerrainBinding.hpp"
 
 #include <SDL.h>
 #include <memory>
@@ -12,6 +13,7 @@ class BillboardSpriteRenderer {
 public:
     BillboardSpriteRenderer(
         SDL_Renderer* renderer,
+        const SceneConfig& scene,
         const CharacterSpriteDefinition& def,
         const SpriteShadowConfig& shadow_config);
 
@@ -19,7 +21,8 @@ public:
     void render(
         SDL_Renderer* renderer,
         const camera::Gen4FollowCamera& camera,
-        const camera::Vec3& world_pos,
+        const terrain::ActorTerrainBinding& binding,
+        const camera::Vec3& simulation_pos,
         const SDL_Rect& source_rect,
         int viewport_w,
         int viewport_h,
@@ -35,6 +38,7 @@ public:
         int extra_screen_offset_y_px = 0);
 
 private:
+    SceneConfig scene_;
     std::shared_ptr<SDL_Texture> texture_;
     std::shared_ptr<SDL_Texture> white_texture_;
     std::shared_ptr<SDL_Texture> shadow_texture_;

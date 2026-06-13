@@ -1,5 +1,6 @@
 #pragma once
 
+#include "gameplay/world3d/Overworld3DConfig.hpp"
 #include "gameplay/world3d/camera/Gen4FollowCamera.hpp"
 #include "gameplay/world3d/followers/NatureIdleConfig.hpp"
 #include "gameplay/world3d/rendering/BillboardPlacement.hpp"
@@ -33,6 +34,7 @@ public:
     void spawn(const LandingDustSpawnRequest& request);
     void render(
         SDL_Renderer* renderer,
+        const SceneConfig& scene,
         const camera::Gen4FollowCamera& camera,
         int viewport_w,
         int viewport_h,

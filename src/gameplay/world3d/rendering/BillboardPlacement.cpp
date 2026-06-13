@@ -1,5 +1,6 @@
 #include "gameplay/world3d/rendering/BillboardPlacement.hpp"
 
+#include "gameplay/world3d/rendering/PixelScale.hpp"
 #include "gameplay/world3d/terrain/TerrainSurface.hpp"
 
 #include <algorithm>
@@ -11,16 +12,6 @@ namespace pr::gameplay::world3d::rendering {
 namespace {
 
 constexpr float kSlopeBillboardLiftTiles = 0.125f;
-constexpr float kCanonicalCharacterFramePx = 32.0f;
-constexpr float kCanonicalCharacterTilesHigh = 1.75f;
-
-float authoredSpriteWorldHeight(const SceneConfig& scene, float frame_height_px, float scale_multiplier) {
-    const float frame_height = std::max(1.0f, frame_height_px);
-    return std::max(1.0f, scene.grid.tile_size) *
-        kCanonicalCharacterTilesHigh *
-        (frame_height / kCanonicalCharacterFramePx) *
-        std::max(0.1f, scale_multiplier);
-}
 
 int tileSpecial(const SceneConfig& scene, int tx, int ty) {
     if (scene.terrain.specials.empty()) return 0;
