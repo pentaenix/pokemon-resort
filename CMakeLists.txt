@@ -91,12 +91,14 @@ add_library(world3d_bgfx_renderer STATIC
     src/gameplay/world3d/rendering/bgfx/BgfxBackend.cpp
     src/gameplay/world3d/rendering/bgfx/BillboardBgfxDrawer.cpp
     src/gameplay/world3d/rendering/bgfx/OverworldBgfxRenderer.cpp
+    src/gameplay/world3d/data/RtpksTilePackageLoader.cpp
     src/gameplay/world3d/rendering/BillboardPlacement.cpp
     src/gameplay/world3d/rendering/CharacterTextureCache.cpp
     src/gameplay/world3d/rendering/SpriteShadowDecal.cpp
     src/gameplay/world3d/terrain/TerrainSurface.cpp
 )
 target_include_directories(world3d_bgfx_renderer PUBLIC include)
+target_include_directories(world3d_bgfx_renderer PRIVATE ${bgfx_cmake_SOURCE_DIR}/bimg/3rdparty/tinyexr/deps/miniz)
 target_compile_features(world3d_bgfx_renderer PRIVATE cxx_std_20)
 target_link_libraries(world3d_bgfx_renderer PUBLIC bgfx bx bimg SDL2::SDL2 SDL2_image::SDL2_image)
 

@@ -107,6 +107,10 @@ struct TerrainConfig {
     // Renderer-facing terrain presentation. height_per_floor controls vertical world
     // units per encoded height level; <= 0 keeps the historical tile_size behavior.
     float height_per_floor = 0.0f;
+    // Runtime feet-height sampling inset for cardinal ramps. 0 preserves a full-tile
+    // linear ramp; positive values keep the low side flat for this many world pixels
+    // before the incline begins.
+    float ramp_incline_inset_px = 6.0f;
     TerrainColor floor_color_a{116, 156, 190, 255};
     TerrainColor floor_color_b{125, 166, 200, 255};
     bool floor_height_recolor_enabled = false;
@@ -128,6 +132,25 @@ struct ModelPlacementConfig {
     float z = 0.0f;
     float yaw_deg = 0.0f;
     float scale = 1.0f;
+};
+
+struct TilePackageConfig {
+    std::string file;
+    std::string pack_id;
+    std::string name;
+    std::string path;
+};
+
+struct TileLayerConfig {
+    std::string id;
+    bool visible = true;
+    // -1 means empty. Values >= 0 are stable RTPKS resortTileId values.
+    std::vector<std::vector<int>> cells;
+};
+
+struct TileLayersConfig {
+    int active_layer = 0;
+    std::vector<TileLayerConfig> layers;
 };
 
 struct NpcConfig {
@@ -187,6 +210,8 @@ struct SceneConfig {
     GridConfig grid;
     TerrainConfig terrain;
     std::vector<ModelPlacementConfig> models;
+    TilePackageConfig tile_package;
+    TileLayersConfig tile_layers;
     std::vector<NpcConfig> characters;
     PlayerSpawnConfig player;
 };

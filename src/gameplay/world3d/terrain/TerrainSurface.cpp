@@ -53,6 +53,49 @@ float sampleBilinearClamped(const float corners[4], float u, float v) {
     return north + ((south - north) * v);
 }
 
+float sampleCardinalRampWithInset(
+    const SceneConfig& scene,
+    int special,
+    int height_units,
+    float u,
+    float v) {
+    const float floor_height = heightPerFloor(scene);
+    const float low = static_cast<float>(height_units) * floor_height;
+    const float high = static_cast<float>(height_units + 1) * floor_height;
+    const float tile_size = std::max(1.0f, scene.grid.tile_size);
+    const float inset = std::clamp(scene.terrain.ramp_incline_inset_px / tile_size, 0.0f, 0.95f);
+
+    u = std::clamp(u, 0.0f, 1.0f);
+    v = std::clamp(v, 0.0f, 1.0f);
+
+    float along = 0.0f;
+    switch (special) {
+        case kRampNorth:
+            along = 1.0f - v;
+            break;
+        case kRampEast:
+            along = u;
+            break;
+        case kRampSouth:
+            along = v;
+            break;
+        case kRampWest:
+            along = 1.0f - u;
+            break;
+        default:
+            return low;
+    }
+
+    if (inset <= 0.0f) {
+        return low + ((high - low) * along);
+    }
+    if (along <= inset) {
+        return low;
+    }
+    const float slope_t = std::clamp((along - inset) / (1.0f - inset), 0.0f, 1.0f);
+    return low + ((high - low) * slope_t);
+}
+
 void applyCardinalRampCorners(int direction, float low, float high, float out_corners[4]) {
     out_corners[0] = low;
     out_corners[1] = low;
@@ -270,6 +313,10 @@ float heightAtWorldPositionStitched(
     const int grid_h = std::max(1, scene.grid.height);
 
     auto sample_on = [&](int tx, int ty, float u, float v) -> float {
+        const int special = tileSpecial(scene, tx, ty);
+        if (special >= kRampNorth && special <= kRampWest) {
+            return sampleCardinalRampWithInset(scene, special, tileHeightUnits(scene, tx, ty), u, v);
+        }
         float corners[4]{};
         fillTileCornerHeightsLocal(scene, tx, ty, corners);
         return sampleBilinearClamped(corners, u, v);
@@ -319,6 +366,22 @@ float heightAtWorldPositionOnTile(
     const float v = (world_z - (static_cast<float>(sample_ty) * tile_size)) / tile_size;
 
     float corners[4]{};
+    const int special = tileSpecial(scene, sample_tx, sample_ty);
+    if (special >= kRampNorth && special <= kRampWest) {
+        if (clamp_uv) {
+            return sampleCardinalRampWithInset(scene, special, tileHeightUnits(scene, sample_tx, sample_ty), u, v);
+        }
+        const float floor_height = heightPerFloor(scene);
+        const float low = static_cast<float>(tileHeightUnits(scene, sample_tx, sample_ty)) * floor_height;
+        const float high = static_cast<float>(tileHeightUnits(scene, sample_tx, sample_ty) + 1) * floor_height;
+        float along = special == kRampNorth ? 1.0f - v :
+            special == kRampEast ? u :
+            special == kRampSouth ? v :
+            1.0f - u;
+        const float inset = std::clamp(scene.terrain.ramp_incline_inset_px / tile_size, 0.0f, 0.95f);
+        along = inset <= 0.0f ? along : (along <= inset ? 0.0f : (along - inset) / (1.0f - inset));
+        return low + ((high - low) * along);
+    }
     fillTileCornerHeightsLocal(scene, sample_tx, sample_ty, corners);
     if (clamp_uv) {
         return sampleBilinearClamped(corners, u, v);

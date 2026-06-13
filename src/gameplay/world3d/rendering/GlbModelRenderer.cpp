@@ -284,6 +284,10 @@ void GlbModelRenderer::classifyTriangleCutouts() const {
         }
 
         const data::GlbMaterial& mat = mesh_.materials[static_cast<std::size_t>(tri.material)];
+        if (mat.render_class == data::GlbMaterial::RenderClass::UniformDecal) {
+            triangle_cutout_[i] = 1;
+            continue;
+        }
         if (!mat.alpha_blend) {
             triangle_cutout_[i] = 0;
             continue;
@@ -335,6 +339,7 @@ void GlbModelRenderer::render(
         float depth = 0.0f;
         int material = -1;
         bool cutout = false;
+        bool uniform_decal = false;
     };
 
     std::vector<DrawTri> draw;
@@ -358,6 +363,11 @@ void GlbModelRenderer::render(
             continue;
         }
         const bool cutout = tri_index < triangle_cutout_.size() && triangle_cutout_[tri_index] != 0;
+        bool uniform_decal = false;
+        if (tri.material >= 0 && tri.material < static_cast<int>(mesh_.materials.size())) {
+            const data::GlbMaterial& mat = mesh_.materials[static_cast<std::size_t>(tri.material)];
+            uniform_decal = mat.render_class == data::GlbMaterial::RenderClass::UniformDecal;
+        }
         Uint8 mr = cr;
         Uint8 mg = cg;
         Uint8 mb = cb;
@@ -403,6 +413,7 @@ void GlbModelRenderer::render(
                 dt.depth = (p0.depth + p1.depth + p2.depth) / 3.0f;
                 dt.material = tri.material;
                 dt.cutout = cutout;
+                dt.uniform_decal = uniform_decal;
                 draw.push_back(dt);
             }
         };
@@ -434,6 +445,10 @@ void GlbModelRenderer::render(
         const float delta = a.depth - b.depth;
         if (std::fabs(delta) > kCoplanarDepthEpsilon) {
             return a.depth > b.depth; // far first
+        }
+
+        if (a.uniform_decal != b.uniform_decal) {
+            return a.uniform_decal; // ground decals before walls when coplanar
         }
 
         if (a.cutout != b.cutout) {

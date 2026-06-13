@@ -128,12 +128,10 @@ void BillboardBgfxDrawer::submitBillboardQuad(
     const float half_w = placement.world_w * 0.5f;
     const camera::Vec3 flat_right = horizontalCameraRight(camera);
     const auto pose = camera.pose();
+    constexpr float kBillboardDepthLift = 0.02f;
     const float vertical_projection = std::max(0.1f, std::abs(pose.up.y));
     const float upright_screen_h = placement.world_h / vertical_projection;
-    const camera::Vec3 right{
-        -flat_right.x * half_w,
-        0.0f,
-        -flat_right.z * half_w};
+    const camera::Vec3 right{flat_right.x * half_w, 0.0f, flat_right.z * half_w};
     const camera::Vec3 up{0.0f, upright_screen_h, 0.0f};
 
     const float u0 = static_cast<float>(source_rect.x) / static_cast<float>(texture.width);
@@ -153,14 +151,14 @@ void BillboardBgfxDrawer::submitBillboardQuad(
     auto* verts = reinterpret_cast<Vertex*>(tvb.data);
     const camera::Vec3 p0{
         placement.feet.x - right.x + up.x,
-        placement.feet.y - right.y + up.y,
+        placement.feet.y - right.y + up.y + kBillboardDepthLift,
         placement.feet.z - right.z + up.z};
     const camera::Vec3 p1{
         placement.feet.x + right.x + up.x,
-        placement.feet.y + right.y + up.y,
+        placement.feet.y + right.y + up.y + kBillboardDepthLift,
         placement.feet.z + right.z + up.z};
-    const camera::Vec3 p2{placement.feet.x + right.x, placement.feet.y + right.y, placement.feet.z + right.z};
-    const camera::Vec3 p3{placement.feet.x - right.x, placement.feet.y - right.y, placement.feet.z - right.z};
+    const camera::Vec3 p2{placement.feet.x + right.x, placement.feet.y + right.y + kBillboardDepthLift, placement.feet.z + right.z};
+    const camera::Vec3 p3{placement.feet.x - right.x, placement.feet.y - right.y + kBillboardDepthLift, placement.feet.z - right.z};
     verts[0] = Vertex{p0.x, p0.y, p0.z, color, u0, v0};
     verts[1] = Vertex{p1.x, p1.y, p1.z, color, u1, v0};
     verts[2] = Vertex{p2.x, p2.y, p2.z, color, u1, v1};

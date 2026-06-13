@@ -6,9 +6,11 @@
 #include <array>
 #include <cmath>
 #include <cstring>
+#include <cctype>
 #include <fstream>
 #include <functional>
 #include <limits>
+#include <string>
 
 namespace pr::gameplay::world3d::data {
 
@@ -33,6 +35,32 @@ int intMember(const JsonValue* obj, const char* key, int fallback) {
     if (!obj) return fallback;
     const JsonValue* v = obj->get(key);
     return (v && v->isNumber()) ? static_cast<int>(v->asNumber()) : fallback;
+}
+
+bool containsCaseInsensitive(const std::string& haystack, const char* needle) {
+    std::string lower;
+    lower.reserve(haystack.size());
+    for (char ch : haystack) {
+        lower.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(ch))));
+    }
+    return lower.find(needle) != std::string::npos;
+}
+
+bool isSoftShadowMaterialName(const std::string& name) {
+    return containsCaseInsensitive(name, "shadow") ||
+        containsCaseInsensitive(name, "kage") ||
+        containsCaseInsensitive(name, "shade");
+}
+
+void applySoftShadowMaterialPolicy(GlbMaterial& material) {
+    if (!isSoftShadowMaterialName(material.name)) {
+        return;
+    }
+    material.alpha_blend = true;
+    material.alpha_mode = GlbMaterial::AlphaMode::Blend;
+    material.render_class = GlbMaterial::RenderClass::Blend;
+    material.alpha_cutoff = 0.0f;
+    material.base_color[3] = std::min(material.base_color[3], 0.45f);
 }
 
 // Column-major 4x4, matching glTF's node.matrix layout.
@@ -254,6 +282,9 @@ int resolveMaterial(
     const JsonValue& mat = mat_arr[static_cast<std::size_t>(material_index)];
 
     GlbMaterial gmat;
+    if (const JsonValue* name = mat.get("name"); name && name->isString()) {
+        gmat.name = name->asString();
+    }
     if (const JsonValue* pbr = mat.get("pbrMetallicRoughness"); pbr && pbr->isObject()) {
         if (const JsonValue* bcf = pbr->get("baseColorFactor"); bcf && bcf->isArray()) {
             const auto& arr = bcf->asArray();
@@ -302,6 +333,23 @@ int resolveMaterial(
     if (const JsonValue* cutoff = mat.get("alphaCutoff"); cutoff && cutoff->isNumber()) {
         gmat.alpha_cutoff = std::clamp(static_cast<float>(cutoff->asNumber()), 0.0f, 1.0f);
     }
+    if (const JsonValue* extras = mat.get("extras"); extras && extras->isObject()) {
+        if (const JsonValue* rae = extras->get("rae"); rae && rae->isObject()) {
+            if (const JsonValue* render_class = rae->get("renderClass"); render_class && render_class->isString()) {
+                const std::string value = render_class->asString();
+                if (value == "mask") {
+                    gmat.render_class = GlbMaterial::RenderClass::Mask;
+                } else if (value == "blend") {
+                    gmat.render_class = GlbMaterial::RenderClass::Blend;
+                } else if (value == "uniform_decal") {
+                    gmat.render_class = GlbMaterial::RenderClass::UniformDecal;
+                } else {
+                    gmat.render_class = GlbMaterial::RenderClass::Opaque;
+                }
+            }
+        }
+    }
+    applySoftShadowMaterialPolicy(gmat);
 
     const int local_index = static_cast<int>(out.materials.size());
     out.materials.push_back(std::move(gmat));

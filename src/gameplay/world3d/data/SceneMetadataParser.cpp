@@ -133,6 +133,10 @@ void applyLightingConfig(SceneConfig& out, const JsonValue* lighting) {
 void applyTerrainRenderConfig(TerrainConfig& out, const JsonValue* terrain) {
     if (!terrain || !terrain->isObject()) return;
     out.height_per_floor = static_cast<float>(numOr(terrain->get("heightPerFloor"), out.height_per_floor));
+    out.ramp_incline_inset_px = std::clamp(
+        static_cast<float>(numOr(terrain->get("rampInclineInsetPx"), out.ramp_incline_inset_px)),
+        0.0f,
+        256.0f);
 
     if (const JsonValue* floor = terrain->get("floorColors"); floor && floor->isObject()) {
         applyColor(out.floor_color_a, floor->get("checkerA"));
@@ -169,6 +173,62 @@ void applyTerrainRenderConfig(TerrainConfig& out, const JsonValue* terrain) {
     applyColor(out.wall_color_ns, terrain->get("wallColorNS"));
     applyColor(out.wall_color_ew, terrain->get("wallColorEW"));
     applyColor(out.wire_color, terrain->get("wireColor"));
+}
+
+std::vector<std::vector<int>> parseTileLayerCells(const JsonValue* cells, int width, int height) {
+    std::vector<std::vector<int>> out(
+        static_cast<std::size_t>(std::max(0, height)),
+        std::vector<int>(static_cast<std::size_t>(std::max(0, width)), -1));
+    if (!cells || !cells->isArray()) return out;
+    const auto& rows = cells->asArray();
+    for (int y = 0; y < height && y < static_cast<int>(rows.size()); ++y) {
+        if (!rows[static_cast<std::size_t>(y)].isArray()) continue;
+        const auto& row = rows[static_cast<std::size_t>(y)].asArray();
+        for (int x = 0; x < width && x < static_cast<int>(row.size()); ++x) {
+            const JsonValue& value = row[static_cast<std::size_t>(x)];
+            out[static_cast<std::size_t>(y)][static_cast<std::size_t>(x)] =
+                value.isNumber() ? static_cast<int>(value.asNumber()) : -1;
+        }
+    }
+    return out;
+}
+
+void applyTilePackageConfig(SceneConfig& out, const JsonValue* tile_package, const std::string& project_root) {
+    if (!tile_package || !tile_package->isObject()) return;
+    out.tile_package.file = strOr(tile_package->get("file"), out.tile_package.file);
+    out.tile_package.pack_id = strOr(tile_package->get("packId"), out.tile_package.pack_id);
+    out.tile_package.name = strOr(tile_package->get("name"), out.tile_package.name);
+    const std::string raw_path = strOr(tile_package->get("path"), "");
+    if (!raw_path.empty()) {
+        out.tile_package.path = resolvePath(project_root, raw_path);
+    } else if (!out.tile_package.file.empty()) {
+        out.tile_package.path =
+            (fs::path(project_root) / "assets" / "overworld" / "tilepacks" / out.tile_package.file).string();
+    }
+}
+
+void applyTileLayersConfig(SceneConfig& out, const JsonValue* tile_layers) {
+    if (!tile_layers || !tile_layers->isObject()) return;
+    const int width = std::max(0, out.grid.width);
+    const int height = std::max(0, out.grid.height);
+    out.tile_layers.active_layer = intOr(tile_layers->get("activeLayer"), out.tile_layers.active_layer);
+    out.tile_layers.layers.clear();
+    if (const JsonValue* layers = tile_layers->get("layers"); layers && layers->isArray()) {
+        for (const JsonValue& layer_value : layers->asArray()) {
+            if (!layer_value.isObject()) continue;
+            TileLayerConfig layer;
+            layer.id = strOr(layer_value.get("id"), "");
+            layer.visible = boolOr(layer_value.get("visible"), true);
+            layer.cells = parseTileLayerCells(layer_value.get("cells"), width, height);
+            out.tile_layers.layers.push_back(std::move(layer));
+        }
+    }
+    if (!out.tile_layers.layers.empty()) {
+        out.tile_layers.active_layer =
+            std::clamp(out.tile_layers.active_layer, 0, static_cast<int>(out.tile_layers.layers.size()) - 1);
+    } else {
+        out.tile_layers.active_layer = 0;
+    }
 }
 
 } // namespace
@@ -215,6 +275,8 @@ SceneConfig parseSceneMetadata(
     }
 
     applyGridConfig(out.grid, root.get("grid"));
+    applyTilePackageConfig(out, root.get("tilePackage"), project_root);
+    applyTileLayersConfig(out, root.get("tileLayers"));
 
     const JsonValue* player = root.get("player");
     if (!player || !player->isObject()) {

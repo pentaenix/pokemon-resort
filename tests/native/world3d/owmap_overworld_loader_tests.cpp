@@ -73,6 +73,8 @@ void testOwmapMagicSniffAndDispatch() {
     const auto via_dispatch = pr::gameplay::world3d::data::loadSceneConfig(root.string(), testing_path.string());
     expect(via_dispatch.grid.width > 0, "dispatch loader should parse owmap grid width");
     expect(via_dispatch.grid.height > 0, "dispatch loader should parse owmap grid height");
+    expect(!via_dispatch.tile_package.path.empty(), "dispatch loader should parse linked RTPKS package path");
+    expect(!via_dispatch.tile_layers.layers.empty(), "dispatch loader should parse RTPKS tile layers");
 }
 
 void testTerrainRenderConfigLoads() {
@@ -89,8 +91,34 @@ void testTerrainRenderConfigLoads() {
     expect(scene.terrain.ramp_recolor_enabled, "ramp recolor loads enabled");
     expect(scene.terrain.ramp_color_a.r == 232, "ramp color A loads");
     expect(scene.terrain.ramp_color_b.g == 214, "ramp color B loads");
+    expect(std::abs(scene.terrain.ramp_incline_inset_px - 6.0f) < 0.001f, "ramp incline inset loads from render config");
     expect(scene.terrain.wall_color_ns.g == 117, "terrain wall NS color loads");
     expect(scene.terrain.wire_color.a == 120, "terrain wire alpha loads");
+}
+
+void testCameraEastProjectsScreenRight() {
+    pr::gameplay::world3d::camera::Gen4CameraPreset preset{};
+    preset.distance = 520.0f;
+    preset.pitch_deg = -59.051514f;
+    preset.yaw_deg = 0.0f;
+    preset.near_clip = 150.0f;
+    preset.far_clip = 900.0f;
+    preset.fov_y_deg = 30.0f;
+
+    pr::gameplay::world3d::camera::Gen4FollowCamera camera(preset);
+    camera.setTarget({0.0f, 0.0f, 0.0f});
+
+    float east_x = 0.0f;
+    float east_y = 0.0f;
+    float east_depth = 0.0f;
+    float west_x = 0.0f;
+    float west_y = 0.0f;
+    float west_depth = 0.0f;
+    expect(camera.worldToScreen({16.0f, 0.0f, 0.0f}, 640, 480, east_x, east_y, east_depth),
+           "east point should project");
+    expect(camera.worldToScreen({-16.0f, 0.0f, 0.0f}, 640, 480, west_x, west_y, west_depth),
+           "west point should project");
+    expect(east_x > west_x, "camera should project world east to screen-right");
 }
 
 void testNorthRampHeightMatchesCornerSlope() {
@@ -143,6 +171,7 @@ void testTerrainHeightPerFloorOverridesTileSizeVertically() {
     scene.grid.width = 3;
     scene.grid.height = 3;
     scene.terrain.height_per_floor = 8.0f;
+    scene.terrain.ramp_incline_inset_px = 0.0f;
     scene.terrain.heights = {
         {1, 1, 1},
         {0, 0, 0},
@@ -297,6 +326,7 @@ void testEastRampResolveSampleTile() {
     scene.grid.tile_size = 16.0f;
     scene.grid.width = 3;
     scene.grid.height = 3;
+    scene.terrain.ramp_incline_inset_px = 0.0f;
     scene.terrain.heights = {
         {0, 0, 0},
         {0, 0, 1},
@@ -624,7 +654,10 @@ void testStitchedHeightBlendsAcrossNorthEdge() {
 
     const float mid_ramp =
         pr::gameplay::world3d::terrain::heightAtWorldPositionStitched(scene, 24.0f, 24.0f, 1, 1);
-    expect(std::abs(mid_ramp - 8.0f) < 0.01f, "stitched height at ramp tile center");
+    const float inset = scene.terrain.ramp_incline_inset_px / scene.grid.tile_size;
+    const float expected = pr::gameplay::world3d::terrain::heightPerFloor(scene) *
+        ((0.5f - inset) / (1.0f - inset));
+    expect(std::abs(mid_ramp - expected) < 0.01f, "stitched height at ramp tile center");
 }
 
 } // namespace
@@ -637,6 +670,8 @@ int main() {
         std::cout << "[PASS] owmap sniff and dispatch\n";
         testTerrainRenderConfigLoads();
         std::cout << "[PASS] terrain render config loads\n";
+        testCameraEastProjectsScreenRight();
+        std::cout << "[PASS] camera east projects screen-right\n";
         testNorthRampHeightMatchesCornerSlope();
         std::cout << "[PASS] north ramp height matches corner slope\n";
         testTerrainHeightPerFloorOverridesTileSizeVertically();

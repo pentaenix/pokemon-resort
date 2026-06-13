@@ -43,9 +43,10 @@ void Gen4FollowCamera::setManualPose(Vec3 position, float yaw_deg, float pitch_d
         std::sin(pitch),
         std::cos(yaw) * std::cos(pitch)});
     const Vec3 world_up{0.0f, 1.0f, 0.0f};
-    // Match bx::mtxLookAt (left-handed default): right = cross(up, view), up = cross(view, right).
-    right_ = normalize(cross(world_up, forward_));
-    up_ = normalize(cross(forward_, right_));
+    // Gen 4-style map coordinates use +X as east and +Z as south. When the camera
+    // looks north from the south side of the map, east should appear on screen-right.
+    right_ = normalize(cross(forward_, world_up));
+    up_ = normalize(cross(right_, forward_));
 }
 
 void Gen4FollowCamera::rebuildBasis() {
@@ -60,8 +61,8 @@ void Gen4FollowCamera::rebuildBasis() {
     position_ = add(target_, mul(orbit, preset_.distance));
     forward_ = normalize(sub(target_, position_));
     const Vec3 world_up{0.0f, 1.0f, 0.0f};
-    right_ = normalize(cross(world_up, forward_));
-    up_ = normalize(cross(forward_, right_));
+    right_ = normalize(cross(forward_, world_up));
+    up_ = normalize(cross(right_, forward_));
 }
 
 bool Gen4FollowCamera::worldToScreen(

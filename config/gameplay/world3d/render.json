@@ -2,6 +2,7 @@
   "terrain": {
     "_comment": "Renderer-facing terrain defaults. tileSize still controls cell width/depth; heightPerFloor controls vertical units per encoded terrain height. Disable floorHeightColors/rampColors once authored per-cell textures should own those colors.",
     "heightPerFloor": 16.0,
+    "rampInclineInsetPx": 6.0,
     "floorColors": {
       "checkerA": [116, 156, 190, 255],
       "checkerB": [125, 166, 200, 255]
