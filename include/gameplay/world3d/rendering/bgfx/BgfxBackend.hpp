@@ -27,6 +27,7 @@ public:
 
     bool valid() const { return initialized_; }
     bool homogeneousDepth() const { return homogeneous_depth_; }
+    bool originBottomLeft() const { return origin_bottom_left_; }
     std::string shaderDirectory() const;
     std::string shaderSubdirectory() const;
     std::string rendererName() const;
@@ -35,6 +36,7 @@ public:
 private:
     bool initialized_ = false;
     bool homogeneous_depth_ = true;
+    bool origin_bottom_left_ = false;
     int width_ = 0;
     int height_ = 0;
     int renderer_type_ = 0;

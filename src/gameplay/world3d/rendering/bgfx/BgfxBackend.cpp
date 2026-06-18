@@ -130,6 +130,7 @@ bool BgfxBackend::initialize(
     height_ = std::max(1, height);
     renderer_type_ = static_cast<int>(bgfx::getRendererType());
     homogeneous_depth_ = bgfx::getCaps()->homogeneousDepth;
+    origin_bottom_left_ = bgfx::getCaps()->originBottomLeft;
     bgfx::setDebug(BGFX_DEBUG_NONE);
     std::cerr << "[BgfxBackend] Initialized renderer="
               << bgfx::getRendererName(static_cast<bgfx::RendererType::Enum>(renderer_type_))

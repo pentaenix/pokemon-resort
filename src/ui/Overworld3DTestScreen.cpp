@@ -1,12 +1,14 @@
 #include "ui/Overworld3DTestScreen.hpp"
 
 #include "core/config/ConfigLoader.hpp"
+#include "core/input/InputBindings.hpp"
 #include "gameplay/world3d/camera/Gen4CameraPreset.hpp"
 #include "gameplay/world3d/rendering/PixelScale.hpp"
 #include "gameplay/world3d/camera/Gen4FollowCamera.hpp"
 #include "gameplay/world3d/data/GlbModelLoader.hpp"
 #include "gameplay/world3d/data/JsonOverworldLoader.hpp"
 #include "gameplay/world3d/followers/NatureIdleConfig.hpp"
+#include "gameplay/world3d/npc/NpcActorDriver.hpp"
 #include "gameplay/world3d/rendering/FallbackTerrainRenderer.hpp"
 
 #include <SDL.h>
@@ -42,6 +44,20 @@ std::string lower(std::string value) {
         return static_cast<char>(std::tolower(c));
     });
     return value;
+}
+
+bool anyBindingPressed(const Uint8* keys, const std::vector<std::string>& bindings) {
+    if (!keys) {
+        return false;
+    }
+    for (const std::string& binding : bindings) {
+        const SDL_Keycode keycode = keycodeFromBinding(binding);
+        const SDL_Scancode scancode = SDL_GetScancodeFromKey(keycode);
+        if (scancode != SDL_SCANCODE_UNKNOWN && keys[scancode]) {
+            return true;
+        }
+    }
+    return false;
 }
 
 // Map screen-oriented input (up/down/left/right) to world grid steps using the Gen 4 camera basis on XZ.
@@ -113,8 +129,12 @@ Overworld3DTestScreen::Overworld3DTestScreen(const std::string& project_root)
 void Overworld3DTestScreen::initializeSceneState() {
     app_config_ = loadAppConfigFromJson((fs::path(project_root_) / "config" / "app.json").string());
     scene_ = gameplay::world3d::data::loadSceneConfig(project_root_, kDefaultScenePath);
+    movement_config_ = gameplay::world3d::characters::loadCharacterMovementConfig(project_root_);
     character_ = gameplay::world3d::data::loadCharacterDefinition(project_root_, scene_.player.character_path);
-    player_ = gameplay::world3d::characters::CharacterController(scene_);
+    player_ = gameplay::world3d::characters::CharacterController(
+        scene_,
+        movement_config_.walkSpeed(),
+        movement_config_.turnStepDelaySeconds());
     animator_.~SpriteSheetAnimator();
     new (&animator_) gameplay::world3d::characters::SpriteSheetAnimator(character_);
     map_ = gameplay::world3d::rendering::OverworldMapRenderer(scene_);
@@ -145,6 +165,8 @@ void Overworld3DTestScreen::initializeSceneState() {
     if (landing_dust_system_) {
         landing_dust_system_->initializeResources();
     }
+    npc_actor_driver_ = std::make_unique<gameplay::world3d::npc::NpcActorDriver>(project_root_, scene_);
+    npc_actor_driver_->initializeDefaultSceneActors(player_.position());
     gameplay::world3d::camera::Gen4CameraPreset preset =
         gameplay::world3d::camera::loadGen4PresetById(scene_.camera_preset.c_str());
     if (scene_.camera_distance > 0.0f) {
@@ -158,7 +180,7 @@ void Overworld3DTestScreen::initializeSceneState() {
     preset.aspect_width = scene_.camera_aspect_width;
     preset.aspect_height = scene_.camera_aspect_height;
     preset.fov_y_deg = scene_.camera_fov_y_deg;
-    gameplay::world3d::rendering::applyPixelScaleToCameraPreset(preset, scene_.pixel_scale);
+    gameplay::world3d::rendering::applySceneCameraScaleToCameraPreset(preset, scene_);
     camera_ = gameplay::world3d::camera::Gen4FollowCamera(preset);
     map_loaded_ = map_.load();
     placed_models_.clear();
@@ -180,6 +202,10 @@ void Overworld3DTestScreen::initializeSceneState() {
     input_dx_ = 0;
     input_dy_ = 0;
     freecam_enabled_ = false;
+    freecam_mouse_dragging_ = false;
+    run_toggle_active_ = false;
+    blocked_movement_sfx_requested_ = false;
+    blocked_movement_repeat_seconds_ = 0.0;
     freecam_yaw_deg_ = scene_.freecam_initial_yaw_deg;
     freecam_pitch_deg_ = scene_.freecam_initial_pitch_deg;
     return_to_title_requested_ = false;
@@ -207,8 +233,14 @@ void Overworld3DTestScreen::resetForNextLaunch() {
 }
 
 void Overworld3DTestScreen::update(double dt) {
+    if (blocked_movement_repeat_seconds_ > 0.0) {
+        blocked_movement_repeat_seconds_ = std::max(0.0, blocked_movement_repeat_seconds_ - dt);
+    }
+
     int keyboard_dx = 0;
     int keyboard_dy = 0;
+    bool player_running = false;
+    bool blocked_movement_attempt = false;
     if (!freecam_enabled_) {
         const Uint8* keys = SDL_GetKeyboardState(nullptr);
         if (keys[SDL_SCANCODE_LEFT] || keys[SDL_SCANCODE_A]) keyboard_dx -= 1;
@@ -220,14 +252,36 @@ void Overworld3DTestScreen::update(double dt) {
             input_dy_ = keyboard_dy;
         }
 
-        const auto [grid_dx, grid_dy] = gridStepFromCameraInput(camera_, input_dx_, input_dy_);
-        player_.moveInput(grid_dx, grid_dy, dt);
+        const bool run_held = anyBindingPressed(keys, app_config_.input.run_keys);
+        player_running = character_.has_run && (run_held || run_toggle_active_);
+        player_.setMoveSpeedUnitsPerSecond(player_running
+            ? movement_config_.runSpeed()
+            : movement_config_.walkSpeed());
+
+        auto [grid_dx, grid_dy] = gridStepFromCameraInput(camera_, input_dx_, input_dy_);
+        const auto move_result = player_.moveInput(
+            grid_dx,
+            grid_dy,
+            dt,
+            [this](int from_tx, int from_ty, int to_tx, int to_ty) {
+                return !npc_actor_driver_ ||
+                       npc_actor_driver_->canPlayerEnterTile(from_tx, from_ty, to_tx, to_ty);
+            });
+        blocked_movement_attempt = move_result.blocked;
         if (input_dx_ == 0 && input_dy_ == 0) {
             player_.stop();
         }
 
         animator_.setFacing(player_.facing());
-        animator_.setMoving(player_.moving());
+        animator_.setRunning(player_running);
+        if (blocked_movement_attempt && blocked_movement_repeat_seconds_ <= 0.0) {
+            blocked_movement_sfx_requested_ = true;
+            blocked_movement_repeat_seconds_ = movement_config_.blockedStepSfxRepeatSeconds();
+        } else if (!blocked_movement_attempt) {
+            blocked_movement_repeat_seconds_ = 0.0;
+        }
+
+        animator_.setMoving(player_.moving() || blocked_movement_attempt);
         animator_.update(dt);
 
         camera_.setTarget(player_.position());
@@ -253,6 +307,12 @@ void Overworld3DTestScreen::update(double dt) {
             freecam_pos_.x -= right.x * speed;
             freecam_pos_.z -= right.z * speed;
         }
+        if (keys[SDL_SCANCODE_SPACE]) {
+            freecam_pos_.y += speed;
+        }
+        if (keys[SDL_SCANCODE_LSHIFT] || keys[SDL_SCANCODE_RSHIFT]) {
+            freecam_pos_.y -= speed;
+        }
         camera_.setManualPose(freecam_pos_, freecam_yaw_deg_, freecam_pitch_deg_);
     }
     input_dx_ = 0;
@@ -260,7 +320,14 @@ void Overworld3DTestScreen::update(double dt) {
     if (follower_controller_) {
         const bool player_idle = !player_.moving() && !freecam_enabled_;
         const bool player_activity = !freecam_enabled_ && (keyboard_dx != 0 || keyboard_dy != 0);
-        follower_controller_->update(dt, player_.position(), player_.facing(), player_idle, player_activity);
+        follower_controller_->update(
+            dt,
+            player_.position(),
+            player_.facing(),
+            player_.movementSegment(),
+            player_idle,
+            player_activity,
+            player_running);
         if (landing_dust_system_) {
             if (const auto spawn = follower_controller_->consumeLandingDustSpawn()) {
                 landing_dust_system_->spawn(*spawn);
@@ -270,6 +337,27 @@ void Overworld3DTestScreen::update(double dt) {
     if (landing_dust_system_) {
         landing_dust_system_->update(dt);
     }
+    if (npc_actor_driver_) {
+        std::vector<std::pair<int, int>> reserved_tiles;
+        reserved_tiles.push_back({player_.tileX(), player_.tileY()});
+        const auto player_segment = player_.movementSegment();
+        if (player_segment.active) {
+            reserved_tiles.push_back({player_segment.to_x, player_segment.to_y});
+        }
+        const std::size_t player_reserved_tile_count = reserved_tiles.size();
+        if (follower_controller_) {
+            const std::vector<std::pair<int, int>> follower_tiles = follower_controller_->reservedTiles();
+            reserved_tiles.insert(reserved_tiles.end(), follower_tiles.begin(), follower_tiles.end());
+        }
+        npc_actor_driver_->setReservedTiles(std::move(reserved_tiles), player_reserved_tile_count);
+        npc_actor_driver_->update(dt);
+    }
+}
+
+bool Overworld3DTestScreen::consumeBlockedMovementSfxRequested() {
+    const bool requested = blocked_movement_sfx_requested_;
+    blocked_movement_sfx_requested_ = false;
+    return requested;
 }
 
 void Overworld3DTestScreen::render(SDL_Renderer* renderer) {
@@ -354,7 +442,7 @@ void Overworld3DTestScreen::render(SDL_Renderer* renderer) {
     // (the player can't stand inside a building), so per-object ordering is correct here.
     struct DepthDrawable {
         float depth;
-        int tiebreak; // models < player < follower when depths match, for stable results
+        int tiebreak; // models < follower < player when depths match, for stable results
         std::function<void()> draw;
     };
     std::vector<DepthDrawable> drawables;
@@ -374,8 +462,8 @@ void Overworld3DTestScreen::render(SDL_Renderer* renderer) {
                 scene_.lighting_brightness);
         }});
     }
-    if (pd) drawables.push_back({*pd, 1, draw_player});
-    if (fd) drawables.push_back({*fd, 2, draw_follower});
+    if (fd) drawables.push_back({*fd, 1, draw_follower});
+    if (pd) drawables.push_back({*pd, 2, draw_player});
 
     std::stable_sort(drawables.begin(), drawables.end(),
         [](const DepthDrawable& a, const DepthDrawable& b) {
@@ -419,7 +507,8 @@ bool Overworld3DTestScreen::renderBgfx(
     int framebuffer_h,
     int logical_w,
     int logical_h,
-    void* sdl_metal_view) {
+    void* sdl_metal_view,
+    const std::string& debug_frame_counter_label) {
     if (!wantsBgfxRenderer()) {
         return false;
     }
@@ -455,25 +544,36 @@ bool Overworld3DTestScreen::renderBgfx(
         pending_bgfx_screenshot_.clear();
     }
     std::vector<gameplay::world3d::rendering::CharacterBillboardDraw> character_draws;
+    const int world_view_w = scene_.world_viewport.enabled
+        ? gameplay::world3d::rendering::worldViewportBaseWidth(scene_)
+        : logical_w;
+    const int world_view_h = scene_.world_viewport.enabled
+        ? gameplay::world3d::rendering::worldViewportBaseHeight(scene_)
+        : logical_h;
     if (follower_controller_) {
-        follower_controller_->collectBillboardDraws(camera_, logical_w, logical_h, character_draws);
+        follower_controller_->collectBillboardDraws(camera_, world_view_w, world_view_h, character_draws);
+    }
+    if (npc_actor_driver_) {
+        npc_actor_driver_->collectBillboardDraws(camera_, world_view_w, world_view_h, character_draws);
     }
     std::vector<gameplay::world3d::rendering::TextureBillboardDraw> texture_draws;
     if (landing_dust_system_) {
         landing_dust_system_->collectTextureBillboardDraws(
-            scene_, camera_, logical_w, logical_h, texture_draws);
+            scene_, camera_, world_view_w, world_view_h, texture_draws);
     }
     bgfx_renderer_->render(
         camera_,
         player_.position(),
         animator_.sourceRect(),
+        animator_.running(),
         player_.terrainBinding(),
         logical_w,
         logical_h,
         framebuffer_w,
         framebuffer_h,
         character_draws,
-        texture_draws);
+        texture_draws,
+        debug_frame_counter_label);
     return true;
 }
 
@@ -512,9 +612,30 @@ void Overworld3DTestScreen::onNavigate2d(int dx, int dy) {
     input_dy_ = dy;
 }
 
+bool Overworld3DTestScreen::handlePointerPressed(int logical_x, int logical_y) {
+    (void)logical_x;
+    (void)logical_y;
+    if (!freecam_enabled_) {
+        return false;
+    }
+    freecam_mouse_dragging_ = true;
+    return true;
+}
+
+bool Overworld3DTestScreen::handlePointerReleased(int logical_x, int logical_y) {
+    (void)logical_x;
+    (void)logical_y;
+    if (!freecam_enabled_) {
+        return false;
+    }
+    freecam_mouse_dragging_ = false;
+    return true;
+}
+
 void Overworld3DTestScreen::onBackPressed() {
     if (freecam_enabled_) {
         freecam_enabled_ = false;
+        freecam_mouse_dragging_ = false;
         SDL_SetRelativeMouseMode(SDL_FALSE);
     }
     return_to_title_requested_ = true;
@@ -530,14 +651,21 @@ bool Overworld3DTestScreen::handleUnroutedSdlEvent(const SDL_Event& event) {
     if (event.type == SDL_KEYDOWN && event.key.repeat == 0) {
         if (event.key.keysym.sym == SDLK_q) {
             freecam_enabled_ = !freecam_enabled_;
+            freecam_mouse_dragging_ = false;
             if (!freecam_enabled_) {
                 SDL_SetRelativeMouseMode(SDL_FALSE);
                 camera_.setTarget(player_.position());
             } else {
-                SDL_SetRelativeMouseMode(SDL_TRUE);
+                SDL_SetRelativeMouseMode(SDL_FALSE);
                 freecam_pos_ = initialFreecamPosition(scene_, player_.position());
                 camera_.setManualPose(freecam_pos_, freecam_yaw_deg_, freecam_pitch_deg_);
             }
+            return true;
+        }
+        if (!freecam_enabled_ &&
+            character_.has_run &&
+            matchesBinding(event.key.keysym.sym, app_config_.input.run_toggle_keys)) {
+            run_toggle_active_ = !run_toggle_active_;
             return true;
         }
         if (!freecam_enabled_ && follower_controller_) {
@@ -550,7 +678,19 @@ bool Overworld3DTestScreen::handleUnroutedSdlEvent(const SDL_Event& event) {
         }
     }
 
-    if (freecam_enabled_ && event.type == SDL_MOUSEMOTION) {
+    if (freecam_enabled_ && event.type == SDL_MOUSEBUTTONDOWN && event.button.button == SDL_BUTTON_LEFT) {
+        freecam_mouse_dragging_ = true;
+        return true;
+    }
+    if (freecam_enabled_ && event.type == SDL_MOUSEBUTTONUP && event.button.button == SDL_BUTTON_LEFT) {
+        freecam_mouse_dragging_ = false;
+        return true;
+    }
+    if (freecam_enabled_ && event.type == SDL_MOUSEMOTION && freecam_mouse_dragging_) {
+        if ((event.motion.state & SDL_BUTTON_LMASK) == 0) {
+            freecam_mouse_dragging_ = false;
+            return true;
+        }
         freecam_yaw_deg_ += static_cast<float>(event.motion.xrel) * scene_.freecam_mouse_sensitivity;
         freecam_pitch_deg_ -= static_cast<float>(event.motion.yrel) * scene_.freecam_mouse_sensitivity;
         if (freecam_pitch_deg_ > scene_.freecam_pitch_max_deg) freecam_pitch_deg_ = scene_.freecam_pitch_max_deg;

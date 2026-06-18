@@ -5,26 +5,51 @@
 #include "gameplay/world3d/terrain/ActorTerrainBinding.hpp"
 #include "gameplay/world3d/terrain/GridStepMotor.hpp"
 #include <cstdint>
+#include <functional>
 #include <vector>
 
 namespace pr::gameplay::world3d::characters {
 
 class CharacterController {
 public:
-    explicit CharacterController(const SceneConfig& scene);
+    struct MovementSegment {
+        bool active = false;
+        int from_x = 0;
+        int from_y = 0;
+        int to_x = 0;
+        int to_y = 0;
+        float t = 1.0f;
+    };
 
-    void moveInput(int dx, int dy, double dt);
+    struct MoveInputResult {
+        bool attempted_step = false;
+        bool blocked = false;
+    };
+
+    explicit CharacterController(
+        const SceneConfig& scene,
+        float move_speed_units_per_second = 64.0f,
+        float turn_step_delay_seconds = 0.016f);
+
+    MoveInputResult moveInput(
+        int dx,
+        int dy,
+        double dt,
+        const std::function<bool(int from_tx, int from_ty, int to_tx, int to_ty)>& can_enter_tile = {});
     void stop();
+    void setMoveSpeedUnitsPerSecond(float speed);
 
     FacingDirection facing() const { return facing_; }
     bool moving() const { return moving_; }
     camera::Vec3 position() const { return pos_; }
     int tileX() const { return tile_x_; }
     int tileY() const { return tile_y_; }
+    MovementSegment movementSegment() const;
     terrain::ActorTerrainBinding terrainBinding() const;
 
 private:
     float move_speed_units_per_second_ = 64.0f;
+    float turn_step_delay_seconds_ = 0.016f;
     float tile_size_ = 16.0f;
     int grid_width_ = 32;
     int grid_height_ = 32;
@@ -37,6 +62,8 @@ private:
     camera::Vec3 move_target_{};
     int tile_x_ = 0;
     int tile_y_ = 0;
+    int step_start_x_ = 0;
+    int step_start_y_ = 0;
     int step_dest_x_ = 0;
     int step_dest_y_ = 0;
     terrain::GridStepMotor step_motor_{};

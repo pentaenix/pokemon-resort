@@ -18,6 +18,8 @@
     "navigate_right_keys": ["RIGHT", "D"],
     "forward_keys": ["M", "RETURN", "SPACE"],
     "back_keys": ["N", "ESCAPE", "BACKSPACE"],
+    "run_keys": ["B"],
+    "run_toggle_keys": [],
     "record_toggle_keys": ["R"],
     "screenshot_keys": ["T"]
   },
@@ -30,6 +32,7 @@
     "putdown_sfx": "assets/sfx/putdown.mp3",
     "error_sfx": "assets/sfx/error.mp3",
     "save_sfx": "assets/sfx/save.mp3",
+    "overworld_blocked_sfx": "assets/overworld/sfx/bump_wall.mp3",
     "music_volume": 3,
     "sfx_volume": 8
   },

@@ -111,7 +111,7 @@ BillboardPlacement buildCharacterBillboardPlacement(
     }
 
     const camera::Vec3 screen_offset =
-        verticalOnlyScreenOffset(camera, character.screen_offset_y_px + screen_offset_y_px, out.depth, viewport_h);
+        verticalOnlyScreenOffset(camera, screen_offset_y_px, out.depth, viewport_h);
     pos.x += screen_offset.x;
     pos.y += screen_offset.y;
     pos.z += screen_offset.z;
@@ -123,8 +123,7 @@ BillboardPlacement buildCharacterBillboardPlacement(
     out.world_w = out.world_h * tex_aspect;
 
     out.anchor = pos;
-    const float anchor_y = (character.anchor == "center") ? (out.world_h * 0.5f) : 0.0f;
-    out.feet = camera::Vec3{pos.x, pos.y - anchor_y, pos.z};
+    out.feet = pos;
     out.shadow_ground = camera::Vec3{
         out.feet.x,
         grounded_foot_y + scene.sprite_shadow.world_y_lift,

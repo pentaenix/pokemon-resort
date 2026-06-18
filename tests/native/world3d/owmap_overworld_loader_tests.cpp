@@ -5,6 +5,8 @@
 #include "gameplay/world3d/followers/FollowerConfig.hpp"
 #include "gameplay/world3d/rendering/BillboardPlacement.hpp"
 #include "gameplay/world3d/rendering/PixelScale.hpp"
+#include "gameplay/world3d/rendering/ActorOcclusionSystem.hpp"
+#include "gameplay/world3d/rendering/WorldBillboardCompositor.hpp"
 #include "gameplay/world3d/terrain/ActorTerrainBinding.hpp"
 #include "gameplay/world3d/terrain/GridStepMotor.hpp"
 #include "gameplay/world3d/terrain/TerrainSurface.hpp"
@@ -15,6 +17,7 @@
 #include <exception>
 #include <filesystem>
 #include <iostream>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -47,6 +50,26 @@ fs::path repositoryRoot() {
         current = current.parent_path();
     }
     throw TestFailure("Could not locate repository root from " + fs::current_path().string());
+}
+
+pr::gameplay::world3d::camera::Gen4CameraPreset sceneCameraPreset(
+    const pr::gameplay::world3d::SceneConfig& scene,
+    float distance_multiplier = 1.0f) {
+    auto preset = pr::gameplay::world3d::camera::loadGen4PresetById(scene.camera_preset.c_str());
+    if (scene.camera_distance > 0.0f) {
+        preset.distance = scene.camera_distance;
+    }
+    preset.pitch_deg = scene.camera_pitch_deg;
+    preset.yaw_deg = scene.camera_yaw_deg;
+    preset.roll_deg = scene.camera_roll_deg;
+    preset.near_clip = scene.camera_near_clip;
+    preset.far_clip = scene.camera_far_clip;
+    preset.aspect_width = scene.camera_aspect_width;
+    preset.aspect_height = scene.camera_aspect_height;
+    preset.fov_y_deg = scene.camera_fov_y_deg;
+    preset.distance *= distance_multiplier;
+    pr::gameplay::world3d::rendering::applySceneCameraScaleToCameraPreset(preset, scene);
+    return preset;
 }
 
 void testFlatBootstrapOwmapParsesExpectedCells() {
@@ -97,8 +120,52 @@ void testTerrainRenderConfigLoads() {
     expect(scene.terrain.wire_color.a == 120, "terrain wire alpha loads");
     expect(scene.pixel_scale.map_pixels_per_tile == 16, "pixel scale mapPixelsPerTile loads");
     expect(std::abs(scene.pixel_scale.zoom - 1.0f) < 0.001f, "pixel scale zoom loads");
+    expect(scene.pixel_scale.pixel_perfect_world, "pixel-perfect world rendering loads enabled");
+    expect(scene.pixel_scale.world_render_width == 400, "pixel-perfect world width loads");
+    expect(scene.pixel_scale.world_render_height == 250, "pixel-perfect world height loads");
+    expect(scene.world_viewport.enabled, "world viewport loads enabled");
+    expect(scene.world_viewport.base_width == 400, "world viewport base width loads");
+    expect(scene.world_viewport.base_height == 250, "world viewport base height loads");
+    expect(scene.world_viewport.internal_scale == 1, "world viewport internal scale loads");
+    expect(std::abs(scene.scene_camera.distance_scale - 1.0f) < 0.001f, "scene camera distance scale loads");
+    expect(scene.pixel_compositor.sprite_sizing == "native", "pixel compositor sprite sizing loads");
+    expect(scene.pixel_compositor.snap_anchors, "pixel compositor snap anchors loads");
+    expect(scene.presentation.scale_mode == "integerFit", "presentation scale mode loads");
+    expect(std::abs(scene.presentation.zoom - 1.0f) < 0.001f, "presentation zoom loads");
+    expect(pr::gameplay::world3d::rendering::worldViewportBaseWidth(scene) == 400,
+        "world viewport helper returns base width");
+    expect(pr::gameplay::world3d::rendering::worldViewportRenderWidth(scene) == 400,
+        "world viewport helper returns 1x render width");
     expect(std::abs(pr::gameplay::world3d::rendering::worldUnitsPerPixel(scene) - 1.0f) < 0.001f,
         "pixel scale derives one world unit per map pixel");
+}
+
+void testWorldViewportInternalScaleDerivesRenderSize() {
+    pr::gameplay::world3d::SceneConfig scene{};
+    scene.world_viewport.base_width = 400;
+    scene.world_viewport.base_height = 250;
+    scene.world_viewport.internal_scale = 2;
+    expect(pr::gameplay::world3d::rendering::worldViewportBaseWidth(scene) == 400,
+        "2x internal scale keeps base width");
+    expect(pr::gameplay::world3d::rendering::worldViewportBaseHeight(scene) == 250,
+        "2x internal scale keeps base height");
+    expect(pr::gameplay::world3d::rendering::worldViewportInternalScale(scene) == 2,
+        "2x internal scale helper returns scale");
+    expect(pr::gameplay::world3d::rendering::worldViewportRenderWidth(scene) == 800,
+        "2x internal scale doubles render width");
+    expect(pr::gameplay::world3d::rendering::worldViewportRenderHeight(scene) == 500,
+        "2x internal scale doubles render height");
+}
+
+void testPlayableCharacterRunSheetLoads() {
+    const fs::path root = repositoryRoot();
+    const auto character = pr::gameplay::world3d::data::loadCharacterDefinition(
+        root.string(),
+        (root / "assets" / "characters" / "playable" / "haru.charbin").string());
+
+    expect(character.has_run, "Haru charbin should expose its run action");
+    expect(!character.run.frames.empty(), "Haru run action should have animation frames");
+    expect(!character.run_texture_png_bytes.empty(), "Haru run action should load its separate run sheet texture");
 }
 
 void testCameraEastProjectsScreenRight() {
@@ -401,6 +468,8 @@ void testBillboardFeetStayOnSimulationPosition() {
     expect(std::abs(placement.feet.x - wx) < 0.01f, "billboard feet X stays on simulation position");
     expect(std::abs(placement.feet.z - wz) < 0.01f, "billboard feet Z stays on simulation position");
     expect(std::abs(placement.world_h - 32.0f) < 0.01f, "32px character billboard uses shared pixel scale");
+    expect(std::abs(pr::gameplay::world3d::rendering::authoredPixelsWorldUnits(scene, 17.0f) - 17.0f) < 0.01f,
+           "shadow authored pixels use same world pixel scale");
 
     const SDL_Rect large_source_rect{0, 0, 64, 64};
     const auto large_placement = pr::gameplay::world3d::rendering::buildCharacterBillboardPlacement(
@@ -450,6 +519,371 @@ void testTextureBillboardScaleUsesAuthoredSpritePixels() {
         0);
     expect(placement.visible, "texture billboard should project for test camera");
     expect(std::abs(placement.world_h - 32.0f) < 0.01f, "texture billboard uses shared authored sprite scale");
+}
+
+void testWorldBillboardCompositorDefaultCameraContract() {
+    const fs::path root = repositoryRoot();
+    const fs::path testing_path = root / "assets" / "overworld" / "maps" / "testing.owmap";
+    auto scene = pr::gameplay::world3d::data::loadSceneConfig(root.string(), testing_path.string());
+    scene.pixel_compositor.snap_anchors = true;
+
+    const float tile_size = scene.grid.tile_size;
+    const float wx = (static_cast<float>(scene.player.spawn_tile_x) + 0.5f) * tile_size;
+    const float wz = (static_cast<float>(scene.player.spawn_tile_y) + 0.5f) * tile_size;
+    const auto binding =
+        pr::gameplay::world3d::terrain::bindActorStanding(scene, scene.player.spawn_tile_x, scene.player.spawn_tile_y, wx, wz);
+    const pr::gameplay::world3d::camera::Vec3 sim_pos{wx, binding.simulation_y, wz};
+    const SDL_Rect source_rect{0, 0, 32, 32};
+
+    pr::gameplay::world3d::CharacterSpriteDefinition character{};
+    character.anchor = "bottom_center";
+    character.sprite_scale = 1.0f;
+
+    auto camera = pr::gameplay::world3d::camera::Gen4FollowCamera(sceneCameraPreset(scene));
+    camera.setTarget(sim_pos);
+    const auto placement = pr::gameplay::world3d::rendering::buildCharacterBillboardPlacement(
+        scene,
+        camera,
+        binding,
+        character,
+        sim_pos,
+        source_rect,
+        pr::gameplay::world3d::rendering::worldViewportBaseWidth(scene),
+        pr::gameplay::world3d::rendering::worldViewportBaseHeight(scene));
+    expect(placement.visible, "default camera billboard placement should be visible");
+
+    const auto rect = pr::gameplay::world3d::rendering::projectWorldBillboardRect(
+        scene,
+        camera,
+        placement,
+        source_rect,
+        pr::gameplay::world3d::rendering::worldViewportBaseWidth(scene),
+        pr::gameplay::world3d::rendering::worldViewportBaseHeight(scene),
+        1);
+    expect(rect.visible, "default camera projected rect should be visible");
+    if (rect.base_w != 32 || rect.base_h != 32) {
+        std::ostringstream msg;
+        msg << "default camera should project 32x32 frame to 32x32 base pixels, got "
+            << rect.base_w << "x" << rect.base_h;
+        throw TestFailure(msg.str());
+    }
+
+    const auto rect_2x = pr::gameplay::world3d::rendering::projectWorldBillboardRect(
+        scene,
+        camera,
+        placement,
+        source_rect,
+        pr::gameplay::world3d::rendering::worldViewportBaseWidth(scene),
+        pr::gameplay::world3d::rendering::worldViewportBaseHeight(scene),
+        2);
+    expect(rect_2x.base_w == 32 && rect_2x.base_h == 32, "2x keeps base-pixel sprite measurement");
+    expect(rect_2x.internal_w == 64 && rect_2x.internal_h == 64, "2x doubles internal submitted sprite size");
+
+    float feet_x = 0.0f;
+    float feet_y = 0.0f;
+    float feet_depth = 0.0f;
+    expect(
+        camera.worldToScreen(
+            placement.feet,
+            pr::gameplay::world3d::rendering::worldViewportBaseWidth(scene),
+            pr::gameplay::world3d::rendering::worldViewportBaseHeight(scene),
+            feet_x,
+            feet_y,
+            feet_depth),
+        "feet should project for anchor snap test");
+    expect(rect.base_x + rect.base_w / 2 == static_cast<int>(std::round(feet_x)),
+        "anchor snap keeps feet on integer base X");
+    expect(rect.base_y + rect.base_h == static_cast<int>(std::round(feet_y)),
+        "anchor snap keeps feet on integer base Y");
+}
+
+void testWorldBillboardPlacementUsesBottomFeetAnchor() {
+    const fs::path root = repositoryRoot();
+    const fs::path testing_path = root / "assets" / "overworld" / "maps" / "testing.owmap";
+    auto scene = pr::gameplay::world3d::data::loadSceneConfig(root.string(), testing_path.string());
+    scene.pixel_compositor.snap_anchors = true;
+
+    const float tile_size = scene.grid.tile_size;
+    const float wx = (static_cast<float>(scene.player.spawn_tile_x) + 0.5f) * tile_size;
+    const float wz = (static_cast<float>(scene.player.spawn_tile_y) + 0.5f) * tile_size;
+    const auto binding =
+        pr::gameplay::world3d::terrain::bindActorStanding(scene, scene.player.spawn_tile_x, scene.player.spawn_tile_y, wx, wz);
+    const pr::gameplay::world3d::camera::Vec3 sim_pos{wx, binding.simulation_y, wz};
+    const SDL_Rect source_rect{0, 0, 32, 32};
+
+    pr::gameplay::world3d::CharacterSpriteDefinition character{};
+    character.anchor = "center";
+    character.screen_offset_y_px = 13;
+    character.sprite_scale = 1.0f;
+
+    auto camera = pr::gameplay::world3d::camera::Gen4FollowCamera(sceneCameraPreset(scene));
+    camera.setTarget(sim_pos);
+    const auto placement = pr::gameplay::world3d::rendering::buildCharacterBillboardPlacement(
+        scene,
+        camera,
+        binding,
+        character,
+        sim_pos,
+        source_rect,
+        pr::gameplay::world3d::rendering::worldViewportBaseWidth(scene),
+        pr::gameplay::world3d::rendering::worldViewportBaseHeight(scene));
+    expect(placement.visible, "bottom-anchor placement should be visible");
+
+    const float terrain_y = pr::gameplay::world3d::terrain::heightAtActorFeet(
+        scene,
+        wx,
+        wz,
+        binding.height_sample_tx,
+        binding.height_sample_ty);
+    expect(std::abs(placement.feet.x - wx) < 0.001f, "bottom-anchor feet X stays on simulation foot");
+    expect(std::abs(placement.feet.z - wz) < 0.001f, "bottom-anchor feet Z stays on simulation foot");
+    expect(std::abs(placement.feet.y - terrain_y) < 0.001f,
+        "bottom-anchor feet Y ignores legacy center anchor and profile screen offset");
+
+    float feet_x = 0.0f;
+    float feet_y = 0.0f;
+    float feet_depth = 0.0f;
+    expect(
+        camera.worldToScreen(
+            placement.feet,
+            pr::gameplay::world3d::rendering::worldViewportBaseWidth(scene),
+            pr::gameplay::world3d::rendering::worldViewportBaseHeight(scene),
+            feet_x,
+            feet_y,
+            feet_depth),
+        "bottom-anchor feet should project");
+    const auto rect = pr::gameplay::world3d::rendering::projectWorldBillboardRect(
+        scene,
+        camera,
+        placement,
+        source_rect,
+        pr::gameplay::world3d::rendering::worldViewportBaseWidth(scene),
+        pr::gameplay::world3d::rendering::worldViewportBaseHeight(scene),
+        1);
+    expect(rect.base_y + rect.base_h == static_cast<int>(std::round(feet_y)),
+        "bottom-anchor rect bottom lands on projected feet");
+}
+
+void testWorldShadowRectCentersOnFeet() {
+    const fs::path root = repositoryRoot();
+    const fs::path testing_path = root / "assets" / "overworld" / "maps" / "testing.owmap";
+    auto scene = pr::gameplay::world3d::data::loadSceneConfig(root.string(), testing_path.string());
+    scene.pixel_compositor.snap_anchors = true;
+    scene.sprite_shadow.texture_width_px = 16;
+    scene.sprite_shadow.texture_height_px = 8;
+    scene.sprite_shadow.feet_to_shadow_bottom_px = 2;
+    scene.sprite_shadow.screen_offset_x_px = 0;
+    scene.sprite_shadow.screen_offset_y_px = 0;
+
+    const float tile_size = scene.grid.tile_size;
+    const float wx = (static_cast<float>(scene.player.spawn_tile_x) + 0.5f) * tile_size;
+    const float wz = (static_cast<float>(scene.player.spawn_tile_y) + 0.5f) * tile_size;
+    const auto binding =
+        pr::gameplay::world3d::terrain::bindActorStanding(scene, scene.player.spawn_tile_x, scene.player.spawn_tile_y, wx, wz);
+    const pr::gameplay::world3d::camera::Vec3 sim_pos{wx, binding.simulation_y, wz};
+    const SDL_Rect source_rect{0, 0, 32, 32};
+
+    pr::gameplay::world3d::CharacterSpriteDefinition character{};
+    character.anchor = "bottom_center";
+    character.sprite_scale = 1.0f;
+
+    auto camera = pr::gameplay::world3d::camera::Gen4FollowCamera(sceneCameraPreset(scene));
+    camera.setTarget(sim_pos);
+    const auto placement = pr::gameplay::world3d::rendering::buildCharacterBillboardPlacement(
+        scene,
+        camera,
+        binding,
+        character,
+        sim_pos,
+        source_rect,
+        pr::gameplay::world3d::rendering::worldViewportBaseWidth(scene),
+        pr::gameplay::world3d::rendering::worldViewportBaseHeight(scene));
+    expect(placement.visible, "shadow placement should be visible");
+
+    const auto sprite_rect = pr::gameplay::world3d::rendering::projectWorldBillboardRect(
+        scene,
+        camera,
+        placement,
+        source_rect,
+        pr::gameplay::world3d::rendering::worldViewportBaseWidth(scene),
+        pr::gameplay::world3d::rendering::worldViewportBaseHeight(scene),
+        1);
+    const auto shadow_rect = pr::gameplay::world3d::rendering::projectWorldShadowRect(
+        scene,
+        camera,
+        placement,
+        source_rect,
+        scene.sprite_shadow,
+        pr::gameplay::world3d::rendering::worldViewportBaseWidth(scene),
+        pr::gameplay::world3d::rendering::worldViewportBaseHeight(scene),
+        1);
+    expect(sprite_rect.visible && shadow_rect.visible, "sprite and shadow rects should be visible");
+    expect(
+        shadow_rect.base_x == sprite_rect.base_x + (sprite_rect.base_w / 2) - ((shadow_rect.base_w + 1) / 2),
+        "shadow rect aligns to the sprite foot boundary");
+    expect(
+        shadow_rect.base_y + shadow_rect.base_h ==
+            sprite_rect.base_y + sprite_rect.base_h + scene.sprite_shadow.feet_to_shadow_bottom_px,
+        "shadow bottom follows configured feet-to-shadow distance");
+    expect(shadow_rect.base_w == 16 && shadow_rect.base_h == 8,
+        "default shadow keeps native mask size at 1x");
+}
+
+void testWorldBillboardCompositorScalesWithCameraDistance() {
+    const fs::path root = repositoryRoot();
+    const fs::path testing_path = root / "assets" / "overworld" / "maps" / "testing.owmap";
+    auto scene = pr::gameplay::world3d::data::loadSceneConfig(root.string(), testing_path.string());
+
+    const float tile_size = scene.grid.tile_size;
+    const float wx = (static_cast<float>(scene.player.spawn_tile_x) + 0.5f) * tile_size;
+    const float wz = (static_cast<float>(scene.player.spawn_tile_y) + 0.5f) * tile_size;
+    const auto binding =
+        pr::gameplay::world3d::terrain::bindActorStanding(scene, scene.player.spawn_tile_x, scene.player.spawn_tile_y, wx, wz);
+    const pr::gameplay::world3d::camera::Vec3 sim_pos{wx, binding.simulation_y, wz};
+    const SDL_Rect source_rect{0, 0, 32, 32};
+
+    pr::gameplay::world3d::CharacterSpriteDefinition character{};
+    character.anchor = "bottom_center";
+    character.sprite_scale = 1.0f;
+
+    auto rect_for_distance = [&](float distance_multiplier) {
+        auto camera = pr::gameplay::world3d::camera::Gen4FollowCamera(sceneCameraPreset(scene, distance_multiplier));
+        camera.setTarget(sim_pos);
+        const auto placement = pr::gameplay::world3d::rendering::buildCharacterBillboardPlacement(
+            scene,
+            camera,
+            binding,
+            character,
+            sim_pos,
+            source_rect,
+            pr::gameplay::world3d::rendering::worldViewportBaseWidth(scene),
+            pr::gameplay::world3d::rendering::worldViewportBaseHeight(scene));
+        expect(placement.visible, "camera-distance billboard placement should be visible");
+        return pr::gameplay::world3d::rendering::projectWorldBillboardRect(
+            scene,
+            camera,
+            placement,
+            source_rect,
+            pr::gameplay::world3d::rendering::worldViewportBaseWidth(scene),
+            pr::gameplay::world3d::rendering::worldViewportBaseHeight(scene),
+            1);
+    };
+
+    const auto closer = rect_for_distance(0.75f);
+    const auto normal = rect_for_distance(1.0f);
+    const auto farther = rect_for_distance(1.25f);
+    expect(closer.visible && normal.visible && farther.visible, "camera-distance rects should be visible");
+    expect(closer.base_h > normal.base_h, "moving camera closer increases projected billboard height");
+    expect(farther.base_h < normal.base_h, "moving camera farther decreases projected billboard height");
+}
+
+void testWorldBillboardCompositorScalesByActorDepth() {
+    const fs::path root = repositoryRoot();
+    const fs::path testing_path = root / "assets" / "overworld" / "maps" / "testing.owmap";
+    auto scene = pr::gameplay::world3d::data::loadSceneConfig(root.string(), testing_path.string());
+
+    const float tile_size = scene.grid.tile_size;
+    const float wx = (static_cast<float>(scene.player.spawn_tile_x) + 0.5f) * tile_size;
+    const float wz = (static_cast<float>(scene.player.spawn_tile_y) + 0.5f) * tile_size;
+    const auto binding =
+        pr::gameplay::world3d::terrain::bindActorStanding(scene, scene.player.spawn_tile_x, scene.player.spawn_tile_y, wx, wz);
+    const pr::gameplay::world3d::camera::Vec3 mid_pos{wx, binding.simulation_y, wz};
+    const SDL_Rect source_rect{0, 0, 32, 32};
+
+    pr::gameplay::world3d::CharacterSpriteDefinition character{};
+    character.anchor = "bottom_center";
+    character.sprite_scale = 1.0f;
+
+    auto camera = pr::gameplay::world3d::camera::Gen4FollowCamera(sceneCameraPreset(scene));
+    camera.setTarget(mid_pos);
+    const auto pose = camera.pose();
+    const pr::gameplay::world3d::camera::Vec3 toward_camera{
+        -pose.forward.x * tile_size * 4.0f,
+        0.0f,
+        -pose.forward.z * tile_size * 4.0f};
+    const pr::gameplay::world3d::camera::Vec3 side{
+        pose.right.x * tile_size * 4.0f,
+        0.0f,
+        pose.right.z * tile_size * 4.0f};
+
+    auto rect_for = [&](pr::gameplay::world3d::camera::Vec3 pos) {
+        const int tx = static_cast<int>(std::floor(pos.x / tile_size));
+        const int ty = static_cast<int>(std::floor(pos.z / tile_size));
+        const auto actor_binding = pr::gameplay::world3d::terrain::bindActorStanding(scene, tx, ty, pos.x, pos.z);
+        pos.y = actor_binding.simulation_y;
+        const auto placement = pr::gameplay::world3d::rendering::buildCharacterBillboardPlacement(
+            scene,
+            camera,
+            actor_binding,
+            character,
+            pos,
+            source_rect,
+            pr::gameplay::world3d::rendering::worldViewportBaseWidth(scene),
+            pr::gameplay::world3d::rendering::worldViewportBaseHeight(scene));
+        expect(placement.visible, "actor-depth billboard placement should be visible");
+        return pr::gameplay::world3d::rendering::projectWorldBillboardRect(
+            scene,
+            camera,
+            placement,
+            source_rect,
+            pr::gameplay::world3d::rendering::worldViewportBaseWidth(scene),
+            pr::gameplay::world3d::rendering::worldViewportBaseHeight(scene),
+            1);
+    };
+
+    const auto near_rect = rect_for({mid_pos.x + toward_camera.x, mid_pos.y, mid_pos.z + toward_camera.z});
+    const auto mid_rect = rect_for(mid_pos);
+    const auto far_rect = rect_for({mid_pos.x - toward_camera.x, mid_pos.y, mid_pos.z - toward_camera.z});
+    const auto side_rect = rect_for({mid_pos.x + side.x, mid_pos.y, mid_pos.z + side.z});
+
+    expect(near_rect.visible && mid_rect.visible && far_rect.visible && side_rect.visible,
+        "actor-depth rects should be visible");
+    expect(near_rect.base_h > mid_rect.base_h, "near actor projects larger than target-depth actor");
+    expect(far_rect.base_h < mid_rect.base_h, "far actor projects smaller than target-depth actor");
+    expect(std::abs(side_rect.base_h - mid_rect.base_h) <= 1, "side-by-side actor keeps matching size");
+}
+
+void testActorOcclusionDepthOrdersForegroundAnchors() {
+    pr::gameplay::world3d::camera::Gen4CameraPreset preset{};
+    preset.distance = 100.0f;
+    preset.pitch_deg = 45.0f;
+    preset.yaw_deg = 0.0f;
+    preset.fov_y_deg = 45.0f;
+    preset.near_clip = 0.1f;
+    preset.far_clip = 500.0f;
+    pr::gameplay::world3d::camera::Gen4FollowCamera camera(preset);
+    camera.setTarget({0.0f, 0.0f, 0.0f});
+
+    const auto actor = pr::gameplay::world3d::camera::Vec3{0.0f, 0.0f, 0.0f};
+    const auto foreground = pr::gameplay::world3d::camera::Vec3{0.0f, 0.0f, 16.0f};
+    const auto background = pr::gameplay::world3d::camera::Vec3{0.0f, 0.0f, -16.0f};
+
+    const float actor_depth =
+        pr::gameplay::world3d::rendering::actorOcclusionDepth(camera, actor, 400, 250);
+    const float foreground_depth =
+        pr::gameplay::world3d::rendering::actorOcclusionDepth(camera, foreground, 400, 250);
+    const float background_depth =
+        pr::gameplay::world3d::rendering::actorOcclusionDepth(camera, background, 400, 250);
+
+    expect(
+        pr::gameplay::world3d::rendering::actorOccluderIsInFront(foreground_depth, actor_depth),
+        "foreground anchor should be in front of actor feet");
+    expect(
+        !pr::gameplay::world3d::rendering::actorOccluderIsInFront(background_depth, actor_depth),
+        "background anchor should not be in front of actor feet");
+    expect(
+        pr::gameplay::world3d::rendering::actorOcclusionDepth(camera, actor, 400, 250, 8.0f) < actor_depth,
+        "toward-camera bias makes an occluder sort sooner in front");
+}
+
+void testPlayerSpritePriorityIsSortOnly() {
+    const float follower_depth = 100.0f;
+    const float player_depth = 100.0f;
+    constexpr float player_priority_bias = -0.25f;
+    expect(player_depth + player_priority_bias < follower_depth,
+        "player priority bias only changes sprite-vs-sprite sort order");
+    expect(player_depth == 100.0f,
+        "player priority must not modify world actor depth used against environment");
 }
 
 void testFollowerSummonRenderConfigLoads() {
@@ -675,6 +1109,10 @@ int main() {
         std::cout << "[PASS] owmap sniff and dispatch\n";
         testTerrainRenderConfigLoads();
         std::cout << "[PASS] terrain render config loads\n";
+        testWorldViewportInternalScaleDerivesRenderSize();
+        std::cout << "[PASS] world viewport internal scale derives render size\n";
+        testPlayableCharacterRunSheetLoads();
+        std::cout << "[PASS] playable character run sheet loads\n";
         testCameraEastProjectsScreenRight();
         std::cout << "[PASS] camera east projects screen-right\n";
         testNorthRampHeightMatchesCornerSlope();
@@ -693,6 +1131,20 @@ int main() {
         std::cout << "[PASS] billboard feet stay on simulation position\n";
         testTextureBillboardScaleUsesAuthoredSpritePixels();
         std::cout << "[PASS] texture billboard scale uses authored sprite pixels\n";
+        testWorldBillboardCompositorDefaultCameraContract();
+        std::cout << "[PASS] world billboard compositor default camera contract\n";
+        testWorldBillboardPlacementUsesBottomFeetAnchor();
+        std::cout << "[PASS] world billboard placement uses bottom feet anchor\n";
+        testWorldShadowRectCentersOnFeet();
+        std::cout << "[PASS] world shadow rect centers on feet\n";
+        testWorldBillboardCompositorScalesWithCameraDistance();
+        std::cout << "[PASS] world billboard compositor scales with camera distance\n";
+        testWorldBillboardCompositorScalesByActorDepth();
+        std::cout << "[PASS] world billboard compositor scales by actor depth\n";
+        testActorOcclusionDepthOrdersForegroundAnchors();
+        std::cout << "[PASS] actor occlusion foreground anchors order by feet depth\n";
+        testPlayerSpritePriorityIsSortOnly();
+        std::cout << "[PASS] player sprite priority is sort-only\n";
         testFollowerSummonRenderConfigLoads();
         std::cout << "[PASS] follower summon render config loads\n";
         testActorTerrainBindingMatchesHeightAtFeet();

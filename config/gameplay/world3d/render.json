@@ -26,12 +26,38 @@
     "wireColor": [102, 138, 170, 120]
   },
   "pixelScale": {
-    "_comment": "Single pixel-art ruler for map tiles and sprite billboards. worldUnitsPerPixel <= 0 derives tileSize / mapPixelsPerTile. zoom moves the camera closer (larger) or farther (smaller) without changing authored world sizes.",
+    "_comment": "Authoring ruler only. worldUnitsPerPixel <= 0 derives tileSize / mapPixelsPerTile. zoom/worldRender* are legacy compatibility inputs; prefer sceneCamera/worldViewport below.",
     "mapPixelsPerTile": 16,
     "worldUnitsPerPixel": 0.0,
     "zoom": 1.0,
     "zoomMin": 0.5,
-    "zoomMax": 3.0
+    "zoomMax": 3.0,
+    "pixelPerfectWorld": true,
+    "worldRenderWidth": 400,
+    "worldRenderHeight": 250
+  },
+  "worldViewport": {
+    "_comment": "DS-native base composition size plus emulator-style internal resolution scale.",
+    "enabled": true,
+    "baseWidth": 400,
+    "baseHeight": 250,
+    "internalScale": 1
+  },
+  "sceneCamera": {
+    "_comment": "3D scene-camera distance scaling. World billboards project through this camera, so camera moves also scale sprites relative to terrain/models.",
+    "distanceScale": 1.0,
+    "distanceScaleMin": 0.5,
+    "distanceScaleMax": 3.0
+  },
+  "pixelCompositor": {
+    "_comment": "World-sized pixel-art billboards are projected to the base viewport, quantized to integer pixels, then scaled by worldViewport.internalScale.",
+    "spriteSizing": "native",
+    "snapAnchors": true
+  },
+  "presentation": {
+    "_comment": "Final backbuffer presentation of the completed internal world target.",
+    "scaleMode": "integerFit",
+    "zoom": 1.0
   },
   "occlusion": {
     "_comment": "How far (in tiles) toward the camera a placed model's occlusion anchor is biased when depth-sorting it against the player/follower. Larger = the building starts hiding the character sooner (further forward). Tune so a character entering a doorway is hidden by the building rather than drawing over its roof.",

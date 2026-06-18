@@ -3,6 +3,8 @@
     "enabled": true,
     "pokemonSpecies": "psyduck",
     "pokeballId": "poke_ball",
+    "_movementModeComment": "trail = classic lag/catch-up follower personality; replay = smoother step-phase replay, but feels more glued to the player.",
+    "movementMode": "trail",
     "nature": "Jolly",
     "forcedBehavior": "circle_player"
   }

@@ -431,7 +431,6 @@ public:
         : font_(loadFontPreferringUnicode(font_path, 20, project_root)) {}
 
     void update(SDL_Renderer* renderer, double dt) {
-        if (!renderer || !font_) return;
         accum_seconds_ += dt;
         ++accum_frames_;
         if (accum_seconds_ < 0.20) return;
@@ -441,7 +440,9 @@ public:
         const int fps_int = static_cast<int>(std::lround(fps));
         if (fps_int == last_fps_) return;
         last_fps_ = fps_int;
-        rebuildTexture(renderer, "FPS: " + std::to_string(fps_int));
+        label_ = "FPS: " + std::to_string(fps_int);
+        texture_dirty_ = true;
+        rebuildTextureIfNeeded(renderer);
     }
 
     void render(SDL_Renderer* renderer, int logical_w, int logical_h) const {
@@ -459,6 +460,14 @@ public:
         SDL_RenderCopy(renderer, texture_.texture.get(), nullptr, &dst);
     }
 
+    void prepareSdlTexture(SDL_Renderer* renderer) {
+        rebuildTextureIfNeeded(renderer);
+    }
+
+    const std::string& label() const {
+        return label_;
+    }
+
 private:
     FontHandle font_{};
     TextureHandle texture_{};
@@ -467,6 +476,14 @@ private:
     int last_fps_ = -1;
     double accum_seconds_ = 0.0;
     int accum_frames_ = 0;
+    bool texture_dirty_ = false;
+    std::string label_{};
+
+    void rebuildTextureIfNeeded(SDL_Renderer* renderer) {
+        if (!texture_dirty_ || !renderer || !font_ || label_.empty()) return;
+        rebuildTexture(renderer, label_);
+        texture_dirty_ = false;
+    }
 
     void rebuildTexture(SDL_Renderer* renderer, const std::string& text) {
         texture_ = TextureHandle{};
@@ -660,6 +677,9 @@ int runApplication(const char* argv0, const char* config_path_override) {
         if (auto settings = screen_coordinator.consumeUserSettingsSaveRequest()) {
             user_settings_persistence.save(*settings);
         }
+        if (frame_counter) {
+            frame_counter->update(renderer.get(), dt);
+        }
 
         const bool overworld_wants_bgfx =
             screen_coordinator.activeScreen() == &overworld3d_test && overworld3d_test.wantsBgfxRenderer();
@@ -748,7 +768,8 @@ int runApplication(const char* argv0, const char* config_path_override) {
                 std::max(1, framebuffer_h),
                 std::max(1, logical_w),
                 std::max(1, logical_h),
-                sdl_metal_view);
+                sdl_metal_view,
+                frame_counter ? frame_counter->label() : std::string{});
             if (!bgfx_frame_presented && presentation == WindowPresentation::Bgfx3D) {
 #if defined(__APPLE__)
                 if (sdl_metal_view) {
@@ -781,7 +802,7 @@ int runApplication(const char* argv0, const char* config_path_override) {
             }
 
             if (frame_counter) {
-                frame_counter->update(renderer.get(), dt);
+                frame_counter->prepareSdlTexture(renderer.get());
                 frame_counter->render(renderer.get(), config.window.virtual_width, config.window.virtual_height);
             }
             if (screen_coordinator.activeScreen() == &overworld3d_test) {

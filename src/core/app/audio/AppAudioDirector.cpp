@@ -32,6 +32,7 @@ AppAudioDirector::AppAudioDirector(std::string project_root, const AudioConfig& 
     load_sfx(config_.putdown_sfx, "putdown sfx", &AudioController::loadPutdownSfx);
     load_sfx(config_.error_sfx, "error sfx", &AudioController::loadErrorSfx);
     load_sfx(config_.save_sfx, "save sfx", &AudioController::loadSaveSfx);
+    load_sfx(config_.overworld_blocked_sfx, "overworld blocked sfx", &AudioController::loadOverworldBlockedSfx);
 }
 
 void AppAudioDirector::updateMusic(double dt, const AppMusicRequest& request) {
@@ -113,6 +114,9 @@ void AppAudioDirector::playSfx(const AppSfxRequests& requests, float sfx_volume)
     }
     if (requests.save) {
         audio_.playSaveSfx();
+    }
+    if (requests.overworld_blocked) {
+        audio_.playOverworldBlockedSfx();
     }
 }
 

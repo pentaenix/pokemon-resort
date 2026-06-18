@@ -22,6 +22,7 @@ public:
     bool loadPutdownSfx(const std::string& path);
     bool loadErrorSfx(const std::string& path);
     bool loadSaveSfx(const std::string& path);
+    bool loadOverworldBlockedSfx(const std::string& path);
     void playMusicLoop();
     void playButtonSfx();
     void playRipSfx();
@@ -30,6 +31,7 @@ public:
     void playPutdownSfx();
     void playErrorSfx();
     void playSaveSfx();
+    void playOverworldBlockedSfx();
     void stopMusic();
     void setMusicVolume(float volume_01);
     void setSfxVolume(float volume_01);

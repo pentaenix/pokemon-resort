@@ -50,6 +50,11 @@ public:
             [save_player_ release];
             save_player_ = nil;
         }
+        if (overworld_blocked_player_ != nil) {
+            [overworld_blocked_player_ stop];
+            [overworld_blocked_player_ release];
+            overworld_blocked_player_ = nil;
+        }
     }
 
     bool loadMusic(const std::string& path) {
@@ -161,6 +166,10 @@ public:
         return loadSfx(path, save_player_);
     }
 
+    bool loadOverworldBlockedSfx(const std::string& path) {
+        return loadSfx(path, overworld_blocked_player_);
+    }
+
     void playMusicLoop() {
         if (player_ != nil && !player_.playing) {
             [player_ play];
@@ -202,6 +211,10 @@ public:
 
     void playSaveSfx() {
         playSfx(save_player_);
+    }
+
+    void playOverworldBlockedSfx() {
+        playSfx(overworld_blocked_player_);
     }
 
     void stopMusic() {
@@ -246,6 +259,10 @@ public:
         if (save_player_ != nil) {
             const float clamped = volume_01 < 0.0f ? 0.0f : (volume_01 > 1.0f ? 1.0f : volume_01);
             save_player_.volume = clamped;
+        }
+        if (overworld_blocked_player_ != nil) {
+            const float clamped = volume_01 < 0.0f ? 0.0f : (volume_01 > 1.0f ? 1.0f : volume_01);
+            overworld_blocked_player_.volume = clamped;
         }
     }
 
@@ -297,6 +314,7 @@ private:
     AVAudioPlayer* putdown_player_ = nil;
     AVAudioPlayer* error_player_ = nil;
     AVAudioPlayer* save_player_ = nil;
+    AVAudioPlayer* overworld_blocked_player_ = nil;
 };
 
 AudioController::AudioController()
@@ -354,6 +372,10 @@ bool AudioController::loadSaveSfx(const std::string& path) {
     return impl_ != nullptr && impl_->loadSaveSfx(path);
 }
 
+bool AudioController::loadOverworldBlockedSfx(const std::string& path) {
+    return impl_ != nullptr && impl_->loadOverworldBlockedSfx(path);
+}
+
 void AudioController::playMusicLoop() {
     if (impl_ != nullptr) {
         impl_->playMusicLoop();
@@ -399,6 +421,12 @@ void AudioController::playErrorSfx() {
 void AudioController::playSaveSfx() {
     if (impl_ != nullptr) {
         impl_->playSaveSfx();
+    }
+}
+
+void AudioController::playOverworldBlockedSfx() {
+    if (impl_ != nullptr) {
+        impl_->playOverworldBlockedSfx();
     }
 }
 
@@ -466,6 +494,7 @@ bool AudioController::loadPickupSfx(const std::string&) { return false; }
 bool AudioController::loadPutdownSfx(const std::string&) { return false; }
 bool AudioController::loadErrorSfx(const std::string&) { return false; }
 bool AudioController::loadSaveSfx(const std::string&) { return false; }
+bool AudioController::loadOverworldBlockedSfx(const std::string&) { return false; }
 void AudioController::playMusicLoop() {}
 void AudioController::playButtonSfx() {}
 void AudioController::playRipSfx() {}
@@ -474,6 +503,7 @@ void AudioController::playPickupSfx() {}
 void AudioController::playPutdownSfx() {}
 void AudioController::playErrorSfx() {}
 void AudioController::playSaveSfx() {}
+void AudioController::playOverworldBlockedSfx() {}
 void AudioController::stopMusic() {}
 void AudioController::setMusicVolume(float) {}
 void AudioController::setSfxVolume(float) {}

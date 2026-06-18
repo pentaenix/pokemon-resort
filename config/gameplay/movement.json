@@ -1,0 +1,24 @@
+{
+  "walk": {
+    "unitsPerSecond": 64
+  },
+  "run": {
+    "unitsPerSecond": 112
+  },
+  "_blockedStepComment": "Controls feedback when the player holds movement into a blocked wall, terrain edge, or occupied character cell.",
+  "blockedStep": {
+    "sfxRepeatSeconds": 0.54
+  },
+  "_turningComment": "Delay after turning in place before held input starts walking. Lower values feel more responsive; 0 keeps tap-to-turn but starts held movement immediately on the next frame.",
+  "turning": {
+    "stepDelaySeconds": 0
+  },
+  "profiles": {
+    "slow": {
+      "unitsPerSecond": 48
+    },
+    "fast": {
+      "unitsPerSecond": 96
+    }
+  }
+}

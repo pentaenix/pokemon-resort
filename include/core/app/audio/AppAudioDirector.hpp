@@ -25,6 +25,7 @@ struct AppSfxRequests {
     bool putdown = false;
     bool error = false;
     bool save = false;
+    bool overworld_blocked = false;
 };
 
 class AppAudioDirector {

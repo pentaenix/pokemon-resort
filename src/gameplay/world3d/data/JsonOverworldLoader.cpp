@@ -12,6 +12,7 @@
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace pr::gameplay::world3d::data {
@@ -128,6 +129,38 @@ std::string readLengthPrefixedString(const std::vector<std::uint8_t>& file, std:
     return out;
 }
 
+JsonValue readCharbinJsonRoot(const std::string& character_package_path) {
+    const fs::path input_path(character_package_path);
+    if (input_path.extension() != ".charbin") {
+        throw std::runtime_error(
+            "Overworld character loader now supports only .charbin packages: " + character_package_path);
+    }
+
+    const std::vector<std::uint8_t> file = readBinaryFile(character_package_path);
+    if (file.size() < kCharbinHeaderSize) {
+        throw std::runtime_error("Character package too small: " + character_package_path);
+    }
+    if (std::memcmp(file.data(), kCharbinMagic, kCharbinMagicSize) != 0) {
+        throw std::runtime_error("Character package has invalid magic: " + character_package_path);
+    }
+    const std::uint32_t version = readU32Le(file.data() + 8);
+    if (version != kCharbinFormatVersion) {
+        throw std::runtime_error("Unsupported charbin version in: " + character_package_path);
+    }
+    const std::uint32_t json_len = readU32Le(file.data() + 12);
+    if (kCharbinHeaderSize + static_cast<std::size_t>(json_len) + 4 > file.size()) {
+        throw std::runtime_error("Character package truncated at metadata: " + character_package_path);
+    }
+
+    const std::size_t json_start = kCharbinHeaderSize;
+    const std::string json_blob(reinterpret_cast<const char*>(file.data() + json_start), static_cast<std::size_t>(json_len));
+    JsonValue root = parseJsonText(json_blob);
+    if (!root.isObject()) {
+        throw std::runtime_error("Character package metadata root must be an object: " + character_package_path);
+    }
+    return root;
+}
+
 } // namespace
 
 SceneConfig loadSceneConfig(const std::string& project_root, const std::string& scene_json_path) {
@@ -221,6 +254,7 @@ CharacterSpriteDefinition loadCharacterDefinition(const std::string& project_roo
     const JsonValue* profile_anims = profile ? profile->get("animations") : nullptr;
     out.idle = parseAnimation(profile_anims, "idle", CharacterAnimationDef{{0}, 250});
     out.walk = parseAnimation(profile_anims, "walk", CharacterAnimationDef{{0, 1, 2, 3}, 120});
+    out.run = parseAnimation(profile_anims, "run", out.walk);
     out.pause = parseAnimation(profile_anims, "pause", CharacterAnimationDef{{0}, 400});
     out.play = parseAnimation(profile_anims, "play", CharacterAnimationDef{{0,1,2,3,4,5,6,7,8,9}, 120});
 
@@ -232,8 +266,10 @@ CharacterSpriteDefinition loadCharacterDefinition(const std::string& project_roo
 
     std::string walk_sheet_id;
     std::string idle_sheet_id;
+    std::string run_sheet_id;
     std::string walk_anim_name = "walk";
     std::string idle_anim_name = "idle";
+    std::string run_anim_name = "run";
     for (const JsonValue& action : action_array->asArray()) {
         if (!action.isObject()) continue;
         const std::string action_id = strOr(action.get("id"), "");
@@ -245,6 +281,9 @@ CharacterSpriteDefinition loadCharacterDefinition(const std::string& project_roo
         } else if (action_id == "idle") {
             idle_sheet_id = sheet_id;
             if (!anim_name.empty()) idle_anim_name = anim_name;
+        } else if (action_id == "run") {
+            run_sheet_id = sheet_id;
+            if (!anim_name.empty()) run_anim_name = anim_name;
         }
     }
 
@@ -256,23 +295,34 @@ CharacterSpriteDefinition loadCharacterDefinition(const std::string& project_roo
         throw std::runtime_error("Character package has no usable sprite sheet selection: " + character_package_path);
     }
 
-    const JsonValue* selected_sheet = nullptr;
-    for (const JsonValue& sheet : sheet_array->asArray()) {
-        if (!sheet.isObject()) continue;
-        if (strOr(sheet.get("id"), "") == selected_sheet_id) {
-            selected_sheet = &sheet;
-            break;
+    const auto findSheetById = [sheet_array](const std::string& sheet_id) -> const JsonValue* {
+        if (sheet_id.empty()) {
+            return nullptr;
         }
-    }
+        for (const JsonValue& sheet : sheet_array->asArray()) {
+            if (!sheet.isObject()) continue;
+            if (strOr(sheet.get("id"), "") == sheet_id) {
+                return &sheet;
+            }
+        }
+        return nullptr;
+    };
+
+    const JsonValue* selected_sheet = findSheetById(selected_sheet_id);
     if (!selected_sheet || !selected_sheet->isObject()) {
         throw std::runtime_error("Character package selected sheet not found: " + selected_sheet_id + " in " + character_package_path);
     }
 
-    const std::string asset_id = strOr(selected_sheet->get("assetId"), "");
-    auto asset_it = assets.find(asset_id);
-    if (asset_it == assets.end()) {
-        throw std::runtime_error("Character package selected sheet asset not found: " + asset_id + " in " + character_package_path);
-    }
+    const auto findSheetAsset = [&assets, &character_package_path](const JsonValue& sheet) {
+        const std::string asset_id = strOr(sheet.get("assetId"), "");
+        auto asset_it = assets.find(asset_id);
+        if (asset_it == assets.end()) {
+            throw std::runtime_error("Character package selected sheet asset not found: " + asset_id + " in " + character_package_path);
+        }
+        return asset_it;
+    };
+
+    auto asset_it = findSheetAsset(*selected_sheet);
     out.texture_png_bytes = asset_it->second;
 
     std::string selected_profile_id = strOr(selected_sheet->get("profile"), profile_id);
@@ -282,6 +332,24 @@ CharacterSpriteDefinition loadCharacterDefinition(const std::string& project_roo
 
     out.idle = parseAnimationByName(sheet_anims, anim_root, idle_anim_name, out.idle);
     out.walk = parseAnimationByName(sheet_anims, anim_root, walk_anim_name, out.walk);
+    if (!run_sheet_id.empty()) {
+        const JsonValue* run_sheet = findSheetById(run_sheet_id);
+        if (run_sheet && run_sheet->isObject()) {
+            const std::string run_profile_id = strOr(run_sheet->get("profile"), profile_id);
+            const JsonValue* run_profile = profileObjectById(project_root, run_profile_id, profile_cache_root, profile_cache_loaded);
+            const JsonValue* run_sheet_anims = run_sheet->get("animations");
+            const JsonValue* run_anim_root = run_profile ? run_profile->get("animations") : profile_anims;
+            out.run = parseAnimationByName(run_sheet_anims, run_anim_root, run_anim_name, out.run);
+            out.has_run = !out.run.frames.empty();
+            if (out.has_run && run_sheet_id != selected_sheet_id) {
+                out.run_texture_png_bytes = findSheetAsset(*run_sheet)->second;
+            }
+        }
+    }
+    if (!out.has_run) {
+        out.run = out.walk;
+        out.run_texture_png_bytes.clear();
+    }
     out.pause = parseAnimationByName(sheet_anims, anim_root, "pause", out.pause);
     out.play = parseAnimationByName(sheet_anims, anim_root, "play", out.play);
     if (selected_profile) {
@@ -315,6 +383,34 @@ CharacterSpriteDefinition loadCharacterDefinition(const std::string& project_roo
         }
     }
 
+    return out;
+}
+
+CharacterPackageMetadata loadCharacterPackageMetadata(const std::string& character_package_path) {
+    const JsonValue root = readCharbinJsonRoot(character_package_path);
+
+    CharacterPackageMetadata out;
+    out.id = strOr(root.get("id"), "");
+    out.display_name = strOr(root.get("displayName"), out.id);
+
+    const JsonValue* metadata = root.get("metadata");
+    if (metadata && metadata->isObject()) {
+        out.character_type = strOr(metadata->get("characterType"), "npc");
+        out.movement_speed_profile = strOr(
+            metadata->get("movementSpeedProfile"),
+            strOr(metadata->get("movementProfile"), out.movement_speed_profile));
+        const JsonValue* partner = metadata->get("partnerPokemon");
+        if (partner && partner->isObject()) {
+            CharacterPackagePartnerPokemon p;
+            p.pokemon_id = strOr(partner->get("pokemonId"), "");
+            p.form_id = strOr(partner->get("formId"), "default");
+            p.nickname = strOr(partner->get("nickname"), "");
+            p.relationship = strOr(partner->get("relationship"), "");
+            if (!p.pokemon_id.empty()) {
+                out.partner_pokemon = std::move(p);
+            }
+        }
+    }
     return out;
 }
 

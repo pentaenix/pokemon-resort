@@ -74,6 +74,7 @@ AppMusicRequest AppScreenCoordinator::musicRequest() const {
 
 AppSfxRequests AppScreenCoordinator::consumeSfxRequests() {
     collectTransferFrameRequests();
+    collectOverworldFrameRequests();
     return frame_requests_.consumeSfxRequests();
 }
 

@@ -1,0 +1,70 @@
+{
+  "manifestVersion": 1,
+  "storageFormat": "glb",
+  "id": "Indigo_Plateau_Archway_mtl",
+  "displayName": "Indigo_Plateau_Archway_mtl",
+  "defaultYawDeg": 0,
+  "defaultScale": 1,
+  "compiledAt": "2026-06-18T21:02:55.826Z",
+  "sourceFormat": "obj",
+  "sourceFile": "Indigo_Plateau_Archway_mtl.glb",
+  "glbFile": "Indigo_Plateau_Archway_mtl.glb",
+  "modelFile": "Indigo_Plateau_Archway_mtl.glb",
+  "modelByteSize": 10400,
+  "modelHash": "d0b6c162c95fd761",
+  "footprintTiles": {
+    "w": 9,
+    "d": 4,
+    "h": 6
+  },
+  "renderFootprintTiles": {
+    "w": 9,
+    "d": 4,
+    "h": 6
+  },
+  "authoringFootprintTiles": {
+    "w": 9,
+    "d": 4,
+    "h": 6
+  },
+  "collisionFootprintTiles": {
+    "w": 9,
+    "d": 4,
+    "h": 6
+  },
+  "previewOffsetTiles": {
+    "x": 0,
+    "y": 0
+  },
+  "aabb": {
+    "min": [
+      -52.523441314697266,
+      2,
+      -9
+    ],
+    "max": [
+      78.7578125,
+      84.04296875,
+      43.910160064697266
+    ]
+  },
+  "vertexCount": 150,
+  "triangleCount": 111,
+  "materials": [
+    "h_kage_lm1",
+    "pke_gate_lm1"
+  ],
+  "textureCount": 2,
+  "convertedFromObj": true,
+  "sourceObj": "Indigo Plateau Archway.obj",
+  "materialsMeta": {
+    "h_kage_lm1": {
+      "textureResolved": "h_kage_lm1.png",
+      "textureName": "h_kage_lm1.png"
+    },
+    "pke_gate_lm1": {
+      "textureResolved": "pke_gate_lm1.png",
+      "textureName": "pke_gate_lm1.png"
+    }
+  }
+}

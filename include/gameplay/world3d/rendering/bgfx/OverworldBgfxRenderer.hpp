@@ -42,13 +42,15 @@ public:
         const camera::Gen4FollowCamera& camera,
         const camera::Vec3& player_pos,
         const SDL_Rect& player_source_rect,
+        bool player_use_run_texture,
         const terrain::ActorTerrainBinding& player_binding,
         int logical_w,
         int logical_h,
         int framebuffer_w,
         int framebuffer_h,
         const std::vector<rendering::CharacterBillboardDraw>& character_draws = {},
-        const std::vector<rendering::TextureBillboardDraw>& texture_draws = {});
+        const std::vector<rendering::TextureBillboardDraw>& texture_draws = {},
+        const std::string& debug_frame_counter_label = {});
 
     void queueScreenshot(const std::string& output_path);
 

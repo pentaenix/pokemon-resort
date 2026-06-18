@@ -1,0 +1,26 @@
+{
+  "_pokemonCollisionModeComment": "blockCell = non-follower Pokemon occupy their tile and block player/NPC movement; swap = Pokemon try to yield to the entering character, falling back to block if no valid tile is available. Follower Pokemon never collide with their own partner.",
+  "pokemonCollisionMode": "swap",
+  "characters": [
+    {
+      "id": "resort_box_pokemon_0",
+      "source": "firstResortPokemon",
+      "kind": "pokemon",
+      "spawn": [12, 12],
+      "facing": "south",
+      "behaviorProfile": "wander",
+      "movementSpeedProfile": "walk",
+      "followerPokemonFreedom": false
+    },
+    {
+      "id": "npc_watanave",
+      "characterPath": "assets/characters/npc/watanave.charbin",
+      "kind": "human",
+      "spawn": [15, 12],
+      "facing": "south",
+      "behaviorProfile": "idle",
+      "movementSpeedProfile": "walk",
+      "followerPokemonFreedom": false
+    }
+  ]
+}

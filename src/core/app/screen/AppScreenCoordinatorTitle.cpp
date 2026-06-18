@@ -1,5 +1,6 @@
 #include "core/app/screen/AppScreenCoordinator.hpp"
 
+#include "ui/Overworld3DTestScreen.hpp"
 #include "ui/TitleScreen.hpp"
 #include "ui/TransferFlowCoordinator.hpp"
 
@@ -16,6 +17,7 @@ void AppScreenCoordinator::updateTitle(double dt) {
                 frame_requests_.requestUserSettingsSave();
                 break;
             case TitleScreenEvent::OpenResort3DTestRequested:
+                overworld3d_test_.resetForNextLaunch();
                 title_screen_.prepareForOverworld3D();
                 active_screen_ = ActiveScreen::Overworld3DTest;
                 break;

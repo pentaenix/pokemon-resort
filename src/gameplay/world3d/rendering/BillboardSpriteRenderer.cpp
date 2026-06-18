@@ -249,14 +249,16 @@ void BillboardSpriteRenderer::render(
             int shadow_w = 2;
             int shadow_h = 2;
             if (shadow_config_.pixel_coherent) {
-                const float px_scale =
+                const float px_scale_x =
                     static_cast<float>(sprite_w) / std::max(1.0f, static_cast<float>(source_rect.w));
+                const float px_scale_y =
+                    static_cast<float>(sprite_h) / std::max(1.0f, static_cast<float>(source_rect.h));
                 shadow_w = std::max(
                     2,
-                    static_cast<int>(std::round(static_cast<float>(shadow_config_.texture_width_px) * px_scale)));
+                    static_cast<int>(std::round(static_cast<float>(shadow_config_.texture_width_px) * px_scale_x)));
                 shadow_h = std::max(
                     2,
-                    static_cast<int>(std::round(static_cast<float>(shadow_config_.texture_height_px) * px_scale)));
+                    static_cast<int>(std::round(static_cast<float>(shadow_config_.texture_height_px) * px_scale_y)));
             } else {
                 const float shadow_scale = camera.perspectiveScale(shd);
                 const float sprite_w_px = static_cast<float>(source_rect.w);

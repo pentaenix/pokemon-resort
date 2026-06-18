@@ -32,7 +32,9 @@ struct CharacterBillboardDraw {
     float tint_r = 1.0f;
     float tint_g = 1.0f;
     float tint_b = 1.0f;
+    float depth_priority_bias = 0.0f;
     bool draw_shadow = true;
+    bool use_run_texture = false;
 };
 
 struct TextureBillboardDraw {

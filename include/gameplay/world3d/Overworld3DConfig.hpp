@@ -22,6 +22,7 @@ struct CharacterSpriteDefinition {
     std::string id;
     std::string texture_path;
     std::vector<std::uint8_t> texture_png_bytes;
+    std::vector<std::uint8_t> run_texture_png_bytes;
     int frame_width = 32;
     int frame_height = 32;
     int columns = 4;
@@ -31,6 +32,8 @@ struct CharacterSpriteDefinition {
     int row_east = 2;
     int row_north = 3;
     float world_height = 32.0f;
+    // Legacy SDL/perspective billboard scale. The bgfx pixel compositor uses source
+    // frame size * WorldViewportConfig::internal_scale for normal overworld sprites.
     float sprite_scale = 1.0f;
     float world_offset_x = 0.0f;
     float world_offset_y = 0.0f;
@@ -40,8 +43,10 @@ struct CharacterSpriteDefinition {
     int screen_offset_y_px = 0;
     CharacterAnimationDef idle;
     CharacterAnimationDef walk;
+    CharacterAnimationDef run;
     CharacterAnimationDef pause;
     CharacterAnimationDef play;
+    bool has_run = false;
 };
 
 struct MapVisualConfig {
@@ -66,10 +71,37 @@ struct PixelScaleConfig {
     int map_pixels_per_tile = 16;
     // World units per source art pixel. <= 0 derives tile_size / map_pixels_per_tile.
     float world_units_per_pixel = 0.0f;
-    // Single presentation zoom: larger moves the camera closer (sprites and map scale together).
+    // Deprecated compatibility input. New configs should use SceneCameraConfig::distance_scale.
     float zoom = 1.0f;
     float zoom_min = 0.5f;
     float zoom_max = 3.0f;
+    // Deprecated compatibility input. New configs should use WorldViewportConfig.
+    bool pixel_perfect_world = true;
+    int world_render_width = 400;
+    int world_render_height = 250;
+};
+
+struct WorldViewportConfig {
+    bool enabled = true;
+    int base_width = 400;
+    int base_height = 250;
+    int internal_scale = 1;
+};
+
+struct SceneCameraConfig {
+    float distance_scale = 1.0f;
+    float distance_scale_min = 0.5f;
+    float distance_scale_max = 3.0f;
+};
+
+struct PixelCompositorConfig {
+    bool snap_anchors = true;
+    std::string sprite_sizing = "native";
+};
+
+struct PresentationConfig {
+    std::string scale_mode = "integerFit";
+    float zoom = 1.0f;
 };
 
 struct TerrainColor {
@@ -217,6 +249,10 @@ struct SceneConfig {
     float billboard_tile_anchor_forward = 0.0f;
     float billboard_tile_anchor_right = 0.0f;
     PixelScaleConfig pixel_scale;
+    WorldViewportConfig world_viewport;
+    SceneCameraConfig scene_camera;
+    PixelCompositorConfig pixel_compositor;
+    PresentationConfig presentation;
     SpriteShadowConfig sprite_shadow;
     MapVisualConfig visual;
     GridConfig grid;

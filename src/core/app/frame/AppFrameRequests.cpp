@@ -34,6 +34,10 @@ void AppFrameRequests::requestSaveSfx() {
     sfx_requests_.save = true;
 }
 
+void AppFrameRequests::requestOverworldBlockedSfxIf(bool condition) {
+    sfx_requests_.overworld_blocked = sfx_requests_.overworld_blocked || condition;
+}
+
 void AppFrameRequests::requestUserSettingsSave() {
     user_settings_save_requested_ = true;
 }

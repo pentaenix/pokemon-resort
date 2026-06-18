@@ -59,6 +59,7 @@ private:
     void beginSuccessfulSaveLoadingScreen();
     void finishLoadingTransition();
     void collectTransferFrameRequests();
+    void collectOverworldFrameRequests();
 
     TitleScreen& title_screen_;
     AppLoadingCoordinator& loading_;

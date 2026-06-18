@@ -1,5 +1,8 @@
 #include "gameplay/world3d/rendering/bgfx/BillboardBgfxDrawer.hpp"
 
+#include "gameplay/world3d/rendering/PixelScale.hpp"
+#include "gameplay/world3d/rendering/WorldBillboardCompositor.hpp"
+
 #include <algorithm>
 #include <cmath>
 
@@ -26,6 +29,15 @@ std::uint64_t samplerFlags() {
     return BGFX_SAMPLER_MIN_POINT | BGFX_SAMPLER_MAG_POINT | BGFX_SAMPLER_MIP_POINT;
 }
 
+std::uint32_t nonStackingShadowStencil() {
+    return BGFX_STENCIL_TEST_EQUAL |
+           BGFX_STENCIL_FUNC_REF(0) |
+           BGFX_STENCIL_FUNC_RMASK(0xff) |
+           BGFX_STENCIL_OP_FAIL_S_KEEP |
+           BGFX_STENCIL_OP_FAIL_Z_KEEP |
+           BGFX_STENCIL_OP_PASS_Z_INCRSAT;
+}
+
 camera::Vec3 horizontalCameraRight(const camera::Gen4FollowCamera& camera) {
     const auto pose = camera.pose();
     camera::Vec3 right{pose.right.x, 0.0f, pose.right.z};
@@ -36,9 +48,54 @@ camera::Vec3 horizontalCameraRight(const camera::Gen4FollowCamera& camera) {
     return camera::Vec3{right.x / len, 0.0f, right.z / len};
 }
 
+camera::Vec3 add(const camera::Vec3& a, const camera::Vec3& b) {
+    return camera::Vec3{a.x + b.x, a.y + b.y, a.z + b.z};
+}
+
+camera::Vec3 mul(const camera::Vec3& v, float s) {
+    return camera::Vec3{v.x * s, v.y * s, v.z * s};
+}
+
+camera::Vec3 screenToWorldOnCameraPlane(
+    const camera::Gen4FollowCamera::Pose& pose,
+    float screen_x,
+    float screen_y,
+    float depth,
+    int viewport_w,
+    int viewport_h) {
+    constexpr float kPi = 3.1415926535f;
+    const float fov_y = pose.preset.fov_y_deg * (kPi / 180.0f);
+    const float f = 1.0f / std::tan(std::max(0.001f, fov_y * 0.5f));
+    const float aspect =
+        static_cast<float>(std::max(1, viewport_w)) / static_cast<float>(std::max(1, viewport_h));
+    const float ndc_x = ((screen_x / static_cast<float>(std::max(1, viewport_w))) - 0.5f) * 2.0f;
+    const float ndc_y = (0.5f - (screen_y / static_cast<float>(std::max(1, viewport_h)))) * 2.0f;
+    const float cam_x = ndc_x * depth * aspect / f;
+    const float cam_y = ndc_y * depth / f;
+
+    camera::Vec3 world = pose.position;
+    world = add(world, mul(pose.right, cam_x));
+    world = add(world, mul(pose.up, cam_y));
+    world = add(world, mul(pose.forward, depth));
+    return world;
+}
+
 } // namespace
 
 BillboardBgfxDrawer::BillboardBgfxDrawer(Dependencies dependencies) : deps_(std::move(dependencies)) {}
+
+void BillboardBgfxDrawer::setWorldViewport(
+    int base_width,
+    int base_height,
+    int render_width,
+    int render_height,
+    int internal_scale) {
+    deps_.base_viewport_w = std::max(1, base_width);
+    deps_.base_viewport_h = std::max(1, base_height);
+    deps_.render_viewport_w = std::max(1, render_width);
+    deps_.render_viewport_h = std::max(1, render_height);
+    deps_.internal_scale = std::max(1, internal_scale);
+}
 
 void BillboardBgfxDrawer::submitGroundShadow(
     const camera::Gen4FollowCamera& camera,
@@ -49,13 +106,85 @@ void BillboardBgfxDrawer::submitGroundShadow(
         return;
     }
 
+    if (deps_.scene->world_viewport.enabled) {
+        const int base_w = std::max(1, deps_.base_viewport_w);
+        const int base_h = std::max(1, deps_.base_viewport_h);
+        const int render_w = std::max(1, deps_.render_viewport_w);
+        const int render_h = std::max(1, deps_.render_viewport_h);
+        const int scale = std::max(1, deps_.internal_scale);
+        const rendering::QuantizedShadowRect rect = rendering::projectWorldShadowRect(
+            *deps_.scene,
+            camera,
+            placement,
+            source_rect,
+            shadow_cfg,
+            base_w,
+            base_h,
+            scale);
+        if (!rect.visible) {
+            return;
+        }
+
+        const auto pose = camera.pose();
+        const float quad_depth = std::max(pose.preset.near_clip + 0.001f, rect.depth - 0.04f);
+        const float x0_i = static_cast<float>(rect.internal_x);
+        const float y0_i = static_cast<float>(rect.internal_y);
+        const float x1_i = static_cast<float>(rect.internal_x + rect.internal_w);
+        const float y1_i = static_cast<float>(rect.internal_y + rect.internal_h);
+        const camera::Vec3 p0 = screenToWorldOnCameraPlane(
+            pose, x0_i, y0_i, quad_depth, render_w, render_h);
+        const camera::Vec3 p1 = screenToWorldOnCameraPlane(
+            pose, x1_i, y0_i, quad_depth, render_w, render_h);
+        const camera::Vec3 p2 = screenToWorldOnCameraPlane(
+            pose, x1_i, y1_i, quad_depth, render_w, render_h);
+        const camera::Vec3 p3 = screenToWorldOnCameraPlane(
+            pose, x0_i, y1_i, quad_depth, render_w, render_h);
+
+        const std::uint32_t color = 0xffffffffu;
+        bgfx::TransientVertexBuffer tvb;
+        bgfx::TransientIndexBuffer tib;
+        if (!bgfx::allocTransientBuffers(&tvb, deps_.layout, 4, &tib, 6)) {
+            return;
+        }
+        auto* verts = reinterpret_cast<Vertex*>(tvb.data);
+        verts[0] = Vertex{p0.x, p0.y, p0.z, color, 0.0f, 0.0f};
+        verts[1] = Vertex{p1.x, p1.y, p1.z, color, 1.0f, 0.0f};
+        verts[2] = Vertex{p2.x, p2.y, p2.z, color, 1.0f, 1.0f};
+        verts[3] = Vertex{p3.x, p3.y, p3.z, color, 0.0f, 1.0f};
+        auto* idx = reinterpret_cast<std::uint16_t*>(tib.data);
+        idx[0] = 0;
+        idx[1] = 1;
+        idx[2] = 2;
+        idx[3] = 0;
+        idx[4] = 2;
+        idx[5] = 3;
+
+        const float br = std::max(0.0f, deps_.scene->lighting_brightness);
+        float tint[4] = {
+            deps_.scene->lighting_tint_r * br,
+            deps_.scene->lighting_tint_g * br,
+            deps_.scene->lighting_tint_b * br,
+            0.01f};
+        float model[16];
+        identity(model);
+        bgfx::setTransform(model);
+        bgfx::setVertexBuffer(0, &tvb);
+        bgfx::setIndexBuffer(&tib);
+        bgfx::setTexture(0, deps_.tex_uniform, deps_.shadow_texture.handle, samplerFlags());
+        bgfx::setUniform(deps_.tint_cutoff_uniform, tint);
+        bgfx::setStencil(nonStackingShadowStencil());
+        bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_BLEND_ALPHA);
+        bgfx::submit(deps_.view_id, deps_.billboard_program);
+        return;
+    }
+
     float half_w = placement.world_w * 0.5f;
     float half_h = placement.world_h * 0.5f;
     if (shadow_cfg.pixel_coherent) {
-        half_w = placement.world_w * 0.5f *
-            (static_cast<float>(shadow_cfg.texture_width_px) / std::max(1.0f, static_cast<float>(source_rect.w)));
-        half_h = placement.world_h * 0.5f *
-            (static_cast<float>(shadow_cfg.texture_height_px) / std::max(1.0f, static_cast<float>(source_rect.h)));
+        const float base_sprite_h = authoredPixelsWorldUnits(*deps_.scene, static_cast<float>(source_rect.h), 1.0f);
+        const float sprite_scale = placement.world_h / std::max(0.001f, base_sprite_h);
+        half_w = authoredPixelsWorldUnits(*deps_.scene, static_cast<float>(shadow_cfg.texture_width_px), sprite_scale) * 0.5f;
+        half_h = authoredPixelsWorldUnits(*deps_.scene, static_cast<float>(shadow_cfg.texture_height_px), sprite_scale) * 0.5f;
     } else {
         half_w = placement.world_w * shadow_cfg.radius_x_tiles * 2.0f * 0.5f;
         half_h = placement.world_h * shadow_cfg.radius_z_tiles * 2.0f * 0.5f;
@@ -104,9 +233,8 @@ void BillboardBgfxDrawer::submitGroundShadow(
     bgfx::setIndexBuffer(&tib);
     bgfx::setTexture(0, deps_.tex_uniform, deps_.shadow_texture.handle, samplerFlags());
     bgfx::setUniform(deps_.tint_cutoff_uniform, tint);
-    bgfx::setState(
-        BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_DEPTH_TEST_LESS |
-        BGFX_STATE_BLEND_ALPHA);
+    bgfx::setStencil(nonStackingShadowStencil());
+    bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_BLEND_ALPHA);
     bgfx::submit(deps_.view_id, deps_.billboard_program);
     (void)camera;
 }
@@ -183,6 +311,97 @@ void BillboardBgfxDrawer::submitBillboardQuad(
     bgfx::submit(deps_.view_id, deps_.billboard_program);
 }
 
+void BillboardBgfxDrawer::submitWorldBillboardQuad(
+    const camera::Gen4FollowCamera& camera,
+    const BillboardPlacement& placement,
+    const TextureGpuResource& texture,
+    const SDL_Rect& source_rect,
+    int screen_offset_x_px,
+    float tint_r,
+    float tint_g,
+    float tint_b,
+    float vertex_alpha,
+    float alpha_cutoff,
+    float depth_priority_bias,
+    std::uint64_t state) const {
+    if (!texture.valid() || !placement.visible || !deps_.scene) {
+        return;
+    }
+
+    const int base_w = std::max(1, deps_.base_viewport_w);
+    const int base_h = std::max(1, deps_.base_viewport_h);
+    const int render_w = std::max(1, deps_.render_viewport_w);
+    const int render_h = std::max(1, deps_.render_viewport_h);
+    const int scale = std::max(1, deps_.internal_scale);
+
+    const rendering::QuantizedBillboardRect rect = rendering::projectWorldBillboardRect(
+        *deps_.scene,
+        camera,
+        placement,
+        source_rect,
+        base_w,
+        base_h,
+        scale,
+        screen_offset_x_px);
+    if (!rect.visible) {
+        return;
+    }
+
+    const auto pose = camera.pose();
+    (void)depth_priority_bias;
+    const float quad_depth = std::max(pose.preset.near_clip + 0.001f, rect.depth - 0.05f);
+    const float x0_i = static_cast<float>(rect.internal_x);
+    const float y0_i = static_cast<float>(rect.internal_y);
+    const float x1_i = static_cast<float>(rect.internal_x + rect.internal_w);
+    const float y1_i = static_cast<float>(rect.internal_y + rect.internal_h);
+    const camera::Vec3 p0 = screenToWorldOnCameraPlane(
+        pose, x0_i, y0_i, quad_depth, render_w, render_h);
+    const camera::Vec3 p1 = screenToWorldOnCameraPlane(
+        pose, x1_i, y0_i, quad_depth, render_w, render_h);
+    const camera::Vec3 p2 = screenToWorldOnCameraPlane(
+        pose, x1_i, y1_i, quad_depth, render_w, render_h);
+    const camera::Vec3 p3 = screenToWorldOnCameraPlane(
+        pose, x0_i, y1_i, quad_depth, render_w, render_h);
+
+    const float u0 = static_cast<float>(source_rect.x) / static_cast<float>(texture.width);
+    const float v0 = static_cast<float>(source_rect.y) / static_cast<float>(texture.height);
+    const float u1 =
+        static_cast<float>(source_rect.x + source_rect.w) / static_cast<float>(texture.width);
+    const float v1 =
+        static_cast<float>(source_rect.y + source_rect.h) / static_cast<float>(texture.height);
+    const float br = std::max(0.0f, deps_.scene->lighting_brightness);
+    const std::uint32_t color = packAbgr(tint_r * br, tint_g * br, tint_b * br, vertex_alpha);
+
+    bgfx::TransientVertexBuffer tvb;
+    bgfx::TransientIndexBuffer tib;
+    if (!bgfx::allocTransientBuffers(&tvb, deps_.layout, 4, &tib, 6)) {
+        return;
+    }
+    auto* verts = reinterpret_cast<Vertex*>(tvb.data);
+    verts[0] = Vertex{p0.x, p0.y, p0.z, color, u0, v0};
+    verts[1] = Vertex{p1.x, p1.y, p1.z, color, u1, v0};
+    verts[2] = Vertex{p2.x, p2.y, p2.z, color, u1, v1};
+    verts[3] = Vertex{p3.x, p3.y, p3.z, color, u0, v1};
+    auto* idx = reinterpret_cast<std::uint16_t*>(tib.data);
+    idx[0] = 0;
+    idx[1] = 1;
+    idx[2] = 2;
+    idx[3] = 0;
+    idx[4] = 2;
+    idx[5] = 3;
+
+    float tint_uniform[4] = {1.0f, 1.0f, 1.0f, alpha_cutoff};
+    float model[16];
+    identity(model);
+    bgfx::setTransform(model);
+    bgfx::setVertexBuffer(0, &tvb);
+    bgfx::setIndexBuffer(&tib);
+    bgfx::setTexture(0, deps_.tex_uniform, texture.handle, samplerFlags());
+    bgfx::setUniform(deps_.tint_cutoff_uniform, tint_uniform);
+    bgfx::setState(state);
+    bgfx::submit(deps_.view_id, deps_.billboard_program);
+}
+
 void BillboardBgfxDrawer::submitCharacterDraw(
     const camera::Gen4FollowCamera& camera,
     const CharacterBillboardDraw& draw) const {
@@ -190,37 +409,77 @@ void BillboardBgfxDrawer::submitCharacterDraw(
         return;
     }
     const CharacterGpuTextures textures = deps_.textures_for_character(*draw.character);
-    if (!textures.color.valid()) {
+    const TextureGpuResource& color_texture =
+        draw.use_run_texture && textures.run_color.valid() ? textures.run_color : textures.color;
+    const TextureGpuResource& white_texture =
+        draw.use_run_texture && textures.run_white.valid() ? textures.run_white : textures.white;
+    if (!color_texture.valid()) {
         return;
     }
 
-    const std::uint64_t opaque_state =
-        BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_WRITE_Z | BGFX_STATE_DEPTH_TEST_LESS;
+    const std::uint64_t opaque_state = BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A;
     const std::uint64_t blend_state = opaque_state | BGFX_STATE_BLEND_ALPHA;
-    submitBillboardQuad(
-        camera,
-        draw.placement,
-        textures.color,
-        draw.source_rect,
-        draw.tint_r,
-        draw.tint_g,
-        draw.tint_b,
-        draw.alpha_multiplier,
-        0.5f,
-        draw.alpha_multiplier < 0.999f ? blend_state : opaque_state);
-
-    if (draw.white_overlay_alpha > 0.0f && textures.white.valid()) {
+    const bool use_pixel_stable_billboard = deps_.scene && deps_.scene->world_viewport.enabled;
+    if (use_pixel_stable_billboard) {
+        submitWorldBillboardQuad(
+            camera,
+            draw.placement,
+            color_texture,
+            draw.source_rect,
+            draw.character->screen_offset_x_px,
+            draw.tint_r,
+            draw.tint_g,
+            draw.tint_b,
+            draw.alpha_multiplier,
+            0.5f,
+            draw.depth_priority_bias,
+            draw.alpha_multiplier < 0.999f ? blend_state : opaque_state);
+    } else {
         submitBillboardQuad(
             camera,
             draw.placement,
-            textures.white,
+            color_texture,
             draw.source_rect,
-            1.0f,
-            1.0f,
-            1.0f,
-            draw.white_overlay_alpha,
-            0.01f,
-            blend_state);
+            draw.tint_r,
+            draw.tint_g,
+            draw.tint_b,
+            draw.alpha_multiplier,
+            0.5f,
+            draw.alpha_multiplier < 0.999f ? blend_state : opaque_state);
+    }
+
+    if (draw.white_overlay_alpha > 0.0f && white_texture.valid()) {
+        if (use_pixel_stable_billboard) {
+            CharacterBillboardDraw overlay = draw;
+            overlay.tint_r = 1.0f;
+            overlay.tint_g = 1.0f;
+            overlay.tint_b = 1.0f;
+            submitWorldBillboardQuad(
+                camera,
+                overlay.placement,
+                white_texture,
+                overlay.source_rect,
+                overlay.character->screen_offset_x_px,
+                overlay.tint_r,
+                overlay.tint_g,
+                overlay.tint_b,
+                draw.white_overlay_alpha,
+                0.01f,
+                overlay.depth_priority_bias,
+                blend_state);
+        } else {
+            submitBillboardQuad(
+                camera,
+                draw.placement,
+                white_texture,
+                draw.source_rect,
+                1.0f,
+                1.0f,
+                1.0f,
+                draw.white_overlay_alpha,
+                0.01f,
+                blend_state);
+        }
     }
 }
 
@@ -248,19 +507,34 @@ void BillboardBgfxDrawer::submitTextureDraw(
         return;
     }
     const std::uint64_t blend_state =
-        BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_WRITE_Z | BGFX_STATE_DEPTH_TEST_LESS |
-        BGFX_STATE_BLEND_ALPHA;
-    submitBillboardQuad(
-        camera,
-        draw.placement,
-        texture,
-        draw.source_rect,
-        1.0f,
-        1.0f,
-        1.0f,
-        1.0f,
-        0.5f,
-        blend_state);
+        BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_BLEND_ALPHA;
+    if (deps_.scene && deps_.scene->world_viewport.enabled) {
+        submitWorldBillboardQuad(
+            camera,
+            draw.placement,
+            texture,
+            draw.source_rect,
+            0,
+            1.0f,
+            1.0f,
+            1.0f,
+            1.0f,
+            0.5f,
+            0.0f,
+            blend_state);
+    } else {
+        submitBillboardQuad(
+            camera,
+            draw.placement,
+            texture,
+            draw.source_rect,
+            1.0f,
+            1.0f,
+            1.0f,
+            1.0f,
+            0.5f,
+            blend_state);
+    }
 }
 
 } // namespace pr::gameplay::world3d::rendering::bgfx_backend

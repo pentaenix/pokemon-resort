@@ -14,6 +14,7 @@ public:
     void requestPutdownSfxIf(bool condition);
     void requestErrorSfxIf(bool condition);
     void requestSaveSfx();
+    void requestOverworldBlockedSfxIf(bool condition);
     void requestUserSettingsSave();
 
     AppSfxRequests consumeSfxRequests();

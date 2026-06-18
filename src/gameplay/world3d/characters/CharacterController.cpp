@@ -18,11 +18,14 @@ bool isCardinalRampSpecial(int special) {
     return special >= 2 && special <= 5;
 }
 
-constexpr float kTurnOnlyTapWindowSeconds = 0.065f;
-
 } // namespace
 
-CharacterController::CharacterController(const SceneConfig& scene) {
+CharacterController::CharacterController(
+    const SceneConfig& scene,
+    float move_speed_units_per_second,
+    float turn_step_delay_seconds) {
+    move_speed_units_per_second_ = std::max(1.0f, move_speed_units_per_second);
+    turn_step_delay_seconds_ = std::clamp(turn_step_delay_seconds, 0.0f, 0.25f);
     tile_size_ = scene.grid.tile_size;
     grid_width_ = std::max(1, scene.grid.width);
     grid_height_ = std::max(1, scene.grid.height);
@@ -35,6 +38,8 @@ CharacterController::CharacterController(const SceneConfig& scene) {
     terrain_scene_.terrain.specials = terrain_specials_;
     tile_x_ = std::clamp(scene.player.spawn_tile_x, 0, grid_width_ - 1);
     tile_y_ = std::clamp(scene.player.spawn_tile_y, 0, grid_height_ - 1);
+    step_start_x_ = tile_x_;
+    step_start_y_ = tile_y_;
     step_dest_x_ = tile_x_;
     step_dest_y_ = tile_y_;
     pos_.x = (static_cast<float>(tile_x_) + 0.5f) * tile_size_;
@@ -43,6 +48,20 @@ CharacterController::CharacterController(const SceneConfig& scene) {
     move_start_ = pos_;
     move_target_ = pos_;
     facing_ = scene.player.facing;
+}
+
+void CharacterController::setMoveSpeedUnitsPerSecond(float speed) {
+    move_speed_units_per_second_ = std::max(1.0f, speed);
+}
+
+CharacterController::MovementSegment CharacterController::movementSegment() const {
+    return MovementSegment{
+        moving_,
+        step_start_x_,
+        step_start_y_,
+        step_dest_x_,
+        step_dest_y_,
+        move_t_};
 }
 
 float CharacterController::tileWorldHeight(int tx, int ty) const {
@@ -158,7 +177,12 @@ bool CharacterController::tileBlocked(int tx, int ty) const {
     return row[static_cast<std::size_t>(tx)] != 0;
 }
 
-void CharacterController::moveInput(int dx, int dy, double dt) {
+CharacterController::MoveInputResult CharacterController::moveInput(
+    int dx,
+    int dy,
+    double dt,
+    const std::function<bool(int from_tx, int from_ty, int to_tx, int to_ty)>& can_enter_tile) {
+    MoveInputResult result{};
     if (!moving_) {
         pos_.y = terrainBinding().simulation_y;
     }
@@ -182,7 +206,7 @@ void CharacterController::moveInput(int dx, int dy, double dt) {
             }
         }
         if (moving_) {
-            return;
+            return result;
         }
     }
 
@@ -194,7 +218,7 @@ void CharacterController::moveInput(int dx, int dy, double dt) {
         if (!finished_step_this_tick) {
             moving_ = false;
         }
-        return;
+        return result;
     }
 
     if (std::abs(dx) >= std::abs(dy)) {
@@ -219,7 +243,7 @@ void CharacterController::moveInput(int dx, int dy, double dt) {
         pending_turn_elapsed_s_ = 0.0f;
         pending_turn_active_ = true;
         moving_ = false;
-        return;
+        return result;
     }
 
     if (pending_turn_active_ &&
@@ -227,9 +251,9 @@ void CharacterController::moveInput(int dx, int dy, double dt) {
         pending_turn_dx_ == dx &&
         pending_turn_dy_ == dy) {
         pending_turn_elapsed_s_ += static_cast<float>(dt);
-        if (pending_turn_elapsed_s_ < kTurnOnlyTapWindowSeconds) {
+        if (pending_turn_elapsed_s_ < turn_step_delay_seconds_) {
             moving_ = false;
-            return;
+            return result;
         }
     }
     pending_turn_active_ = false;
@@ -239,20 +263,31 @@ void CharacterController::moveInput(int dx, int dy, double dt) {
 
     const int dest_x = tile_x_ + dx;
     const int dest_y = tile_y_ + dy;
+    result.attempted_step = true;
     if (dest_x < 0 || dest_x >= grid_width_ || dest_y < 0 || dest_y >= grid_height_) {
         moving_ = false;
-        return;
+        result.blocked = true;
+        return result;
     }
     if (tileBlocked(dest_x, dest_y)) {
         moving_ = false;
-        return;
+        result.blocked = true;
+        return result;
     }
     bool smooth_ramp = false;
     if (!canTraverseHeightDelta(tile_x_, tile_y_, dest_x, dest_y, dx, dy, smooth_ramp)) {
         moving_ = false;
-        return;
+        result.blocked = true;
+        return result;
+    }
+    if (can_enter_tile && !can_enter_tile(tile_x_, tile_y_, dest_x, dest_y)) {
+        moving_ = false;
+        result.blocked = true;
+        return result;
     }
 
+    step_start_x_ = tile_x_;
+    step_start_y_ = tile_y_;
     step_dest_x_ = dest_x;
     step_dest_y_ = dest_y;
     step_motor_ = terrain::GridStepMotor::beginStep(
@@ -275,6 +310,7 @@ void CharacterController::moveInput(int dx, int dy, double dt) {
                          .simulation_y;
     move_t_ = 0.0f;
     moving_ = true;
+    return result;
 }
 
 void CharacterController::stop() {

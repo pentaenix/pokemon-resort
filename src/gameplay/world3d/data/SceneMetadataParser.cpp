@@ -36,12 +36,57 @@ void applyPixelScaleConfig(PixelScaleConfig& out, const JsonValue* pixel_scale) 
     out.zoom = static_cast<float>(numOr(pixel_scale->get("zoom"), out.zoom));
     out.zoom_min = static_cast<float>(numOr(pixel_scale->get("zoomMin"), out.zoom_min));
     out.zoom_max = static_cast<float>(numOr(pixel_scale->get("zoomMax"), out.zoom_max));
+    out.pixel_perfect_world = boolOr(pixel_scale->get("pixelPerfectWorld"), out.pixel_perfect_world);
+    out.world_render_width = intOr(pixel_scale->get("worldRenderWidth"), out.world_render_width);
+    out.world_render_height = intOr(pixel_scale->get("worldRenderHeight"), out.world_render_height);
     out.zoom_min = std::max(0.01f, out.zoom_min);
     out.zoom_max = std::max(out.zoom_min, out.zoom_max);
     out.zoom = std::clamp(out.zoom, out.zoom_min, out.zoom_max);
+    out.world_render_width = std::clamp(out.world_render_width, 160, 1920);
+    out.world_render_height = std::clamp(out.world_render_height, 120, 1080);
     if (out.world_units_per_pixel > 0.0f) {
         out.world_units_per_pixel = std::max(0.001f, out.world_units_per_pixel);
     }
+}
+
+void applyWorldViewportConfig(WorldViewportConfig& out, const JsonValue* world_viewport) {
+    if (!world_viewport || !world_viewport->isObject()) return;
+    out.enabled = boolOr(world_viewport->get("enabled"), out.enabled);
+    out.base_width = intOr(world_viewport->get("baseWidth"), out.base_width);
+    out.base_height = intOr(world_viewport->get("baseHeight"), out.base_height);
+    out.internal_scale = intOr(world_viewport->get("internalScale"), out.internal_scale);
+    out.base_width = std::clamp(out.base_width, 160, 1920);
+    out.base_height = std::clamp(out.base_height, 120, 1080);
+    out.internal_scale = std::clamp(out.internal_scale, 1, 4);
+}
+
+void applySceneCameraRenderConfig(SceneCameraConfig& out, const JsonValue* scene_camera) {
+    if (!scene_camera || !scene_camera->isObject()) return;
+    out.distance_scale = static_cast<float>(numOr(scene_camera->get("distanceScale"), out.distance_scale));
+    out.distance_scale_min = static_cast<float>(numOr(scene_camera->get("distanceScaleMin"), out.distance_scale_min));
+    out.distance_scale_max = static_cast<float>(numOr(scene_camera->get("distanceScaleMax"), out.distance_scale_max));
+    out.distance_scale_min = std::max(0.01f, out.distance_scale_min);
+    out.distance_scale_max = std::max(out.distance_scale_min, out.distance_scale_max);
+    out.distance_scale = std::clamp(out.distance_scale, out.distance_scale_min, out.distance_scale_max);
+}
+
+void applyPixelCompositorConfig(PixelCompositorConfig& out, const JsonValue* pixel_compositor) {
+    if (!pixel_compositor || !pixel_compositor->isObject()) return;
+    out.snap_anchors = boolOr(pixel_compositor->get("snapAnchors"), out.snap_anchors);
+    out.sprite_sizing = strOr(pixel_compositor->get("spriteSizing"), out.sprite_sizing);
+    if (out.sprite_sizing != "native") {
+        out.sprite_sizing = "native";
+    }
+}
+
+void applyPresentationConfig(PresentationConfig& out, const JsonValue* presentation) {
+    if (!presentation || !presentation->isObject()) return;
+    out.scale_mode = strOr(presentation->get("scaleMode"), out.scale_mode);
+    if (out.scale_mode != "integerFit") {
+        out.scale_mode = "integerFit";
+    }
+    out.zoom = static_cast<float>(numOr(presentation->get("zoom"), out.zoom));
+    out.zoom = std::clamp(out.zoom, 0.25f, 8.0f);
 }
 
 void applyColor(TerrainColor& out, const JsonValue* color) {
@@ -389,6 +434,22 @@ SceneConfig parseSceneMetadata(
             }
         }
         applyPixelScaleConfig(out.pixel_scale, render_root.get("pixelScale"));
+        out.world_viewport.enabled = out.pixel_scale.pixel_perfect_world;
+        out.world_viewport.base_width = out.pixel_scale.world_render_width;
+        out.world_viewport.base_height = out.pixel_scale.world_render_height;
+        out.scene_camera.distance_scale = out.pixel_scale.zoom;
+        out.scene_camera.distance_scale_min = out.pixel_scale.zoom_min;
+        out.scene_camera.distance_scale_max = out.pixel_scale.zoom_max;
+        applyWorldViewportConfig(out.world_viewport, render_root.get("worldViewport"));
+        applySceneCameraRenderConfig(out.scene_camera, render_root.get("sceneCamera"));
+        applyPixelCompositorConfig(out.pixel_compositor, render_root.get("pixelCompositor"));
+        applyPresentationConfig(out.presentation, render_root.get("presentation"));
+        out.pixel_scale.pixel_perfect_world = out.world_viewport.enabled;
+        out.pixel_scale.world_render_width = out.world_viewport.base_width * out.world_viewport.internal_scale;
+        out.pixel_scale.world_render_height = out.world_viewport.base_height * out.world_viewport.internal_scale;
+        out.pixel_scale.zoom = out.scene_camera.distance_scale;
+        out.pixel_scale.zoom_min = out.scene_camera.distance_scale_min;
+        out.pixel_scale.zoom_max = out.scene_camera.distance_scale_max;
     }
 
     applyLightingConfig(out, root.get("lighting"));

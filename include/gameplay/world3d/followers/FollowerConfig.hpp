@@ -50,6 +50,7 @@ struct FollowerSessionConfig {
     std::string pokeball_id = "poke_ball";
     std::string nature;
     std::string forced_behavior;
+    std::string movement_mode = "trail";
 };
 
 FollowerSummonConfig loadFollowerSummonConfig(const std::string& project_root);

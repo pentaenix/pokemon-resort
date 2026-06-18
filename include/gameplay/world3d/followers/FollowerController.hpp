@@ -2,6 +2,8 @@
 
 #include "gameplay/world3d/Overworld3DConfig.hpp"
 #include "gameplay/world3d/camera/Gen4FollowCamera.hpp"
+#include "gameplay/world3d/characters/CharacterController.hpp"
+#include "gameplay/world3d/characters/CharacterMovementConfig.hpp"
 #include "gameplay/world3d/characters/SpriteSheetAnimator.hpp"
 #include "gameplay/world3d/effects/LandingDustSystem.hpp"
 #include "gameplay/world3d/followers/FollowerConfig.hpp"
@@ -17,6 +19,7 @@
 #include <memory>
 #include <optional>
 #include <random>
+#include <utility>
 
 namespace pr::gameplay::world3d::followers {
 
@@ -41,13 +44,16 @@ public:
         double dt,
         const camera::Vec3& player_world_pos,
         FacingDirection player_facing,
+        const characters::CharacterController::MovementSegment& player_segment,
         bool player_idle,
-        bool player_activity);
+        bool player_activity,
+        bool player_running);
     bool visibleForSimulation() const;
     std::optional<float> renderDepth(
         const camera::Gen4FollowCamera& camera,
         int viewport_w,
         int viewport_h) const;
+    std::vector<std::pair<int, int>> reservedTiles() const;
     bool triggerDebugJump();
     bool triggerDebugPoke();
     std::string debugActivityLabel() const;
@@ -76,6 +82,7 @@ private:
     const SceneConfig& scene_;
     FollowerSummonConfig summon_config_{};
     FollowerSessionConfig session_config_{};
+    characters::CharacterMovementConfig movement_config_{};
 
     State state_ = State::Hidden;
     CharacterSpriteDefinition follower_def_{};
@@ -91,14 +98,22 @@ private:
     std::vector<int> ball_frames_;
     double state_elapsed_seconds_ = 0.0;
     std::deque<TilePoint> path_;
+    std::deque<TilePoint> player_step_trail_;
     std::deque<IdleAction> idle_actions_;
     TilePoint last_player_tile_{};
     TilePoint player_tile_{};
     TilePoint follower_tile_{};
     TilePoint step_dest_tile_{};
     terrain::GridStepMotor step_motor_{};
+    terrain::GridStepMotor replay_step_motor_{};
     TilePoint idle_origin_tile_{};
+    TilePoint last_player_segment_from_{};
+    TilePoint last_player_segment_to_{};
+    TilePoint replay_from_tile_{};
+    TilePoint replay_to_tile_{};
     bool have_last_player_tile_ = false;
+    bool have_last_player_segment_ = false;
+    bool replay_follow_active_ = false;
     bool follower_moving_ = false;
     float follower_move_t_ = 1.0f;
     float follower_step_duration_s_ = 0.25f;
@@ -113,6 +128,7 @@ private:
     double current_step_speed_multiplier_ = 1.0;
     double current_step_hop_height_tiles_ = 0.0;
     bool player_idle_ = false;
+    bool player_running_ = false;
     bool idle_behavior_active_ = false;
     bool returning_to_origin_ = false;
     bool cancel_return_active_ = false;
@@ -131,6 +147,7 @@ private:
     camera::Vec3 tileToWorldCenter(int tx, int ty) const;
     void beginStepToTile(const TilePoint& target, double speed_multiplier, bool hop_movement);
     void updateActiveStep(double dt);
+    bool updateReplayFollow(const characters::CharacterController::MovementSegment& player_segment);
     void updateNormalFollow();
     void updateNatureIdle(double dt);
     void cancelNatureIdle();

@@ -129,8 +129,12 @@ FollowerSessionConfig loadFollowerSessionConfig(const std::string& project_root)
         out.pokeball_id = strOr(follower->get("pokeballId"), out.pokeball_id);
         out.nature = strOr(follower->get("nature"), out.nature);
         out.forced_behavior = strOr(follower->get("forcedBehavior"), out.forced_behavior);
+        out.movement_mode = strOr(follower->get("movementMode"), out.movement_mode);
     } catch (...) {
         return out;
+    }
+    if (out.movement_mode != "trail" && out.movement_mode != "replay") {
+        out.movement_mode = "trail";
     }
     return out;
 }

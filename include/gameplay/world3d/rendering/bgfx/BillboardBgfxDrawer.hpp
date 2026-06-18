@@ -27,6 +27,8 @@ public:
     struct CharacterGpuTextures {
         TextureGpuResource color;
         TextureGpuResource white;
+        TextureGpuResource run_color;
+        TextureGpuResource run_white;
     };
 
     struct Dependencies {
@@ -35,6 +37,11 @@ public:
         bgfx::UniformHandle tex_uniform = BGFX_INVALID_HANDLE;
         bgfx::UniformHandle tint_cutoff_uniform = BGFX_INVALID_HANDLE;
         bgfx::ViewId view_id = 0;
+        int base_viewport_w = 1;
+        int base_viewport_h = 1;
+        int render_viewport_w = 1;
+        int render_viewport_h = 1;
+        int internal_scale = 1;
         const SceneConfig* scene = nullptr;
         TextureGpuResource shadow_texture{};
         std::function<CharacterGpuTextures(const CharacterSpriteDefinition&)> textures_for_character;
@@ -47,6 +54,8 @@ public:
     };
 
     explicit BillboardBgfxDrawer(Dependencies dependencies);
+
+    void setWorldViewport(int base_width, int base_height, int render_width, int render_height, int internal_scale);
 
     void submitCharacterDraw(
         const camera::Gen4FollowCamera& camera,
@@ -88,6 +97,20 @@ private:
         float tint_b,
         float vertex_alpha,
         float alpha_cutoff,
+        std::uint64_t state) const;
+
+    void submitWorldBillboardQuad(
+        const camera::Gen4FollowCamera& camera,
+        const BillboardPlacement& placement,
+        const TextureGpuResource& texture,
+        const SDL_Rect& source_rect,
+        int screen_offset_x_px,
+        float tint_r,
+        float tint_g,
+        float tint_b,
+        float vertex_alpha,
+        float alpha_cutoff,
+        float depth_priority_bias,
         std::uint64_t state) const;
 };
 

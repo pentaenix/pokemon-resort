@@ -78,6 +78,7 @@ FollowerController::FollowerController(
       scene_(scene),
       summon_config_(summon_config),
       session_config_(session_config),
+      movement_config_(characters::loadCharacterMovementConfig(project_root)),
       idle_config_(loadNatureIdleBehaviorConfig(project_root)) {}
 
 bool FollowerController::initializeResources() {
@@ -121,7 +122,9 @@ bool FollowerController::initializeResources() {
 
 terrain::ActorTerrainBinding FollowerController::terrainBinding() const {
     terrain::TileCoord sample{follower_tile_.x, follower_tile_.y};
-    if (follower_moving_) {
+    if (replay_follow_active_) {
+        sample = replay_step_motor_.activeSampleTile(follower_move_t_);
+    } else if (follower_moving_) {
         sample = step_motor_.activeSampleTile(follower_move_t_);
     }
     terrain::ActorTerrainBinding binding =
@@ -188,6 +191,67 @@ void FollowerController::updateActiveStep(double dt) {
         const double t = std::clamp(static_cast<double>(follower_move_t_), 0.0, 1.0);
         render_offset_.y = static_cast<float>((4.0 * t * (1.0 - t)) * current_step_hop_height_tiles_ * scene_.grid.tile_size);
     }
+}
+
+bool FollowerController::updateReplayFollow(
+    const characters::CharacterController::MovementSegment& player_segment) {
+    if (!player_segment.active || player_step_trail_.size() < 3) {
+        if (replay_follow_active_) {
+            follower_pos_ = tileToWorldCenter(replay_to_tile_.x, replay_to_tile_.y);
+            follower_tile_ = replay_to_tile_;
+            follower_moving_ = false;
+            replay_follow_active_ = false;
+        }
+        return false;
+    }
+
+    const TilePoint from = player_step_trail_[player_step_trail_.size() - 3U];
+    const TilePoint to = player_step_trail_[player_step_trail_.size() - 2U];
+    if (from.x == to.x && from.y == to.y) {
+        return false;
+    }
+
+    if (!replay_follow_active_ ||
+        replay_from_tile_.x != from.x ||
+        replay_from_tile_.y != from.y ||
+        replay_to_tile_.x != to.x ||
+        replay_to_tile_.y != to.y) {
+        replay_from_tile_ = from;
+        replay_to_tile_ = to;
+        replay_step_motor_ = terrain::GridStepMotor::beginStep(
+            scene_,
+            from.x,
+            from.y,
+            to.x,
+            to.y,
+            to.x - from.x,
+            to.y - from.y,
+            tileHeightUnits(from.x, from.y),
+            tileHeightUnits(to.x, to.y));
+    }
+
+    replay_follow_active_ = true;
+    follower_tile_ = from;
+    step_dest_tile_ = to;
+    follower_move_t_ = std::clamp(player_segment.t, 0.0f, 1.0f);
+    follower_moving_ = true;
+    current_step_hop_height_tiles_ = 0.0;
+    if (to.x > from.x) follower_facing_ = FacingDirection::East;
+    else if (to.x < from.x) follower_facing_ = FacingDirection::West;
+    else if (to.y > from.y) follower_facing_ = FacingDirection::South;
+    else if (to.y < from.y) follower_facing_ = FacingDirection::North;
+
+    const camera::Vec3 from_pos = tileToWorldCenter(from.x, from.y);
+    const camera::Vec3 to_pos = tileToWorldCenter(to.x, to.y);
+    follower_pos_.x = from_pos.x + ((to_pos.x - from_pos.x) * follower_move_t_);
+    follower_pos_.z = from_pos.z + ((to_pos.z - from_pos.z) * follower_move_t_);
+    if (replay_step_motor_.interpolate_y) {
+        follower_pos_.y =
+            terrain::actorHeightDuringStep(scene_, follower_pos_.x, follower_pos_.z, replay_step_motor_, follower_move_t_);
+    } else {
+        follower_pos_.y = from_pos.y + ((to_pos.y - from_pos.y) * follower_move_t_);
+    }
+    return true;
 }
 
 void FollowerController::finishNatureIdle(bool natural_end) {
@@ -269,11 +333,14 @@ void FollowerController::updateNormalFollow() {
         }
         if (path_.empty()) return;
     }
-    const TilePoint next = path_.front();
-    path_.pop_front();
+    const double owner_speed_multiplier = player_running_
+        ? static_cast<double>(movement_config_.runSpeed() / std::max(1.0f, movement_config_.walkSpeed()))
+        : 1.0;
     const double speed = cancel_return_active_
         ? idle_config_.cancel_return_speed_multiplier
-        : 1.0;
+        : owner_speed_multiplier;
+    const TilePoint next = path_.front();
+    path_.pop_front();
     beginStepToTile(next, speed, false);
 }
 
@@ -428,27 +495,75 @@ void FollowerController::update(
     double dt,
     const camera::Vec3& player_world_pos,
     FacingDirection player_facing,
+    const characters::CharacterController::MovementSegment& player_segment,
     bool player_idle,
-    bool player_activity) {
+    bool player_activity,
+    bool player_running) {
     if (!resources_ready_ || !session_config_.enabled) return;
 
     player_facing_ = player_facing;
     player_idle_ = player_idle;
+    player_running_ = player_running;
+    const bool replay_mode = session_config_.movement_mode == "replay";
     const float ts = std::max(1.0f, scene_.grid.tile_size);
-    const TilePoint player_tile{
-        static_cast<int>(std::floor(player_world_pos.x / ts)),
-        static_cast<int>(std::floor(player_world_pos.z / ts))};
+    const TilePoint player_tile = replay_mode && player_segment.active
+        ? TilePoint{player_segment.to_x, player_segment.to_y}
+        : TilePoint{
+            static_cast<int>(std::floor(player_world_pos.x / ts)),
+            static_cast<int>(std::floor(player_world_pos.z / ts))};
     player_tile_ = player_tile;
 
     if (!have_last_player_tile_) {
         last_player_tile_ = player_tile;
         player_tile_ = player_tile;
         follower_tile_ = player_tile;
+        player_step_trail_.clear();
+        player_step_trail_.push_back(player_tile);
         have_last_player_tile_ = true;
     }
-    if (player_tile.x != last_player_tile_.x || player_tile.y != last_player_tile_.y) {
+    if (replay_mode &&
+        player_segment.active &&
+        (!have_last_player_segment_ ||
+         last_player_segment_from_.x != player_segment.from_x ||
+         last_player_segment_from_.y != player_segment.from_y ||
+         last_player_segment_to_.x != player_segment.to_x ||
+         last_player_segment_to_.y != player_segment.to_y)) {
+        const TilePoint from{player_segment.from_x, player_segment.from_y};
+        const TilePoint to{player_segment.to_x, player_segment.to_y};
+        if (player_step_trail_.empty() ||
+            player_step_trail_.back().x != from.x ||
+            player_step_trail_.back().y != from.y) {
+            player_step_trail_.push_back(from);
+        }
+        if (player_step_trail_.back().x != to.x || player_step_trail_.back().y != to.y) {
+            player_step_trail_.push_back(to);
+        }
+        while (player_step_trail_.size() > 32) {
+            player_step_trail_.pop_front();
+        }
+        last_player_segment_from_ = from;
+        last_player_segment_to_ = to;
+        have_last_player_segment_ = true;
+        path_.clear();
+        if (state_ == State::Hidden) {
+            state_ = State::BallRelease;
+            state_elapsed_seconds_ = 0.0;
+            ball_pos_ = tileToWorldCenter(from.x, from.y);
+            follower_pos_ = ball_pos_;
+            follower_tile_ = from;
+        }
+        last_player_tile_ = player_tile;
+    } else if (player_tile.x != last_player_tile_.x || player_tile.y != last_player_tile_.y) {
         path_.push_back(last_player_tile_);
         if (path_.size() > 24) path_.pop_front();
+        if (player_step_trail_.empty() ||
+            player_step_trail_.back().x != player_tile.x ||
+            player_step_trail_.back().y != player_tile.y) {
+            player_step_trail_.push_back(player_tile);
+            while (player_step_trail_.size() > 32) {
+                player_step_trail_.pop_front();
+            }
+        }
         if (state_ == State::Hidden) {
             state_ = State::BallRelease;
             state_elapsed_seconds_ = 0.0;
@@ -475,12 +590,25 @@ void FollowerController::update(
         return;
     }
 
-    updateActiveStep(dt);
+    const bool replay_following =
+        replay_mode &&
+        !idle_behavior_active_ &&
+        !cancel_return_active_ &&
+        manual_debug_action_ == ManualDebugActionType::None &&
+        updateReplayFollow(player_segment);
+    if (!replay_following) {
+        updateActiveStep(dt);
+    }
     if (!follower_moving_ && state_ == State::Active) {
         follower_pos_.y = terrainBinding().simulation_y;
     }
     if (follower_animator_) {
+        const double playback_speed = player_running_ && (follower_moving_ || !path_.empty())
+            ? static_cast<double>(movement_config_.runSpeed() / std::max(1.0f, movement_config_.walkSpeed()))
+            : 1.0;
         follower_animator_->setFacing(follower_facing_);
+        follower_animator_->setPlaybackSpeedMultiplier(playback_speed);
+        follower_animator_->setRunning(player_running_ && (follower_moving_ || !path_.empty()));
         follower_animator_->setMoving(follower_moving_);
         if (manual_debug_action_ == ManualDebugActionType::None) {
             follower_animator_->update(dt);
@@ -629,6 +757,20 @@ bool FollowerController::visibleForSimulation() const {
     return resources_ready_ && state_ != State::Hidden;
 }
 
+std::vector<std::pair<int, int>> FollowerController::reservedTiles() const {
+    if (!visibleForSimulation()) {
+        return {};
+    }
+
+    std::vector<std::pair<int, int>> tiles;
+    tiles.push_back({follower_tile_.x, follower_tile_.y});
+    if ((follower_moving_ || replay_follow_active_) &&
+        (step_dest_tile_.x != follower_tile_.x || step_dest_tile_.y != follower_tile_.y)) {
+        tiles.push_back({step_dest_tile_.x, step_dest_tile_.y});
+    }
+    return tiles;
+}
+
 void FollowerController::collectBillboardDraws(
     const camera::Gen4FollowCamera& camera,
     int viewport_w,
@@ -696,6 +838,7 @@ void FollowerController::collectBillboardDraws(
     draw.character = &follower_def_;
     draw.source_rect = follower_animator_->sourceRect();
     draw.draw_shadow = true;
+    draw.use_run_texture = follower_animator_->running();
     if (state_ == State::EntryFlash) {
         const float t = std::clamp(
             static_cast<float>((state_elapsed_seconds_ * 1000.0) /

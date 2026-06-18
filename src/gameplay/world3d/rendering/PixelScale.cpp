@@ -27,9 +27,13 @@ float worldUnitsPerPixel(const SceneConfig& scene) {
     return std::max(0.001f, scene.grid.tile_size) / static_cast<float>(map_pixels_per_tile);
 }
 
+float authoredPixelsWorldUnits(const SceneConfig& scene, float pixels, float scale_multiplier) {
+    const float authored_pixels = std::max(1.0f, pixels);
+    return authored_pixels * worldUnitsPerPixel(scene) * std::max(0.1f, scale_multiplier);
+}
+
 float authoredSpriteWorldHeight(const SceneConfig& scene, float frame_height_px, float scale_multiplier) {
-    const float frame_height = std::max(1.0f, frame_height_px);
-    return frame_height * worldUnitsPerPixel(scene) * std::max(0.1f, scale_multiplier);
+    return authoredPixelsWorldUnits(scene, frame_height_px, scale_multiplier);
 }
 
 float clampedPixelZoom(const PixelScaleConfig& config) {
@@ -43,6 +47,35 @@ void applyPixelScaleToCameraPreset(camera::Gen4CameraPreset& preset, const Pixel
     if (preset.distance > 0.0f && zoom > 0.0f) {
         preset.distance /= zoom;
     }
+}
+
+void applySceneCameraScaleToCameraPreset(camera::Gen4CameraPreset& preset, const SceneConfig& scene) {
+    const float min_scale = std::max(0.01f, scene.scene_camera.distance_scale_min);
+    const float max_scale = std::max(min_scale, scene.scene_camera.distance_scale_max);
+    const float distance_scale = std::clamp(scene.scene_camera.distance_scale, min_scale, max_scale);
+    if (preset.distance > 0.0f && distance_scale > 0.0f) {
+        preset.distance /= distance_scale;
+    }
+}
+
+int worldViewportBaseWidth(const SceneConfig& scene) {
+    return std::clamp(scene.world_viewport.base_width, 160, 1920);
+}
+
+int worldViewportBaseHeight(const SceneConfig& scene) {
+    return std::clamp(scene.world_viewport.base_height, 120, 1080);
+}
+
+int worldViewportInternalScale(const SceneConfig& scene) {
+    return std::clamp(scene.world_viewport.internal_scale, 1, 4);
+}
+
+int worldViewportRenderWidth(const SceneConfig& scene) {
+    return worldViewportBaseWidth(scene) * worldViewportInternalScale(scene);
+}
+
+int worldViewportRenderHeight(const SceneConfig& scene) {
+    return worldViewportBaseHeight(scene) * worldViewportInternalScale(scene);
 }
 
 bool projectBillboardScreenRect(
