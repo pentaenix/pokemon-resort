@@ -5,7 +5,6 @@
 #include "gameplay/world3d/followers/FollowerConfig.hpp"
 #include "gameplay/world3d/rendering/BillboardPlacement.hpp"
 #include "gameplay/world3d/rendering/PixelScale.hpp"
-#include "gameplay/world3d/rendering/ActorOcclusionSystem.hpp"
 #include "gameplay/world3d/rendering/WorldBillboardCompositor.hpp"
 #include "gameplay/world3d/terrain/ActorTerrainBinding.hpp"
 #include "gameplay/world3d/terrain/GridStepMotor.hpp"
@@ -130,6 +129,10 @@ void testTerrainRenderConfigLoads() {
     expect(std::abs(scene.scene_camera.distance_scale - 1.0f) < 0.001f, "scene camera distance scale loads");
     expect(scene.pixel_compositor.sprite_sizing == "native", "pixel compositor sprite sizing loads");
     expect(scene.pixel_compositor.snap_anchors, "pixel compositor snap anchors loads");
+    expect(std::abs(scene.pixel_compositor.actor_depth_bias_px - 8.0f) < 0.001f,
+        "pixel compositor actor depth bias loads");
+    expect(scene.pixel_compositor.actor_screen_offset_y_px == 1,
+        "pixel compositor actor screen Y offset loads");
     expect(scene.presentation.scale_mode == "integerFit", "presentation scale mode loads");
     expect(std::abs(scene.presentation.zoom - 1.0f) < 0.001f, "presentation zoom loads");
     expect(pr::gameplay::world3d::rendering::worldViewportBaseWidth(scene) == 400,
@@ -597,6 +600,64 @@ void testWorldBillboardCompositorDefaultCameraContract() {
         "anchor snap keeps feet on integer base Y");
 }
 
+void testDepthBufferedCharacterQuadDefaultCameraContract() {
+    const fs::path root = repositoryRoot();
+    const fs::path testing_path = root / "assets" / "overworld" / "maps" / "testing.owmap";
+    auto scene = pr::gameplay::world3d::data::loadSceneConfig(root.string(), testing_path.string());
+
+    const float tile_size = scene.grid.tile_size;
+    const float wx = (static_cast<float>(scene.player.spawn_tile_x) + 0.5f) * tile_size;
+    const float wz = (static_cast<float>(scene.player.spawn_tile_y) + 0.5f) * tile_size;
+    const auto binding =
+        pr::gameplay::world3d::terrain::bindActorStanding(scene, scene.player.spawn_tile_x, scene.player.spawn_tile_y, wx, wz);
+    const pr::gameplay::world3d::camera::Vec3 sim_pos{wx, binding.simulation_y, wz};
+    const SDL_Rect source_rect{0, 0, 32, 32};
+
+    pr::gameplay::world3d::CharacterSpriteDefinition character{};
+    character.anchor = "bottom_center";
+    character.sprite_scale = 1.0f;
+
+    auto camera = pr::gameplay::world3d::camera::Gen4FollowCamera(sceneCameraPreset(scene));
+    camera.setTarget(sim_pos);
+    const auto placement = pr::gameplay::world3d::rendering::buildCharacterBillboardPlacement(
+        scene,
+        camera,
+        binding,
+        character,
+        sim_pos,
+        source_rect,
+        pr::gameplay::world3d::rendering::worldViewportBaseWidth(scene),
+        pr::gameplay::world3d::rendering::worldViewportBaseHeight(scene));
+    expect(placement.visible, "depth character quad placement should be visible");
+
+    int x = 0;
+    int y = 0;
+    int w = 0;
+    int h = 0;
+    expect(
+        pr::gameplay::world3d::rendering::projectDepthBillboardScreenRect(
+            scene,
+            camera,
+            placement,
+            source_rect,
+            pr::gameplay::world3d::rendering::worldViewportBaseWidth(scene),
+            pr::gameplay::world3d::rendering::worldViewportBaseHeight(scene),
+            0,
+            x,
+            y,
+            w,
+            h),
+        "depth character quad should project");
+    (void)x;
+    (void)y;
+    if (w != 32 || h != 32) {
+        std::ostringstream msg;
+        msg << "default camera should project depth character quad to 32x32 base pixels, got "
+            << w << "x" << h;
+        throw TestFailure(msg.str());
+    }
+}
+
 void testWorldBillboardPlacementUsesBottomFeetAnchor() {
     const fs::path root = repositoryRoot();
     const fs::path testing_path = root / "assets" / "overworld" / "maps" / "testing.owmap";
@@ -841,39 +902,6 @@ void testWorldBillboardCompositorScalesByActorDepth() {
     expect(near_rect.base_h > mid_rect.base_h, "near actor projects larger than target-depth actor");
     expect(far_rect.base_h < mid_rect.base_h, "far actor projects smaller than target-depth actor");
     expect(std::abs(side_rect.base_h - mid_rect.base_h) <= 1, "side-by-side actor keeps matching size");
-}
-
-void testActorOcclusionDepthOrdersForegroundAnchors() {
-    pr::gameplay::world3d::camera::Gen4CameraPreset preset{};
-    preset.distance = 100.0f;
-    preset.pitch_deg = 45.0f;
-    preset.yaw_deg = 0.0f;
-    preset.fov_y_deg = 45.0f;
-    preset.near_clip = 0.1f;
-    preset.far_clip = 500.0f;
-    pr::gameplay::world3d::camera::Gen4FollowCamera camera(preset);
-    camera.setTarget({0.0f, 0.0f, 0.0f});
-
-    const auto actor = pr::gameplay::world3d::camera::Vec3{0.0f, 0.0f, 0.0f};
-    const auto foreground = pr::gameplay::world3d::camera::Vec3{0.0f, 0.0f, 16.0f};
-    const auto background = pr::gameplay::world3d::camera::Vec3{0.0f, 0.0f, -16.0f};
-
-    const float actor_depth =
-        pr::gameplay::world3d::rendering::actorOcclusionDepth(camera, actor, 400, 250);
-    const float foreground_depth =
-        pr::gameplay::world3d::rendering::actorOcclusionDepth(camera, foreground, 400, 250);
-    const float background_depth =
-        pr::gameplay::world3d::rendering::actorOcclusionDepth(camera, background, 400, 250);
-
-    expect(
-        pr::gameplay::world3d::rendering::actorOccluderIsInFront(foreground_depth, actor_depth),
-        "foreground anchor should be in front of actor feet");
-    expect(
-        !pr::gameplay::world3d::rendering::actorOccluderIsInFront(background_depth, actor_depth),
-        "background anchor should not be in front of actor feet");
-    expect(
-        pr::gameplay::world3d::rendering::actorOcclusionDepth(camera, actor, 400, 250, 8.0f) < actor_depth,
-        "toward-camera bias makes an occluder sort sooner in front");
 }
 
 void testPlayerSpritePriorityIsSortOnly() {
@@ -1133,6 +1161,8 @@ int main() {
         std::cout << "[PASS] texture billboard scale uses authored sprite pixels\n";
         testWorldBillboardCompositorDefaultCameraContract();
         std::cout << "[PASS] world billboard compositor default camera contract\n";
+        testDepthBufferedCharacterQuadDefaultCameraContract();
+        std::cout << "[PASS] depth-buffered character quad default camera contract\n";
         testWorldBillboardPlacementUsesBottomFeetAnchor();
         std::cout << "[PASS] world billboard placement uses bottom feet anchor\n";
         testWorldShadowRectCentersOnFeet();
@@ -1141,8 +1171,6 @@ int main() {
         std::cout << "[PASS] world billboard compositor scales with camera distance\n";
         testWorldBillboardCompositorScalesByActorDepth();
         std::cout << "[PASS] world billboard compositor scales by actor depth\n";
-        testActorOcclusionDepthOrdersForegroundAnchors();
-        std::cout << "[PASS] actor occlusion foreground anchors order by feet depth\n";
         testPlayerSpritePriorityIsSortOnly();
         std::cout << "[PASS] player sprite priority is sort-only\n";
         testFollowerSummonRenderConfigLoads();

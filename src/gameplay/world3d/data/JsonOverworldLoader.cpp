@@ -382,6 +382,13 @@ CharacterSpriteDefinition loadCharacterDefinition(const std::string& project_roo
             }
         }
     }
+    if (const JsonValue* sheet_overrides = selected_sheet->get("profileOverrides");
+        sheet_overrides && sheet_overrides->isObject()) {
+        out.frame_width = intOr(sheet_overrides->get("frameWidth"), out.frame_width);
+        out.frame_height = intOr(sheet_overrides->get("frameHeight"), out.frame_height);
+        out.columns = intOr(sheet_overrides->get("columns"), out.columns);
+        out.rows = intOr(sheet_overrides->get("rows"), out.rows);
+    }
 
     return out;
 }

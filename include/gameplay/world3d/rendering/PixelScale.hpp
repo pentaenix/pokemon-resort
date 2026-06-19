@@ -36,4 +36,18 @@ bool projectBillboardScreenRect(
     int& out_w,
     int& out_h);
 
+// Project the production depth-tested character quad to a screen-space bounds rect.
+bool projectDepthBillboardScreenRect(
+    const SceneConfig& scene,
+    const camera::Gen4FollowCamera& camera,
+    const BillboardPlacement& placement,
+    const SDL_Rect& source_rect,
+    int viewport_w,
+    int viewport_h,
+    int screen_offset_x_px,
+    int& out_x,
+    int& out_y,
+    int& out_w,
+    int& out_h);
+
 } // namespace pr::gameplay::world3d::rendering

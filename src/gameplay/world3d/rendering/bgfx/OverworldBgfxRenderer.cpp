@@ -1,7 +1,6 @@
 #include "gameplay/world3d/rendering/bgfx/OverworldBgfxRenderer.hpp"
 
 #include "gameplay/world3d/rendering/bgfx/BillboardBgfxDrawer.hpp"
-#include "gameplay/world3d/rendering/ActorOcclusionSystem.hpp"
 #include "gameplay/world3d/rendering/BillboardPlacement.hpp"
 #include "gameplay/world3d/rendering/CharacterTextureCache.hpp"
 #include "gameplay/world3d/rendering/PixelScale.hpp"
@@ -16,9 +15,7 @@
 #include <bx/math.h>
 
 #include <algorithm>
-#include <cctype>
 #include <cmath>
-#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -167,37 +164,6 @@ std::uint64_t stateForDepthOnly() {
     return BGFX_STATE_WRITE_Z | BGFX_STATE_DEPTH_TEST_LESS;
 }
 
-std::uint64_t stateForActorForeground(MaterialClass pass) {
-    const std::uint64_t base = BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_DEPTH_TEST_LEQUAL;
-    if (pass == MaterialClass::TrueBlend) {
-        return base | BGFX_STATE_BLEND_ALPHA;
-    }
-    return base | BGFX_STATE_WRITE_Z;
-}
-
-std::string asciiLower(std::string value) {
-    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
-        return static_cast<char>(std::tolower(c));
-    });
-    return value;
-}
-
-bool rtpksMaterialShouldOrderWithActors(const data::RtpksMaterial& material) {
-    const std::string name = asciiLower(material.texture_name + " " + material.name);
-    if (name.find("shadow") != std::string::npos || name.find("tshadow") != std::string::npos) {
-        return false;
-    }
-    return name.find("tree") != std::string::npos ||
-        name.find("treekn") != std::string::npos ||
-        name.find("conttree") != std::string::npos ||
-        name.find("mori") != std::string::npos ||
-        name.find("fenter") != std::string::npos ||
-        name.find("kusa") != std::string::npos ||
-        name.find("egrass") != std::string::npos ||
-        name.find("l_grass") != std::string::npos ||
-        name.find("ngrass") != std::string::npos;
-}
-
 } // namespace
 
 class OverworldBgfxRenderer::Impl {
@@ -290,16 +256,6 @@ private:
         float model_matrix[16]{};
     };
 
-    struct TerrainWallOccluderResource {
-        MeshGpuResource mesh;
-        camera::Vec3 anchor{};
-    };
-
-    struct TileForegroundResource {
-        MeshGpuResource mesh;
-        camera::Vec3 anchor{};
-    };
-
     struct PixelWorldTarget {
         bgfx::FrameBufferHandle frame_buffer = BGFX_INVALID_HANDLE;
         int width = 0;
@@ -328,10 +284,7 @@ private:
     MeshGpuResource terrain_slope_top_mesh_;
     MeshGpuResource terrain_wall_mesh_;
     MeshGpuResource tile_layer_mesh_;
-    MeshGpuResource tile_occluder_mesh_;
     std::vector<ModelGpuResource> models_;
-    std::vector<TerrainWallOccluderResource> terrain_wall_occluders_;
-    std::vector<TileForegroundResource> tile_foreground_occluders_;
     std::optional<data::RtpksTilePackage> tile_package_;
     PixelWorldTarget pixel_world_target_;
 
@@ -547,15 +500,6 @@ void OverworldBgfxRenderer::Impl::shutdown() {
     terrain_flat_top_mesh_.destroy();
     terrain_slope_top_mesh_.destroy();
     terrain_wall_mesh_.destroy();
-    for (TerrainWallOccluderResource& occluder : terrain_wall_occluders_) {
-        occluder.mesh.destroy();
-    }
-    terrain_wall_occluders_.clear();
-    for (TileForegroundResource& occluder : tile_foreground_occluders_) {
-        occluder.mesh.destroy();
-    }
-    tile_foreground_occluders_.clear();
-    tile_occluder_mesh_.destroy();
     tile_layer_mesh_.destroy();
     for (ModelGpuResource& model : models_) {
         model.mesh.destroy();
@@ -743,11 +687,6 @@ bool OverworldBgfxRenderer::Impl::loadTilePackage() {
 }
 
 bool OverworldBgfxRenderer::Impl::buildTileLayers() {
-    for (TileForegroundResource& occluder : tile_foreground_occluders_) {
-        occluder.mesh.destroy();
-    }
-    tile_foreground_occluders_.clear();
-    tile_occluder_mesh_.destroy();
     tile_layer_mesh_.destroy();
     if (!tile_package_ || scene_.tile_layers.layers.empty()) {
         return true;
@@ -758,13 +697,8 @@ bool OverworldBgfxRenderer::Impl::buildTileLayers() {
         std::vector<std::uint32_t> indices;
         MaterialClass material_class = MaterialClass::MaskCutout;
     };
-    struct PendingTileForeground {
-        std::vector<Bucket> buckets;
-        camera::Vec3 anchor{};
-    };
 
     std::unordered_map<int, int> material_slot_by_id;
-    std::vector<bool> material_orders_with_actors;
     tile_layer_mesh_.materials.reserve(tile_package_->materials.size());
     for (const data::RtpksMaterial& src : tile_package_->materials) {
         MaterialGpuResource material;
@@ -786,24 +720,16 @@ bool OverworldBgfxRenderer::Impl::buildTileLayers() {
         }
         const int slot = static_cast<int>(tile_layer_mesh_.materials.size());
         material_slot_by_id[src.material_id] = slot;
-        material_orders_with_actors.push_back(rtpksMaterialShouldOrderWithActors(src));
         tile_layer_mesh_.materials.push_back(std::move(material));
     }
     if (tile_layer_mesh_.materials.empty()) {
         tile_layer_mesh_.materials.push_back(MaterialGpuResource{});
-        material_orders_with_actors.push_back(false);
     }
 
     std::vector<Bucket> buckets(tile_layer_mesh_.materials.size());
-    std::vector<Bucket> occluder_buckets(tile_layer_mesh_.materials.size());
     for (std::size_t i = 0; i < buckets.size(); ++i) {
         buckets[i].material_class = tile_layer_mesh_.materials[i].material_class;
-        occluder_buckets[i].material_class = tile_layer_mesh_.materials[i].material_class;
     }
-    tile_occluder_mesh_.materials = tile_layer_mesh_.materials;
-    tile_occluder_mesh_.owns_material_textures = false;
-
-    std::vector<PendingTileForeground> pending_tile_foregrounds;
 
     const float tile_size = std::max(1.0f, scene_.grid.tile_size);
     constexpr float kLayerLift = 0.004f;
@@ -872,40 +798,6 @@ bool OverworldBgfxRenderer::Impl::buildTileLayers() {
         append_vertex(bucket, mesh, mesh.quads, mesh.tex_coords_quad, mesh.colors_quad, first + 3U, tile_x, tile_y, base_y, layer_lift, material_alpha);
         bucket.indices.insert(bucket.indices.end(), {base, base + 1U, base + 2U, base, base + 2U, base + 3U});
     };
-    const auto point_for_vertex = [&](const data::RtpksTileMesh& mesh,
-                                      const std::vector<float>& positions,
-                                      std::size_t vertex_index) {
-        const std::size_t pi = vertex_index * 3U;
-        const float x = read_float(positions, pi + 0U, 0.0f) + mesh.x_offset;
-        const float y = read_float(positions, pi + 2U, 0.0f);
-        const float z = static_cast<float>(mesh.height) -
-            (read_float(positions, pi + 1U, 0.0f) + mesh.y_offset);
-        return camera::Vec3{x, y, z};
-    };
-    const auto face_occludes_billboards = [&](const data::RtpksTileMesh& mesh,
-                                              const std::vector<float>& positions,
-                                              std::initializer_list<std::size_t> vertex_indices) {
-        if (vertex_indices.size() < 3) return false;
-        auto it = vertex_indices.begin();
-        const camera::Vec3 p0 = point_for_vertex(mesh, positions, *it++);
-        const camera::Vec3 p1 = point_for_vertex(mesh, positions, *it++);
-        const camera::Vec3 p2 = point_for_vertex(mesh, positions, *it);
-        const float ux = p1.x - p0.x;
-        const float uy = p1.y - p0.y;
-        const float uz = p1.z - p0.z;
-        const float vx = p2.x - p0.x;
-        const float vy = p2.y - p0.y;
-        const float vz = p2.z - p0.z;
-        const float nx = (uy * vz) - (uz * vy);
-        const float ny = (uz * vx) - (ux * vz);
-        const float nz = (ux * vy) - (uy * vx);
-        const float len = std::sqrt((nx * nx) + (ny * ny) + (nz * nz));
-        if (len <= 0.0001f) return false;
-        const float vertical_range = std::max({p0.y, p1.y, p2.y}) - std::min({p0.y, p1.y, p2.y});
-        const float up_facing = std::abs(ny / len);
-        return vertical_range > 0.02f && up_facing < 0.65f;
-    };
-
     int placed_tiles = 0;
     for (std::size_t layer_index = 0; layer_index < scene_.tile_layers.layers.size(); ++layer_index) {
         const TileLayerConfig& layer = scene_.tile_layers.layers[layer_index];
@@ -919,54 +811,20 @@ bool OverworldBgfxRenderer::Impl::buildTileLayers() {
                 if (!mesh) continue;
                 const float base_y = terrain::heightAtTileCenter(scene_, x, y);
                 const float layer_lift = static_cast<float>(layer_index) * kLayerLift;
-                PendingTileForeground tile_foreground{};
-                tile_foreground.buckets = std::vector<Bucket>(tile_layer_mesh_.materials.size());
-                for (std::size_t i = 0; i < tile_foreground.buckets.size(); ++i) {
-                    tile_foreground.buckets[i].material_class = tile_layer_mesh_.materials[i].material_class;
-                }
-                tile_foreground.anchor = camera::Vec3{
-                    (static_cast<float>(x) + mesh->x_offset + static_cast<float>(mesh->width) * 0.5f) * tile_size,
-                    base_y + layer_lift,
-                    (static_cast<float>(y) + mesh->y_offset + static_cast<float>(mesh->height) * 0.5f) * tile_size};
-                bool has_tile_foreground = false;
                 for (const data::RtpksMaterialRange& range : mesh->material_ranges) {
                     const auto slot_it = material_slot_by_id.find(range.material_id);
                     const int slot = slot_it == material_slot_by_id.end() ? 0 : slot_it->second;
                     Bucket& bucket = buckets[static_cast<std::size_t>(std::clamp(slot, 0, static_cast<int>(buckets.size()) - 1))];
-                    Bucket& occluder_bucket = occluder_buckets[static_cast<std::size_t>(std::clamp(slot, 0, static_cast<int>(occluder_buckets.size()) - 1))];
-                    Bucket& tile_foreground_bucket =
-                        tile_foreground.buckets[static_cast<std::size_t>(std::clamp(slot, 0, static_cast<int>(tile_foreground.buckets.size()) - 1))];
                     const std::size_t material_index = static_cast<std::size_t>(std::clamp(slot, 0, static_cast<int>(tile_layer_mesh_.materials.size()) - 1));
                     const MaterialGpuResource& material = tile_layer_mesh_.materials[material_index];
-                    const bool material_orders_with_actor =
-                        material_index < material_orders_with_actors.size() && material_orders_with_actors[material_index];
                     for (int i = 0; i < range.tri_count; ++i) {
                         const int tri_index = range.tri_start + i;
-                        const std::size_t first = static_cast<std::size_t>(std::max(0, tri_index)) * 3U;
-                        if (material_orders_with_actor ||
-                            face_occludes_billboards(*mesh, mesh->triangles, {first + 0U, first + 1U, first + 2U})) {
-                            append_tri(occluder_bucket, *mesh, tri_index, x, y, base_y, layer_lift, material.base_color[3]);
-                            append_tri(tile_foreground_bucket, *mesh, tri_index, x, y, base_y, layer_lift, material.base_color[3]);
-                            has_tile_foreground = true;
-                        } else {
-                            append_tri(bucket, *mesh, tri_index, x, y, base_y, layer_lift, material.base_color[3]);
-                        }
+                        append_tri(bucket, *mesh, tri_index, x, y, base_y, layer_lift, material.base_color[3]);
                     }
                     for (int i = 0; i < range.quad_count; ++i) {
                         const int quad_index = range.quad_start + i;
-                        const std::size_t first = static_cast<std::size_t>(std::max(0, quad_index)) * 4U;
-                        if (material_orders_with_actor ||
-                            face_occludes_billboards(*mesh, mesh->quads, {first + 0U, first + 1U, first + 2U, first + 3U})) {
-                            append_quad(occluder_bucket, *mesh, quad_index, x, y, base_y, layer_lift, material.base_color[3]);
-                            append_quad(tile_foreground_bucket, *mesh, quad_index, x, y, base_y, layer_lift, material.base_color[3]);
-                            has_tile_foreground = true;
-                        } else {
-                            append_quad(bucket, *mesh, quad_index, x, y, base_y, layer_lift, material.base_color[3]);
-                        }
+                        append_quad(bucket, *mesh, quad_index, x, y, base_y, layer_lift, material.base_color[3]);
                     }
-                }
-                if (has_tile_foreground) {
-                    pending_tile_foregrounds.push_back(std::move(tile_foreground));
                 }
                 ++placed_tiles;
             }
@@ -1002,93 +860,12 @@ bool OverworldBgfxRenderer::Impl::buildTileLayers() {
             return false;
         }
     }
-    std::vector<Vertex> occluder_vertices;
-    std::vector<std::uint32_t> occluder_indices;
-    for (std::size_t material_index = 0; material_index < occluder_buckets.size(); ++material_index) {
-        const Bucket& bucket = occluder_buckets[material_index];
-        if (bucket.vertices.empty() || bucket.indices.empty()) continue;
-        const std::uint32_t vertex_base = static_cast<std::uint32_t>(occluder_vertices.size());
-        const std::uint32_t index_start = static_cast<std::uint32_t>(occluder_indices.size());
-        occluder_vertices.insert(occluder_vertices.end(), bucket.vertices.begin(), bucket.vertices.end());
-        for (std::uint32_t index : bucket.indices) {
-            occluder_indices.push_back(vertex_base + index);
-        }
-        tile_occluder_mesh_.ranges.push_back(MaterialRange{
-            index_start,
-            static_cast<std::uint32_t>(bucket.indices.size()),
-            static_cast<int>(material_index),
-            bucket.material_class,
-            tile_occluder_mesh_.materials[material_index].depth_prepass});
-    }
-    if (!occluder_vertices.empty() && !occluder_indices.empty()) {
-        const bgfx::Memory* occ_vb_mem = bgfx::copy(
-            occluder_vertices.data(),
-            static_cast<std::uint32_t>(occluder_vertices.size() * sizeof(Vertex)));
-        const bgfx::Memory* occ_ib_mem = bgfx::copy(
-            occluder_indices.data(),
-            static_cast<std::uint32_t>(occluder_indices.size() * sizeof(std::uint32_t)));
-        tile_occluder_mesh_.vbh = bgfx::createVertexBuffer(occ_vb_mem, layout_);
-        tile_occluder_mesh_.ibh = bgfx::createIndexBuffer(occ_ib_mem, BGFX_BUFFER_INDEX32);
-        if (!tile_occluder_mesh_.valid()) {
-            last_error_ = "Could not upload RTPKS tile occluder mesh";
-            return false;
-        }
-    }
-    tile_foreground_occluders_.reserve(pending_tile_foregrounds.size());
-    for (const PendingTileForeground& pending : pending_tile_foregrounds) {
-        std::vector<Vertex> foreground_vertices;
-        std::vector<std::uint32_t> foreground_indices;
-        MeshGpuResource mesh{};
-        mesh.materials = tile_layer_mesh_.materials;
-        mesh.owns_material_textures = false;
-        for (std::size_t material_index = 0; material_index < pending.buckets.size(); ++material_index) {
-            const Bucket& bucket = pending.buckets[material_index];
-            if (bucket.vertices.empty() || bucket.indices.empty()) continue;
-            const std::uint32_t vertex_base = static_cast<std::uint32_t>(foreground_vertices.size());
-            const std::uint32_t index_start = static_cast<std::uint32_t>(foreground_indices.size());
-            foreground_vertices.insert(foreground_vertices.end(), bucket.vertices.begin(), bucket.vertices.end());
-            for (std::uint32_t index : bucket.indices) {
-                foreground_indices.push_back(vertex_base + index);
-            }
-            mesh.ranges.push_back(MaterialRange{
-                index_start,
-                static_cast<std::uint32_t>(bucket.indices.size()),
-                static_cast<int>(material_index),
-                bucket.material_class,
-                mesh.materials[material_index].depth_prepass});
-        }
-        if (foreground_vertices.empty() || foreground_indices.empty()) {
-            continue;
-        }
-        const bgfx::Memory* fg_vb_mem = bgfx::copy(
-            foreground_vertices.data(),
-            static_cast<std::uint32_t>(foreground_vertices.size() * sizeof(Vertex)));
-        const bgfx::Memory* fg_ib_mem = bgfx::copy(
-            foreground_indices.data(),
-            static_cast<std::uint32_t>(foreground_indices.size() * sizeof(std::uint32_t)));
-        mesh.vbh = bgfx::createVertexBuffer(fg_vb_mem, layout_);
-        mesh.ibh = bgfx::createIndexBuffer(fg_ib_mem, BGFX_BUFFER_INDEX32);
-        if (!mesh.valid()) {
-            mesh.destroy();
-            last_error_ = "Could not upload RTPKS tile foreground mesh";
-            return false;
-        }
-        TileForegroundResource resource{};
-        resource.mesh = std::move(mesh);
-        resource.anchor = pending.anchor;
-        tile_foreground_occluders_.push_back(std::move(resource));
-    }
     std::cerr << "[OverworldBgfx] RTPKS tiles=" << placed_tiles
               << " package=" << scene_.tile_package.path << std::endl;
     return true;
 }
 
 bool OverworldBgfxRenderer::Impl::buildTerrain() {
-    for (TerrainWallOccluderResource& occluder : terrain_wall_occluders_) {
-        occluder.mesh.destroy();
-    }
-    terrain_wall_occluders_.clear();
-
     std::vector<Vertex> flat_top_vertices;
     std::vector<std::uint32_t> flat_top_indices;
     std::vector<Vertex> slope_top_vertices;
@@ -1190,13 +967,6 @@ bool OverworldBgfxRenderer::Impl::buildTerrain() {
         }
     }
 
-    struct PendingWallOccluder {
-        std::vector<Vertex> vertices;
-        std::vector<std::uint32_t> indices;
-        camera::Vec3 anchor{};
-    };
-    std::vector<PendingWallOccluder> pending_wall_occluders;
-
     const auto add_wall_if_drop = [&](float xa, float za, float ya0, float ya1,
                                       float xb, float zb, float yb0, float yb1,
                                       std::uint32_t color) {
@@ -1204,12 +974,6 @@ bool OverworldBgfxRenderer::Impl::buildTerrain() {
         const float low = std::min(yb0, yb1);
         if (high <= low) return;
         push_quad(wall_vertices, wall_indices, xa, low, za, xb, low, zb, xb, high, zb, xa, high, za, color);
-        PendingWallOccluder occluder{};
-        occluder.vertices.reserve(4);
-        occluder.indices.reserve(6);
-        push_quad(occluder.vertices, occluder.indices, xa, low, za, xb, low, zb, xb, high, zb, xa, high, za, color);
-        occluder.anchor = camera::Vec3{(xa + xb) * 0.5f, low, (za + zb) * 0.5f};
-        pending_wall_occluders.push_back(std::move(occluder));
     };
     const std::uint32_t wall_ns = packTerrainColor(scene_.terrain.wall_color_ns);
     const std::uint32_t wall_ew = packTerrainColor(scene_.terrain.wall_color_ew);
@@ -1260,15 +1024,6 @@ bool OverworldBgfxRenderer::Impl::buildTerrain() {
         upload_mesh(terrain_wall_mesh_, wall_vertices, wall_indices);
     if (!uploaded) {
         return false;
-    }
-    terrain_wall_occluders_.reserve(pending_wall_occluders.size());
-    for (const PendingWallOccluder& pending : pending_wall_occluders) {
-        TerrainWallOccluderResource occluder{};
-        occluder.anchor = pending.anchor;
-        if (!upload_mesh(occluder.mesh, pending.vertices, pending.indices)) {
-            return false;
-        }
-        terrain_wall_occluders_.push_back(std::move(occluder));
     }
     return true;
 }
@@ -1700,10 +1455,6 @@ void OverworldBgfxRenderer::Impl::render(
     for (const ModelGpuResource& model : models_) {
         submitMesh(model.mesh, model.model_matrix, world_program_, MaterialClass::MaskCutout, 0.5f, stateFor(MaterialClass::MaskCutout));
     }
-    for (const ModelGpuResource& model : models_) {
-        submitMesh(model.mesh, model.model_matrix, world_program_, MaterialClass::TrueBlend, 0.0f, stateFor(MaterialClass::TrueBlend));
-    }
-    submitMesh(tile_layer_mesh_, ident, world_program_, MaterialClass::TrueBlend, 0.0f, stateFor(MaterialClass::TrueBlend));
 
     bgfx::touch(1);
 
@@ -1737,114 +1488,40 @@ void OverworldBgfxRenderer::Impl::render(
         }
     }
 
-    std::vector<rendering::ActorOcclusionItem> draw_order;
-    draw_order.reserve(
-        models_.size() +
-        terrain_wall_occluders_.size() +
-        tile_foreground_occluders_.size() +
-        characters.size() +
-        texture_draws.size());
-    const float model_depth_bias = scene_.model_behind_bias_tiles * scene_.grid.tile_size;
-    for (std::size_t i = 0; i < models_.size(); ++i) {
-        const camera::Vec3 anchor{
-            models_[i].model_matrix[12],
-            models_[i].model_matrix[13],
-            models_[i].model_matrix[14]};
-        const float depth = rendering::actorOcclusionDepth(camera, anchor, placement_w, placement_h, model_depth_bias);
-        draw_order.push_back(rendering::ActorOcclusionItem{
-            depth,
-            0.0f,
-            rendering::ActorOcclusionKind::ForegroundModel,
-            i});
-    }
-    for (std::size_t i = 0; i < terrain_wall_occluders_.size(); ++i) {
-        const float depth = rendering::actorOcclusionDepth(
-            camera,
-            terrain_wall_occluders_[i].anchor,
-            placement_w,
-            placement_h);
-        draw_order.push_back(rendering::ActorOcclusionItem{
-            depth,
-            0.0f,
-            rendering::ActorOcclusionKind::ForegroundTerrainWall,
-            i});
-    }
-    const float tile_foreground_depth_bias = scene_.grid.tile_size * 0.01f;
-    for (std::size_t i = 0; i < tile_foreground_occluders_.size(); ++i) {
-        const float depth = rendering::actorOcclusionDepth(
-            camera,
-            tile_foreground_occluders_[i].anchor,
-            placement_w,
-            placement_h,
-            tile_foreground_depth_bias);
-        draw_order.push_back(rendering::ActorOcclusionItem{
-            depth,
-            0.0f,
-            rendering::ActorOcclusionKind::ForegroundTile,
-            i});
-    }
-    for (std::size_t i = 0; i < characters.size(); ++i) {
-        const float depth = characters[i].placement.visible
-            ? characters[i].placement.depth
-            : rendering::billboardSortDepth(camera, player_pos, placement_w, placement_h);
-        draw_order.push_back(rendering::ActorOcclusionItem{
-            depth,
-            characters[i].depth_priority_bias,
-            rendering::ActorOcclusionKind::Character,
-            i});
-    }
-    for (std::size_t i = 0; i < texture_draws.size(); ++i) {
-        const float depth = texture_draws[i].placement.visible
-            ? texture_draws[i].placement.depth
-            : std::numeric_limits<float>::max();
-        draw_order.push_back(rendering::ActorOcclusionItem{
-            depth,
-            0.0f,
-            rendering::ActorOcclusionKind::Texture,
-            i});
-    }
-    std::stable_sort(
-        draw_order.begin(),
-        draw_order.end(),
-        [](const rendering::ActorOcclusionItem& a, const rendering::ActorOcclusionItem& b) {
-            constexpr float kDepthTieEpsilon = 0.0001f;
-            if (std::abs(a.sort_depth - b.sort_depth) <= kDepthTieEpsilon &&
-                a.kind == rendering::ActorOcclusionKind::Character &&
-                b.kind == rendering::ActorOcclusionKind::Character) {
-                return (a.sort_depth + a.sprite_priority_bias) > (b.sort_depth + b.sprite_priority_bias);
-            }
-            return a.sort_depth > b.sort_depth;
-        });
-
     if (billboard_drawer_) {
-        for (const rendering::ActorOcclusionItem& item : draw_order) {
-            switch (item.kind) {
-                case rendering::ActorOcclusionKind::ForegroundModel: {
-                    const ModelGpuResource& model = models_[item.index];
-                    submitMesh(model.mesh, model.model_matrix, world_program_, MaterialClass::Opaque, 0.0f, stateForActorForeground(MaterialClass::Opaque), 1);
-                    submitMesh(model.mesh, model.model_matrix, world_program_, MaterialClass::MaskCutout, 0.5f, stateForActorForeground(MaterialClass::MaskCutout), 1);
-                    submitMesh(model.mesh, model.model_matrix, world_program_, MaterialClass::TrueBlend, 0.0f, stateForActorForeground(MaterialClass::TrueBlend), 1);
-                    break;
+        std::stable_sort(
+            characters.begin(),
+            characters.end(),
+            [](const rendering::CharacterBillboardDraw& a, const rendering::CharacterBillboardDraw& b) {
+                constexpr float kDepthTieEpsilon = 0.0001f;
+                const float a_depth = a.placement.visible ? a.placement.depth : std::numeric_limits<float>::max();
+                const float b_depth = b.placement.visible ? b.placement.depth : std::numeric_limits<float>::max();
+                if (std::abs(a_depth - b_depth) <= kDepthTieEpsilon) {
+                    return (a_depth + a.depth_priority_bias) > (b_depth + b.depth_priority_bias);
                 }
-                case rendering::ActorOcclusionKind::ForegroundTerrainWall: {
-                    const TerrainWallOccluderResource& occluder = terrain_wall_occluders_[item.index];
-                    submitMesh(occluder.mesh, ident, world_program_, MaterialClass::Opaque, 0.0f, stateForActorForeground(MaterialClass::Opaque), 1);
-                    break;
-                }
-                case rendering::ActorOcclusionKind::ForegroundTile: {
-                    const TileForegroundResource& occluder = tile_foreground_occluders_[item.index];
-                    submitMesh(occluder.mesh, ident, world_program_, MaterialClass::Opaque, 0.0f, stateForActorForeground(MaterialClass::Opaque), 1);
-                    submitMesh(occluder.mesh, ident, world_program_, MaterialClass::MaskCutout, 0.5f, stateForActorForeground(MaterialClass::MaskCutout), 1);
-                    submitMesh(occluder.mesh, ident, world_program_, MaterialClass::TrueBlend, 0.0f, stateForActorForeground(MaterialClass::TrueBlend), 1);
-                    break;
-                }
-                case rendering::ActorOcclusionKind::Texture:
-                    billboard_drawer_->submitTextureDraw(camera, texture_draws[item.index]);
-                    break;
-                case rendering::ActorOcclusionKind::Character:
-                    billboard_drawer_->submitCharacterDraw(camera, characters[item.index]);
-                    break;
+                return a_depth > b_depth;
             }
+        );
+        for (const rendering::CharacterBillboardDraw& character_draw : characters) {
+            billboard_drawer_->submitCharacterDraw(camera, character_draw);
+        }
+
+        for (const ModelGpuResource& model : models_) {
+            submitMesh(model.mesh, model.model_matrix, world_program_, MaterialClass::TrueBlend, 0.0f, stateFor(MaterialClass::TrueBlend), 1);
+        }
+        submitMesh(tile_layer_mesh_, ident, world_program_, MaterialClass::TrueBlend, 0.0f, stateFor(MaterialClass::TrueBlend), 1);
+
+        std::vector<rendering::TextureBillboardDraw> transparent_textures = texture_draws;
+        std::stable_sort(
+            transparent_textures.begin(),
+            transparent_textures.end(),
+            [](const rendering::TextureBillboardDraw& a, const rendering::TextureBillboardDraw& b) {
+                const float a_depth = a.placement.visible ? a.placement.depth : std::numeric_limits<float>::max();
+                const float b_depth = b.placement.visible ? b.placement.depth : std::numeric_limits<float>::max();
+                return a_depth > b_depth;
+            });
+        for (const rendering::TextureBillboardDraw& texture_draw : transparent_textures) {
+            billboard_drawer_->submitTextureDraw(camera, texture_draw);
         }
     }
 

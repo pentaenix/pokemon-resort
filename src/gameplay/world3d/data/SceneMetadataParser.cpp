@@ -74,6 +74,11 @@ void applyPixelCompositorConfig(PixelCompositorConfig& out, const JsonValue* pix
     if (!pixel_compositor || !pixel_compositor->isObject()) return;
     out.snap_anchors = boolOr(pixel_compositor->get("snapAnchors"), out.snap_anchors);
     out.sprite_sizing = strOr(pixel_compositor->get("spriteSizing"), out.sprite_sizing);
+    out.actor_depth_bias_px =
+        static_cast<float>(numOr(pixel_compositor->get("actorDepthBiasPx"), out.actor_depth_bias_px));
+    out.actor_depth_bias_px = std::clamp(out.actor_depth_bias_px, 0.0f, 256.0f);
+    out.actor_screen_offset_y_px =
+        std::clamp(intOr(pixel_compositor->get("actorScreenOffsetYPx"), out.actor_screen_offset_y_px), -16, 16);
     if (out.sprite_sizing != "native") {
         out.sprite_sizing = "native";
     }

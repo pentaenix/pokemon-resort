@@ -97,6 +97,8 @@ struct SceneCameraConfig {
 struct PixelCompositorConfig {
     bool snap_anchors = true;
     std::string sprite_sizing = "native";
+    float actor_depth_bias_px = 0.5f;
+    int actor_screen_offset_y_px = 0;
 };
 
 struct PresentationConfig {
