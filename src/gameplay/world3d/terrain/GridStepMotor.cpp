@@ -23,6 +23,16 @@ GridStepMotor GridStepMotor::beginStep(
         return motor;
     }
 
+    if (canTraverseTerrainEdge(scene, from_tx, from_ty, to_tx, to_ty, step_dx, step_dy)) {
+        motor.surface_follow = true;
+        motor.sample_x = from_tx;
+        motor.sample_y = from_ty;
+        motor.sample_end_x = to_tx;
+        motor.sample_end_y = to_ty;
+        motor.handoff = true;
+        return motor;
+    }
+
     const int dh = to_height_units - from_height_units;
     if (dh == 0) {
         const float from_center_y = heightAtTileCenter(scene, from_tx, from_ty);
@@ -46,6 +56,9 @@ GridStepMotor GridStepMotor::beginStep(
 }
 
 TileCoord GridStepMotor::activeSampleTile(float move_t) const {
+    if (surface_follow) {
+        return TileCoord{sample_x, sample_y};
+    }
     if (handoff && move_t >= 0.5f) {
         return TileCoord{sample_end_x, sample_end_y};
     }

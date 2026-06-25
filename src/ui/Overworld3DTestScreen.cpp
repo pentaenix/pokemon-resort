@@ -1,6 +1,7 @@
 #include "ui/Overworld3DTestScreen.hpp"
 
 #include "core/config/ConfigLoader.hpp"
+#include "core/config/Json.hpp"
 #include "core/input/InputBindings.hpp"
 #include "gameplay/world3d/camera/Gen4CameraPreset.hpp"
 #include "gameplay/world3d/rendering/PixelScale.hpp"
@@ -19,8 +20,10 @@
 #include <functional>
 #include <iostream>
 #include <limits>
+#include <map>
 #include <new>
 #include <optional>
+#include <stdexcept>
 #include <vector>
 
 namespace pr {
@@ -58,6 +61,28 @@ bool anyBindingPressed(const Uint8* keys, const std::vector<std::string>& bindin
         }
     }
     return false;
+}
+
+std::optional<fs::path> findMapProjectPath(const fs::path& project_root) {
+    const std::vector<fs::path> candidates{
+        project_root / "config" / "gameplay" / "world3d" / "map_project.json",
+        project_root / "assets" / "overworld" / "maps" / "map_project.json",
+        project_root.parent_path() / "pokemon-resort-page" / "tools" / "admin" / "data" / "map-projects" / "default.json",
+    };
+    for (const fs::path& candidate : candidates) {
+        if (fs::exists(candidate)) {
+            return candidate;
+        }
+    }
+    return std::nullopt;
+}
+
+int jsonIntOr(const JsonValue* value, int fallback) {
+    return value && value->isNumber() ? static_cast<int>(value->asNumber()) : fallback;
+}
+
+std::string jsonStringOr(const JsonValue* value, const std::string& fallback) {
+    return value && value->isString() ? value->asString() : fallback;
 }
 
 // Map screen-oriented input (up/down/left/right) to world grid steps using the Gen 4 camera basis on XZ.
@@ -135,6 +160,8 @@ void Overworld3DTestScreen::initializeSceneState() {
         scene_,
         movement_config_.walkSpeed(),
         movement_config_.turnStepDelaySeconds());
+    reloadWorldChunksForPlayer();
+    logLoadedWorldChunks();
     animator_.~SpriteSheetAnimator();
     new (&animator_) gameplay::world3d::characters::SpriteSheetAnimator(character_);
     map_ = gameplay::world3d::rendering::OverworldMapRenderer(scene_);
@@ -181,7 +208,9 @@ void Overworld3DTestScreen::initializeSceneState() {
     preset.aspect_height = scene_.camera_aspect_height;
     preset.fov_y_deg = scene_.camera_fov_y_deg;
     gameplay::world3d::rendering::applySceneCameraScaleToCameraPreset(preset, scene_);
+    follow_camera_base_preset_ = preset;
     camera_ = gameplay::world3d::camera::Gen4FollowCamera(preset);
+    reloadFollowCameraPresetConfig();
     map_loaded_ = map_.load();
     placed_models_.clear();
     for (const auto& model : scene_.models) {
@@ -232,6 +261,202 @@ void Overworld3DTestScreen::resetForNextLaunch() {
     initializeSceneState();
 }
 
+void Overworld3DTestScreen::reloadFollowCameraPresetConfig() {
+    const fs::path config_path =
+        fs::path(project_root_) / "config" / "gameplay" / "camera" / "follow_camera_presets.json";
+    try {
+        const JsonValue root = parseJsonFile(config_path.string());
+        if (!root.isObject()) {
+            std::cerr << "[Overworld3D] Follow camera preset config must be an object: "
+                      << config_path << '\n';
+            return;
+        }
+        const JsonValue* selected = root.get("selectedPreset");
+        int selected_preset = 0;
+        if (selected && selected->isNumber()) {
+            selected_preset = static_cast<int>(selected->asNumber());
+        } else if (selected && selected->isString()) {
+            try {
+                selected_preset = std::stoi(selected->asString());
+            } catch (const std::exception&) {
+                selected_preset = -1;
+            }
+        }
+        if (selected_preset < 0 || selected_preset > 15) {
+            std::cerr << "[Overworld3D] Follow camera selectedPreset must be 0..15: "
+                      << config_path << '\n';
+            return;
+        }
+
+        const JsonValue* presets = root.get("presets");
+        const JsonValue* preset_value = presets && presets->isObject()
+            ? presets->get(std::to_string(selected_preset))
+            : nullptr;
+        if (!preset_value || !preset_value->isObject()) {
+            std::cerr << "[Overworld3D] Follow camera preset " << selected_preset
+                      << " missing in " << config_path << '\n';
+            return;
+        }
+        const JsonValue* pitch = preset_value->get("pitchDeg");
+        if (!pitch || !pitch->isNumber()) {
+            std::cerr << "[Overworld3D] Follow camera preset " << selected_preset
+                      << " needs pitchDeg in " << config_path << '\n';
+            return;
+        }
+
+        gameplay::world3d::camera::Gen4CameraPreset preset = follow_camera_base_preset_;
+        preset.pitch_deg = static_cast<float>(pitch->asNumber());
+        camera_ = gameplay::world3d::camera::Gen4FollowCamera(preset);
+        camera_.setTarget(player_.position());
+        std::cerr << "[Overworld3D] Reloaded follow camera preset "
+                  << selected_preset
+                  << " pitchDeg=" << preset.pitch_deg
+                  << " from " << config_path << '\n';
+    } catch (const std::exception& ex) {
+        std::cerr << "[Overworld3D] Could not reload follow camera preset config: "
+                  << ex.what() << '\n';
+    }
+}
+
+std::vector<gameplay::world3d::characters::LoadedWorldChunk> Overworld3DTestScreen::buildLoadedWorldChunks() const {
+    std::vector<gameplay::world3d::characters::LoadedWorldChunk> chunks;
+    const auto project_path = findMapProjectPath(fs::path(project_root_));
+    if (!project_path) {
+        chunks.push_back(gameplay::world3d::characters::LoadedWorldChunk{
+            scene_.id.empty() ? std::string{"testing"} : scene_.id,
+            scene_,
+            0,
+            0});
+        return chunks;
+    }
+
+    struct MapEntry {
+        std::string id;
+        std::string file;
+        int grid_x = 0;
+        int grid_y = 0;
+        gameplay::world3d::SceneConfig scene;
+    };
+
+    std::vector<MapEntry> entries;
+    try {
+        const JsonValue root = parseJsonFile(project_path->string());
+        const JsonValue* maps = root.get("maps");
+        if (!maps || !maps->isArray()) {
+            throw std::runtime_error("map project has no maps array");
+        }
+        const fs::path maps_dir = fs::path(project_root_) / "assets" / "overworld" / "maps";
+        for (const JsonValue& item : maps->asArray()) {
+            if (!item.isObject()) {
+                continue;
+            }
+            MapEntry entry;
+            entry.id = jsonStringOr(item.get("id"), "");
+            entry.file = jsonStringOr(item.get("file"), "");
+            entry.grid_x = jsonIntOr(item.get("gridX"), 0);
+            entry.grid_y = jsonIntOr(item.get("gridY"), 0);
+            if (entry.file.empty()) {
+                continue;
+            }
+            const fs::path map_path = maps_dir / entry.file;
+            if (!fs::exists(map_path)) {
+                std::cerr << "[Overworld3D] Map project entry missing file: "
+                          << map_path << '\n';
+                continue;
+            }
+            entry.scene = gameplay::world3d::data::loadSceneConfig(project_root_, map_path.string());
+            if (entry.id.empty()) {
+                entry.id = entry.scene.id.empty() ? entry.file : entry.scene.id;
+            }
+            entries.push_back(std::move(entry));
+        }
+    } catch (const std::exception& ex) {
+        std::cerr << "[Overworld3D] Could not load map project "
+                  << *project_path << ": " << ex.what() << '\n';
+        chunks.push_back(gameplay::world3d::characters::LoadedWorldChunk{
+            scene_.id.empty() ? std::string{"testing"} : scene_.id,
+            scene_,
+            0,
+            0});
+        return chunks;
+    }
+
+    if (entries.empty()) {
+        chunks.push_back(gameplay::world3d::characters::LoadedWorldChunk{
+            scene_.id.empty() ? std::string{"testing"} : scene_.id,
+            scene_,
+            0,
+            0});
+        return chunks;
+    }
+
+    std::map<int, int> column_widths;
+    std::map<int, int> row_heights;
+    for (const MapEntry& entry : entries) {
+        column_widths[entry.grid_x] = std::max(column_widths[entry.grid_x], std::max(1, entry.scene.grid.width));
+        row_heights[entry.grid_y] = std::max(row_heights[entry.grid_y], std::max(1, entry.scene.grid.height));
+    }
+
+    const auto origin_for_axis = [](int grid_coord, const std::map<int, int>& spans) {
+        int origin = 0;
+        if (grid_coord > 0) {
+            for (int cell = 0; cell < grid_coord; ++cell) {
+                const auto it = spans.find(cell);
+                origin += it == spans.end() ? 16 : std::max(1, it->second);
+            }
+        } else if (grid_coord < 0) {
+            for (int cell = grid_coord; cell < 0; ++cell) {
+                const auto it = spans.find(cell);
+                origin -= it == spans.end() ? 16 : std::max(1, it->second);
+            }
+        }
+        return origin;
+    };
+
+    for (MapEntry& entry : entries) {
+        chunks.push_back(gameplay::world3d::characters::LoadedWorldChunk{
+            entry.id,
+            std::move(entry.scene),
+            origin_for_axis(entry.grid_x, column_widths),
+            origin_for_axis(entry.grid_y, row_heights)});
+    }
+
+    return chunks;
+}
+
+std::vector<gameplay::world3d::rendering::bgfx_backend::OverworldBgfxRenderer::StaticMapChunk>
+Overworld3DTestScreen::buildStaticRenderChunks() const {
+    std::vector<gameplay::world3d::rendering::bgfx_backend::OverworldBgfxRenderer::StaticMapChunk> out;
+    const float tile_size = std::max(1.0f, scene_.grid.tile_size);
+    for (const gameplay::world3d::characters::LoadedWorldChunk& chunk : buildLoadedWorldChunks()) {
+        if (chunk.origin_tile_x == 0 && chunk.origin_tile_y == 0) {
+            continue;
+        }
+        out.push_back({
+            chunk.scene,
+            static_cast<float>(chunk.origin_tile_x) * tile_size,
+            0.0f,
+            static_cast<float>(chunk.origin_tile_y) * tile_size});
+    }
+    return out;
+}
+
+void Overworld3DTestScreen::reloadWorldChunksForPlayer() {
+    player_.setTerrainQuery(gameplay::world3d::characters::makeLoadedWorldCharacterTerrainQuery(buildLoadedWorldChunks()));
+}
+
+void Overworld3DTestScreen::logLoadedWorldChunks() const {
+    const std::vector<gameplay::world3d::characters::LoadedWorldChunk> chunks = buildLoadedWorldChunks();
+    std::cerr << "[Overworld3D] Loaded " << chunks.size() << " world chunks\n";
+    for (const gameplay::world3d::characters::LoadedWorldChunk& chunk : chunks) {
+        std::cerr << "[Overworld3D] chunk id=" << chunk.id
+                  << " originTile=(" << chunk.origin_tile_x << ',' << chunk.origin_tile_y << ')'
+                  << " size=" << chunk.scene.grid.width << 'x' << chunk.scene.grid.height
+                  << '\n';
+    }
+}
+
+
 void Overworld3DTestScreen::update(double dt) {
     if (blocked_movement_repeat_seconds_ > 0.0) {
         blocked_movement_repeat_seconds_ = std::max(0.0, blocked_movement_repeat_seconds_ - dt);
@@ -272,8 +497,10 @@ void Overworld3DTestScreen::update(double dt) {
             player_.stop();
         }
 
+        const bool player_run_animation_active =
+            player_running && player_.moving() && !blocked_movement_attempt;
         animator_.setFacing(player_.facing());
-        animator_.setRunning(player_running);
+        animator_.setRunning(player_run_animation_active);
         if (blocked_movement_attempt && blocked_movement_repeat_seconds_ <= 0.0) {
             blocked_movement_sfx_requested_ = true;
             blocked_movement_repeat_seconds_ = movement_config_.blockedStepSfxRepeatSeconds();
@@ -525,6 +752,7 @@ bool Overworld3DTestScreen::renderBgfx(
                 project_root_,
                 scene_,
                 character_);
+        bgfx_renderer_->setStaticMapChunks(buildStaticRenderChunks());
         if (!bgfx_renderer_->initialize(
                 window,
                 framebuffer_w,
@@ -660,6 +888,10 @@ bool Overworld3DTestScreen::handleUnroutedSdlEvent(const SDL_Event& event) {
                 freecam_pos_ = initialFreecamPosition(scene_, player_.position());
                 camera_.setManualPose(freecam_pos_, freecam_yaw_deg_, freecam_pitch_deg_);
             }
+            return true;
+        }
+        if (!freecam_enabled_ && event.key.keysym.sym == SDLK_1) {
+            reloadFollowCameraPresetConfig();
             return true;
         }
         if (!freecam_enabled_ &&

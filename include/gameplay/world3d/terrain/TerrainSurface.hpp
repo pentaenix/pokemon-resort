@@ -78,6 +78,16 @@ bool isSmoothRampHeightStep(
     int step_dx,
     int step_dy);
 
+// True when neighboring tiles share a continuous solved surface edge.
+bool canTraverseTerrainEdge(
+    const SceneConfig& scene,
+    int from_tx,
+    int from_ty,
+    int to_tx,
+    int to_ty,
+    int step_dx,
+    int step_dy);
+
 // Stitched height at a footprint; primary tile is the actor's logical grid cell.
 float heightAtActorFeet(
     const SceneConfig& scene,

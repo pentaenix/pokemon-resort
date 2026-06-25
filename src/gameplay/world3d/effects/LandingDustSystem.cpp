@@ -115,6 +115,7 @@ void LandingDustSystem::render(
         const int tx = static_cast<int>(std::floor(world_pos.x / tile_size));
         const int ty = static_cast<int>(std::floor(world_pos.z / tile_size));
         const auto binding = terrain::bindActorStanding(scene, tx, ty, world_pos.x, world_pos.z);
+        world_pos.y = binding.simulation_y + config_.world_offset_y;
         const SDL_Rect source_rect{0, 0, frame_width, frame_height};
         const auto placement = rendering::buildTextureBillboardPlacement(
             scene,
@@ -184,6 +185,7 @@ void LandingDustSystem::collectTextureBillboardDraws(
         const int ty = static_cast<int>(std::floor(world_pos.z / tile_size));
         const terrain::ActorTerrainBinding binding =
             terrain::bindActorStanding(scene, tx, ty, world_pos.x, world_pos.z);
+        world_pos.y = binding.simulation_y + config_.world_offset_y;
 
         const float progress = static_cast<float>(std::clamp(
             instance.elapsed_seconds / std::max(0.01, instance.duration_seconds),

@@ -6,6 +6,7 @@
 #include "gameplay/world3d/characters/SpriteSheetAnimator.hpp"
 #include "gameplay/world3d/rendering/BillboardPlacement.hpp"
 #include "gameplay/world3d/terrain/ActorTerrainBinding.hpp"
+#include "gameplay/world3d/terrain/GridStepMotor.hpp"
 
 #include <SDL.h>
 
@@ -82,6 +83,7 @@ private:
         camera::Vec3 position{};
         camera::Vec3 move_start{};
         camera::Vec3 move_target{};
+        terrain::GridStepMotor step_motor{};
         terrain::ActorTerrainBinding terrain_binding{};
         SDL_Rect source_rect{};
         int tile_x = 0;
@@ -121,10 +123,12 @@ private:
     std::optional<std::size_t> findActor(const std::string& id) const;
     std::optional<std::pair<int, int>> randomValidTile();
     bool validWalkTile(int tx, int ty) const;
+    bool canStepBetweenTiles(int from_tx, int from_ty, int to_tx, int to_ty) const;
     bool tileOccupied(int tx, int ty, const Actor* mover = nullptr) const;
     bool tileReserved(int tx, int ty) const;
     bool tileReservedByNonPlayer(int tx, int ty) const;
     Actor* actorAtTile(int tx, int ty);
+    bool followerPokemonSettledWithTarget(const Actor& actor) const;
     bool actorCanYieldFromTile(Actor& actor, int player_from_tx, int player_from_ty);
     std::string firstResortPokemonCharbinPath() const;
     std::string pokemonCharbinPathForSpecies(const std::string& species) const;

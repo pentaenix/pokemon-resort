@@ -183,6 +183,7 @@ public:
     void shutdown();
     bool valid() const { return initialized_ && backend_.valid(); }
     std::string lastError() const { return last_error_; }
+    void setStaticMapChunks(std::vector<OverworldBgfxRenderer::StaticMapChunk> chunks);
     void render(
         const camera::Gen4FollowCamera& camera,
         const camera::Vec3& player_pos,
@@ -256,6 +257,26 @@ private:
         float model_matrix[16]{};
     };
 
+    struct StaticChunkGpuResource {
+        MeshGpuResource terrain_flat_top_mesh;
+        MeshGpuResource terrain_slope_top_mesh;
+        MeshGpuResource terrain_wall_mesh;
+        MeshGpuResource tile_layer_mesh;
+        std::vector<ModelGpuResource> models;
+        float world_matrix[16]{};
+
+        void destroy() {
+            terrain_flat_top_mesh.destroy();
+            terrain_slope_top_mesh.destroy();
+            terrain_wall_mesh.destroy();
+            tile_layer_mesh.destroy();
+            for (ModelGpuResource& model : models) {
+                model.mesh.destroy();
+            }
+            models.clear();
+        }
+    };
+
     struct PixelWorldTarget {
         bgfx::FrameBufferHandle frame_buffer = BGFX_INVALID_HANDLE;
         int width = 0;
@@ -286,6 +307,8 @@ private:
     MeshGpuResource tile_layer_mesh_;
     std::vector<ModelGpuResource> models_;
     std::optional<data::RtpksTilePackage> tile_package_;
+    std::vector<OverworldBgfxRenderer::StaticMapChunk> pending_static_chunks_;
+    std::vector<StaticChunkGpuResource> static_chunks_;
     PixelWorldTarget pixel_world_target_;
 
     bool createPrograms();
@@ -293,6 +316,7 @@ private:
     bool buildTerrain();
     bool buildTileLayers();
     bool buildModels();
+    bool buildStaticMapChunks();
     bool buildPlayerTexture();
     bool buildShadowTexture();
     void destroyPrograms();
@@ -405,6 +429,12 @@ bool OverworldBgfxRenderer::valid() const {
     return impl_ && impl_->valid();
 }
 
+void OverworldBgfxRenderer::setStaticMapChunks(std::vector<StaticMapChunk> chunks) {
+    if (impl_) {
+        impl_->setStaticMapChunks(std::move(chunks));
+    }
+}
+
 void OverworldBgfxRenderer::render(
     const camera::Gen4FollowCamera& camera,
     const camera::Vec3& player_pos,
@@ -445,6 +475,10 @@ void OverworldBgfxRenderer::Impl::queueScreenshot(const std::string& output_path
     backend_.queueScreenshot(output_path);
 }
 
+void OverworldBgfxRenderer::Impl::setStaticMapChunks(std::vector<OverworldBgfxRenderer::StaticMapChunk> chunks) {
+    pending_static_chunks_ = std::move(chunks);
+}
+
 bool OverworldBgfxRenderer::Impl::initialize(
     SDL_Window* window,
     int width,
@@ -478,7 +512,7 @@ bool OverworldBgfxRenderer::Impl::initialize(
     }
 
     if (!createPrograms() || !loadTilePackage() || !buildTerrain() || !buildTileLayers() ||
-        !buildModels() || !buildPlayerTexture() || !buildShadowTexture()) {
+        !buildModels() || !buildStaticMapChunks() || !buildPlayerTexture() || !buildShadowTexture()) {
         shutdown();
         return false;
     }
@@ -489,6 +523,7 @@ bool OverworldBgfxRenderer::Impl::initialize(
               << (terrain_flat_top_mesh_.valid() || terrain_slope_top_mesh_.valid() || terrain_wall_mesh_.valid() ? "yes" : "no")
               << " tiles=" << (tile_layer_mesh_.valid() ? "yes" : "no")
               << " models=" << models_.size()
+              << " staticChunks=" << static_chunks_.size()
               << " playerTexture=" << character_textures_[character_.texture_path].color.width << "x"
               << character_textures_[character_.texture_path].color.height
               << '\n';
@@ -505,6 +540,10 @@ void OverworldBgfxRenderer::Impl::shutdown() {
         model.mesh.destroy();
     }
     models_.clear();
+    for (StaticChunkGpuResource& chunk : static_chunks_) {
+        chunk.destroy();
+    }
+    static_chunks_.clear();
     tile_package_.reset();
     shadow_texture_.destroy();
     for (auto& entry : character_textures_) {
@@ -751,7 +790,6 @@ bool OverworldBgfxRenderer::Impl::buildTileLayers() {
                                    std::size_t vertex_index,
                                    int tile_x,
                                    int tile_y,
-                                   float base_y,
                                    float layer_lift,
                                    float material_alpha) {
         const std::size_t pi = vertex_index * 3U;
@@ -759,10 +797,14 @@ bool OverworldBgfxRenderer::Impl::buildTileLayers() {
         const float local_x = read_float(positions, pi + 0U, 0.0f) + mesh.x_offset;
         const float local_y = read_float(positions, pi + 1U, 0.0f) + mesh.y_offset;
         const float local_z = read_float(positions, pi + 2U, 0.0f);
+        const float world_x = static_cast<float>(tile_x) * tile_size + local_x * tile_size;
+        const float world_z =
+            static_cast<float>(tile_y) * tile_size + (static_cast<float>(mesh.height) - local_y) * tile_size;
+        const float terrain_y = terrain::heightAtWorldPosition(scene_, world_x, world_z, tile_x, tile_y);
         bucket.vertices.push_back(Vertex{
-            static_cast<float>(tile_x) * tile_size + local_x * tile_size,
-            base_y + local_z * tile_size + layer_lift,
-            static_cast<float>(tile_y) * tile_size + (static_cast<float>(mesh.height) - local_y) * tile_size,
+            world_x,
+            terrain_y + local_z * tile_size + layer_lift,
+            world_z,
             vertex_color(colors, pi, material_alpha),
             read_float(uvs, ui + 0U, 0.0f),
             1.0f - read_float(uvs, ui + 1U, 0.0f)});
@@ -772,14 +814,13 @@ bool OverworldBgfxRenderer::Impl::buildTileLayers() {
                                 int tri_index,
                                 int tile_x,
                                 int tile_y,
-                                float base_y,
                                 float layer_lift,
                                 float material_alpha) {
         const std::uint32_t base = static_cast<std::uint32_t>(bucket.vertices.size());
         const std::size_t first = static_cast<std::size_t>(std::max(0, tri_index)) * 3U;
-        append_vertex(bucket, mesh, mesh.triangles, mesh.tex_coords_tri, mesh.colors_tri, first + 0U, tile_x, tile_y, base_y, layer_lift, material_alpha);
-        append_vertex(bucket, mesh, mesh.triangles, mesh.tex_coords_tri, mesh.colors_tri, first + 1U, tile_x, tile_y, base_y, layer_lift, material_alpha);
-        append_vertex(bucket, mesh, mesh.triangles, mesh.tex_coords_tri, mesh.colors_tri, first + 2U, tile_x, tile_y, base_y, layer_lift, material_alpha);
+        append_vertex(bucket, mesh, mesh.triangles, mesh.tex_coords_tri, mesh.colors_tri, first + 0U, tile_x, tile_y, layer_lift, material_alpha);
+        append_vertex(bucket, mesh, mesh.triangles, mesh.tex_coords_tri, mesh.colors_tri, first + 1U, tile_x, tile_y, layer_lift, material_alpha);
+        append_vertex(bucket, mesh, mesh.triangles, mesh.tex_coords_tri, mesh.colors_tri, first + 2U, tile_x, tile_y, layer_lift, material_alpha);
         bucket.indices.insert(bucket.indices.end(), {base, base + 1U, base + 2U});
     };
     const auto append_quad = [&](Bucket& bucket,
@@ -787,15 +828,14 @@ bool OverworldBgfxRenderer::Impl::buildTileLayers() {
                                  int quad_index,
                                  int tile_x,
                                  int tile_y,
-                                 float base_y,
                                  float layer_lift,
                                  float material_alpha) {
         const std::uint32_t base = static_cast<std::uint32_t>(bucket.vertices.size());
         const std::size_t first = static_cast<std::size_t>(std::max(0, quad_index)) * 4U;
-        append_vertex(bucket, mesh, mesh.quads, mesh.tex_coords_quad, mesh.colors_quad, first + 0U, tile_x, tile_y, base_y, layer_lift, material_alpha);
-        append_vertex(bucket, mesh, mesh.quads, mesh.tex_coords_quad, mesh.colors_quad, first + 1U, tile_x, tile_y, base_y, layer_lift, material_alpha);
-        append_vertex(bucket, mesh, mesh.quads, mesh.tex_coords_quad, mesh.colors_quad, first + 2U, tile_x, tile_y, base_y, layer_lift, material_alpha);
-        append_vertex(bucket, mesh, mesh.quads, mesh.tex_coords_quad, mesh.colors_quad, first + 3U, tile_x, tile_y, base_y, layer_lift, material_alpha);
+        append_vertex(bucket, mesh, mesh.quads, mesh.tex_coords_quad, mesh.colors_quad, first + 0U, tile_x, tile_y, layer_lift, material_alpha);
+        append_vertex(bucket, mesh, mesh.quads, mesh.tex_coords_quad, mesh.colors_quad, first + 1U, tile_x, tile_y, layer_lift, material_alpha);
+        append_vertex(bucket, mesh, mesh.quads, mesh.tex_coords_quad, mesh.colors_quad, first + 2U, tile_x, tile_y, layer_lift, material_alpha);
+        append_vertex(bucket, mesh, mesh.quads, mesh.tex_coords_quad, mesh.colors_quad, first + 3U, tile_x, tile_y, layer_lift, material_alpha);
         bucket.indices.insert(bucket.indices.end(), {base, base + 1U, base + 2U, base, base + 2U, base + 3U});
     };
     int placed_tiles = 0;
@@ -809,7 +849,6 @@ bool OverworldBgfxRenderer::Impl::buildTileLayers() {
                 if (tile_id < 0) continue;
                 const data::RtpksTileMesh* mesh = tile_package_->tileById(tile_id);
                 if (!mesh) continue;
-                const float base_y = terrain::heightAtTileCenter(scene_, x, y);
                 const float layer_lift = static_cast<float>(layer_index) * kLayerLift;
                 for (const data::RtpksMaterialRange& range : mesh->material_ranges) {
                     const auto slot_it = material_slot_by_id.find(range.material_id);
@@ -819,11 +858,11 @@ bool OverworldBgfxRenderer::Impl::buildTileLayers() {
                     const MaterialGpuResource& material = tile_layer_mesh_.materials[material_index];
                     for (int i = 0; i < range.tri_count; ++i) {
                         const int tri_index = range.tri_start + i;
-                        append_tri(bucket, *mesh, tri_index, x, y, base_y, layer_lift, material.base_color[3]);
+                        append_tri(bucket, *mesh, tri_index, x, y, layer_lift, material.base_color[3]);
                     }
                     for (int i = 0; i < range.quad_count; ++i) {
                         const int quad_index = range.quad_start + i;
-                        append_quad(bucket, *mesh, quad_index, x, y, base_y, layer_lift, material.base_color[3]);
+                        append_quad(bucket, *mesh, quad_index, x, y, layer_lift, material.base_color[3]);
                     }
                 }
                 ++placed_tiles;
@@ -1103,6 +1142,84 @@ bool OverworldBgfxRenderer::Impl::buildModels() {
             return false;
         }
     }
+    return true;
+}
+
+bool OverworldBgfxRenderer::Impl::buildStaticMapChunks() {
+    for (StaticChunkGpuResource& chunk : static_chunks_) {
+        chunk.destroy();
+    }
+    static_chunks_.clear();
+    if (pending_static_chunks_.empty()) {
+        return true;
+    }
+
+    const SceneConfig primary_scene = scene_;
+    std::optional<data::RtpksTilePackage> primary_tile_package = std::move(tile_package_);
+    MeshGpuResource primary_flat_top = terrain_flat_top_mesh_;
+    MeshGpuResource primary_slope_top = terrain_slope_top_mesh_;
+    MeshGpuResource primary_wall = terrain_wall_mesh_;
+    MeshGpuResource primary_tiles = tile_layer_mesh_;
+    std::vector<ModelGpuResource> primary_models = std::move(models_);
+
+    terrain_flat_top_mesh_ = MeshGpuResource{};
+    terrain_slope_top_mesh_ = MeshGpuResource{};
+    terrain_wall_mesh_ = MeshGpuResource{};
+    tile_layer_mesh_ = MeshGpuResource{};
+    models_.clear();
+
+    const auto restore_primary = [&]() {
+        scene_ = primary_scene;
+        tile_package_ = std::move(primary_tile_package);
+        terrain_flat_top_mesh_ = primary_flat_top;
+        terrain_slope_top_mesh_ = primary_slope_top;
+        terrain_wall_mesh_ = primary_wall;
+        tile_layer_mesh_ = primary_tiles;
+        models_ = std::move(primary_models);
+    };
+
+    for (const OverworldBgfxRenderer::StaticMapChunk& request : pending_static_chunks_) {
+        scene_ = request.scene;
+        tile_package_.reset();
+        terrain_flat_top_mesh_ = MeshGpuResource{};
+        terrain_slope_top_mesh_ = MeshGpuResource{};
+        terrain_wall_mesh_ = MeshGpuResource{};
+        tile_layer_mesh_ = MeshGpuResource{};
+        models_.clear();
+
+        if (!loadTilePackage() || !buildTerrain() || !buildTileLayers() || !buildModels()) {
+            restore_primary();
+            return false;
+        }
+
+        StaticChunkGpuResource chunk;
+        placementMatrix(
+            request.origin_x,
+            request.origin_y,
+            request.origin_z,
+            0.0f,
+            1.0f,
+            chunk.world_matrix);
+        chunk.terrain_flat_top_mesh = terrain_flat_top_mesh_;
+        chunk.terrain_slope_top_mesh = terrain_slope_top_mesh_;
+        chunk.terrain_wall_mesh = terrain_wall_mesh_;
+        chunk.tile_layer_mesh = tile_layer_mesh_;
+        chunk.models = std::move(models_);
+        for (ModelGpuResource& model : chunk.models) {
+            model.model_matrix[12] += request.origin_x;
+            model.model_matrix[13] += request.origin_y;
+            model.model_matrix[14] += request.origin_z;
+        }
+        static_chunks_.push_back(std::move(chunk));
+
+        terrain_flat_top_mesh_ = MeshGpuResource{};
+        terrain_slope_top_mesh_ = MeshGpuResource{};
+        terrain_wall_mesh_ = MeshGpuResource{};
+        tile_layer_mesh_ = MeshGpuResource{};
+        models_.clear();
+    }
+
+    restore_primary();
     return true;
 }
 
@@ -1451,9 +1568,24 @@ void OverworldBgfxRenderer::Impl::render(
     for (const ModelGpuResource& model : models_) {
         submitMesh(model.mesh, model.model_matrix, world_program_, MaterialClass::Opaque, 0.0f, stateFor(MaterialClass::Opaque));
     }
+    for (const StaticChunkGpuResource& chunk : static_chunks_) {
+        submitMesh(chunk.terrain_flat_top_mesh, chunk.world_matrix, world_program_, MaterialClass::Opaque, 0.0f, stateFor(MaterialClass::Opaque));
+        submitMesh(chunk.terrain_slope_top_mesh, chunk.world_matrix, world_program_, MaterialClass::Opaque, 0.0f, stateFor(MaterialClass::Opaque));
+        submitMesh(chunk.terrain_wall_mesh, chunk.world_matrix, world_program_, MaterialClass::Opaque, 0.0f, stateFor(MaterialClass::Opaque));
+        submitMesh(chunk.tile_layer_mesh, chunk.world_matrix, world_program_, MaterialClass::Opaque, 0.0f, stateFor(MaterialClass::Opaque));
+        for (const ModelGpuResource& model : chunk.models) {
+            submitMesh(model.mesh, model.model_matrix, world_program_, MaterialClass::Opaque, 0.0f, stateFor(MaterialClass::Opaque));
+        }
+    }
     submitMesh(tile_layer_mesh_, ident, world_program_, MaterialClass::MaskCutout, 0.5f, stateFor(MaterialClass::MaskCutout));
     for (const ModelGpuResource& model : models_) {
         submitMesh(model.mesh, model.model_matrix, world_program_, MaterialClass::MaskCutout, 0.5f, stateFor(MaterialClass::MaskCutout));
+    }
+    for (const StaticChunkGpuResource& chunk : static_chunks_) {
+        submitMesh(chunk.tile_layer_mesh, chunk.world_matrix, world_program_, MaterialClass::MaskCutout, 0.5f, stateFor(MaterialClass::MaskCutout));
+        for (const ModelGpuResource& model : chunk.models) {
+            submitMesh(model.mesh, model.model_matrix, world_program_, MaterialClass::MaskCutout, 0.5f, stateFor(MaterialClass::MaskCutout));
+        }
     }
 
     bgfx::touch(1);
@@ -1510,6 +1642,12 @@ void OverworldBgfxRenderer::Impl::render(
             submitMesh(model.mesh, model.model_matrix, world_program_, MaterialClass::TrueBlend, 0.0f, stateFor(MaterialClass::TrueBlend), 1);
         }
         submitMesh(tile_layer_mesh_, ident, world_program_, MaterialClass::TrueBlend, 0.0f, stateFor(MaterialClass::TrueBlend), 1);
+        for (const StaticChunkGpuResource& chunk : static_chunks_) {
+            for (const ModelGpuResource& model : chunk.models) {
+                submitMesh(model.mesh, model.model_matrix, world_program_, MaterialClass::TrueBlend, 0.0f, stateFor(MaterialClass::TrueBlend), 1);
+            }
+            submitMesh(chunk.tile_layer_mesh, chunk.world_matrix, world_program_, MaterialClass::TrueBlend, 0.0f, stateFor(MaterialClass::TrueBlend), 1);
+        }
 
         std::vector<rendering::TextureBillboardDraw> transparent_textures = texture_draws;
         std::stable_sort(

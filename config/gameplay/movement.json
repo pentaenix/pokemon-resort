@@ -11,7 +11,7 @@
   },
   "_turningComment": "Delay after turning in place before held input starts walking. Lower values feel more responsive; 0 keeps tap-to-turn but starts held movement immediately on the next frame.",
   "turning": {
-    "stepDelaySeconds": 0
+    "stepDelaySeconds": 0.1
   },
   "profiles": {
     "slow": {

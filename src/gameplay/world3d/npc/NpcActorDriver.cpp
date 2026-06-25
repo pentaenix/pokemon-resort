@@ -250,8 +250,21 @@ void NpcActorDriver::update(double dt) {
             actor.move_t = std::min(1.0f, actor.move_t + static_cast<float>(dt) / step_seconds);
             const float t = actor.move_t;
             actor.position.x = actor.move_start.x + ((actor.move_target.x - actor.move_start.x) * t);
-            actor.position.y = actor.move_start.y + ((actor.move_target.y - actor.move_start.y) * t);
             actor.position.z = actor.move_start.z + ((actor.move_target.z - actor.move_start.z) * t);
+            if (actor.step_motor.interpolate_y) {
+                actor.position.y =
+                    terrain::actorHeightDuringStep(*scene_, actor.position.x, actor.position.z, actor.step_motor, t);
+            } else {
+                actor.position.y = actor.move_start.y + ((actor.move_target.y - actor.move_start.y) * t);
+            }
+            actor.terrain_binding = terrain::bindActorStanding(
+                *scene_, actor.tile_x, actor.tile_y, actor.position.x, actor.position.z);
+            if (actor.step_motor.interpolate_y) {
+                const terrain::TileCoord sample = actor.step_motor.activeSampleTile(t);
+                actor.terrain_binding.height_sample_tx = sample.x;
+                actor.terrain_binding.height_sample_ty = sample.y;
+                actor.terrain_binding.simulation_y = actor.position.y;
+            }
             if (actor.move_t >= 1.0f) {
                 finishMovement(actor);
             }
@@ -307,7 +320,8 @@ bool NpcActorDriver::canPlayerEnterTile(int from_tx, int from_ty, int to_tx, int
         }
 
         if (actor.definition.kind != NpcActorKind::Pokemon ||
-            pokemon_collision_mode_ == PokemonCollisionMode::BlockCell) {
+            pokemon_collision_mode_ == PokemonCollisionMode::BlockCell ||
+            followerPokemonSettledWithTarget(actor)) {
             return false;
         }
 
@@ -422,13 +436,35 @@ void NpcActorDriver::startStepToTile(Actor& actor, int tx, int ty, bool allow_re
     if (!validWalkTile(tx, ty) || tileOccupied(tx, ty, &actor) || (!allow_reserved_tile && tileReserved(tx, ty))) {
         return;
     }
+    if (!canStepBetweenTiles(actor.tile_x, actor.tile_y, tx, ty)) {
+        return;
+    }
 
     const float tile_size = std::max(1.0f, scene_->grid.tile_size);
     const float wx = (static_cast<float>(tx) + 0.5f) * tile_size;
     const float wz = (static_cast<float>(ty) + 0.5f) * tile_size;
     const terrain::ActorTerrainBinding binding = terrain::bindActorStanding(*scene_, tx, ty, wx, wz);
+    const int dx = tx - actor.tile_x;
+    const int dy = ty - actor.tile_y;
+    const auto height_units = [this](int sx, int sy) {
+        if (scene_->terrain.heights.empty()) return 0;
+        if (sy < 0 || sy >= static_cast<int>(scene_->terrain.heights.size())) return 0;
+        const auto& row = scene_->terrain.heights[static_cast<std::size_t>(sy)];
+        if (sx < 0 || sx >= static_cast<int>(row.size())) return 0;
+        return static_cast<int>(row[static_cast<std::size_t>(sx)]);
+    };
 
-    actor.facing = facingForStep(tx - actor.tile_x, ty - actor.tile_y);
+    actor.step_motor = terrain::GridStepMotor::beginStep(
+        *scene_,
+        actor.tile_x,
+        actor.tile_y,
+        tx,
+        ty,
+        dx,
+        dy,
+        height_units(actor.tile_x, actor.tile_y),
+        height_units(tx, ty));
+    actor.facing = facingForStep(dx, dy);
     actor.target_tile_x = tx;
     actor.target_tile_y = ty;
     actor.move_start = actor.position;
@@ -454,7 +490,8 @@ void NpcActorDriver::updateRandomWalk(Actor& actor, double dt) {
     for (const auto& dir : kDirs) {
         const int tx = actor.tile_x + dir[0];
         const int ty = actor.tile_y + dir[1];
-        if (validWalkTile(tx, ty) && !tileOccupied(tx, ty, &actor) && !tileReserved(tx, ty)) {
+        if (validWalkTile(tx, ty) && canStepBetweenTiles(actor.tile_x, actor.tile_y, tx, ty) &&
+            !tileOccupied(tx, ty, &actor) && !tileReserved(tx, ty)) {
             candidates.push_back({dir[0], dir[1]});
         }
     }
@@ -856,11 +893,26 @@ bool NpcActorDriver::validWalkTile(int tx, int ty) const {
         scene_->terrain.collision[y][x] != 0) {
         return false;
     }
-    if (y < scene_->terrain.specials.size() && x < scene_->terrain.specials[y].size() &&
-        scene_->terrain.specials[y][x] != 0) {
-        return false;
-    }
     return true;
+}
+
+bool NpcActorDriver::canStepBetweenTiles(int from_tx, int from_ty, int to_tx, int to_ty) const {
+    if (!scene_) return false;
+    const int dx = to_tx - from_tx;
+    const int dy = to_ty - from_ty;
+    if (std::abs(dx) + std::abs(dy) != 1) return false;
+    if (!validWalkTile(from_tx, from_ty) || !validWalkTile(to_tx, to_ty)) return false;
+    if (terrain::canTraverseTerrainEdge(*scene_, from_tx, from_ty, to_tx, to_ty, dx, dy)) {
+        return true;
+    }
+    const auto height_units = [this](int sx, int sy) {
+        if (scene_->terrain.heights.empty()) return 0;
+        if (sy < 0 || sy >= static_cast<int>(scene_->terrain.heights.size())) return 0;
+        const auto& row = scene_->terrain.heights[static_cast<std::size_t>(sy)];
+        if (sx < 0 || sx >= static_cast<int>(row.size())) return 0;
+        return static_cast<int>(row[static_cast<std::size_t>(sx)]);
+    };
+    return height_units(from_tx, from_ty) == height_units(to_tx, to_ty);
 }
 
 bool NpcActorDriver::tileOccupied(int tx, int ty, const Actor* mover) const {
@@ -901,6 +953,26 @@ NpcActorDriver::Actor* NpcActorDriver::actorAtTile(int tx, int ty) {
         }
     }
     return nullptr;
+}
+
+bool NpcActorDriver::followerPokemonSettledWithTarget(const Actor& actor) const {
+    if (actor.definition.kind != NpcActorKind::Pokemon ||
+        actor.definition.behavior != NpcBehaviorKind::FollowActor ||
+        actor.definition.follow_target_id.empty()) {
+        return false;
+    }
+
+    const std::optional<std::size_t> target_index = findActor(actor.definition.follow_target_id);
+    if (!target_index || *target_index >= actors_.size()) {
+        return false;
+    }
+
+    const Actor& target = actors_[*target_index];
+    const int actor_tx = actor.moving ? actor.target_tile_x : actor.tile_x;
+    const int actor_ty = actor.moving ? actor.target_tile_y : actor.tile_y;
+    const int target_tx = target.moving ? target.target_tile_x : target.tile_x;
+    const int target_ty = target.moving ? target.target_tile_y : target.tile_y;
+    return std::abs(actor_tx - target_tx) + std::abs(actor_ty - target_ty) <= 1;
 }
 
 bool NpcActorDriver::actorCanYieldFromTile(Actor& actor, int player_from_tx, int player_from_ty) {

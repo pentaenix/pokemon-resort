@@ -1,5 +1,7 @@
 #include "gameplay/world3d/followers/NatureIdlePlanner.hpp"
 
+#include "gameplay/world3d/terrain/TerrainSurface.hpp"
+
 #include <algorithm>
 #include <array>
 #include <cctype>
@@ -134,6 +136,7 @@ struct Navigator {
         const int dy = to.y - from.y;
         const int dh = heightUnits(to.x, to.y) - heightUnits(from.x, from.y);
         if (std::abs(dx) + std::abs(dy) != 1) return false;
+        if (terrain::canTraverseTerrainEdge(scene, from.x, from.y, to.x, to.y, dx, dy)) return true;
         if (dh == 0) return true;
         if (std::abs(dh) > 1) return false;
         auto ramp_allows = [&](const GridPoint& tile) {

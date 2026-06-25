@@ -6,7 +6,7 @@
       "id": "resort_box_pokemon_0",
       "source": "firstResortPokemon",
       "kind": "pokemon",
-      "spawn": [12, 12],
+      "spawn": [9, 9],
       "facing": "south",
       "behaviorProfile": "wander",
       "movementSpeedProfile": "walk",

@@ -101,8 +101,9 @@ BillboardPlacement buildCharacterBillboardPlacement(
         binding.height_sample_tx,
         binding.height_sample_ty);
     const float render_lift_y = slopeBillboardLift(scene, binding);
-    const float grounded_foot_y = foot_terrain_y + character.world_offset_y + (world_pos.y - base_terrain_y);
-    pos.y = grounded_foot_y + render_lift_y;
+    const float terrain_contact_y = foot_terrain_y;
+    const float visual_foot_y = terrain_contact_y + character.world_offset_y + (world_pos.y - base_terrain_y);
+    pos.y = visual_foot_y + render_lift_y;
 
     float sx = 0.0f;
     float sy = 0.0f;
@@ -125,9 +126,9 @@ BillboardPlacement buildCharacterBillboardPlacement(
     out.anchor = pos;
     out.feet = pos;
     out.shadow_ground = camera::Vec3{
-        out.feet.x,
-        grounded_foot_y + scene.sprite_shadow.world_y_lift,
-        out.feet.z};
+        pos.x,
+        terrain_contact_y + scene.sprite_shadow.world_y_lift,
+        pos.z};
     out.visible = true;
     return out;
 }

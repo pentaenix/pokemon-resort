@@ -33,7 +33,7 @@
       "frameHeight": 32,
       "frameCount": 3,
       "spriteScale": 1.0,
-      "screenOffsetYPx": 8
+      "screenOffsetYPx": 0
     },
     "fallbackOrder": ["watch_player", "face_away", "random_walk", "do_nothing"],
     "groupWeights": {

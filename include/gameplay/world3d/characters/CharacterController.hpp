@@ -2,10 +2,12 @@
 
 #include "gameplay/world3d/Overworld3DConfig.hpp"
 #include "gameplay/world3d/camera/Gen4FollowCamera.hpp"
+#include "gameplay/world3d/characters/CharacterTerrainQuery.hpp"
 #include "gameplay/world3d/terrain/ActorTerrainBinding.hpp"
 #include "gameplay/world3d/terrain/GridStepMotor.hpp"
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <vector>
 
 namespace pr::gameplay::world3d::characters {
@@ -38,6 +40,7 @@ public:
         const std::function<bool(int from_tx, int from_ty, int to_tx, int to_ty)>& can_enter_tile = {});
     void stop();
     void setMoveSpeedUnitsPerSecond(float speed);
+    void setTerrainQuery(std::shared_ptr<CharacterTerrainQuery> terrain_query);
 
     FacingDirection facing() const { return facing_; }
     bool moving() const { return moving_; }
@@ -54,9 +57,7 @@ private:
     int grid_width_ = 32;
     int grid_height_ = 32;
     float base_spawn_height_ = 0.0f;
-    std::vector<std::vector<std::uint8_t>> terrain_heights_;
-    std::vector<std::vector<std::uint8_t>> terrain_specials_;
-    std::vector<std::vector<std::uint8_t>> collision_map_;
+    std::shared_ptr<CharacterTerrainQuery> terrain_query_;
     camera::Vec3 pos_{};
     camera::Vec3 move_start_{};
     camera::Vec3 move_target_{};

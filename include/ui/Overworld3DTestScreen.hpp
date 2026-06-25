@@ -57,11 +57,18 @@ public:
 
 private:
     void initializeSceneState();
+    void reloadFollowCameraPresetConfig();
+    std::vector<gameplay::world3d::characters::LoadedWorldChunk> buildLoadedWorldChunks() const;
+    std::vector<gameplay::world3d::rendering::bgfx_backend::OverworldBgfxRenderer::StaticMapChunk>
+    buildStaticRenderChunks() const;
+    void reloadWorldChunksForPlayer();
+    void logLoadedWorldChunks() const;
 
     std::string project_root_;
     gameplay::world3d::SceneConfig scene_;
     gameplay::world3d::characters::CharacterMovementConfig movement_config_{};
     gameplay::world3d::CharacterSpriteDefinition character_;
+    gameplay::world3d::camera::Gen4CameraPreset follow_camera_base_preset_{};
     gameplay::world3d::camera::Gen4FollowCamera camera_;
     gameplay::world3d::characters::CharacterController player_;
     gameplay::world3d::characters::SpriteSheetAnimator animator_;

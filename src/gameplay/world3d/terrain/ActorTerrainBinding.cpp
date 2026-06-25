@@ -25,6 +25,9 @@ float actorHeightDuringStep(
     float world_z,
     const GridStepMotor& motor,
     float move_t) {
+    if (motor.surface_follow) {
+        return heightAtWorldPosition(scene, world_x, world_z, motor.sample_x, motor.sample_y);
+    }
     if (motor.center_lerp_y) {
         return motor.lerp_start_y + ((motor.lerp_end_y - motor.lerp_start_y) * move_t);
     }

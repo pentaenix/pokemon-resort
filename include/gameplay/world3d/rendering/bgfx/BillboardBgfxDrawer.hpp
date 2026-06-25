@@ -110,20 +110,7 @@ private:
         float tint_b,
         float vertex_alpha,
         float alpha_cutoff,
-        std::uint64_t state) const;
-
-    void submitScreenPlaneBillboardQuad(
-        const camera::Gen4FollowCamera& camera,
-        const BillboardPlacement& placement,
-        const TextureGpuResource& texture,
-        const SDL_Rect& source_rect,
-        int screen_offset_x_px,
-        float tint_r,
-        float tint_g,
-        float tint_b,
-        float vertex_alpha,
-        float alpha_cutoff,
-        float depth_priority_bias,
+        float depth_priority_bias_px,
         std::uint64_t state) const;
 };
 

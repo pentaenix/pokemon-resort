@@ -39,6 +39,90 @@ int tileSpecial(const SceneConfig& scene, int tx, int ty) {
     return static_cast<int>(row[static_cast<std::size_t>(tx)]);
 }
 
+bool inBounds(const SceneConfig& scene, int tx, int ty) {
+    return tx >= 0 && ty >= 0 && tx < std::max(1, scene.grid.width) && ty < std::max(1, scene.grid.height);
+}
+
+bool isCardinalRamp(int special) {
+    return special >= kRampNorth && special <= kRampWest;
+}
+
+struct RampAxis {
+    int dx = 0;
+    int dy = 0;
+};
+
+RampAxis rampAxis(int special) {
+    RampAxis axis{};
+    if (special == kRampNorth) {
+        axis.dy = -1;
+    } else if (special == kRampEast) {
+        axis.dx = 1;
+    } else if (special == kRampSouth) {
+        axis.dy = 1;
+    } else if (special == kRampWest) {
+        axis.dx = -1;
+    }
+    return axis;
+}
+
+struct CardinalRampRun {
+    int start_x = 0;
+    int start_y = 0;
+    int index = 0;
+    int count = 1;
+    float low_units = 0.0f;
+    float high_units = 1.0f;
+};
+
+CardinalRampRun solveCardinalRampRun(const SceneConfig& scene, int tx, int ty, int special) {
+    const RampAxis axis = rampAxis(special);
+    CardinalRampRun run{};
+    run.start_x = tx;
+    run.start_y = ty;
+
+    while (tileSpecial(scene, run.start_x - axis.dx, run.start_y - axis.dy) == special) {
+        run.start_x -= axis.dx;
+        run.start_y -= axis.dy;
+        ++run.index;
+    }
+
+    int end_x = run.start_x;
+    int end_y = run.start_y;
+    int min_base = tileHeightUnits(scene, end_x, end_y);
+    int max_base = min_base;
+    run.count = 1;
+    while (tileSpecial(scene, end_x + axis.dx, end_y + axis.dy) == special) {
+        end_x += axis.dx;
+        end_y += axis.dy;
+        ++run.count;
+        const int h = tileHeightUnits(scene, end_x, end_y);
+        min_base = std::min(min_base, h);
+        max_base = std::max(max_base, h);
+    }
+
+    const int low_x = run.start_x - axis.dx;
+    const int low_y = run.start_y - axis.dy;
+    const int high_x = end_x + axis.dx;
+    const int high_y = end_y + axis.dy;
+
+    if (inBounds(scene, low_x, low_y)) {
+        run.low_units = static_cast<float>(tileHeightUnits(scene, low_x, low_y));
+    } else {
+        run.low_units = static_cast<float>(min_base);
+    }
+
+    if (inBounds(scene, high_x, high_y)) {
+        run.high_units = static_cast<float>(tileHeightUnits(scene, high_x, high_y));
+    } else {
+        run.high_units = static_cast<float>(max_base + 1);
+    }
+    if (run.high_units <= run.low_units) {
+        run.high_units = std::max(run.low_units + 1.0f, static_cast<float>(max_base + 1));
+    }
+    return run;
+}
+
 float sampleBilinear(const float corners[4], float u, float v) {
     const float north = corners[0] + ((corners[1] - corners[0]) * u);
     const float south = corners[3] + ((corners[2] - corners[3]) * u);
@@ -51,49 +135,6 @@ float sampleBilinearClamped(const float corners[4], float u, float v) {
     const float north = corners[0] + ((corners[1] - corners[0]) * u);
     const float south = corners[3] + ((corners[2] - corners[3]) * u);
     return north + ((south - north) * v);
-}
-
-float sampleCardinalRampWithInset(
-    const SceneConfig& scene,
-    int special,
-    int height_units,
-    float u,
-    float v) {
-    const float floor_height = heightPerFloor(scene);
-    const float low = static_cast<float>(height_units) * floor_height;
-    const float high = static_cast<float>(height_units + 1) * floor_height;
-    const float tile_size = std::max(1.0f, scene.grid.tile_size);
-    const float inset = std::clamp(scene.terrain.ramp_incline_inset_px / tile_size, 0.0f, 0.95f);
-
-    u = std::clamp(u, 0.0f, 1.0f);
-    v = std::clamp(v, 0.0f, 1.0f);
-
-    float along = 0.0f;
-    switch (special) {
-        case kRampNorth:
-            along = 1.0f - v;
-            break;
-        case kRampEast:
-            along = u;
-            break;
-        case kRampSouth:
-            along = v;
-            break;
-        case kRampWest:
-            along = 1.0f - u;
-            break;
-        default:
-            return low;
-    }
-
-    if (inset <= 0.0f) {
-        return low + ((high - low) * along);
-    }
-    if (along <= inset) {
-        return low;
-    }
-    const float slope_t = std::clamp((along - inset) / (1.0f - inset), 0.0f, 1.0f);
-    return low + ((high - low) * slope_t);
 }
 
 void applyCardinalRampCorners(int direction, float low, float high, float out_corners[4]) {
@@ -142,8 +183,13 @@ void fillTileCornerHeightsLocal(const SceneConfig& scene, int tx, int ty, float 
     out_corners[3] = low;
 
     const int special = tileSpecial(scene, tx, ty);
-    if (special >= kRampNorth && special <= kRampWest) {
-        applyCardinalRampCorners(special, low, high, out_corners);
+    if (isCardinalRamp(special)) {
+        const CardinalRampRun run = solveCardinalRampRun(scene, tx, ty, special);
+        const float t0 = static_cast<float>(run.index) / static_cast<float>(std::max(1, run.count));
+        const float t1 = static_cast<float>(run.index + 1) / static_cast<float>(std::max(1, run.count));
+        const float low_edge = (run.low_units + ((run.high_units - run.low_units) * t0)) * floor_height;
+        const float high_edge = (run.low_units + ((run.high_units - run.low_units) * t1)) * floor_height;
+        applyCardinalRampCorners(special, low_edge, high_edge, out_corners);
         return;
     }
 
@@ -313,10 +359,6 @@ float heightAtWorldPositionStitched(
     const int grid_h = std::max(1, scene.grid.height);
 
     auto sample_on = [&](int tx, int ty, float u, float v) -> float {
-        const int special = tileSpecial(scene, tx, ty);
-        if (special >= kRampNorth && special <= kRampWest) {
-            return sampleCardinalRampWithInset(scene, special, tileHeightUnits(scene, tx, ty), u, v);
-        }
         float corners[4]{};
         fillTileCornerHeightsLocal(scene, tx, ty, corners);
         return sampleBilinearClamped(corners, u, v);
@@ -366,22 +408,6 @@ float heightAtWorldPositionOnTile(
     const float v = (world_z - (static_cast<float>(sample_ty) * tile_size)) / tile_size;
 
     float corners[4]{};
-    const int special = tileSpecial(scene, sample_tx, sample_ty);
-    if (special >= kRampNorth && special <= kRampWest) {
-        if (clamp_uv) {
-            return sampleCardinalRampWithInset(scene, special, tileHeightUnits(scene, sample_tx, sample_ty), u, v);
-        }
-        const float floor_height = heightPerFloor(scene);
-        const float low = static_cast<float>(tileHeightUnits(scene, sample_tx, sample_ty)) * floor_height;
-        const float high = static_cast<float>(tileHeightUnits(scene, sample_tx, sample_ty) + 1) * floor_height;
-        float along = special == kRampNorth ? 1.0f - v :
-            special == kRampEast ? u :
-            special == kRampSouth ? v :
-            1.0f - u;
-        const float inset = std::clamp(scene.terrain.ramp_incline_inset_px / tile_size, 0.0f, 0.95f);
-        along = inset <= 0.0f ? along : (along <= inset ? 0.0f : (along - inset) / (1.0f - inset));
-        return low + ((high - low) * along);
-    }
     fillTileCornerHeightsLocal(scene, sample_tx, sample_ty, corners);
     if (clamp_uv) {
         return sampleBilinearClamped(corners, u, v);
@@ -425,6 +451,13 @@ bool isSmoothRampHeightStep(
     const int from_h = tileHeightUnits(scene, from_tx, from_ty);
     const int to_h = tileHeightUnits(scene, to_tx, to_ty);
     const int dh = to_h - from_h;
+    if (canTraverseTerrainEdge(scene, from_tx, from_ty, to_tx, to_ty, step_dx, step_dy)) {
+        const bool from_slope = isSlopeSpecial(tileSpecial(scene, from_tx, from_ty));
+        const bool to_slope = isSlopeSpecial(tileSpecial(scene, to_tx, to_ty));
+        if (from_slope || to_slope) {
+            return true;
+        }
+    }
     if (dh == 0) {
         return tileHasTraversableSlope(scene, from_tx, from_ty, step_dx, step_dy) ||
             tileHasTraversableSlope(scene, to_tx, to_ty, step_dx, step_dy);
@@ -446,6 +479,48 @@ bool isSmoothRampHeightStep(
         return step_dx == -ax && step_dy == -ay;
     };
     return dh > 0 ? ramp_allows(from_tx, from_ty) : ramp_allows(to_tx, to_ty);
+}
+
+bool canTraverseTerrainEdge(
+    const SceneConfig& scene,
+    int from_tx,
+    int from_ty,
+    int to_tx,
+    int to_ty,
+    int step_dx,
+    int step_dy) {
+    if (std::abs(step_dx) + std::abs(step_dy) != 1) {
+        return false;
+    }
+    if (!inBounds(scene, from_tx, from_ty) || !inBounds(scene, to_tx, to_ty)) {
+        return false;
+    }
+
+    float from_c[4]{};
+    float to_c[4]{};
+    fillTileCornerHeightsLocal(scene, from_tx, from_ty, from_c);
+    fillTileCornerHeightsLocal(scene, to_tx, to_ty, to_c);
+
+    float a0 = 0.0f;
+    float a1 = 0.0f;
+    float b0 = 0.0f;
+    float b1 = 0.0f;
+    if (step_dx == 1) {
+        a0 = from_c[1]; a1 = from_c[2];
+        b0 = to_c[0]; b1 = to_c[3];
+    } else if (step_dx == -1) {
+        a0 = from_c[0]; a1 = from_c[3];
+        b0 = to_c[1]; b1 = to_c[2];
+    } else if (step_dy == 1) {
+        a0 = from_c[3]; a1 = from_c[2];
+        b0 = to_c[0]; b1 = to_c[1];
+    } else {
+        a0 = from_c[0]; a1 = from_c[1];
+        b0 = to_c[3]; b1 = to_c[2];
+    }
+
+    const float epsilon = std::max(0.05f, heightPerFloor(scene) * 0.02f);
+    return std::abs(a0 - b0) <= epsilon && std::abs(a1 - b1) <= epsilon;
 }
 
 float heightAtActorFeet(

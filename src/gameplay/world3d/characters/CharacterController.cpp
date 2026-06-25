@@ -30,12 +30,9 @@ CharacterController::CharacterController(
     grid_width_ = std::max(1, scene.grid.width);
     grid_height_ = std::max(1, scene.grid.height);
     base_spawn_height_ = scene.player.spawn_height;
-    terrain_heights_ = scene.terrain.heights;
-    terrain_specials_ = scene.terrain.specials;
-    collision_map_ = scene.terrain.collision;
     terrain_scene_.grid = scene.grid;
-    terrain_scene_.terrain.heights = terrain_heights_;
-    terrain_scene_.terrain.specials = terrain_specials_;
+    terrain_scene_.terrain = scene.terrain;
+    terrain_query_ = makeLocalCharacterTerrainQuery(scene);
     tile_x_ = std::clamp(scene.player.spawn_tile_x, 0, grid_width_ - 1);
     tile_y_ = std::clamp(scene.player.spawn_tile_y, 0, grid_height_ - 1);
     step_start_x_ = tile_x_;
@@ -54,6 +51,16 @@ void CharacterController::setMoveSpeedUnitsPerSecond(float speed) {
     move_speed_units_per_second_ = std::max(1.0f, speed);
 }
 
+void CharacterController::setTerrainQuery(std::shared_ptr<CharacterTerrainQuery> terrain_query) {
+    if (terrain_query) {
+        terrain_query_ = std::move(terrain_query);
+        tile_size_ = terrain_query_->tileSize();
+        pos_.y = terrainBinding().simulation_y;
+        move_start_ = pos_;
+        move_target_ = pos_;
+    }
+}
+
 CharacterController::MovementSegment CharacterController::movementSegment() const {
     return MovementSegment{
         moving_,
@@ -65,7 +72,7 @@ CharacterController::MovementSegment CharacterController::movementSegment() cons
 }
 
 float CharacterController::tileWorldHeight(int tx, int ty) const {
-    return terrain::heightAtTileCenter(terrain_scene_, tx, ty);
+    return terrain_query_ ? terrain_query_->tileWorldHeight(tx, ty) : 0.0f;
 }
 
 terrain::ActorTerrainBinding CharacterController::terrainBinding() const {
@@ -79,23 +86,19 @@ terrain::ActorTerrainBinding CharacterController::terrainBinding() const {
         binding.simulation_y = pos_.y;
         return binding;
     }
-    return terrain::bindActorStanding(terrain_scene_, tile_x_, tile_y_, pos_.x, pos_.z);
+    return terrain_query_
+        ? terrain_query_->bindActorStanding(tile_x_, tile_y_, pos_.x, pos_.z)
+        : terrain::ActorTerrainBinding{};
 }
 
 int CharacterController::tileBaseHeightUnits(int tx, int ty) const {
-    if (terrain_heights_.empty()) return static_cast<int>(std::round(base_spawn_height_ / std::max(0.001f, tile_size_)));
-    if (ty < 0 || ty >= static_cast<int>(terrain_heights_.size())) return 0;
-    const auto& row = terrain_heights_[static_cast<std::size_t>(ty)];
-    if (tx < 0 || tx >= static_cast<int>(row.size())) return 0;
-    return static_cast<int>(row[static_cast<std::size_t>(tx)]);
+    return terrain_query_
+        ? terrain_query_->tileBaseHeightUnits(tx, ty)
+        : static_cast<int>(std::round(base_spawn_height_ / std::max(0.001f, tile_size_)));
 }
 
 int CharacterController::tileSpecial(int tx, int ty) const {
-    if (terrain_specials_.empty()) return 0;
-    if (ty < 0 || ty >= static_cast<int>(terrain_specials_.size())) return 0;
-    const auto& row = terrain_specials_[static_cast<std::size_t>(ty)];
-    if (tx < 0 || tx >= static_cast<int>(row.size())) return 0;
-    return static_cast<int>(row[static_cast<std::size_t>(tx)]);
+    return terrain_query_ ? terrain_query_->tileSpecial(tx, ty) : 0;
 }
 
 int CharacterController::rampDirection(int tx, int ty) const {
@@ -125,6 +128,13 @@ bool CharacterController::canTraverseHeightDelta(
     const int from_h = tileBaseHeightUnits(from_x, from_y);
     const int to_h = tileBaseHeightUnits(to_x, to_y);
     const int dh = to_h - from_h;
+    if (terrain_query_ &&
+        terrain_query_->canTraverseTerrainEdge(from_x, from_y, to_x, to_y, dx, dy)) {
+        const bool from_slope = isSlopeSpecial(tileSpecial(from_x, from_y));
+        const bool to_slope = isSlopeSpecial(tileSpecial(to_x, to_y));
+        smooth_ramp = from_slope || to_slope || tileWorldHeight(from_x, from_y) != tileWorldHeight(to_x, to_y);
+        return true;
+    }
     const auto ramp_step_uses_tile = [&](int ramp_tile_x, int ramp_tile_y) -> bool {
         const int dir = rampDirection(ramp_tile_x, ramp_tile_y);
         if (dir == 0) return false;
@@ -170,11 +180,7 @@ bool CharacterController::canTraverseHeightDelta(
 }
 
 bool CharacterController::tileBlocked(int tx, int ty) const {
-    if (collision_map_.empty()) return false;
-    if (ty < 0 || ty >= static_cast<int>(collision_map_.size())) return false;
-    const auto& row = collision_map_[static_cast<std::size_t>(ty)];
-    if (tx < 0 || tx >= static_cast<int>(row.size())) return false;
-    return row[static_cast<std::size_t>(tx)] != 0;
+    return terrain_query_ ? terrain_query_->tileBlocked(tx, ty) : false;
 }
 
 CharacterController::MoveInputResult CharacterController::moveInput(
@@ -199,8 +205,8 @@ CharacterController::MoveInputResult CharacterController::moveInput(
         } else {
             pos_.x = move_start_.x + ((move_target_.x - move_start_.x) * move_t_);
             pos_.z = move_start_.z + ((move_target_.z - move_start_.z) * move_t_);
-            if (step_motor_.interpolate_y) {
-                pos_.y = terrain::actorHeightDuringStep(terrain_scene_, pos_.x, pos_.z, step_motor_, move_t_);
+            if (step_motor_.interpolate_y && terrain_query_) {
+                pos_.y = terrain_query_->actorHeightDuringStep(pos_.x, pos_.z, step_motor_, move_t_);
             } else {
                 pos_.y = move_start_.y;
             }
@@ -264,7 +270,7 @@ CharacterController::MoveInputResult CharacterController::moveInput(
     const int dest_x = tile_x_ + dx;
     const int dest_y = tile_y_ + dy;
     result.attempted_step = true;
-    if (dest_x < 0 || dest_x >= grid_width_ || dest_y < 0 || dest_y >= grid_height_) {
+    if (!terrain_query_ || !terrain_query_->containsTile(dest_x, dest_y)) {
         moving_ = false;
         result.blocked = true;
         return result;
@@ -290,8 +296,7 @@ CharacterController::MoveInputResult CharacterController::moveInput(
     step_start_y_ = tile_y_;
     step_dest_x_ = dest_x;
     step_dest_y_ = dest_y;
-    step_motor_ = terrain::GridStepMotor::beginStep(
-        terrain_scene_,
+    step_motor_ = terrain_query_->beginStep(
         tile_x_,
         tile_y_,
         dest_x,
@@ -305,9 +310,8 @@ CharacterController::MoveInputResult CharacterController::moveInput(
     move_start_ = pos_;
     move_target_.x = (static_cast<float>(step_dest_x_) + 0.5f) * tile_size_;
     move_target_.z = (static_cast<float>(step_dest_y_) + 0.5f) * tile_size_;
-    move_target_.y = terrain::bindActorStanding(
-        terrain_scene_, step_dest_x_, step_dest_y_, move_target_.x, move_target_.z)
-                         .simulation_y;
+    move_target_.y = terrain_query_->bindActorStanding(
+        step_dest_x_, step_dest_y_, move_target_.x, move_target_.z).simulation_y;
     move_t_ = 0.0f;
     moving_ = true;
     return result;

@@ -13,7 +13,7 @@
     },
     "landingDust": {
       "spriteScale": 1.0,
-      "screenOffsetYPx": 8,
+      "screenOffsetYPx": 0,
       "worldOffset": [0.0, 0.0, 0.0]
     },
     "entryAnimation": {

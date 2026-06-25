@@ -1,5 +1,6 @@
 #include "gameplay/world3d/camera/Gen4FollowCamera.hpp"
 #include "gameplay/world3d/characters/CharacterController.hpp"
+#include "gameplay/world3d/characters/CharacterTerrainQuery.hpp"
 #include "gameplay/world3d/data/OwmapOverworldLoader.hpp"
 #include "gameplay/world3d/data/JsonOverworldLoader.hpp"
 #include "gameplay/world3d/followers/FollowerConfig.hpp"
@@ -129,7 +130,7 @@ void testTerrainRenderConfigLoads() {
     expect(std::abs(scene.scene_camera.distance_scale - 1.0f) < 0.001f, "scene camera distance scale loads");
     expect(scene.pixel_compositor.sprite_sizing == "native", "pixel compositor sprite sizing loads");
     expect(scene.pixel_compositor.snap_anchors, "pixel compositor snap anchors loads");
-    expect(std::abs(scene.pixel_compositor.actor_depth_bias_px - 8.0f) < 0.001f,
+    expect(std::abs(scene.pixel_compositor.actor_depth_bias_px - 10.0f) < 0.001f,
         "pixel compositor actor depth bias loads");
     expect(scene.pixel_compositor.actor_screen_offset_y_px == 1,
         "pixel compositor actor screen Y offset loads");
@@ -158,6 +159,64 @@ void testWorldViewportInternalScaleDerivesRenderSize() {
         "2x internal scale doubles render width");
     expect(pr::gameplay::world3d::rendering::worldViewportRenderHeight(scene) == 500,
         "2x internal scale doubles render height");
+}
+
+pr::gameplay::world3d::SceneConfig makeFlatMovementScene(
+    int width,
+    int height,
+    int spawn_x,
+    int spawn_y,
+    pr::gameplay::world3d::FacingDirection facing) {
+    pr::gameplay::world3d::SceneConfig scene{};
+    scene.grid.width = width;
+    scene.grid.height = height;
+    scene.grid.tile_size = 16.0f;
+    scene.terrain.heights.assign(
+        static_cast<std::size_t>(height),
+        std::vector<std::uint8_t>(static_cast<std::size_t>(width), 0));
+    scene.terrain.specials.assign(
+        static_cast<std::size_t>(height),
+        std::vector<std::uint8_t>(static_cast<std::size_t>(width), 0));
+    scene.terrain.collision.assign(
+        static_cast<std::size_t>(height),
+        std::vector<std::uint8_t>(static_cast<std::size_t>(width), 0));
+    scene.player.spawn_tile_x = spawn_x;
+    scene.player.spawn_tile_y = spawn_y;
+    scene.player.facing = facing;
+    return scene;
+}
+
+void testPlayerCanStepIntoLoadedWestChunk() {
+    using namespace pr::gameplay::world3d;
+    SceneConfig current = makeFlatMovementScene(2, 2, 0, 1, FacingDirection::West);
+    SceneConfig west = makeFlatMovementScene(2, 2, 1, 1, FacingDirection::West);
+
+    characters::CharacterController player(current, 64.0f, 0.0f);
+    player.setTerrainQuery(characters::makeLoadedWorldCharacterTerrainQuery({
+        characters::LoadedWorldChunk{"current", current, 0, 0},
+        characters::LoadedWorldChunk{"west", west, -2, 0},
+    }));
+
+    const auto result = player.moveInput(-1, 0, 1.0, {});
+    expect(result.attempted_step, "westward cross-chunk movement attempts a step");
+    expect(!result.blocked, "loaded west chunk should allow entering world tile -1");
+    expect(player.tileX() == -1 && player.tileY() == 1, "player logical tile enters west chunk world coordinates");
+    expect(player.moving(), "player starts a movement segment into west chunk");
+}
+
+void testPlayerCannotStepIntoUnloadedChunk() {
+    using namespace pr::gameplay::world3d;
+    SceneConfig current = makeFlatMovementScene(2, 2, 0, 1, FacingDirection::West);
+
+    characters::CharacterController player(current, 64.0f, 0.0f);
+    player.setTerrainQuery(characters::makeLoadedWorldCharacterTerrainQuery({
+        characters::LoadedWorldChunk{"current", current, 0, 0},
+    }));
+
+    const auto result = player.moveInput(-1, 0, 1.0, {});
+    expect(result.attempted_step, "unloaded west chunk movement attempts a step");
+    expect(result.blocked, "unloaded world tile should block movement");
+    expect(player.tileX() == 0 && player.tileY() == 1, "player remains in current chunk");
 }
 
 void testPlayableCharacterRunSheetLoads() {
@@ -923,7 +982,7 @@ void testFollowerSummonRenderConfigLoads() {
     expect(config.ball_animation.screen_offset_y_px == 0, "summon ball screen offset loads");
     expect(config.landing_dust.override_idle_config, "summon dust override is enabled when configured");
     expect(std::abs(config.landing_dust.sprite_scale - 1.0f) < 0.001f, "summon dust scale loads");
-    expect(config.landing_dust.screen_offset_y_px == 8, "summon dust screen offset loads");
+    expect(config.landing_dust.screen_offset_y_px == 0, "summon dust grounded screen offset loads");
 }
 
 void testActorTerrainBindingMatchesHeightAtFeet() {
@@ -1036,6 +1095,22 @@ void testBillboardPlacementFeetOnTerrain() {
     expect(
         std::abs(placement.shadow_ground.y - (terrain_at_feet + scene.sprite_shadow.world_y_lift)) < 0.001f,
         "shadow stays grounded on slope terrain");
+
+    sim_pos.y += 8.0f;
+    const auto jumping_placement = pr::gameplay::world3d::rendering::buildCharacterBillboardPlacement(
+        scene,
+        camera,
+        binding,
+        character,
+        sim_pos,
+        source_rect,
+        320,
+        240);
+    expect(jumping_placement.visible, "jumping placement should project for test camera");
+    expect(jumping_placement.feet.y > placement.feet.y + 7.9f, "sprite visual feet follow jump lift");
+    expect(
+        std::abs(jumping_placement.shadow_ground.y - placement.shadow_ground.y) < 0.001f,
+        "shadow stays on terrain while sprite jumps");
 }
 
 void testTestingOwmapRampActorBinding() {
@@ -1139,6 +1214,10 @@ int main() {
         std::cout << "[PASS] terrain render config loads\n";
         testWorldViewportInternalScaleDerivesRenderSize();
         std::cout << "[PASS] world viewport internal scale derives render size\n";
+        testPlayerCanStepIntoLoadedWestChunk();
+        std::cout << "[PASS] player can step into loaded west chunk\n";
+        testPlayerCannotStepIntoUnloadedChunk();
+        std::cout << "[PASS] player cannot step into unloaded chunk\n";
         testPlayableCharacterRunSheetLoads();
         std::cout << "[PASS] playable character run sheet loads\n";
         testCameraEastProjectsScreenRight();

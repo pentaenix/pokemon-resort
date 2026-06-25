@@ -243,6 +243,7 @@ private:
     std::shared_ptr<PokeSpriteAssets> sprite_assets_;
     double fade_in_seconds_ = 0.3;
     double fade_in_elapsed_seconds_ = 0.0;
+    bool enable_stamp_ = true;
     TicketAssets assets_;
     TicketFonts fonts_;
     TicketLayout layout_;

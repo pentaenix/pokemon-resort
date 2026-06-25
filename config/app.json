@@ -45,6 +45,6 @@
     "bgfx_preference": "auto"
   },
   "target_fps": 60,
-  "enable_frame_counter": true,
-  "enable_active_idle_behavior_debug": true
+  "enable_frame_counter": false,
+  "enable_active_idle_behavior_debug": false
 }

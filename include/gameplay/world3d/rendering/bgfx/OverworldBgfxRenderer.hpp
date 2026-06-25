@@ -20,6 +20,13 @@ enum class MaterialClass {
 
 class OverworldBgfxRenderer {
 public:
+    struct StaticMapChunk {
+        SceneConfig scene;
+        float origin_x = 0.0f;
+        float origin_y = 0.0f;
+        float origin_z = 0.0f;
+    };
+
     OverworldBgfxRenderer(
         std::string project_root,
         SceneConfig scene,
@@ -37,6 +44,7 @@ public:
     void shutdown();
     bool valid() const;
     std::string lastError() const;
+    void setStaticMapChunks(std::vector<StaticMapChunk> chunks);
 
     void render(
         const camera::Gen4FollowCamera& camera,

@@ -16,6 +16,7 @@ struct GridStepMotor {
     bool handoff = false;
     bool interpolate_y = false;
     bool center_lerp_y = false;
+    bool surface_follow = false;
 
     static GridStepMotor beginStep(
         const SceneConfig& scene,
