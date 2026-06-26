@@ -12,14 +12,14 @@
     "textureWidthPx": 16,
     "textureHeightPx": 8,
     "mask": [
-      "OOOOXXXXXXXXOOOO",
       "OOXXXXXXXXXXXXOO",
       "OXXXXXXXXXXXXXXO",
       "XXXXXXXXXXXXXXXX",
       "XXXXXXXXXXXXXXXX",
+      "XXXXXXXXXXXXXXXX",
+      "XXXXXXXXXXXXXXXX",
       "OXXXXXXXXXXXXXXO",
-      "OOXXXXXXXXXXXXOO",
-      "OOOOXXXXXXXXOOOO"
+      "OOXXXXXXXXXXXXOO"
     ]
   }
 }

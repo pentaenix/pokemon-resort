@@ -166,6 +166,24 @@ std::uint64_t stateForDepthOnly() {
     return BGFX_STATE_WRITE_Z | BGFX_STATE_DEPTH_TEST_LESS;
 }
 
+std::uint32_t shadowStencilTestOnly() {
+    return BGFX_STENCIL_TEST_EQUAL |
+           BGFX_STENCIL_FUNC_REF(0) |
+           BGFX_STENCIL_FUNC_RMASK(0xff) |
+           BGFX_STENCIL_OP_FAIL_S_KEEP |
+           BGFX_STENCIL_OP_FAIL_Z_KEEP |
+           BGFX_STENCIL_OP_PASS_Z_KEEP;
+}
+
+std::uint32_t shadowStencilMark() {
+    return BGFX_STENCIL_TEST_EQUAL |
+           BGFX_STENCIL_FUNC_REF(0) |
+           BGFX_STENCIL_FUNC_RMASK(0xff) |
+           BGFX_STENCIL_OP_FAIL_S_KEEP |
+           BGFX_STENCIL_OP_FAIL_Z_KEEP |
+           BGFX_STENCIL_OP_PASS_Z_INCRSAT;
+}
+
 } // namespace
 
 class OverworldBgfxRenderer::Impl {
@@ -1509,13 +1527,11 @@ void OverworldBgfxRenderer::Impl::appendProjectedShadowForScene(
     const float y_bias = std::max(0.04f, tile_size * 0.003f);
     const std::uint32_t white = 0xffffffffu;
 
-    const auto append_vertex = [&](float local_x, float local_z) {
+    const auto append_vertex = [&](float local_x, float local_z, int sample_tx, int sample_ty) {
         const float world_x = origin_x + local_x;
         const float world_z = origin_z + local_z;
-        const int fallback_tx = std::clamp(static_cast<int>(std::floor(local_x / tile_size)), 0, grid_w - 1);
-        const int fallback_ty = std::clamp(static_cast<int>(std::floor(local_z / tile_size)), 0, grid_h - 1);
         const float y = origin_y +
-            terrain::heightAtWorldPosition(scene, local_x, local_z, fallback_tx, fallback_ty) +
+            terrain::heightAtWorldPositionOnTile(scene, local_x, local_z, sample_tx, sample_ty, true) +
             y_bias;
         const float dx = world_x - placement.shadow_ground.x;
         const float dz = world_z - placement.shadow_ground.z;
@@ -1540,10 +1556,10 @@ void OverworldBgfxRenderer::Impl::appendProjectedShadowForScene(
                 continue;
             }
             const std::uint16_t base = static_cast<std::uint16_t>(vertices.size());
-            append_vertex(x0, z0);
-            append_vertex(x1, z0);
-            append_vertex(x1, z1);
-            append_vertex(x0, z1);
+            append_vertex(x0, z0, tx, ty);
+            append_vertex(x1, z0, tx, ty);
+            append_vertex(x1, z1, tx, ty);
+            append_vertex(x0, z1, tx, ty);
             indices.insert(indices.end(), {
                 base,
                 static_cast<std::uint16_t>(base + 1U),
@@ -1577,6 +1593,8 @@ void OverworldBgfxRenderer::Impl::submitProjectedCharacterShadows(
         if (!character.draw_shadow || !character.placement.visible) {
             continue;
         }
+        vertices.clear();
+        indices.clear();
         float half_w = std::max(0.5f, character.placement.world_w * scene_.sprite_shadow.radius_x_tiles);
         float half_h = std::max(0.5f, character.placement.world_h * scene_.sprite_shadow.radius_z_tiles);
         if (scene_.sprite_shadow.pixel_coherent) {
@@ -1622,39 +1640,50 @@ void OverworldBgfxRenderer::Impl::submitProjectedCharacterShadows(
                 vertices,
                 indices);
         }
-    }
 
-    if (vertices.empty() || indices.empty()) {
-        return;
-    }
-    bgfx::TransientVertexBuffer tvb;
-    bgfx::TransientIndexBuffer tib;
-    if (!bgfx::allocTransientBuffers(
-            &tvb,
-            layout_,
-            static_cast<std::uint32_t>(vertices.size()),
-            &tib,
-            static_cast<std::uint32_t>(indices.size()))) {
-        return;
-    }
-    std::memcpy(tvb.data, vertices.data(), vertices.size() * sizeof(Vertex));
-    std::memcpy(tib.data, indices.data(), indices.size() * sizeof(std::uint16_t));
+        if (vertices.empty() || indices.empty()) {
+            continue;
+        }
+        bgfx::TransientVertexBuffer tvb;
+        bgfx::TransientIndexBuffer tib;
+        if (!bgfx::allocTransientBuffers(
+                &tvb,
+                layout_,
+                static_cast<std::uint32_t>(vertices.size()),
+                &tib,
+                static_cast<std::uint32_t>(indices.size()))) {
+            return;
+        }
+        std::memcpy(tvb.data, vertices.data(), vertices.size() * sizeof(Vertex));
+        std::memcpy(tib.data, indices.data(), indices.size() * sizeof(std::uint16_t));
 
-    const float br = std::max(0.0f, scene_.lighting_brightness);
-    float tint[4] = {
-        scene_.lighting_tint_r * br,
-        scene_.lighting_tint_g * br,
-        scene_.lighting_tint_b * br,
-        0.0f};
-    float model[16];
-    identity(model);
-    bgfx::setTransform(model);
-    bgfx::setVertexBuffer(0, &tvb);
-    bgfx::setIndexBuffer(&tib);
-    bgfx::setTexture(0, tex_uniform_, shadow_texture_.handle, samplerFlags());
-    bgfx::setUniform(tint_cutoff_uniform_, tint);
-    bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_BLEND_ALPHA | BGFX_STATE_DEPTH_TEST_LEQUAL);
-    bgfx::submit(1, world_program_);
+        const float br = std::max(0.0f, scene_.lighting_brightness);
+        float tint[4] = {
+            scene_.lighting_tint_r * br,
+            scene_.lighting_tint_g * br,
+            scene_.lighting_tint_b * br,
+            1.0f / 255.0f};
+        float model[16];
+        identity(model);
+
+        bgfx::setTransform(model);
+        bgfx::setVertexBuffer(0, &tvb);
+        bgfx::setIndexBuffer(&tib);
+        bgfx::setTexture(0, tex_uniform_, shadow_texture_.handle, samplerFlags());
+        bgfx::setUniform(tint_cutoff_uniform_, tint);
+        bgfx::setStencil(shadowStencilTestOnly());
+        bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_BLEND_ALPHA | BGFX_STATE_DEPTH_TEST_LEQUAL);
+        bgfx::submit(1, world_program_);
+
+        bgfx::setTransform(model);
+        bgfx::setVertexBuffer(0, &tvb);
+        bgfx::setIndexBuffer(&tib);
+        bgfx::setTexture(0, tex_uniform_, shadow_texture_.handle, samplerFlags());
+        bgfx::setUniform(tint_cutoff_uniform_, tint);
+        bgfx::setStencil(shadowStencilMark());
+        bgfx::setState(BGFX_STATE_DEPTH_TEST_LEQUAL);
+        bgfx::submit(1, world_program_);
+    }
 }
 
 void OverworldBgfxRenderer::Impl::refreshBillboardDrawer() {
