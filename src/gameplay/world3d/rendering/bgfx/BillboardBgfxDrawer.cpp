@@ -29,15 +29,6 @@ std::uint64_t samplerFlags() {
     return BGFX_SAMPLER_MIN_POINT | BGFX_SAMPLER_MAG_POINT | BGFX_SAMPLER_MIP_POINT;
 }
 
-std::uint32_t nonStackingShadowStencil() {
-    return BGFX_STENCIL_TEST_EQUAL |
-           BGFX_STENCIL_FUNC_REF(0) |
-           BGFX_STENCIL_FUNC_RMASK(0xff) |
-           BGFX_STENCIL_OP_FAIL_S_KEEP |
-           BGFX_STENCIL_OP_FAIL_Z_KEEP |
-           BGFX_STENCIL_OP_PASS_Z_INCRSAT;
-}
-
 std::uint64_t depthCutoutCharacterState() {
     return BGFX_STATE_WRITE_RGB |
            BGFX_STATE_WRITE_A |
@@ -46,13 +37,6 @@ std::uint64_t depthCutoutCharacterState() {
 }
 
 std::uint64_t transparentEffectState() {
-    return BGFX_STATE_WRITE_RGB |
-           BGFX_STATE_WRITE_A |
-           BGFX_STATE_DEPTH_TEST_LEQUAL |
-           BGFX_STATE_BLEND_ALPHA;
-}
-
-std::uint64_t depthTestedShadowState() {
     return BGFX_STATE_WRITE_RGB |
            BGFX_STATE_WRITE_A |
            BGFX_STATE_DEPTH_TEST_LEQUAL |
@@ -110,29 +94,6 @@ camera::Vec3 screenToWorldOnCameraPlane(
     world = add(world, mul(pose.up, cam_y));
     world = add(world, mul(pose.forward, depth));
     return world;
-}
-
-camera::Vec3 screenToWorldOnYPlane(
-    const camera::Gen4FollowCamera::Pose& pose,
-    float screen_x,
-    float screen_y,
-    float plane_y,
-    int viewport_w,
-    int viewport_h) {
-    const camera::Vec3 on_unit_plane =
-        screenToWorldOnCameraPlane(pose, screen_x, screen_y, 1.0f, viewport_w, viewport_h);
-    const camera::Vec3 ray{
-        on_unit_plane.x - pose.position.x,
-        on_unit_plane.y - pose.position.y,
-        on_unit_plane.z - pose.position.z};
-    if (std::abs(ray.y) <= 0.0001f) {
-        return camera::Vec3{on_unit_plane.x, plane_y, on_unit_plane.z};
-    }
-    const float t = (plane_y - pose.position.y) / ray.y;
-    return camera::Vec3{
-        pose.position.x + ray.x * t,
-        plane_y,
-        pose.position.z + ray.z * t};
 }
 
 bool resolveDepthBillboardBottomCenter(
@@ -200,132 +161,6 @@ void BillboardBgfxDrawer::setWorldViewport(
     deps_.render_viewport_w = std::max(1, render_width);
     deps_.render_viewport_h = std::max(1, render_height);
     deps_.internal_scale = std::max(1, internal_scale);
-}
-
-void BillboardBgfxDrawer::submitGroundShadow(
-    const camera::Gen4FollowCamera& camera,
-    const BillboardPlacement& placement,
-    const SDL_Rect& source_rect,
-    const SpriteShadowConfig& shadow_cfg) const {
-    if (!deps_.shadow_texture.valid() || !placement.visible || !deps_.scene) {
-        return;
-    }
-
-    float half_w = placement.world_w * 0.5f;
-    float half_h = placement.world_h * 0.5f;
-    if (shadow_cfg.pixel_coherent) {
-        const float base_sprite_h = authoredPixelsWorldUnits(*deps_.scene, static_cast<float>(source_rect.h), 1.0f);
-        const float sprite_scale = placement.world_h / std::max(0.001f, base_sprite_h);
-        half_w = authoredPixelsWorldUnits(*deps_.scene, static_cast<float>(shadow_cfg.texture_width_px), sprite_scale) * 0.5f;
-        half_h = authoredPixelsWorldUnits(*deps_.scene, static_cast<float>(shadow_cfg.texture_height_px), sprite_scale) * 0.5f;
-    } else {
-        half_w = placement.world_w * shadow_cfg.radius_x_tiles * 2.0f * 0.5f;
-        half_h = placement.world_h * shadow_cfg.radius_z_tiles * 2.0f * 0.5f;
-    }
-
-    const camera::Vec3 flat_right = horizontalCameraRight(camera);
-    const camera::Vec3 flat_forward{-flat_right.z, 0.0f, flat_right.x};
-
-    camera::Vec3 center{placement.shadow_ground.x, placement.shadow_ground.y, placement.shadow_ground.z};
-    const int base_w = deps_.scene->world_viewport.enabled
-        ? std::max(1, deps_.base_viewport_w)
-        : std::max(1, deps_.render_viewport_w);
-    const int base_h = deps_.scene->world_viewport.enabled
-        ? std::max(1, deps_.base_viewport_h)
-        : std::max(1, deps_.render_viewport_h);
-    const rendering::QuantizedBillboardRect sprite = rendering::projectWorldBillboardRect(
-        *deps_.scene,
-        camera,
-        placement,
-        source_rect,
-        base_w,
-        base_h,
-        1,
-        0);
-    if (sprite.visible) {
-        const float sprite_scale =
-            static_cast<float>(sprite.base_h) / static_cast<float>(std::max(1, source_rect.h));
-        const int shadow_h_px = std::max(
-            2,
-            static_cast<int>(std::round(static_cast<float>(shadow_cfg.texture_height_px) * sprite_scale)));
-
-        camera::Vec3 visual_bottom_center{};
-        float visual_feet_x = 0.0f;
-        float visual_feet_y = 0.0f;
-        float visual_feet_depth = 0.0f;
-        float grounded_x = 0.0f;
-        float grounded_y = 0.0f;
-        float grounded_depth = 0.0f;
-        if (resolveDepthBillboardBottomCenter(
-                *deps_.scene,
-                camera,
-                placement,
-                base_w,
-                base_h,
-                0,
-                visual_bottom_center,
-                visual_feet_x,
-                visual_feet_y,
-                visual_feet_depth) &&
-            camera.worldToScreen(placement.shadow_ground, base_w, base_h, grounded_x, grounded_y, grounded_depth)) {
-            const float shadow_center_x =
-                visual_feet_x + static_cast<float>(shadow_cfg.screen_offset_x_px);
-            const float shadow_center_y =
-                grounded_y +
-                static_cast<float>(shadow_cfg.feet_to_shadow_bottom_px + shadow_cfg.screen_offset_y_px) -
-                (static_cast<float>(shadow_h_px) * 0.5f);
-            center = screenToWorldOnYPlane(
-                camera.pose(),
-                shadow_center_x,
-                shadow_center_y,
-                placement.shadow_ground.y,
-                base_w,
-                base_h);
-        }
-    }
-    const camera::Vec3 right{flat_right.x * half_w, 0.0f, flat_right.z * half_w};
-    const camera::Vec3 forward{flat_forward.x * half_h, 0.0f, flat_forward.z * half_h};
-
-    const std::uint32_t color = 0xffffffffu;
-    bgfx::TransientVertexBuffer tvb;
-    bgfx::TransientIndexBuffer tib;
-    if (!bgfx::allocTransientBuffers(&tvb, deps_.layout, 4, &tib, 6)) {
-        return;
-    }
-    auto* verts = reinterpret_cast<Vertex*>(tvb.data);
-    const camera::Vec3 p0{center.x - right.x - forward.x, center.y, center.z - right.z - forward.z};
-    const camera::Vec3 p1{center.x + right.x - forward.x, center.y, center.z + right.z - forward.z};
-    const camera::Vec3 p2{center.x + right.x + forward.x, center.y, center.z + right.z + forward.z};
-    const camera::Vec3 p3{center.x - right.x + forward.x, center.y, center.z - right.z + forward.z};
-    verts[0] = Vertex{p0.x, p0.y, p0.z, color, 0.0f, 0.0f};
-    verts[1] = Vertex{p1.x, p1.y, p1.z, color, 1.0f, 0.0f};
-    verts[2] = Vertex{p2.x, p2.y, p2.z, color, 1.0f, 1.0f};
-    verts[3] = Vertex{p3.x, p3.y, p3.z, color, 0.0f, 1.0f};
-    auto* idx = reinterpret_cast<std::uint16_t*>(tib.data);
-    idx[0] = 0;
-    idx[1] = 1;
-    idx[2] = 2;
-    idx[3] = 0;
-    idx[4] = 2;
-    idx[5] = 3;
-
-    const float br = std::max(0.0f, deps_.scene->lighting_brightness);
-    float tint[4] = {
-        deps_.scene->lighting_tint_r * br,
-        deps_.scene->lighting_tint_g * br,
-        deps_.scene->lighting_tint_b * br,
-        0.01f};
-    float model[16];
-    identity(model);
-    bgfx::setTransform(model);
-    bgfx::setVertexBuffer(0, &tvb);
-    bgfx::setIndexBuffer(&tib);
-    bgfx::setTexture(0, deps_.tex_uniform, deps_.shadow_texture.handle, samplerFlags());
-    bgfx::setUniform(deps_.tint_cutoff_uniform, tint);
-    bgfx::setStencil(nonStackingShadowStencil());
-    bgfx::setState(depthTestedShadowState());
-    bgfx::submit(deps_.view_id, deps_.billboard_program);
-    (void)camera;
 }
 
 void BillboardBgfxDrawer::submitBillboardQuad(
@@ -552,15 +387,6 @@ void BillboardBgfxDrawer::submitCharacterDraw(
             0.0f,
             transparentEffectState());
     }
-}
-
-void BillboardBgfxDrawer::submitCharacterShadow(
-    const camera::Gen4FollowCamera& camera,
-    const CharacterBillboardDraw& draw) const {
-    if (!draw.draw_shadow || !draw.character || !draw.placement.visible || !deps_.scene) {
-        return;
-    }
-    submitGroundShadow(camera, draw.placement, draw.source_rect, deps_.scene->sprite_shadow);
 }
 
 void BillboardBgfxDrawer::submitTextureDraw(

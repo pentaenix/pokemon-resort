@@ -8,6 +8,7 @@
 #include "gameplay/world3d/data/GlbModelLoader.hpp"
 #include "gameplay/world3d/data/RtpksTilePackageLoader.hpp"
 #include "gameplay/world3d/rendering/bgfx/BgfxBackend.hpp"
+#include "gameplay/world3d/terrain/TerrainSurface.hpp"
 
 #include <SDL_image.h>
 
@@ -16,6 +17,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -258,6 +260,10 @@ private:
     };
 
     struct StaticChunkGpuResource {
+        SceneConfig scene;
+        float origin_x = 0.0f;
+        float origin_y = 0.0f;
+        float origin_z = 0.0f;
         MeshGpuResource terrain_flat_top_mesh;
         MeshGpuResource terrain_slope_top_mesh;
         MeshGpuResource terrain_wall_mesh;
@@ -354,6 +360,22 @@ private:
         MaterialClass pass,
         bgfx::ViewId view_id) const;
     void submitPixelWorldToBackbuffer(int framebuffer_w, int framebuffer_h, int source_w, int source_h) const;
+    void submitProjectedCharacterShadows(
+        const camera::Gen4FollowCamera& camera,
+        const std::vector<rendering::CharacterBillboardDraw>& characters) const;
+    void appendProjectedShadowForScene(
+        const SceneConfig& scene,
+        float origin_x,
+        float origin_y,
+        float origin_z,
+        const rendering::BillboardPlacement& placement,
+        const camera::Vec3& shadow_right,
+        const camera::Vec3& shadow_forward,
+        const camera::Vec3& view_bias,
+        float half_w,
+        float half_h,
+        std::vector<Vertex>& vertices,
+        std::vector<std::uint16_t>& indices) const;
     void refreshBillboardDrawer();
     std::optional<BillboardBgfxDrawer> billboard_drawer_;
 };
@@ -1195,6 +1217,10 @@ bool OverworldBgfxRenderer::Impl::buildStaticMapChunks() {
         }
 
         StaticChunkGpuResource chunk;
+        chunk.scene = request.scene;
+        chunk.origin_x = request.origin_x;
+        chunk.origin_y = request.origin_y;
+        chunk.origin_z = request.origin_z;
         placementMatrix(
             request.origin_x,
             request.origin_y,
@@ -1452,6 +1478,185 @@ void OverworldBgfxRenderer::Impl::submitPixelWorldToBackbuffer(
     bgfx::submit(3, world_program_);
 }
 
+void OverworldBgfxRenderer::Impl::appendProjectedShadowForScene(
+    const SceneConfig& scene,
+    float origin_x,
+    float origin_y,
+    float origin_z,
+    const rendering::BillboardPlacement& placement,
+    const camera::Vec3& shadow_right,
+    const camera::Vec3& shadow_forward,
+    const camera::Vec3& view_bias,
+    float half_w,
+    float half_h,
+    std::vector<Vertex>& vertices,
+    std::vector<std::uint16_t>& indices) const {
+    const float tile_size = std::max(1.0f, scene.grid.tile_size);
+    const float world_min_x = placement.shadow_ground.x - half_w;
+    const float world_max_x = placement.shadow_ground.x + half_w;
+    const float world_min_z = placement.shadow_ground.z - half_h;
+    const float world_max_z = placement.shadow_ground.z + half_h;
+    const float local_min_x = world_min_x - origin_x;
+    const float local_max_x = world_max_x - origin_x;
+    const float local_min_z = world_min_z - origin_z;
+    const float local_max_z = world_max_z - origin_z;
+    const int min_tx = static_cast<int>(std::floor(local_min_x / tile_size));
+    const int max_tx = static_cast<int>(std::floor(local_max_x / tile_size));
+    const int min_ty = static_cast<int>(std::floor(local_min_z / tile_size));
+    const int max_ty = static_cast<int>(std::floor(local_max_z / tile_size));
+    const int grid_w = std::max(1, scene.grid.width);
+    const int grid_h = std::max(1, scene.grid.height);
+    const float y_bias = std::max(0.04f, tile_size * 0.003f);
+    const std::uint32_t white = 0xffffffffu;
+
+    const auto append_vertex = [&](float local_x, float local_z) {
+        const float world_x = origin_x + local_x;
+        const float world_z = origin_z + local_z;
+        const int fallback_tx = std::clamp(static_cast<int>(std::floor(local_x / tile_size)), 0, grid_w - 1);
+        const int fallback_ty = std::clamp(static_cast<int>(std::floor(local_z / tile_size)), 0, grid_h - 1);
+        const float y = origin_y +
+            terrain::heightAtWorldPosition(scene, local_x, local_z, fallback_tx, fallback_ty) +
+            y_bias;
+        const float dx = world_x - placement.shadow_ground.x;
+        const float dz = world_z - placement.shadow_ground.z;
+        const float u = 0.5f + (((dx * shadow_right.x) + (dz * shadow_right.z)) / std::max(0.001f, half_w * 2.0f));
+        const float v = 0.5f + (((dx * shadow_forward.x) + (dz * shadow_forward.z)) / std::max(0.001f, half_h * 2.0f));
+        vertices.push_back(Vertex{
+            world_x + view_bias.x,
+            y + view_bias.y,
+            world_z + view_bias.z,
+            white,
+            u,
+            v});
+    };
+
+    for (int ty = std::max(0, min_ty); ty <= std::min(grid_h - 1, max_ty); ++ty) {
+        for (int tx = std::max(0, min_tx); tx <= std::min(grid_w - 1, max_tx); ++tx) {
+            const float x0 = std::max(static_cast<float>(tx) * tile_size, local_min_x);
+            const float x1 = std::min((static_cast<float>(tx) + 1.0f) * tile_size, local_max_x);
+            const float z0 = std::max(static_cast<float>(ty) * tile_size, local_min_z);
+            const float z1 = std::min((static_cast<float>(ty) + 1.0f) * tile_size, local_max_z);
+            if (x1 <= x0 || z1 <= z0) {
+                continue;
+            }
+            const std::uint16_t base = static_cast<std::uint16_t>(vertices.size());
+            append_vertex(x0, z0);
+            append_vertex(x1, z0);
+            append_vertex(x1, z1);
+            append_vertex(x0, z1);
+            indices.insert(indices.end(), {
+                base,
+                static_cast<std::uint16_t>(base + 1U),
+                static_cast<std::uint16_t>(base + 2U),
+                base,
+                static_cast<std::uint16_t>(base + 2U),
+                static_cast<std::uint16_t>(base + 3U)});
+        }
+    }
+}
+
+void OverworldBgfxRenderer::Impl::submitProjectedCharacterShadows(
+    const camera::Gen4FollowCamera& camera,
+    const std::vector<rendering::CharacterBillboardDraw>& characters) const {
+    if (!shadow_texture_.valid() || characters.empty()) {
+        return;
+    }
+
+    std::vector<Vertex> vertices;
+    std::vector<std::uint16_t> indices;
+    vertices.reserve(characters.size() * 24U);
+    indices.reserve(characters.size() * 36U);
+    const auto pose = camera.pose();
+    const float decal_depth_bias = std::max(0.08f, scene_.grid.tile_size * 0.006f);
+    const camera::Vec3 view_bias{
+        -pose.forward.x * decal_depth_bias,
+        -pose.forward.y * decal_depth_bias,
+        -pose.forward.z * decal_depth_bias};
+
+    for (const rendering::CharacterBillboardDraw& character : characters) {
+        if (!character.draw_shadow || !character.placement.visible) {
+            continue;
+        }
+        float half_w = std::max(0.5f, character.placement.world_w * scene_.sprite_shadow.radius_x_tiles);
+        float half_h = std::max(0.5f, character.placement.world_h * scene_.sprite_shadow.radius_z_tiles);
+        if (scene_.sprite_shadow.pixel_coherent) {
+            const float base_sprite_h =
+                authoredPixelsWorldUnits(scene_, static_cast<float>(std::max(1, character.source_rect.h)), 1.0f);
+            const float sprite_scale = character.placement.world_h / std::max(0.001f, base_sprite_h);
+            half_w = authoredPixelsWorldUnits(
+                scene_,
+                static_cast<float>(std::max(1, scene_.sprite_shadow.texture_width_px)),
+                sprite_scale) * 0.5f;
+            half_h = authoredPixelsWorldUnits(
+                scene_,
+                static_cast<float>(std::max(1, scene_.sprite_shadow.texture_height_px)),
+                sprite_scale) * 0.5f;
+        }
+        const camera::Vec3 shadow_right{1.0f, 0.0f, 0.0f};
+        const camera::Vec3 shadow_forward{0.0f, 0.0f, 1.0f};
+        appendProjectedShadowForScene(
+            scene_,
+            0.0f,
+            0.0f,
+            0.0f,
+            character.placement,
+            shadow_right,
+            shadow_forward,
+            view_bias,
+            half_w,
+            half_h,
+            vertices,
+            indices);
+        for (const StaticChunkGpuResource& chunk : static_chunks_) {
+            appendProjectedShadowForScene(
+                chunk.scene,
+                chunk.origin_x,
+                chunk.origin_y,
+                chunk.origin_z,
+                character.placement,
+                shadow_right,
+                shadow_forward,
+                view_bias,
+                half_w,
+                half_h,
+                vertices,
+                indices);
+        }
+    }
+
+    if (vertices.empty() || indices.empty()) {
+        return;
+    }
+    bgfx::TransientVertexBuffer tvb;
+    bgfx::TransientIndexBuffer tib;
+    if (!bgfx::allocTransientBuffers(
+            &tvb,
+            layout_,
+            static_cast<std::uint32_t>(vertices.size()),
+            &tib,
+            static_cast<std::uint32_t>(indices.size()))) {
+        return;
+    }
+    std::memcpy(tvb.data, vertices.data(), vertices.size() * sizeof(Vertex));
+    std::memcpy(tib.data, indices.data(), indices.size() * sizeof(std::uint16_t));
+
+    const float br = std::max(0.0f, scene_.lighting_brightness);
+    float tint[4] = {
+        scene_.lighting_tint_r * br,
+        scene_.lighting_tint_g * br,
+        scene_.lighting_tint_b * br,
+        0.0f};
+    float model[16];
+    identity(model);
+    bgfx::setTransform(model);
+    bgfx::setVertexBuffer(0, &tvb);
+    bgfx::setIndexBuffer(&tib);
+    bgfx::setTexture(0, tex_uniform_, shadow_texture_.handle, samplerFlags());
+    bgfx::setUniform(tint_cutoff_uniform_, tint);
+    bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_BLEND_ALPHA | BGFX_STATE_DEPTH_TEST_LEQUAL);
+    bgfx::submit(1, world_program_);
+}
+
 void OverworldBgfxRenderer::Impl::refreshBillboardDrawer() {
     auto copyTexture = [](const TextureGpuResource& src) {
         BillboardBgfxDrawer::TextureGpuResource out{};
@@ -1468,7 +1673,6 @@ void OverworldBgfxRenderer::Impl::refreshBillboardDrawer() {
     deps.tint_cutoff_uniform = tint_cutoff_uniform_;
     deps.view_id = 1;
     deps.scene = &scene_;
-    deps.shadow_texture = copyTexture(shadow_texture_);
     deps.textures_for_character = [this, copyTexture](const CharacterSpriteDefinition& character) {
         const CharacterGpuTextures& src = texturesForCharacter(character);
         BillboardBgfxDrawer::CharacterGpuTextures out{};
@@ -1590,6 +1794,14 @@ void OverworldBgfxRenderer::Impl::render(
         }
     }
 
+    // Ground overlays must be part of the floor before character shadows are composited.
+    // If blended RTPKS/tile materials draw after shadows, they cover the shadow on ramps
+    // and make it look clipped even when the shadow position/depth is correct.
+    submitMesh(tile_layer_mesh_, ident, world_program_, MaterialClass::TrueBlend, 0.0f, stateFor(MaterialClass::TrueBlend), 1);
+    for (const StaticChunkGpuResource& chunk : static_chunks_) {
+        submitMesh(chunk.tile_layer_mesh, chunk.world_matrix, world_program_, MaterialClass::TrueBlend, 0.0f, stateFor(MaterialClass::TrueBlend), 1);
+    }
+
     bgfx::touch(1);
 
     std::vector<rendering::CharacterBillboardDraw> characters = character_draws;
@@ -1610,6 +1822,8 @@ void OverworldBgfxRenderer::Impl::render(
         placement_h);
     characters.push_back(player_draw);
 
+    submitProjectedCharacterShadows(camera, characters);
+
     if (billboard_drawer_) {
         billboard_drawer_->setWorldViewport(
             placement_w,
@@ -1617,9 +1831,6 @@ void OverworldBgfxRenderer::Impl::render(
             world_view_w,
             world_view_h,
             pixel_world_enabled ? internal_scale : 1);
-        for (const rendering::CharacterBillboardDraw& character_draw : characters) {
-            billboard_drawer_->submitCharacterShadow(camera, character_draw);
-        }
     }
 
     if (billboard_drawer_) {
@@ -1643,12 +1854,10 @@ void OverworldBgfxRenderer::Impl::render(
         for (const ModelGpuResource& model : models_) {
             submitMesh(model.mesh, model.model_matrix, world_program_, MaterialClass::TrueBlend, 0.0f, stateFor(MaterialClass::TrueBlend), 1);
         }
-        submitMesh(tile_layer_mesh_, ident, world_program_, MaterialClass::TrueBlend, 0.0f, stateFor(MaterialClass::TrueBlend), 1);
         for (const StaticChunkGpuResource& chunk : static_chunks_) {
             for (const ModelGpuResource& model : chunk.models) {
                 submitMesh(model.mesh, model.model_matrix, world_program_, MaterialClass::TrueBlend, 0.0f, stateFor(MaterialClass::TrueBlend), 1);
             }
-            submitMesh(chunk.tile_layer_mesh, chunk.world_matrix, world_program_, MaterialClass::TrueBlend, 0.0f, stateFor(MaterialClass::TrueBlend), 1);
         }
 
         std::vector<rendering::TextureBillboardDraw> transparent_textures = texture_draws;

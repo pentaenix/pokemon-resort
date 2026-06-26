@@ -3,7 +3,6 @@
 #include "gameplay/world3d/Overworld3DConfig.hpp"
 #include "gameplay/world3d/camera/Gen4FollowCamera.hpp"
 #include "gameplay/world3d/rendering/BillboardPlacement.hpp"
-#include "gameplay/world3d/rendering/SpriteShadowDecal.hpp"
 
 #include <SDL.h>
 #include <bgfx/bgfx.h>
@@ -43,7 +42,6 @@ public:
         int render_viewport_h = 1;
         int internal_scale = 1;
         const SceneConfig* scene = nullptr;
-        TextureGpuResource shadow_texture{};
         std::function<CharacterGpuTextures(const CharacterSpriteDefinition&)> textures_for_character;
         std::function<TextureGpuResource(
             const std::string& cache_key,
@@ -58,10 +56,6 @@ public:
     void setWorldViewport(int base_width, int base_height, int render_width, int render_height, int internal_scale);
 
     void submitCharacterDraw(
-        const camera::Gen4FollowCamera& camera,
-        const CharacterBillboardDraw& draw) const;
-
-    void submitCharacterShadow(
         const camera::Gen4FollowCamera& camera,
         const CharacterBillboardDraw& draw) const;
 
@@ -80,12 +74,6 @@ private:
     };
 
     Dependencies deps_;
-
-    void submitGroundShadow(
-        const camera::Gen4FollowCamera& camera,
-        const BillboardPlacement& placement,
-        const SDL_Rect& source_rect,
-        const SpriteShadowConfig& shadow_cfg) const;
 
     void submitBillboardQuad(
         const camera::Gen4FollowCamera& camera,

@@ -102,8 +102,8 @@ BillboardPlacement buildCharacterBillboardPlacement(
         binding.height_sample_tx,
         binding.height_sample_ty);
     const float render_lift_y = slopeBillboardLift(scene, binding);
-    const float terrain_contact_y = foot_terrain_y;
-    const float visual_foot_y = terrain_contact_y + character.world_offset_y + (world_pos.y - base_terrain_y);
+    const float terrain_contact_y = foot_terrain_y + (world_pos.y - base_terrain_y);
+    const float visual_foot_y = terrain_contact_y + character.world_offset_y;
     pos.y = visual_foot_y + render_lift_y;
 
     float sx = 0.0f;
