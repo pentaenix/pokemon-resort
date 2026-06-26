@@ -11,8 +11,6 @@ namespace pr::gameplay::world3d::rendering {
 
 namespace {
 
-constexpr float kSlopeBillboardLiftTiles = 0.125f;
-
 int tileSpecial(const SceneConfig& scene, int tx, int ty) {
     if (scene.terrain.specials.empty()) return 0;
     if (ty < 0 || ty >= static_cast<int>(scene.terrain.specials.size())) return 0;
@@ -29,7 +27,10 @@ float slopeBillboardLift(const SceneConfig& scene, const terrain::ActorTerrainBi
     if (!isSlopeSpecial(tileSpecial(scene, binding.height_sample_tx, binding.height_sample_ty))) {
         return 0.0f;
     }
-    return std::max(1.0f, scene.grid.tile_size * kSlopeBillboardLiftTiles);
+    // Ramp height is already carried by ActorTerrainBinding::simulation_y. Applying an
+    // extra ramp-only offset makes sprites visibly pop when the sampled tile changes
+    // around half-height ramp boundaries.
+    return 0.0f;
 }
 
 camera::Vec3 verticalOnlyScreenOffset(

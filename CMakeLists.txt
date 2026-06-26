@@ -137,6 +137,7 @@ add_executable(title_screen_demo
     src/gameplay/world3d/characters/SpriteSheetAnimator.cpp
     src/gameplay/world3d/characters/CharacterController.cpp
     src/gameplay/world3d/characters/CharacterTerrainQuery.cpp
+    src/gameplay/world3d/characters/GridActorMotor.cpp
     src/gameplay/world3d/terrain/ActorTerrainBinding.cpp
     src/gameplay/world3d/terrain/GridStepMotor.cpp
     src/gameplay/world3d/data/SceneMetadataParser.cpp
@@ -502,6 +503,7 @@ add_executable(owmap_overworld_loader_tests
     src/gameplay/world3d/data/OwmapOverworldLoader.cpp
     src/gameplay/world3d/characters/CharacterController.cpp
     src/gameplay/world3d/characters/CharacterTerrainQuery.cpp
+    src/gameplay/world3d/characters/GridActorMotor.cpp
     src/gameplay/world3d/terrain/ActorTerrainBinding.cpp
     src/gameplay/world3d/terrain/GridStepMotor.cpp
     src/gameplay/world3d/terrain/TerrainSurface.cpp

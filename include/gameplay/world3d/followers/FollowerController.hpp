@@ -4,6 +4,7 @@
 #include "gameplay/world3d/camera/Gen4FollowCamera.hpp"
 #include "gameplay/world3d/characters/CharacterController.hpp"
 #include "gameplay/world3d/characters/CharacterMovementConfig.hpp"
+#include "gameplay/world3d/characters/GridActorMotor.hpp"
 #include "gameplay/world3d/characters/SpriteSheetAnimator.hpp"
 #include "gameplay/world3d/effects/LandingDustSystem.hpp"
 #include "gameplay/world3d/followers/FollowerConfig.hpp"
@@ -34,6 +35,7 @@ public:
     // Loads charbin packages without SDL; required for update() on bgfx path.
     bool initializeResources();
     bool resourcesReady() const { return resources_ready_; }
+    void setTerrainQuery(std::shared_ptr<characters::CharacterTerrainQuery> terrain_query);
 
     void collectBillboardDraws(
         const camera::Gen4FollowCamera& camera,
@@ -83,6 +85,8 @@ private:
     FollowerSummonConfig summon_config_{};
     FollowerSessionConfig session_config_{};
     characters::CharacterMovementConfig movement_config_{};
+    std::shared_ptr<characters::CharacterTerrainQuery> terrain_query_;
+    characters::GridActorMotor motor_{};
 
     State state_ = State::Hidden;
     CharacterSpriteDefinition follower_def_{};
@@ -104,7 +108,6 @@ private:
     TilePoint player_tile_{};
     TilePoint follower_tile_{};
     TilePoint step_dest_tile_{};
-    terrain::GridStepMotor step_motor_{};
     terrain::GridStepMotor replay_step_motor_{};
     TilePoint idle_origin_tile_{};
     TilePoint last_player_segment_from_{};

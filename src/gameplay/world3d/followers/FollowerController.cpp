@@ -79,6 +79,7 @@ FollowerController::FollowerController(
       summon_config_(summon_config),
       session_config_(session_config),
       movement_config_(characters::loadCharacterMovementConfig(project_root)),
+      terrain_query_(characters::makeLocalCharacterTerrainQuery(scene)),
       idle_config_(loadNatureIdleBehaviorConfig(project_root)) {}
 
 bool FollowerController::initializeResources() {
@@ -120,15 +121,25 @@ bool FollowerController::initializeResources() {
     return true;
 }
 
+void FollowerController::setTerrainQuery(std::shared_ptr<characters::CharacterTerrainQuery> terrain_query) {
+    if (!terrain_query) return;
+    terrain_query_ = std::move(terrain_query);
+    motor_.setTerrainQuery(terrain_query_);
+    if (state_ == State::Active && !follower_moving_) {
+        follower_pos_.y = terrainBinding().simulation_y;
+    }
+}
+
 terrain::ActorTerrainBinding FollowerController::terrainBinding() const {
     terrain::TileCoord sample{follower_tile_.x, follower_tile_.y};
     if (replay_follow_active_) {
         sample = replay_step_motor_.activeSampleTile(follower_move_t_);
     } else if (follower_moving_) {
-        sample = step_motor_.activeSampleTile(follower_move_t_);
+        return motor_.terrainBinding();
     }
-    terrain::ActorTerrainBinding binding =
-        terrain::bindActorStanding(scene_, follower_tile_.x, follower_tile_.y, follower_pos_.x, follower_pos_.z);
+    terrain::ActorTerrainBinding binding = terrain_query_
+        ? terrain_query_->bindActorStanding(follower_tile_.x, follower_tile_.y, follower_pos_.x, follower_pos_.z)
+        : terrain::bindActorStanding(scene_, follower_tile_.x, follower_tile_.y, follower_pos_.x, follower_pos_.z);
     binding.height_sample_tx = sample.x;
     binding.height_sample_ty = sample.y;
     return binding;
@@ -139,25 +150,22 @@ void FollowerController::beginStepToTile(const TilePoint& target, double speed_m
     follower_move_from_ = follower_pos_;
     step_dest_tile_ = target;
     follower_move_t_ = 0.0f;
-    follower_moving_ = true;
     current_step_speed_multiplier_ = std::max(0.1, speed_multiplier);
     current_step_hop_height_tiles_ = hop_movement ? 0.25 : 0.0;
     const int dx = target.x - from_tile.x;
     const int dy = target.y - from_tile.y;
-    step_motor_ = terrain::GridStepMotor::beginStep(
-        scene_,
-        from_tile.x,
-        from_tile.y,
-        target.x,
-        target.y,
-        dx,
-        dy,
-        tileHeightUnits(from_tile.x, from_tile.y),
-        tileHeightUnits(target.x, target.y));
-    follower_move_to_.x = (static_cast<float>(target.x) + 0.5f) * std::max(1.0f, scene_.grid.tile_size);
-    follower_move_to_.z = (static_cast<float>(target.y) + 0.5f) * std::max(1.0f, scene_.grid.tile_size);
-    follower_move_to_.y =
-        terrain::bindActorStanding(scene_, target.x, target.y, follower_move_to_.x, follower_move_to_.z).simulation_y;
+    const float tile_size = std::max(1.0f, scene_.grid.tile_size);
+    const float step_duration = std::max(0.001f, follower_step_duration_s_ / static_cast<float>(current_step_speed_multiplier_));
+    motor_.setTerrainQuery(terrain_query_);
+    motor_.setMoveSpeedUnitsPerSecond(tile_size / step_duration);
+    motor_.resetToTile(from_tile.x, from_tile.y, follower_pos_);
+    const characters::GridActorMotor::StepResult step = motor_.tryStartStep(dx, dy);
+    follower_moving_ = step.started;
+    follower_move_to_ = motor_.moveTarget();
+    if (!follower_moving_) {
+        current_step_hop_height_tiles_ = 0.0;
+        return;
+    }
     if (dx > 0) follower_facing_ = FacingDirection::East;
     else if (dx < 0) follower_facing_ = FacingDirection::West;
     else if (dy > 0) follower_facing_ = FacingDirection::South;
@@ -169,23 +177,15 @@ void FollowerController::beginStepToTile(const TilePoint& target, double speed_m
 void FollowerController::updateActiveStep(double dt) {
     render_offset_ = camera::Vec3{};
     if (!follower_moving_) return;
-    follower_move_t_ += static_cast<float>(dt) / std::max(0.001f, follower_step_duration_s_ / static_cast<float>(current_step_speed_multiplier_));
-    if (follower_move_t_ >= 1.0f) {
-        follower_move_t_ = 1.0f;
+    const bool finished = motor_.update(dt);
+    follower_move_t_ = motor_.moveT();
+    follower_pos_ = motor_.position();
+    if (finished) {
         follower_pos_ = follower_move_to_;
         follower_tile_ = step_dest_tile_;
         follower_moving_ = false;
         current_step_hop_height_tiles_ = 0.0;
         return;
-    }
-    follower_pos_.x = follower_move_from_.x + ((follower_move_to_.x - follower_move_from_.x) * follower_move_t_);
-    follower_pos_.z = follower_move_from_.z + ((follower_move_to_.z - follower_move_from_.z) * follower_move_t_);
-    if (step_motor_.interpolate_y) {
-        follower_pos_.y =
-            terrain::actorHeightDuringStep(scene_, follower_pos_.x, follower_pos_.z, step_motor_, follower_move_t_);
-    } else {
-        follower_pos_.y =
-            follower_move_from_.y + ((follower_move_to_.y - follower_move_from_.y) * follower_move_t_);
     }
     if (current_step_hop_height_tiles_ > 0.0) {
         const double t = std::clamp(static_cast<double>(follower_move_t_), 0.0, 1.0);
@@ -218,16 +218,28 @@ bool FollowerController::updateReplayFollow(
         replay_to_tile_.y != to.y) {
         replay_from_tile_ = from;
         replay_to_tile_ = to;
-        replay_step_motor_ = terrain::GridStepMotor::beginStep(
-            scene_,
-            from.x,
-            from.y,
-            to.x,
-            to.y,
-            to.x - from.x,
-            to.y - from.y,
-            tileHeightUnits(from.x, from.y),
-            tileHeightUnits(to.x, to.y));
+        if (terrain_query_) {
+            replay_step_motor_ = terrain_query_->beginStep(
+                from.x,
+                from.y,
+                to.x,
+                to.y,
+                to.x - from.x,
+                to.y - from.y,
+                terrain_query_->tileBaseHeightUnits(from.x, from.y),
+                terrain_query_->tileBaseHeightUnits(to.x, to.y));
+        } else {
+            replay_step_motor_ = terrain::GridStepMotor::beginStep(
+                scene_,
+                from.x,
+                from.y,
+                to.x,
+                to.y,
+                to.x - from.x,
+                to.y - from.y,
+                tileHeightUnits(from.x, from.y),
+                tileHeightUnits(to.x, to.y));
+        }
     }
 
     replay_follow_active_ = true;
@@ -246,8 +258,18 @@ bool FollowerController::updateReplayFollow(
     follower_pos_.x = from_pos.x + ((to_pos.x - from_pos.x) * follower_move_t_);
     follower_pos_.z = from_pos.z + ((to_pos.z - from_pos.z) * follower_move_t_);
     if (replay_step_motor_.interpolate_y) {
-        follower_pos_.y =
-            terrain::actorHeightDuringStep(scene_, follower_pos_.x, follower_pos_.z, replay_step_motor_, follower_move_t_);
+        follower_pos_.y = terrain_query_
+            ? terrain_query_->actorHeightDuringStep(
+                follower_pos_.x,
+                follower_pos_.z,
+                replay_step_motor_,
+                follower_move_t_)
+            : terrain::actorHeightDuringStep(
+                scene_,
+                follower_pos_.x,
+                follower_pos_.z,
+                replay_step_motor_,
+                follower_move_t_);
     } else {
         follower_pos_.y = from_pos.y + ((to_pos.y - from_pos.y) * follower_move_t_);
     }
@@ -926,10 +948,13 @@ int FollowerController::tileHeightUnits(int tx, int ty) const {
 }
 
 camera::Vec3 FollowerController::tileToWorldCenter(int tx, int ty) const {
-    const float ts = std::max(1.0f, scene_.grid.tile_size);
+    const float ts = terrain_query_ ? terrain_query_->tileSize() : std::max(1.0f, scene_.grid.tile_size);
     const float cx = (static_cast<float>(tx) + 0.5f) * ts;
     const float cz = (static_cast<float>(ty) + 0.5f) * ts;
-    return camera::Vec3{cx, terrain::heightAtActorFeet(scene_, cx, cz, tx, ty), cz};
+    const float y = terrain_query_
+        ? terrain_query_->bindActorStanding(tx, ty, cx, cz).simulation_y
+        : terrain::heightAtActorFeet(scene_, cx, cz, tx, ty);
+    return camera::Vec3{cx, y, cz};
 }
 
 } // namespace pr::gameplay::world3d::followers

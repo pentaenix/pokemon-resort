@@ -3,10 +3,10 @@
 #include "gameplay/world3d/Overworld3DConfig.hpp"
 #include "gameplay/world3d/camera/Gen4FollowCamera.hpp"
 #include "gameplay/world3d/characters/CharacterMovementConfig.hpp"
+#include "gameplay/world3d/characters/GridActorMotor.hpp"
 #include "gameplay/world3d/characters/SpriteSheetAnimator.hpp"
 #include "gameplay/world3d/rendering/BillboardPlacement.hpp"
 #include "gameplay/world3d/terrain/ActorTerrainBinding.hpp"
-#include "gameplay/world3d/terrain/GridStepMotor.hpp"
 
 #include <SDL.h>
 
@@ -63,6 +63,7 @@ public:
     NpcActorDriver(std::string project_root, const SceneConfig& scene);
 
     void initializeDefaultSceneActors(const camera::Vec3& player_position);
+    void setTerrainQuery(std::shared_ptr<characters::CharacterTerrainQuery> terrain_query);
     void update(double dt);
     void setPlayerReservedTile(int tx, int ty);
     void setReservedTiles(std::vector<std::pair<int, int>> tiles, std::size_t player_reserved_tile_count);
@@ -83,7 +84,7 @@ private:
         camera::Vec3 position{};
         camera::Vec3 move_start{};
         camera::Vec3 move_target{};
-        terrain::GridStepMotor step_motor{};
+        characters::GridActorMotor motor{};
         terrain::ActorTerrainBinding terrain_binding{};
         SDL_Rect source_rect{};
         int tile_x = 0;
@@ -136,6 +137,7 @@ private:
 
     std::string project_root_;
     const SceneConfig* scene_ = nullptr;
+    std::shared_ptr<characters::CharacterTerrainQuery> terrain_query_;
     characters::CharacterMovementConfig movement_config_{};
     PokemonCollisionMode pokemon_collision_mode_ = PokemonCollisionMode::BlockCell;
     std::vector<Actor> actors_;

@@ -790,6 +790,7 @@ bool OverworldBgfxRenderer::Impl::buildTileLayers() {
                                    std::size_t vertex_index,
                                    int tile_x,
                                    int tile_y,
+                                   float base_y,
                                    float layer_lift,
                                    float material_alpha) {
         const std::size_t pi = vertex_index * 3U;
@@ -797,14 +798,10 @@ bool OverworldBgfxRenderer::Impl::buildTileLayers() {
         const float local_x = read_float(positions, pi + 0U, 0.0f) + mesh.x_offset;
         const float local_y = read_float(positions, pi + 1U, 0.0f) + mesh.y_offset;
         const float local_z = read_float(positions, pi + 2U, 0.0f);
-        const float world_x = static_cast<float>(tile_x) * tile_size + local_x * tile_size;
-        const float world_z =
-            static_cast<float>(tile_y) * tile_size + (static_cast<float>(mesh.height) - local_y) * tile_size;
-        const float terrain_y = terrain::heightAtWorldPosition(scene_, world_x, world_z, tile_x, tile_y);
         bucket.vertices.push_back(Vertex{
-            world_x,
-            terrain_y + local_z * tile_size + layer_lift,
-            world_z,
+            static_cast<float>(tile_x) * tile_size + local_x * tile_size,
+            base_y + local_z * tile_size + layer_lift,
+            static_cast<float>(tile_y) * tile_size + (static_cast<float>(mesh.height) - local_y) * tile_size,
             vertex_color(colors, pi, material_alpha),
             read_float(uvs, ui + 0U, 0.0f),
             1.0f - read_float(uvs, ui + 1U, 0.0f)});
@@ -814,13 +811,14 @@ bool OverworldBgfxRenderer::Impl::buildTileLayers() {
                                 int tri_index,
                                 int tile_x,
                                 int tile_y,
+                                float base_y,
                                 float layer_lift,
                                 float material_alpha) {
         const std::uint32_t base = static_cast<std::uint32_t>(bucket.vertices.size());
         const std::size_t first = static_cast<std::size_t>(std::max(0, tri_index)) * 3U;
-        append_vertex(bucket, mesh, mesh.triangles, mesh.tex_coords_tri, mesh.colors_tri, first + 0U, tile_x, tile_y, layer_lift, material_alpha);
-        append_vertex(bucket, mesh, mesh.triangles, mesh.tex_coords_tri, mesh.colors_tri, first + 1U, tile_x, tile_y, layer_lift, material_alpha);
-        append_vertex(bucket, mesh, mesh.triangles, mesh.tex_coords_tri, mesh.colors_tri, first + 2U, tile_x, tile_y, layer_lift, material_alpha);
+        append_vertex(bucket, mesh, mesh.triangles, mesh.tex_coords_tri, mesh.colors_tri, first + 0U, tile_x, tile_y, base_y, layer_lift, material_alpha);
+        append_vertex(bucket, mesh, mesh.triangles, mesh.tex_coords_tri, mesh.colors_tri, first + 1U, tile_x, tile_y, base_y, layer_lift, material_alpha);
+        append_vertex(bucket, mesh, mesh.triangles, mesh.tex_coords_tri, mesh.colors_tri, first + 2U, tile_x, tile_y, base_y, layer_lift, material_alpha);
         bucket.indices.insert(bucket.indices.end(), {base, base + 1U, base + 2U});
     };
     const auto append_quad = [&](Bucket& bucket,
@@ -828,14 +826,15 @@ bool OverworldBgfxRenderer::Impl::buildTileLayers() {
                                  int quad_index,
                                  int tile_x,
                                  int tile_y,
+                                 float base_y,
                                  float layer_lift,
                                  float material_alpha) {
         const std::uint32_t base = static_cast<std::uint32_t>(bucket.vertices.size());
         const std::size_t first = static_cast<std::size_t>(std::max(0, quad_index)) * 4U;
-        append_vertex(bucket, mesh, mesh.quads, mesh.tex_coords_quad, mesh.colors_quad, first + 0U, tile_x, tile_y, layer_lift, material_alpha);
-        append_vertex(bucket, mesh, mesh.quads, mesh.tex_coords_quad, mesh.colors_quad, first + 1U, tile_x, tile_y, layer_lift, material_alpha);
-        append_vertex(bucket, mesh, mesh.quads, mesh.tex_coords_quad, mesh.colors_quad, first + 2U, tile_x, tile_y, layer_lift, material_alpha);
-        append_vertex(bucket, mesh, mesh.quads, mesh.tex_coords_quad, mesh.colors_quad, first + 3U, tile_x, tile_y, layer_lift, material_alpha);
+        append_vertex(bucket, mesh, mesh.quads, mesh.tex_coords_quad, mesh.colors_quad, first + 0U, tile_x, tile_y, base_y, layer_lift, material_alpha);
+        append_vertex(bucket, mesh, mesh.quads, mesh.tex_coords_quad, mesh.colors_quad, first + 1U, tile_x, tile_y, base_y, layer_lift, material_alpha);
+        append_vertex(bucket, mesh, mesh.quads, mesh.tex_coords_quad, mesh.colors_quad, first + 2U, tile_x, tile_y, base_y, layer_lift, material_alpha);
+        append_vertex(bucket, mesh, mesh.quads, mesh.tex_coords_quad, mesh.colors_quad, first + 3U, tile_x, tile_y, base_y, layer_lift, material_alpha);
         bucket.indices.insert(bucket.indices.end(), {base, base + 1U, base + 2U, base, base + 2U, base + 3U});
     };
     int placed_tiles = 0;
@@ -849,6 +848,7 @@ bool OverworldBgfxRenderer::Impl::buildTileLayers() {
                 if (tile_id < 0) continue;
                 const data::RtpksTileMesh* mesh = tile_package_->tileById(tile_id);
                 if (!mesh) continue;
+                const float base_y = terrain::heightAtTileCenter(scene_, x, y);
                 const float layer_lift = static_cast<float>(layer_index) * kLayerLift;
                 for (const data::RtpksMaterialRange& range : mesh->material_ranges) {
                     const auto slot_it = material_slot_by_id.find(range.material_id);
@@ -858,11 +858,11 @@ bool OverworldBgfxRenderer::Impl::buildTileLayers() {
                     const MaterialGpuResource& material = tile_layer_mesh_.materials[material_index];
                     for (int i = 0; i < range.tri_count; ++i) {
                         const int tri_index = range.tri_start + i;
-                        append_tri(bucket, *mesh, tri_index, x, y, layer_lift, material.base_color[3]);
+                        append_tri(bucket, *mesh, tri_index, x, y, base_y, layer_lift, material.base_color[3]);
                     }
                     for (int i = 0; i < range.quad_count; ++i) {
                         const int quad_index = range.quad_start + i;
-                        append_quad(bucket, *mesh, quad_index, x, y, layer_lift, material.base_color[3]);
+                        append_quad(bucket, *mesh, quad_index, x, y, base_y, layer_lift, material.base_color[3]);
                     }
                 }
                 ++placed_tiles;
@@ -934,8 +934,10 @@ bool OverworldBgfxRenderer::Impl::buildTerrain() {
         if (tx < 0 || tx >= static_cast<int>(row.size())) return 0;
         return static_cast<int>(row[static_cast<std::size_t>(tx)]);
     };
-    const auto tile_covers_cell = [this](int tx, int ty) -> bool {
+    const auto tile_covers_cell = [this, &tile_special](int tx, int ty) -> bool {
         if (!tile_package_ || scene_.tile_layers.layers.empty()) return false;
+        const int special = tile_special(tx, ty);
+        if (special >= kSpecialRampNorth && special <= kSpecialConcaveNW) return false;
         for (const TileLayerConfig& layer : scene_.tile_layers.layers) {
             if (!layer.visible) continue;
             for (int ay = 0; ay <= ty && ay < static_cast<int>(layer.cells.size()); ++ay) {

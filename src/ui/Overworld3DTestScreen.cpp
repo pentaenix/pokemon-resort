@@ -160,8 +160,6 @@ void Overworld3DTestScreen::initializeSceneState() {
         scene_,
         movement_config_.walkSpeed(),
         movement_config_.turnStepDelaySeconds());
-    reloadWorldChunksForPlayer();
-    logLoadedWorldChunks();
     animator_.~SpriteSheetAnimator();
     new (&animator_) gameplay::world3d::characters::SpriteSheetAnimator(character_);
     map_ = gameplay::world3d::rendering::OverworldMapRenderer(scene_);
@@ -194,6 +192,8 @@ void Overworld3DTestScreen::initializeSceneState() {
     }
     npc_actor_driver_ = std::make_unique<gameplay::world3d::npc::NpcActorDriver>(project_root_, scene_);
     npc_actor_driver_->initializeDefaultSceneActors(player_.position());
+    reloadWorldTerrainQueries();
+    logLoadedWorldChunks();
     gameplay::world3d::camera::Gen4CameraPreset preset =
         gameplay::world3d::camera::loadGen4PresetById(scene_.camera_preset.c_str());
     if (scene_.camera_distance > 0.0f) {
@@ -441,8 +441,16 @@ Overworld3DTestScreen::buildStaticRenderChunks() const {
     return out;
 }
 
-void Overworld3DTestScreen::reloadWorldChunksForPlayer() {
-    player_.setTerrainQuery(gameplay::world3d::characters::makeLoadedWorldCharacterTerrainQuery(buildLoadedWorldChunks()));
+void Overworld3DTestScreen::reloadWorldTerrainQueries() {
+    std::shared_ptr<gameplay::world3d::characters::CharacterTerrainQuery> terrain_query =
+        gameplay::world3d::characters::makeLoadedWorldCharacterTerrainQuery(buildLoadedWorldChunks());
+    player_.setTerrainQuery(terrain_query);
+    if (follower_controller_) {
+        follower_controller_->setTerrainQuery(terrain_query);
+    }
+    if (npc_actor_driver_) {
+        npc_actor_driver_->setTerrainQuery(terrain_query);
+    }
 }
 
 void Overworld3DTestScreen::logLoadedWorldChunks() const {

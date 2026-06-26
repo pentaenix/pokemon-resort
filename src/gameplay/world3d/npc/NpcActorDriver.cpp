@@ -148,6 +148,7 @@ std::optional<std::pair<int, int>> parseTilePair(const JsonValue* value) {
 NpcActorDriver::NpcActorDriver(std::string project_root, const SceneConfig& scene)
     : project_root_(std::move(project_root)),
       scene_(&scene),
+      terrain_query_(characters::makeLocalCharacterTerrainQuery(scene)),
       movement_config_(characters::loadCharacterMovementConfig(project_root_)) {}
 
 void NpcActorDriver::initializeDefaultSceneActors(const camera::Vec3& player_position) {
@@ -228,6 +229,20 @@ void NpcActorDriver::initializeDefaultSceneActors(const camera::Vec3& player_pos
     }
 }
 
+void NpcActorDriver::setTerrainQuery(std::shared_ptr<characters::CharacterTerrainQuery> terrain_query) {
+    if (!terrain_query) return;
+    terrain_query_ = std::move(terrain_query);
+    for (Actor& actor : actors_) {
+        actor.motor.setTerrainQuery(terrain_query_);
+        if (!actor.moving) {
+            actor.terrain_binding = terrain_query_->bindActorStanding(
+                actor.tile_x, actor.tile_y, actor.position.x, actor.position.z);
+            actor.position.y = actor.terrain_binding.simulation_y;
+            actor.motor.resetToTile(actor.tile_x, actor.tile_y, actor.position);
+        }
+    }
+}
+
 void NpcActorDriver::update(double dt) {
     for (Actor& actor : actors_) {
         if (actor.animator) {
@@ -243,29 +258,11 @@ void NpcActorDriver::update(double dt) {
         }
 
         if (actor.moving) {
-            const float tile_size = std::max(1.0f, scene_->grid.tile_size);
-            const float step_seconds = std::max(
-                0.05f,
-                tile_size / std::max(1.0f, actor.move_speed_units_per_second));
-            actor.move_t = std::min(1.0f, actor.move_t + static_cast<float>(dt) / step_seconds);
-            const float t = actor.move_t;
-            actor.position.x = actor.move_start.x + ((actor.move_target.x - actor.move_start.x) * t);
-            actor.position.z = actor.move_start.z + ((actor.move_target.z - actor.move_start.z) * t);
-            if (actor.step_motor.interpolate_y) {
-                actor.position.y =
-                    terrain::actorHeightDuringStep(*scene_, actor.position.x, actor.position.z, actor.step_motor, t);
-            } else {
-                actor.position.y = actor.move_start.y + ((actor.move_target.y - actor.move_start.y) * t);
-            }
-            actor.terrain_binding = terrain::bindActorStanding(
-                *scene_, actor.tile_x, actor.tile_y, actor.position.x, actor.position.z);
-            if (actor.step_motor.interpolate_y) {
-                const terrain::TileCoord sample = actor.step_motor.activeSampleTile(t);
-                actor.terrain_binding.height_sample_tx = sample.x;
-                actor.terrain_binding.height_sample_ty = sample.y;
-                actor.terrain_binding.simulation_y = actor.position.y;
-            }
-            if (actor.move_t >= 1.0f) {
+            const bool finished = actor.motor.update(dt);
+            actor.move_t = actor.motor.moveT();
+            actor.position = actor.motor.position();
+            actor.terrain_binding = actor.motor.terrainBinding();
+            if (finished) {
                 finishMovement(actor);
             }
         }
@@ -410,6 +407,9 @@ std::optional<std::size_t> NpcActorDriver::addActor(const NpcActorDefinition& de
         const float wz = (static_cast<float>(actor.tile_y) + 0.5f) * tile_size;
         actor.terrain_binding = terrain::bindActorStanding(*scene_, actor.tile_x, actor.tile_y, wx, wz);
         actor.position = camera::Vec3{wx, actor.terrain_binding.simulation_y, wz};
+        actor.motor.setTerrainQuery(terrain_query_);
+        actor.motor.setMoveSpeedUnitsPerSecond(actor.move_speed_units_per_second);
+        actor.motor.resetToTile(actor.tile_x, actor.tile_y, actor.position);
         actor.move_start = actor.position;
         actor.move_target = actor.position;
         if (actor.animator) {
@@ -440,35 +440,19 @@ void NpcActorDriver::startStepToTile(Actor& actor, int tx, int ty, bool allow_re
         return;
     }
 
-    const float tile_size = std::max(1.0f, scene_->grid.tile_size);
-    const float wx = (static_cast<float>(tx) + 0.5f) * tile_size;
-    const float wz = (static_cast<float>(ty) + 0.5f) * tile_size;
-    const terrain::ActorTerrainBinding binding = terrain::bindActorStanding(*scene_, tx, ty, wx, wz);
     const int dx = tx - actor.tile_x;
     const int dy = ty - actor.tile_y;
-    const auto height_units = [this](int sx, int sy) {
-        if (scene_->terrain.heights.empty()) return 0;
-        if (sy < 0 || sy >= static_cast<int>(scene_->terrain.heights.size())) return 0;
-        const auto& row = scene_->terrain.heights[static_cast<std::size_t>(sy)];
-        if (sx < 0 || sx >= static_cast<int>(row.size())) return 0;
-        return static_cast<int>(row[static_cast<std::size_t>(sx)]);
-    };
-
-    actor.step_motor = terrain::GridStepMotor::beginStep(
-        *scene_,
-        actor.tile_x,
-        actor.tile_y,
-        tx,
-        ty,
-        dx,
-        dy,
-        height_units(actor.tile_x, actor.tile_y),
-        height_units(tx, ty));
+    actor.motor.setTerrainQuery(terrain_query_);
+    actor.motor.setMoveSpeedUnitsPerSecond(actor.move_speed_units_per_second);
+    const characters::GridActorMotor::StepResult step = actor.motor.tryStartStep(dx, dy);
+    if (!step.started) {
+        return;
+    }
     actor.facing = facingForStep(dx, dy);
     actor.target_tile_x = tx;
     actor.target_tile_y = ty;
     actor.move_start = actor.position;
-    actor.move_target = camera::Vec3{wx, binding.simulation_y, wz};
+    actor.move_target = actor.motor.moveTarget();
     actor.move_t = 0.0f;
     actor.moving = true;
 }
@@ -708,15 +692,10 @@ bool NpcActorDriver::tryEvacuateReservedTile(Actor& actor) {
 }
 
 void NpcActorDriver::finishMovement(Actor& actor) {
-    actor.position = actor.move_target;
+    actor.position = actor.motor.position();
     actor.tile_x = actor.target_tile_x;
     actor.tile_y = actor.target_tile_y;
-    actor.terrain_binding = terrain::bindActorStanding(
-        *scene_,
-        actor.tile_x,
-        actor.tile_y,
-        actor.position.x,
-        actor.position.z);
+    actor.terrain_binding = actor.motor.terrainBinding();
     actor.moving = false;
     if (actor.definition.behavior == NpcBehaviorKind::FollowActor) {
         actor.wait_seconds = actor.definition.follower_pokemon_freedom
@@ -884,35 +863,26 @@ std::optional<std::pair<int, int>> NpcActorDriver::randomValidTile() {
 }
 
 bool NpcActorDriver::validWalkTile(int tx, int ty) const {
-    if (!scene_ || tx < 0 || ty < 0 || tx >= scene_->grid.width || ty >= scene_->grid.height) {
+    if (!terrain_query_ || !terrain_query_->containsTile(tx, ty)) {
         return false;
     }
-    const std::size_t y = static_cast<std::size_t>(ty);
-    const std::size_t x = static_cast<std::size_t>(tx);
-    if (y < scene_->terrain.collision.size() && x < scene_->terrain.collision[y].size() &&
-        scene_->terrain.collision[y][x] != 0) {
+    if (terrain_query_->tileBlocked(tx, ty)) {
         return false;
     }
     return true;
 }
 
 bool NpcActorDriver::canStepBetweenTiles(int from_tx, int from_ty, int to_tx, int to_ty) const {
-    if (!scene_) return false;
+    if (!terrain_query_) return false;
     const int dx = to_tx - from_tx;
     const int dy = to_ty - from_ty;
     if (std::abs(dx) + std::abs(dy) != 1) return false;
     if (!validWalkTile(from_tx, from_ty) || !validWalkTile(to_tx, to_ty)) return false;
-    if (terrain::canTraverseTerrainEdge(*scene_, from_tx, from_ty, to_tx, to_ty, dx, dy)) {
+    if (terrain_query_->canTraverseTerrainEdge(from_tx, from_ty, to_tx, to_ty, dx, dy)) {
         return true;
     }
-    const auto height_units = [this](int sx, int sy) {
-        if (scene_->terrain.heights.empty()) return 0;
-        if (sy < 0 || sy >= static_cast<int>(scene_->terrain.heights.size())) return 0;
-        const auto& row = scene_->terrain.heights[static_cast<std::size_t>(sy)];
-        if (sx < 0 || sx >= static_cast<int>(row.size())) return 0;
-        return static_cast<int>(row[static_cast<std::size_t>(sx)]);
-    };
-    return height_units(from_tx, from_ty) == height_units(to_tx, to_ty);
+    return terrain_query_->tileBaseHeightUnits(from_tx, from_ty) ==
+        terrain_query_->tileBaseHeightUnits(to_tx, to_ty);
 }
 
 bool NpcActorDriver::tileOccupied(int tx, int ty, const Actor* mover) const {

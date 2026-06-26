@@ -61,7 +61,7 @@ private:
     std::vector<gameplay::world3d::characters::LoadedWorldChunk> buildLoadedWorldChunks() const;
     std::vector<gameplay::world3d::rendering::bgfx_backend::OverworldBgfxRenderer::StaticMapChunk>
     buildStaticRenderChunks() const;
-    void reloadWorldChunksForPlayer();
+    void reloadWorldTerrainQueries();
     void logLoadedWorldChunks() const;
 
     std::string project_root_;

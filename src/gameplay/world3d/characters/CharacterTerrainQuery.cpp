@@ -269,7 +269,14 @@ public:
         float world_z,
         const terrain::GridStepMotor& motor,
         float t) const override {
-        const terrain::TileCoord sample = motor.activeSampleTile(t);
+        const terrain::TileCoord sample = [&]() {
+            if (motor.surface_follow) {
+                return terrain::TileCoord{
+                    static_cast<int>(std::floor(world_x / tileSize())),
+                    static_cast<int>(std::floor(world_z / tileSize()))};
+            }
+            return motor.activeSampleTile(t);
+        }();
         const auto resolved = resolve(sample.x, sample.y);
         if (!resolved) {
             return motor.lerp_start_y + ((motor.lerp_end_y - motor.lerp_start_y) * std::clamp(t, 0.0f, 1.0f));
