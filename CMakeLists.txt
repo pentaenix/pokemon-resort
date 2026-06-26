@@ -91,6 +91,7 @@ add_library(world3d_bgfx_renderer STATIC
     src/gameplay/world3d/rendering/bgfx/BgfxBackend.cpp
     src/gameplay/world3d/rendering/bgfx/BillboardBgfxDrawer.cpp
     src/gameplay/world3d/rendering/bgfx/OverworldBgfxRenderer.cpp
+    src/gameplay/world3d/rendering/bgfx/RampTerrainRender.cpp
     src/gameplay/world3d/data/RtpksTilePackageLoader.cpp
     src/gameplay/world3d/rendering/BillboardPlacement.cpp
     src/gameplay/world3d/rendering/PixelScale.cpp

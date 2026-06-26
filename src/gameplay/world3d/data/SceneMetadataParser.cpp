@@ -232,6 +232,33 @@ void applyTerrainRenderConfig(TerrainConfig& out, const JsonValue* terrain) {
     applyColor(out.ramp_color_a, terrain->get("rampColorA"));
     applyColor(out.ramp_color_b, terrain->get("rampColorB"));
 
+    if (const JsonValue* readability = terrain->get("rampReadability"); readability && readability->isObject()) {
+        out.textured_ramp_readability_enabled =
+            boolOr(readability->get("enabled"), out.textured_ramp_readability_enabled);
+        out.textured_ramp_low_shade = std::clamp(
+            static_cast<float>(numOr(readability->get("lowShade"), out.textured_ramp_low_shade)),
+            0.0f,
+            4.0f);
+        out.textured_ramp_high_shade = std::clamp(
+            static_cast<float>(numOr(readability->get("highShade"), out.textured_ramp_high_shade)),
+            0.0f,
+            4.0f);
+        out.textured_ramp_band_count = std::clamp(
+            static_cast<float>(numOr(readability->get("bandCount"), out.textured_ramp_band_count)),
+            0.0f,
+            64.0f);
+        out.textured_ramp_band_strength = std::clamp(
+            static_cast<float>(numOr(readability->get("bandStrength"), out.textured_ramp_band_strength)),
+            0.0f,
+            1.0f);
+        out.textured_ramp_band_softness = std::clamp(
+            static_cast<float>(numOr(readability->get("bandSoftness"), out.textured_ramp_band_softness)),
+            0.03f,
+            0.49f);
+    }
+    out.textured_ramp_readability_enabled =
+        boolOr(terrain->get("rampReadabilityEnabled"), out.textured_ramp_readability_enabled);
+
     if (const JsonValue* walls = terrain->get("wallColors"); walls && walls->isObject()) {
         applyColor(out.wall_color_ns, walls->get("northSouth"));
         applyColor(out.wall_color_ew, walls->get("eastWest"));
@@ -239,6 +266,34 @@ void applyTerrainRenderConfig(TerrainConfig& out, const JsonValue* terrain) {
     applyColor(out.wall_color_ns, terrain->get("wallColorNS"));
     applyColor(out.wall_color_ew, terrain->get("wallColorEW"));
     applyColor(out.wire_color, terrain->get("wireColor"));
+}
+
+void applyTerrainVisualConfig(TerrainConfig& out, const JsonValue* visual) {
+    if (!visual || !visual->isObject()) return;
+    if (const JsonValue* readability = visual->get("rampReadability"); readability && readability->isObject()) {
+        out.textured_ramp_readability_enabled =
+            boolOr(readability->get("enabled"), out.textured_ramp_readability_enabled);
+        out.textured_ramp_low_shade = std::clamp(
+            static_cast<float>(numOr(readability->get("lowShade"), out.textured_ramp_low_shade)),
+            0.0f,
+            4.0f);
+        out.textured_ramp_high_shade = std::clamp(
+            static_cast<float>(numOr(readability->get("highShade"), out.textured_ramp_high_shade)),
+            0.0f,
+            4.0f);
+        out.textured_ramp_band_count = std::clamp(
+            static_cast<float>(numOr(readability->get("bandCount"), out.textured_ramp_band_count)),
+            0.0f,
+            64.0f);
+        out.textured_ramp_band_strength = std::clamp(
+            static_cast<float>(numOr(readability->get("bandStrength"), out.textured_ramp_band_strength)),
+            0.0f,
+            1.0f);
+        out.textured_ramp_band_softness = std::clamp(
+            static_cast<float>(numOr(readability->get("bandSoftness"), out.textured_ramp_band_softness)),
+            0.03f,
+            0.49f);
+    }
 }
 
 std::vector<std::vector<int>> parseTileLayerCells(const JsonValue* cells, int width, int height) {
@@ -457,6 +512,7 @@ SceneConfig parseSceneMetadata(
         out.pixel_scale.zoom_max = out.scene_camera.distance_scale_max;
     }
 
+    applyTerrainVisualConfig(out.terrain, root.get("terrainVisual"));
     applyLightingConfig(out, root.get("lighting"));
 
     if (const JsonValue* models = root.get("models"); models && models->isArray()) {

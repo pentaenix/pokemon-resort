@@ -164,6 +164,12 @@ struct TerrainConfig {
     bool ramp_recolor_enabled = false;
     TerrainColor ramp_color_a{116, 156, 190, 255};
     TerrainColor ramp_color_b{125, 166, 200, 255};
+    bool textured_ramp_readability_enabled = true;
+    float textured_ramp_low_shade = 0.88f;
+    float textured_ramp_high_shade = 1.10f;
+    float textured_ramp_band_count = 5.0f;
+    float textured_ramp_band_strength = 0.12f;
+    float textured_ramp_band_softness = 0.32f;
     TerrainColor wall_color_ns{88, 117, 145, 255};
     TerrainColor wall_color_ew{80, 108, 136, 255};
     TerrainColor wire_color{102, 138, 170, 120};

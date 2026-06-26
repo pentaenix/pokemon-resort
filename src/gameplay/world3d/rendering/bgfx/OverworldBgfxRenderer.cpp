@@ -8,6 +8,7 @@
 #include "gameplay/world3d/data/GlbModelLoader.hpp"
 #include "gameplay/world3d/data/RtpksTilePackageLoader.hpp"
 #include "gameplay/world3d/rendering/bgfx/BgfxBackend.hpp"
+#include "gameplay/world3d/rendering/bgfx/RampTerrainRender.hpp"
 #include "gameplay/world3d/terrain/TerrainSurface.hpp"
 
 #include <SDL_image.h>
@@ -53,14 +54,6 @@ std::uint32_t packAbgr(float r, float g, float b, float a = 1.0f) {
         return static_cast<std::uint32_t>(std::clamp(v, 0.0f, 1.0f) * 255.0f + 0.5f);
     };
     return (c(a) << 24U) | (c(b) << 16U) | (c(g) << 8U) | c(r);
-}
-
-std::uint32_t packTerrainColor(const TerrainColor& color) {
-    return packAbgr(
-        static_cast<float>(color.r) / 255.0f,
-        static_cast<float>(color.g) / 255.0f,
-        static_cast<float>(color.b) / 255.0f,
-        static_cast<float>(color.a) / 255.0f);
 }
 
 bgfx::ShaderHandle loadShader(const std::filesystem::path& shader_root, const std::string& shader_subdir, const char* name) {
@@ -838,6 +831,63 @@ bool OverworldBgfxRenderer::Impl::buildTileLayers() {
             read_float(colors, base + 2U, 1.0f),
             alpha);
     };
+    const auto tile_special_at = [this](int tx, int ty) -> int {
+        if (ty < 0 || ty >= static_cast<int>(scene_.terrain.specials.size())) return kSpecialFlat;
+        const auto& row = scene_.terrain.specials[static_cast<std::size_t>(ty)];
+        if (tx < 0 || tx >= static_cast<int>(row.size())) return kSpecialFlat;
+        return static_cast<int>(row[static_cast<std::size_t>(tx)]);
+    };
+    const auto ramp_axis = [](int special, int& dx, int& dy) {
+        dx = 0;
+        dy = 0;
+        if (special == kSpecialRampNorth) {
+            dy = -1;
+        } else if (special == kSpecialRampEast) {
+            dx = 1;
+        } else if (special == kSpecialRampSouth) {
+            dy = 1;
+        } else if (special == kSpecialRampWest) {
+            dx = -1;
+        }
+    };
+    const auto cardinal_ramp_progress = [&](int tx, int ty, float u, float v) -> std::optional<float> {
+        const int special = tile_special_at(tx, ty);
+        if (special < kSpecialRampNorth || special > kSpecialRampWest) return std::nullopt;
+
+        int dx = 0;
+        int dy = 0;
+        ramp_axis(special, dx, dy);
+        int start_x = tx;
+        int start_y = ty;
+        int index = 0;
+        while (tile_special_at(start_x - dx, start_y - dy) == special) {
+            start_x -= dx;
+            start_y -= dy;
+            ++index;
+        }
+        int count = 1;
+        int end_x = start_x;
+        int end_y = start_y;
+        while (tile_special_at(end_x + dx, end_y + dy) == special) {
+            end_x += dx;
+            end_y += dy;
+            ++count;
+        }
+
+        float local = 0.0f;
+        if (special == kSpecialRampNorth) {
+            local = 1.0f - v;
+        } else if (special == kSpecialRampEast) {
+            local = u;
+        } else if (special == kSpecialRampSouth) {
+            local = v;
+        } else if (special == kSpecialRampWest) {
+            local = 1.0f - u;
+        }
+        return std::clamp((static_cast<float>(index) + std::clamp(local, 0.0f, 1.0f)) / static_cast<float>(std::max(1, count)),
+                          0.0f,
+                          1.0f);
+    };
     const auto append_vertex = [&](Bucket& bucket,
                                    const data::RtpksTileMesh& mesh,
                                    const std::vector<float>& positions,
@@ -868,11 +918,28 @@ bool OverworldBgfxRenderer::Impl::buildTileLayers() {
         const float y = conform_to_terrain
             ? terrain::heightAtWorldPositionOnTile(scene_, world_x, world_z, sample_tx, sample_ty, true) + local_z * tile_size + layer_lift
             : base_y + local_z * tile_size + layer_lift;
+        std::uint32_t color = vertex_color(colors, pi, material_alpha);
+        if (conform_to_terrain) {
+            const float u = std::clamp((world_x - static_cast<float>(sample_tx) * tile_size) / tile_size, 0.0f, 1.0f);
+            const float v = std::clamp((world_z - static_cast<float>(sample_ty) * tile_size) / tile_size, 0.0f, 1.0f);
+            if (scene_.terrain.textured_ramp_readability_enabled) {
+                if (const std::optional<float> progress = cardinal_ramp_progress(sample_tx, sample_ty, u, v)) {
+                    color = ramp_terrain_render::rampProgressColor(
+                        color,
+                        *progress,
+                        scene_.terrain.textured_ramp_low_shade,
+                        scene_.terrain.textured_ramp_high_shade,
+                        scene_.terrain.textured_ramp_band_count,
+                        scene_.terrain.textured_ramp_band_strength,
+                        scene_.terrain.textured_ramp_band_softness);
+                }
+            }
+        }
         bucket.vertices.push_back(Vertex{
             world_x,
             y,
             world_z,
-            vertex_color(colors, pi, material_alpha),
+            color,
             read_float(uvs, ui + 0U, 0.0f),
             1.0f - read_float(uvs, ui + 1U, 0.0f)});
     };
@@ -1050,13 +1117,12 @@ bool OverworldBgfxRenderer::Impl::buildTerrain() {
         vertices.push_back(Vertex{x3, y3, z3, color, 0.0f, 1.0f});
         indices.insert(indices.end(), {base, base + 1, base + 2, base, base + 2, base + 3});
     };
-
-    const std::uint32_t floor_a = packTerrainColor(scene_.terrain.floor_color_a);
-    const std::uint32_t floor_b = packTerrainColor(scene_.terrain.floor_color_b);
-    const std::uint32_t first_non_base_a = packTerrainColor(scene_.terrain.first_non_base_floor_color_a);
-    const std::uint32_t first_non_base_b = packTerrainColor(scene_.terrain.first_non_base_floor_color_b);
-    const std::uint32_t ramp_a = packTerrainColor(scene_.terrain.ramp_color_a);
-    const std::uint32_t ramp_b = packTerrainColor(scene_.terrain.ramp_color_b);
+    const std::uint32_t floor_a = ramp_terrain_render::packTerrainColor(scene_.terrain.floor_color_a);
+    const std::uint32_t floor_b = ramp_terrain_render::packTerrainColor(scene_.terrain.floor_color_b);
+    const std::uint32_t first_non_base_a = ramp_terrain_render::packTerrainColor(scene_.terrain.first_non_base_floor_color_a);
+    const std::uint32_t first_non_base_b = ramp_terrain_render::packTerrainColor(scene_.terrain.first_non_base_floor_color_b);
+    const std::uint32_t ramp_a = ramp_terrain_render::packTerrainColor(scene_.terrain.ramp_color_a);
+    const std::uint32_t ramp_b = ramp_terrain_render::packTerrainColor(scene_.terrain.ramp_color_b);
     for (int y = 0; y < grid_h; ++y) {
         for (int x = 0; x < grid_w; ++x) {
             const float x0 = static_cast<float>(x) * tile_size;
@@ -1065,7 +1131,8 @@ bool OverworldBgfxRenderer::Impl::buildTerrain() {
             const float z1 = z0 + tile_size;
             float c[4]{};
             fill_corners(x, y, c);
-            const bool slope = is_slope_special(tile_special(x, y));
+            const int special = tile_special(x, y);
+            const bool slope = is_slope_special(special);
             std::vector<Vertex>& top_vertices = slope ? slope_top_vertices : flat_top_vertices;
             std::vector<std::uint32_t>& top_indices = slope ? slope_top_indices : flat_top_indices;
             const bool checker = ((x + y) & 1) != 0;
@@ -1090,8 +1157,8 @@ bool OverworldBgfxRenderer::Impl::buildTerrain() {
         if (high <= low) return;
         push_quad(wall_vertices, wall_indices, xa, low, za, xb, low, zb, xb, high, zb, xa, high, za, color);
     };
-    const std::uint32_t wall_ns = packTerrainColor(scene_.terrain.wall_color_ns);
-    const std::uint32_t wall_ew = packTerrainColor(scene_.terrain.wall_color_ew);
+    const std::uint32_t wall_ns = ramp_terrain_render::packTerrainColor(scene_.terrain.wall_color_ns);
+    const std::uint32_t wall_ew = ramp_terrain_render::packTerrainColor(scene_.terrain.wall_color_ew);
     for (int y = 0; y < grid_h; ++y) {
         for (int x = 0; x < grid_w; ++x) {
             const float x0 = static_cast<float>(x) * tile_size;

@@ -19,6 +19,14 @@
       "checkerA": [232, 198, 84, 255],
       "checkerB": [246, 214, 104, 255]
     },
+    "rampReadability": {
+      "enabled": true,
+      "lowShade": 0.88,
+      "highShade": 1.10,
+      "bandCount": 5.0,
+      "bandStrength": 0.12,
+      "bandSoftness": 0.32
+    },
     "wallColors": {
       "northSouth": [88, 117, 145, 255],
       "eastWest": [80, 108, 136, 255]
