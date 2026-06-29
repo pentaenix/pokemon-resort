@@ -225,6 +225,12 @@ tileLayers  uint16 grids     paintable tile identity and visual/gameplay type
 objects     object list      3D models, NPCs, interactables, props
 ```
 
+Do not put broad surface behavior such as water, snow, tall grass, mud, or
+swimmable areas into the `special` byte. `special` should stay a compact
+terrain-mechanics layer for ramps, ledges, forced movement, and similar local
+movement rules. Surface behavior should come from tile-type IDs resolved through
+the global tile dictionary.
+
 Pathfinding can use multiple inputs:
 - `collision` for hard blocked checks
 - `height` and `special` for ramps, ledges, and traversal rules
@@ -285,3 +291,34 @@ The runtime should:
 - treat unknown non-zero tile IDs as authoring/export errors
 - let specialized renderers handle `renderKind`, such as water, animated surfaces, or snow
 
+## Modifier / Surface Graph Guidance
+
+For thousands of chunk-like maps, avoid adding another dense always-present graph
+for every possible behavior. Prefer this split:
+
+- common authored tile identity lives in tile layers as compact `uint16` IDs
+- behavior such as `water`, `surfable`, `swimAnimation`, `shallow`, `deep`,
+  `tallGrass`, or `encounterSurface` lives in the global tile dictionary
+- rare extra modifiers should be optional map metadata or sparse runs/rectangles,
+  emitted only when a map actually uses them
+
+Example dictionary-driven water tile:
+
+```json
+{
+  "id": 42,
+  "name": "water_deep",
+  "renderKind": "water",
+  "tags": ["water", "surfable", "deep"],
+  "movement": {
+    "requires": "swim",
+    "animation": "swim"
+  }
+}
+```
+
+This keeps each cell small: the map stores `42`, while renderer, movement,
+animation, Pokémon AI, and pathfinding all read the same resolved tile
+definition. The runtime should cache resolved per-cell flags for loaded chunks
+when useful, but those caches should be generated at load time and not stored in
+every `.owmap`.

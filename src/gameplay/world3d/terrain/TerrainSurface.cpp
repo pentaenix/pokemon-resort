@@ -39,6 +39,14 @@ int tileSpecial(const SceneConfig& scene, int tx, int ty) {
     return static_cast<int>(row[static_cast<std::size_t>(tx)]);
 }
 
+bool tileBlocked(const SceneConfig& scene, int tx, int ty) {
+    if (scene.terrain.collision.empty()) return false;
+    if (ty < 0 || ty >= static_cast<int>(scene.terrain.collision.size())) return false;
+    const auto& row = scene.terrain.collision[static_cast<std::size_t>(ty)];
+    if (tx < 0 || tx >= static_cast<int>(row.size())) return false;
+    return row[static_cast<std::size_t>(tx)] != 0;
+}
+
 bool inBounds(const SceneConfig& scene, int tx, int ty) {
     return tx >= 0 && ty >= 0 && tx < std::max(1, scene.grid.width) && ty < std::max(1, scene.grid.height);
 }
@@ -172,6 +180,143 @@ void applyCardinalRampCorners(int direction, float low, float high, float out_co
     }
 }
 
+void fillCardinalRampCorners(const SceneConfig& scene, int tx, int ty, int special, float out_corners[4]) {
+    const float floor_height = heightPerFloor(scene);
+    const CardinalRampRun run = solveCardinalRampRun(scene, tx, ty, special);
+    const float t0 = static_cast<float>(run.index) / static_cast<float>(std::max(1, run.count));
+    const float t1 = static_cast<float>(run.index + 1) / static_cast<float>(std::max(1, run.count));
+    const float low_edge = (run.low_units + ((run.high_units - run.low_units) * t0)) * floor_height;
+    const float high_edge = (run.low_units + ((run.high_units - run.low_units) * t1)) * floor_height;
+    applyCardinalRampCorners(special, low_edge, high_edge, out_corners);
+}
+
+bool isNorthSouthRamp(int special) {
+    return special == kRampNorth || special == kRampSouth;
+}
+
+bool isEastWestRamp(int special) {
+    return special == kRampEast || special == kRampWest;
+}
+
+bool isFlatWalkableLandingAtHeight(const SceneConfig& scene, int tx, int ty, float height_units) {
+    if (!inBounds(scene, tx, ty)) return false;
+    if (tileBlocked(scene, tx, ty)) return false;
+    if (tileSpecial(scene, tx, ty) != kFlat) return false;
+    return std::abs(static_cast<float>(tileHeightUnits(scene, tx, ty)) - height_units) < 0.001f;
+}
+
+void snapAttachedRampTopLandingCorner(
+    const SceneConfig& scene,
+    int side_tx,
+    int side_ty,
+    int side_special,
+    int spine_tx,
+    int spine_ty,
+    int spine_special,
+    float out_corners[4]) {
+    const CardinalRampRun run = solveCardinalRampRun(scene, spine_tx, spine_ty, spine_special);
+    const RampAxis axis = rampAxis(spine_special);
+    const int landing_x = side_tx + axis.dx;
+    const int landing_y = side_ty + axis.dy;
+    if (!isFlatWalkableLandingAtHeight(scene, landing_x, landing_y, run.high_units)) {
+        return;
+    }
+
+    const float landing_height = run.high_units * heightPerFloor(scene);
+    if (axis.dy < 0) {
+        if (side_special == kRampWest) out_corners[1] = landing_height;
+        else if (side_special == kRampEast) out_corners[0] = landing_height;
+    } else if (axis.dy > 0) {
+        if (side_special == kRampWest) out_corners[2] = landing_height;
+        else if (side_special == kRampEast) out_corners[3] = landing_height;
+    } else if (axis.dx > 0) {
+        if (side_special == kRampNorth) out_corners[2] = landing_height;
+        else if (side_special == kRampSouth) out_corners[1] = landing_height;
+    } else if (axis.dx < 0) {
+        if (side_special == kRampNorth) out_corners[3] = landing_height;
+        else if (side_special == kRampSouth) out_corners[0] = landing_height;
+    }
+}
+
+bool applyPerpendicularRampAttachment(const SceneConfig& scene, int tx, int ty, int special, float base_height, float out_corners[4]) {
+    float spine[4]{};
+    if (special == kRampWest && isNorthSouthRamp(tileSpecial(scene, tx - 1, ty))) {
+        const int spine_special = tileSpecial(scene, tx - 1, ty);
+        fillCardinalRampCorners(scene, tx - 1, ty, spine_special, spine);
+        out_corners[0] = spine[1];
+        out_corners[1] = base_height;
+        out_corners[2] = base_height;
+        out_corners[3] = spine[2];
+        snapAttachedRampTopLandingCorner(scene, tx, ty, special, tx - 1, ty, spine_special, out_corners);
+        return true;
+    }
+    if (special == kRampEast && isNorthSouthRamp(tileSpecial(scene, tx + 1, ty))) {
+        const int spine_special = tileSpecial(scene, tx + 1, ty);
+        fillCardinalRampCorners(scene, tx + 1, ty, spine_special, spine);
+        out_corners[0] = base_height;
+        out_corners[1] = spine[0];
+        out_corners[2] = spine[3];
+        out_corners[3] = base_height;
+        snapAttachedRampTopLandingCorner(scene, tx, ty, special, tx + 1, ty, spine_special, out_corners);
+        return true;
+    }
+    if (special == kRampNorth && isEastWestRamp(tileSpecial(scene, tx, ty - 1))) {
+        const int spine_special = tileSpecial(scene, tx, ty - 1);
+        fillCardinalRampCorners(scene, tx, ty - 1, spine_special, spine);
+        out_corners[0] = spine[3];
+        out_corners[1] = spine[2];
+        out_corners[2] = base_height;
+        out_corners[3] = base_height;
+        snapAttachedRampTopLandingCorner(scene, tx, ty, special, tx, ty - 1, spine_special, out_corners);
+        return true;
+    }
+    if (special == kRampSouth && isEastWestRamp(tileSpecial(scene, tx, ty + 1))) {
+        const int spine_special = tileSpecial(scene, tx, ty + 1);
+        fillCardinalRampCorners(scene, tx, ty + 1, spine_special, spine);
+        out_corners[0] = base_height;
+        out_corners[1] = base_height;
+        out_corners[2] = spine[1];
+        out_corners[3] = spine[0];
+        snapAttachedRampTopLandingCorner(scene, tx, ty, special, tx, ty + 1, spine_special, out_corners);
+        return true;
+    }
+    return false;
+}
+
+float cornerLandingHeight(const SceneConfig& scene, int tx, int ty, int corner_index, float fallback_height) {
+    int ax = 0;
+    int ay = 0;
+    int bx = 0;
+    int by = 0;
+    int dx = 0;
+    int dy = 0;
+    if (corner_index == 0) {
+        ax = 0; ay = -1; bx = -1; by = 0; dx = -1; dy = -1;
+    } else if (corner_index == 1) {
+        ax = 0; ay = -1; bx = 1; by = 0; dx = 1; dy = -1;
+    } else if (corner_index == 2) {
+        ax = 0; ay = 1; bx = 1; by = 0; dx = 1; dy = 1;
+    } else {
+        ax = 0; ay = 1; bx = -1; by = 0; dx = -1; dy = 1;
+    }
+
+    const float floor_height = heightPerFloor(scene);
+    float high = fallback_height;
+    const auto consider = [&](int ox, int oy) {
+        if (inBounds(scene, tx + ox, ty + oy)) {
+            high = std::max(high, static_cast<float>(tileHeightUnits(scene, tx + ox, ty + oy)) * floor_height);
+        }
+    };
+    consider(ax, ay);
+    consider(bx, by);
+    consider(dx, dy);
+    return high;
+}
+
+void setSmartCornerHigh(const SceneConfig& scene, int tx, int ty, int corner_index, float fallback_height, float out_corners[4]) {
+    out_corners[corner_index] = cornerLandingHeight(scene, tx, ty, corner_index, fallback_height);
+}
+
 void fillTileCornerHeightsLocal(const SceneConfig& scene, int tx, int ty, float out_corners[4]) {
     const float floor_height = heightPerFloor(scene);
     const int h = tileHeightUnits(scene, tx, ty);
@@ -184,43 +329,45 @@ void fillTileCornerHeightsLocal(const SceneConfig& scene, int tx, int ty, float 
 
     const int special = tileSpecial(scene, tx, ty);
     if (isCardinalRamp(special)) {
-        const CardinalRampRun run = solveCardinalRampRun(scene, tx, ty, special);
-        const float t0 = static_cast<float>(run.index) / static_cast<float>(std::max(1, run.count));
-        const float t1 = static_cast<float>(run.index + 1) / static_cast<float>(std::max(1, run.count));
-        const float low_edge = (run.low_units + ((run.high_units - run.low_units) * t0)) * floor_height;
-        const float high_edge = (run.low_units + ((run.high_units - run.low_units) * t1)) * floor_height;
-        applyCardinalRampCorners(special, low_edge, high_edge, out_corners);
+        if (applyPerpendicularRampAttachment(scene, tx, ty, special, low, out_corners)) {
+            return;
+        }
+        fillCardinalRampCorners(scene, tx, ty, special, out_corners);
         return;
     }
 
     switch (special) {
         case kConvexNE:
-            out_corners[2] = high;
+            setSmartCornerHigh(scene, tx, ty, 1, high, out_corners);
             break;
         case kConvexSE:
-            out_corners[1] = high;
+            setSmartCornerHigh(scene, tx, ty, 2, high, out_corners);
             break;
         case kConvexSW:
-            out_corners[0] = high;
+            setSmartCornerHigh(scene, tx, ty, 3, high, out_corners);
             break;
         case kConvexNW:
-            out_corners[3] = high;
+            setSmartCornerHigh(scene, tx, ty, 0, high, out_corners);
             break;
         case kConcaveNE:
-            out_corners[0] = high;
-            out_corners[1] = high;
-            out_corners[3] = high;
+            setSmartCornerHigh(scene, tx, ty, 0, high, out_corners);
+            setSmartCornerHigh(scene, tx, ty, 2, high, out_corners);
+            setSmartCornerHigh(scene, tx, ty, 3, high, out_corners);
             break;
         case kConcaveSE:
-            out_corners[0] = high;
-            out_corners[3] = high;
+            setSmartCornerHigh(scene, tx, ty, 0, high, out_corners);
+            setSmartCornerHigh(scene, tx, ty, 1, high, out_corners);
+            setSmartCornerHigh(scene, tx, ty, 3, high, out_corners);
             break;
         case kConcaveSW:
-            out_corners[2] = high;
+            setSmartCornerHigh(scene, tx, ty, 0, high, out_corners);
+            setSmartCornerHigh(scene, tx, ty, 1, high, out_corners);
+            setSmartCornerHigh(scene, tx, ty, 2, high, out_corners);
             break;
         case kConcaveNW:
-            out_corners[1] = high;
-            out_corners[2] = high;
+            setSmartCornerHigh(scene, tx, ty, 1, high, out_corners);
+            setSmartCornerHigh(scene, tx, ty, 2, high, out_corners);
+            setSmartCornerHigh(scene, tx, ty, 3, high, out_corners);
             break;
         default:
             break;

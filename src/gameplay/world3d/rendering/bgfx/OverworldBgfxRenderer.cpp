@@ -1628,12 +1628,30 @@ void OverworldBgfxRenderer::Impl::appendProjectedShadowForScene(
     const float y_bias = std::max(0.04f, tile_size * 0.003f);
     const std::uint32_t white = 0xffffffffu;
 
+    const auto rendered_tile_height = [&](float local_x, float local_z, int sample_tx, int sample_ty) {
+        float corners[4]{};
+        terrain::fillTileCornerHeights(scene, sample_tx, sample_ty, corners);
+        const float u = std::clamp((local_x - (static_cast<float>(sample_tx) * tile_size)) / tile_size, 0.0f, 1.0f);
+        const float v = std::clamp((local_z - (static_cast<float>(sample_ty) * tile_size)) / tile_size, 0.0f, 1.0f);
+
+        // Terrain tops are rendered as two triangles with the NW→SE diagonal:
+        //   NW, NE, SE and NW, SE, SW.
+        // Shadow decals must use the same piecewise-linear surface, not the smoother
+        // bilinear movement surface, or opposite corner ramps can depth-hide the decal.
+        if (v <= u) {
+            const float nw = corners[0] + ((corners[1] - corners[0]) * u);
+            const float se = corners[3] + ((corners[2] - corners[3]) * u);
+            return nw + ((se - nw) * v);
+        }
+        const float nw = corners[0] + ((corners[3] - corners[0]) * v);
+        const float se = corners[1] + ((corners[2] - corners[1]) * v);
+        return nw + ((se - nw) * u);
+    };
+
     const auto append_vertex = [&](float local_x, float local_z, int sample_tx, int sample_ty) {
         const float world_x = origin_x + local_x;
         const float world_z = origin_z + local_z;
-        const float y = origin_y +
-            terrain::heightAtWorldPositionOnTile(scene, local_x, local_z, sample_tx, sample_ty, true) +
-            y_bias;
+        const float y = origin_y + rendered_tile_height(local_x, local_z, sample_tx, sample_ty) + y_bias;
         const float dx = world_x - placement.shadow_ground.x;
         const float dz = world_z - placement.shadow_ground.z;
         const float u = 0.5f + (((dx * shadow_right.x) + (dz * shadow_right.z)) / std::max(0.001f, half_w * 2.0f));

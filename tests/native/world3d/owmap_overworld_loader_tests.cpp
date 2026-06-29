@@ -299,6 +299,87 @@ void testNorthRampHeightMatchesCornerSlope() {
     expect(flat_walk.x == 1 && flat_walk.y == 1, "dh==0 along ramp uses from tile");
 }
 
+void testPerpendicularRampAttachesToNorthRampSide() {
+    pr::gameplay::world3d::SceneConfig scene{};
+    scene.grid.tile_size = 16.0f;
+    scene.grid.width = 4;
+    scene.grid.height = 3;
+    scene.terrain.heights = {
+        {1, 1, 1, 1},
+        {0, 0, 0, 0},
+        {0, 0, 0, 0},
+    };
+    scene.terrain.specials = {
+        {0, 0, 0, 0},
+        {0, 2, 5, 0},
+        {0, 0, 0, 0},
+    };
+
+    float north[4]{};
+    pr::gameplay::world3d::terrain::fillTileCornerHeights(scene, 1, 1, north);
+    float west_side[4]{};
+    pr::gameplay::world3d::terrain::fillTileCornerHeights(scene, 2, 1, west_side);
+
+    expect(std::abs(west_side[0] - north[1]) < 0.001f, "west side ramp NW matches north ramp NE");
+    expect(std::abs(west_side[3] - north[2]) < 0.001f, "west side ramp SW matches north ramp SE");
+    expect(std::abs(west_side[1] - 16.0f) < 0.001f, "west side ramp outside NE snaps to top landing");
+    expect(std::abs(west_side[2] - 0.0f) < 0.001f, "west side ramp outside SE remains floor");
+    expect(pr::gameplay::world3d::terrain::canTraverseTerrainEdge(scene, 2, 1, 1, 1, -1, 0),
+           "west side ramp can traverse into attached north ramp");
+
+    scene.terrain.collision = {
+        {0, 0, 1, 0},
+        {0, 0, 0, 0},
+        {0, 0, 0, 0},
+    };
+    pr::gameplay::world3d::terrain::fillTileCornerHeights(scene, 2, 1, west_side);
+    expect(std::abs(west_side[1] - 0.0f) < 0.001f, "blocked top landing does not snap side ramp outside corner");
+}
+
+void testCornerRampHighCornersMatchLandingHeight() {
+    pr::gameplay::world3d::SceneConfig scene{};
+    scene.grid.tile_size = 16.0f;
+    scene.grid.width = 4;
+    scene.grid.height = 4;
+    scene.terrain.heights = {
+        {2, 2, 2, 0},
+        {2, 0, 2, 0},
+        {2, 2, 2, 0},
+        {0, 0, 0, 0},
+    };
+    struct CornerCase {
+        int special = 0;
+        bool high[4]{};
+        const char* name = "";
+    };
+    const CornerCase cases[] = {
+        {6, {false, true, false, false}, "convex NE raises NE"},
+        {7, {false, false, true, false}, "convex SE raises SE"},
+        {8, {false, false, false, true}, "convex SW raises SW"},
+        {9, {true, false, false, false}, "convex NW raises NW"},
+        {10, {true, false, true, true}, "concave NE leaves NE low"},
+        {11, {true, true, false, true}, "concave SE leaves SE low"},
+        {12, {true, true, true, false}, "concave SW leaves SW low"},
+        {13, {false, true, true, true}, "concave NW leaves NW low"},
+    };
+    for (const auto& c : cases) {
+        scene.terrain.specials = {
+            {0, 0, 0, 0},
+            {0, static_cast<std::uint8_t>(c.special), 0, 0},
+            {0, 0, 0, 0},
+            {0, 0, 0, 0},
+        };
+        float corners[4]{};
+        pr::gameplay::world3d::terrain::fillTileCornerHeights(scene, 1, 1, corners);
+        for (int i = 0; i < 4; ++i) {
+            const float expected = c.high[i] ? 32.0f : 0.0f;
+            std::ostringstream msg;
+            msg << c.name << " corner " << i;
+            expect(std::abs(corners[i] - expected) < 0.001f, msg.str());
+        }
+    }
+}
+
 void testTerrainHeightPerFloorOverridesTileSizeVertically() {
     pr::gameplay::world3d::SceneConfig scene{};
     scene.grid.tile_size = 16.0f;
@@ -1224,6 +1305,10 @@ int main() {
         std::cout << "[PASS] camera east projects screen-right\n";
         testNorthRampHeightMatchesCornerSlope();
         std::cout << "[PASS] north ramp height matches corner slope\n";
+        testPerpendicularRampAttachesToNorthRampSide();
+        std::cout << "[PASS] perpendicular ramp attaches to north ramp side\n";
+        testCornerRampHighCornersMatchLandingHeight();
+        std::cout << "[PASS] corner ramp high corners match landing height\n";
         testTerrainHeightPerFloorOverridesTileSizeVertically();
         std::cout << "[PASS] terrain height per floor overrides tile size vertically\n";
         testRampSamplingClampsToOwningTileEdges();

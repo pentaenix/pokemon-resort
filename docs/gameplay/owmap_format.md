@@ -35,6 +35,12 @@ Indexing for all layers is row-major:
   - `6..9`: convex corner ramps (NE/SE/SW/NW)
   - `10..13`: concave corner ramps (NE/SE/SW/NW)
 
+Corner ramp labels name the affected corner in map space. Corner order in the
+runtime height solver is `NW, NE, SE, SW`.
+- Convex corners (`cNE`, `cSE`, `cSW`, `cNW`) raise only the named corner.
+- Concave corners (`vNE`, `vSE`, `vSW`, `vNW`) keep the named corner low and
+  raise the other three corners.
+
 ### Cardinal ramp ownership (runtime + editor)
 
 Directional ramp specials (`2` = north, `3` = east, `4` = south, `5` = west) are stored on the **lower-height cell** (the tile with the smaller `height` value). The high side of the slope faces the neighboring cell that is one height unit taller (e.g. `RAMP_N` on tile `(x,y)` means north neighbor `(x,y-1)` has `height[y][x]+1`).
@@ -69,4 +75,3 @@ Current 3D test default:
 - dimension sanity (`>0`, `<=256`)
 - payload size/truncation checks
 - metadata JSON parse check
-
