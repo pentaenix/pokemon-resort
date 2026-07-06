@@ -3,8 +3,9 @@
 ## Scope
 This milestone adds a data-driven 3D overworld proof of concept reachable from the title flow:
 - Main menu `RESORT` now opens a Resort submenu.
-- Resort submenu contains `3D TEST` and `START CINEMATIC` (placeholder).
+- Resort submenu contains `3D TEST`, `START CINEMATIC` (placeholder), `TEST ATTEND`, and `BACK`.
 - Selecting `3D TEST` opens the overworld test screen.
+- Selecting `TEST ATTEND` opens a separate Pokemon interaction preview; see `docs/gameplay/test_attend.md`.
 
 Reference for camera facts and Gen 4 behavior source of truth:
 - `docs/pk4_documentation.md`
@@ -54,7 +55,9 @@ Menu and app flow:
 - `src/ui/title_screen/ResortMenuController.cpp`
 - `src/ui/TitleScreen.cpp`
 - `src/core/app/screen/AppScreenCoordinatorOverworld3D.cpp`
+- `src/core/app/screen/AppScreenCoordinatorAttend.cpp`
 - `src/ui/Overworld3DTestScreen.cpp`
+- `src/ui/AttendTestScreen.cpp`
 
 Overworld systems:
 - `src/gameplay/world3d/data/JsonOverworldLoader.cpp`
@@ -223,4 +226,5 @@ Not implemented yet:
 - warps and triggers
 - battle transitions
 - cinematic runtime
+- overworld-to-TEST-ATTEND handoff
 - interiors and camera variants (including HGSS variants)

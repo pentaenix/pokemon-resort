@@ -1,5 +1,6 @@
 #include "core/app/screen/AppScreenCoordinator.hpp"
 
+#include "ui/AttendTestScreen.hpp"
 #include "ui/Overworld3DTestScreen.hpp"
 #include "ui/TitleScreen.hpp"
 #include "ui/TransferFlowCoordinator.hpp"
@@ -20,6 +21,10 @@ void AppScreenCoordinator::updateTitle(double dt) {
                 overworld3d_test_.resetForNextLaunch();
                 title_screen_.prepareForOverworld3D();
                 active_screen_ = ActiveScreen::Overworld3DTest;
+                break;
+            case TitleScreenEvent::OpenTestAttendRequested:
+                attend_return_target_ = AttendReturnTarget::TitleResortMenu;
+                active_screen_ = ActiveScreen::TestAttend;
                 break;
             case TitleScreenEvent::OpenResortLoadingRequested:
                 loading_return_target_ = LoadingReturnTarget::ResortTitle;

@@ -1,0 +1,53 @@
+{
+  "environmentDefaults": {
+    "placementAnchor": "world",
+    "modelPlacement": {
+      "x": 0,
+      "y": -0.032,
+      "z": -0.5,
+      "yawDegrees": 0,
+      "scale": 0.0075
+    },
+    "hiddenMaterialSubstrings": [],
+    "weatherMaterialSubstrings": [
+      "btl_G_all_rain",
+      "btl_G_all_rain0m",
+      "btl_G_all_snow0m"
+    ],
+    "activeWeather": 0,
+    "weatherModes": [
+      {
+        "id": "clear",
+        "label": "Clear",
+        "visibleMaterialSubstrings": []
+      },
+      {
+        "id": "rain",
+        "label": "Rain",
+        "visibleMaterialSubstrings": [
+          "btl_G_all_rain",
+          "btl_G_all_rain0m"
+        ]
+      },
+      {
+        "id": "snow",
+        "label": "Snow",
+        "visibleMaterialSubstrings": [
+          "btl_G_all_snow0m"
+        ]
+      }
+    ]
+  },
+  "floors": {
+    "grass_field": {
+      "id": "grass_field",
+      "model": "assets/pokemon_attend/floors/grass_field.glb",
+      "extensions": [
+        {
+          "id": "grass_extension",
+          "model": "assets/pokemon_attend/floors/grass_extension.glb"
+        }
+      ]
+    }
+  }
+}

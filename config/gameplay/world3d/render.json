@@ -45,11 +45,11 @@
     "worldRenderHeight": 250
   },
   "worldViewport": {
-    "_comment": "DS-native base composition size plus emulator-style internal resolution scale.",
+    "_comment": "Shared DS-native scene composition. baseWidth/baseHeight define the low-res pixel density; upscale raises internal 3D resolution for both overworld and TEST ATTEND (1 = DS-like, 2 = 2x).",
     "enabled": true,
     "baseWidth": 400,
     "baseHeight": 250,
-    "internalScale": 1
+    "upscale": 1
   },
   "sceneCamera": {
     "_comment": "3D scene-camera distance scaling. World billboards project through this camera, so camera moves also scale sprites relative to terrain/models.",
@@ -58,7 +58,7 @@
     "distanceScaleMax": 3.0
   },
   "pixelCompositor": {
-    "_comment": "World-sized pixel-art billboards are projected to the base viewport, quantized to integer pixels, then scaled by worldViewport.internalScale. actorDepthBiasPx is a tiny render-only nudge toward the camera to keep paper-thin character quads from intersecting adjacent wall geometry. actorScreenOffsetYPx is a global render-only vertical actor offset; positive values lower actors on screen without changing collision.",
+    "_comment": "World-sized pixel-art billboards are projected to the base viewport, quantized to integer pixels, then scaled by worldViewport.upscale. actorDepthBiasPx is a tiny render-only nudge toward the camera to keep paper-thin character quads from intersecting adjacent wall geometry. actorScreenOffsetYPx is a global render-only vertical actor offset; positive values lower actors on screen without changing collision.",
     "spriteSizing": "native",
     "snapAnchors": true,
     "actorDepthBiasPx": 10.0,

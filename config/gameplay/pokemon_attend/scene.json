@@ -1,0 +1,194 @@
+{
+  "activeScene": "grass_field_environment",
+  "scenes": [
+    {
+      "id": "grass_field_environment",
+      "activePokemon": "giratina",
+      "activeSky": "clear",
+      "pokemon": {
+        "posePresets": [
+          {
+            "id": "stand_default",
+            "yawDegrees": 0,
+            "pitchDegrees": 0,
+            "note": "Default upright attend preview pose."
+          },
+          {
+            "id": "sleep_lie_back_saved",
+            "yawDegrees": 0,
+            "pitchDegrees": -90,
+            "note": "Saved from the first skinned-animation pass; funny lying-on-back pose for future sleep/rest interactions."
+          }
+        ],
+        "position": {
+          "x": -0.75,
+          "y": 0,
+          "z": 2
+        },
+        "idleMotion": {
+          "enabled": false,
+          "bobAmplitude": 0,
+          "bobSeconds": 2.2,
+          "rockDegrees": 0,
+          "rockSeconds": 4.2
+        }
+      },
+      "camera": {
+        "autoFocus": true,
+        "screenHeightRatio": 0.58,
+        "distanceScale": 0.63,
+        "faceScreenHeightRatio": 0.86,
+        "faceDistanceScale": 0.38,
+        "faceTargetYRatio": 0.82,
+        "faceHeightOffset": 0.08,
+        "faceViewMinModelHeight": 1.45,
+        "minDistance": 1.35,
+        "maxDistance": 14,
+        "heightOffset": 0.72,
+        "targetYRatio": 0.46,
+        "depthPaddingScale": 0.36,
+        "faceDepthPaddingScale": 0.12,
+        "targetX": -0.75,
+        "targetZ": 2,
+        "distance": 4.2,
+        "height": 1.55,
+        "targetHeight": 0.68,
+        "fovYDegrees": 42,
+        "nearClip": 0.05,
+        "farClip": 220
+      },
+      "viewportLook": {
+        "enabled": true,
+        "maxX": 0.231,
+        "maxY": 0.105,
+        "edgeMarginRatio": 0.12,
+        "smoothSeconds": 0.32
+      },
+      "shadow": {
+        "enabled": true,
+        "strength": 0.38,
+        "radiusX": 0.46,
+        "radiusZ": 0.28,
+        "yOffset": 0.006
+      },
+      "lighting": {
+        "brightness": 1.08,
+        "pokemonBrightness": 1.02,
+        "backdropBrightness": 1,
+        "backdropSaturation": 1,
+        "backdropContrast": 1,
+        "ambient": 0.74,
+        "directional": 0.34,
+        "formShadow": 0.24,
+        "lightDirection": [
+          -0.35,
+          0.82,
+          0.45
+        ],
+        "tint": [
+          1,
+          0.99,
+          0.95
+        ]
+      },
+      "depthOfField": {
+        "enabled": true,
+        "strength": 0.68,
+        "maxRadius": 4.4,
+        "focusDepth": 0.8,
+        "falloff": 3.8
+      },
+      "background": {
+        "clearColor": "#8FD3F6"
+      },
+      "ui": {
+        "handCursor": {
+          "scale": 1.5,
+          "hotspotXRatio": 0.5,
+          "hotspotYRatio": 0.5,
+          "petAnimationSpeed": 1.5
+        },
+        "weatherButton": {
+          "enabled": true,
+          "anchor": "top_right",
+          "labelPrefix": "WEATHER: ",
+          "width": 196,
+          "height": 44,
+          "marginX": 24,
+          "marginY": 22,
+          "paddingX": 16,
+          "cornerRadius": 12,
+          "strokeWidth": 2,
+          "fontSize": 18,
+          "fill": "#123A56E8",
+          "stroke": "#E6F8FFEE",
+          "text": "#FFFFFFFF"
+        },
+        "viewButton": {
+          "enabled": true,
+          "anchor": "top_right",
+          "labelPrefix": "VIEW: ",
+          "width": 196,
+          "height": 44,
+          "marginX": 24,
+          "marginY": 74,
+          "paddingX": 16,
+          "cornerRadius": 12,
+          "strokeWidth": 2,
+          "fontSize": 18,
+          "fill": "#123A56E8",
+          "stroke": "#E6F8FFEE",
+          "text": "#FFFFFFFF"
+        },
+        "pokemonButton": {
+          "enabled": true,
+          "anchor": "top_right",
+          "labelPrefix": "POKEMON: ",
+          "width": 232,
+          "height": 44,
+          "marginX": 24,
+          "marginY": 126,
+          "paddingX": 16,
+          "cornerRadius": 12,
+          "strokeWidth": 2,
+          "fontSize": 18,
+          "fill": "#123A56E8",
+          "stroke": "#E6F8FFEE",
+          "text": "#FFFFFFFF"
+        },
+        "textureVariantButton": {
+          "enabled": true,
+          "anchor": "top_right",
+          "labelPrefix": "COLOR: ",
+          "width": 196,
+          "height": 44,
+          "marginX": 24,
+          "marginY": 178,
+          "paddingX": 16,
+          "cornerRadius": 12,
+          "strokeWidth": 2,
+          "fontSize": 18,
+          "fill": "#123A56E8",
+          "stroke": "#E6F8FFEE",
+          "text": "#FFFFFFFF"
+        },
+        "formVariantButton": {
+          "enabled": true,
+          "anchor": "top_right",
+          "labelPrefix": "FORM: ",
+          "width": 196,
+          "height": 44,
+          "marginX": 24,
+          "marginY": 230,
+          "paddingX": 16,
+          "cornerRadius": 12,
+          "strokeWidth": 2,
+          "fontSize": 18,
+          "fill": "#123A56E8",
+          "stroke": "#E6F8FFEE",
+          "text": "#FFFFFFFF"
+        }
+      }
+    }
+  ]
+}

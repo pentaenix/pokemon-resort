@@ -44,7 +44,7 @@ bgfx_compile_shaders(
 )
 bgfx_compile_shaders(
     TYPE FRAGMENT
-    SHADERS ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/fs_textured_cutout.sc
+    SHADERS ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/fs_textured_cutout.sc ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/fs_pokemon_eye.sc ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/fs_eye_sclera_mask.sc
     VARYING_DEF ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/varying.def.sc
     OUTPUT_DIR ${WORLD3D_BGFX_SHADER_OUTPUT_DIR}
     INCLUDE_DIRS ${bgfx_cmake_SOURCE_DIR}/bgfx/src
@@ -88,6 +88,8 @@ set(RESORT_STORAGE_SOURCES
 )
 
 add_library(world3d_bgfx_renderer STATIC
+    src/gameplay/attend/rendering/AttendBgfxRenderer.cpp
+    src/gameplay/attend/rendering/AttendPokemonModel.cpp
     src/gameplay/world3d/rendering/bgfx/BgfxBackend.cpp
     src/gameplay/world3d/rendering/bgfx/BillboardBgfxDrawer.cpp
     src/gameplay/world3d/rendering/bgfx/OverworldBgfxRenderer.cpp
@@ -103,7 +105,7 @@ add_library(world3d_bgfx_renderer STATIC
 target_include_directories(world3d_bgfx_renderer PUBLIC include)
 target_include_directories(world3d_bgfx_renderer PRIVATE ${bgfx_cmake_SOURCE_DIR}/bimg/3rdparty/tinyexr/deps/miniz)
 target_compile_features(world3d_bgfx_renderer PRIVATE cxx_std_20)
-target_link_libraries(world3d_bgfx_renderer PUBLIC bgfx bx bimg SDL2::SDL2 SDL2_image::SDL2_image)
+target_link_libraries(world3d_bgfx_renderer PUBLIC bgfx bx bimg SDL2::SDL2 SDL2_image::SDL2_image SDL2_ttf::SDL2_ttf)
 
 add_executable(title_screen_demo
     src/main.cpp
@@ -113,6 +115,7 @@ add_executable(title_screen_demo
     src/core/app/loading/AppLoadingCoordinator.cpp
     src/core/app/AppPaths.cpp
     src/core/app/screen/AppScreenCoordinator.cpp
+    src/core/app/screen/AppScreenCoordinatorAttend.cpp
     src/core/app/screen/AppScreenCoordinatorOverworld3D.cpp
     src/core/app/screen/AppScreenCoordinatorLoading.cpp
     src/core/app/screen/AppScreenCoordinatorTitle.cpp
@@ -157,6 +160,7 @@ add_executable(title_screen_demo
     src/gameplay/world3d/rendering/BillboardSpriteRenderer.cpp
     src/gameplay/world3d/rendering/FallbackTerrainRenderer.cpp
     src/gameplay/world3d/rendering/OverworldMapRenderer.cpp
+    src/gameplay/attend/AttendSceneConfig.cpp
     src/core/save/SaveLibrary.cpp
     src/core/save/SaveDataStore.cpp
     src/core/app/persistence/UserSettingsPersistence.cpp
@@ -170,6 +174,9 @@ add_executable(title_screen_demo
     src/ui/loading/ResortTransferLoadingScreen.cpp
     src/ui/loading/ResortTransferLoadingScreenMotion.cpp
     src/ui/TitleScreen.cpp
+    src/ui/AttendTestScreen.cpp
+    src/ui/attend/AttendOverlay.cpp
+    src/ui/overlay/OverlayCanvas.cpp
     src/ui/Overworld3DTestScreen.cpp
     src/ui/TransferFlowCoordinator.cpp
     src/ui/title_screen/MainMenuController.cpp
@@ -375,6 +382,40 @@ add_executable(title_screen_section_tests
 )
 target_include_directories(title_screen_section_tests PRIVATE include)
 add_test(NAME title_screen_section_tests COMMAND title_screen_section_tests)
+
+add_executable(resort_menu_controller_tests
+    tests/native/title_screen/resort_menu_controller_tests.cpp
+    src/ui/title_screen/ResortMenuController.cpp
+)
+target_include_directories(resort_menu_controller_tests PRIVATE include)
+add_test(NAME resort_menu_controller_tests COMMAND resort_menu_controller_tests)
+
+add_executable(attend_scene_config_tests
+    tests/native/attend/attend_scene_config_tests.cpp
+    src/gameplay/attend/AttendSceneConfig.cpp
+    src/core/config/Json.cpp
+)
+target_include_directories(attend_scene_config_tests PRIVATE include)
+add_test(NAME attend_scene_config_tests COMMAND attend_scene_config_tests)
+
+add_executable(attend_pokemon_model_tests
+    tests/native/attend/attend_pokemon_model_tests.cpp
+    src/gameplay/attend/rendering/AttendPokemonModel.cpp
+    src/core/config/Json.cpp
+)
+target_include_directories(attend_pokemon_model_tests PRIVATE include)
+target_link_libraries(attend_pokemon_model_tests PRIVATE SDL2::SDL2 SDL2_image::SDL2_image)
+add_test(NAME attend_pokemon_model_tests COMMAND attend_pokemon_model_tests)
+
+add_executable(overlay_canvas_tests
+    tests/native/ui/overlay_canvas_tests.cpp
+    src/ui/overlay/OverlayCanvas.cpp
+    src/core/assets/Assets.cpp
+    src/core/assets/Font.cpp
+)
+target_include_directories(overlay_canvas_tests PRIVATE include)
+target_link_libraries(overlay_canvas_tests PRIVATE SDL2::SDL2 SDL2_image::SDL2_image SDL2_ttf::SDL2_ttf)
+add_test(NAME overlay_canvas_tests COMMAND overlay_canvas_tests)
 
 add_executable(resort_loading_transition_screen_tests
     tests/native/resort_loading/resort_loading_transition_screen_tests.cpp

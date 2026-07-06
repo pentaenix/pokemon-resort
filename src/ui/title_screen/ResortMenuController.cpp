@@ -5,7 +5,7 @@ namespace pr::title_screen {
 namespace {
 constexpr int k3DTestIndex = 0;
 constexpr int kStartCinematicIndex = 1;
-constexpr int kReservedIndex = 2;
+constexpr int kTestAttendIndex = 2;
 constexpr int kBackIndex = 3;
 constexpr int kItemCount = 4;
 } // namespace
@@ -40,9 +40,10 @@ ResortMenuAction ResortMenuController::activate() const {
             return ResortMenuAction::Open3DTest;
         case kStartCinematicIndex:
             return ResortMenuAction::StartCinematic;
+        case kTestAttendIndex:
+            return ResortMenuAction::OpenTestAttend;
         case kBackIndex:
             return ResortMenuAction::CloseResortMenu;
-        case kReservedIndex:
         default:
             return ResortMenuAction::None;
     }
@@ -52,7 +53,7 @@ std::vector<std::string> ResortMenuController::labels() const {
     return {
         "3D TEST",
         "START CINEMATIC",
-        "COMING SOON",
+        "TEST ATTEND",
         "BACK",
     };
 }

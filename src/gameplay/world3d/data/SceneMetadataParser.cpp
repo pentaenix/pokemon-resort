@@ -54,7 +54,9 @@ void applyWorldViewportConfig(WorldViewportConfig& out, const JsonValue* world_v
     out.enabled = boolOr(world_viewport->get("enabled"), out.enabled);
     out.base_width = intOr(world_viewport->get("baseWidth"), out.base_width);
     out.base_height = intOr(world_viewport->get("baseHeight"), out.base_height);
-    out.internal_scale = intOr(world_viewport->get("internalScale"), out.internal_scale);
+    out.internal_scale = intOr(
+        world_viewport->get("upscale"),
+        intOr(world_viewport->get("internalScale"), out.internal_scale));
     out.base_width = std::clamp(out.base_width, 160, 1920);
     out.base_height = std::clamp(out.base_height, 120, 1080);
     out.internal_scale = std::clamp(out.internal_scale, 1, 4);

@@ -179,6 +179,7 @@ struct AccessorView {
     int component_type = 0;
     int num_components = 0;
     std::size_t stride = 0;
+    bool normalized = false;
     bool valid = false;
 };
 
@@ -226,6 +227,9 @@ public:
         view.component_type = component_type;
         view.num_components = num_comp;
         view.stride = stride;
+        if (const JsonValue* normalized = acc.get("normalized"); normalized && normalized->isBool()) {
+            view.normalized = normalized->asBool();
+        }
         view.valid = true;
         return view;
     }
@@ -253,6 +257,23 @@ public:
                 return out;
             }
             default: return 0;
+        }
+    }
+
+    static float readNormalizedComponent(const AccessorView& v, int element, int comp) {
+        const std::uint8_t* p = v.base + static_cast<std::size_t>(element) * v.stride;
+        switch (v.component_type) {
+            case 5121:
+                return static_cast<float>(p[comp]) / 255.0f;
+            case 5123: {
+                std::uint16_t out = 0;
+                std::memcpy(&out, p + static_cast<std::size_t>(comp) * sizeof(out), sizeof(out));
+                return static_cast<float>(out) / 65535.0f;
+            }
+            case 5126:
+                return readFloat(v, element, comp);
+            default:
+                return 1.0f;
         }
     }
 
@@ -371,12 +392,15 @@ void appendPrimitive(
     if (!attributes || !attributes->isObject()) return;
     const int pos_acc = intMember(attributes, "POSITION", -1);
     const int uv_acc = intMember(attributes, "TEXCOORD_0", -1);
+    const int color_acc = intMember(attributes, "COLOR_0", -1);
     if (pos_acc < 0) return;
 
     const AccessorView positions = reader.accessor(pos_acc);
     if (!positions.valid || positions.num_components < 3) return;
     const AccessorView uvs = uv_acc >= 0 ? reader.accessor(uv_acc) : AccessorView{};
     const bool has_uv = uvs.valid && uvs.num_components >= 2;
+    const AccessorView colors = color_acc >= 0 ? reader.accessor(color_acc) : AccessorView{};
+    const bool has_color = colors.valid && colors.num_components >= 3;
 
     const auto build_vertex = [&](int vertex_index) {
         GlbVertex v;
@@ -387,6 +411,14 @@ void appendPrimitive(
         if (has_uv && vertex_index < uvs.count) {
             v.u = GltfReader::readFloat(uvs, vertex_index, 0);
             v.v = GltfReader::readFloat(uvs, vertex_index, 1);
+        }
+        if (has_color && vertex_index < colors.count) {
+            v.r = GltfReader::readNormalizedComponent(colors, vertex_index, 0);
+            v.g = GltfReader::readNormalizedComponent(colors, vertex_index, 1);
+            v.b = GltfReader::readNormalizedComponent(colors, vertex_index, 2);
+            v.a = colors.num_components >= 4
+                ? GltfReader::readNormalizedComponent(colors, vertex_index, 3)
+                : 1.0f;
         }
         out.aabb_min[0] = std::min(out.aabb_min[0], v.x);
         out.aabb_min[1] = std::min(out.aabb_min[1], v.y);

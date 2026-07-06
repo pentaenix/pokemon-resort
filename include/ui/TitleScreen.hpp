@@ -41,6 +41,7 @@ enum class TitleScreenEvent {
     ButtonSfxRequested,
     UserSettingsSaveRequested,
     OpenResort3DTestRequested,
+    OpenTestAttendRequested,
     OpenResortLoadingRequested,
     OpenTradeLoadingRequested,
     OpenTransferRequested
@@ -68,6 +69,7 @@ public:
     void applyUserSettings(const UserSettings& settings);
     void prepareForOverworld3D();
     void replaceAssets(Assets assets);
+    void returnToResortMenuFromAttend();
     void returnToMainMenuFromResort();
     void returnToMainMenuFromTradeLoading();
     void returnToMainMenuFromTransfer();

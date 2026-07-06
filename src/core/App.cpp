@@ -13,6 +13,7 @@
 #include "core/app/persistence/UserSettingsPersistence.hpp"
 #include "resort/services/PokemonResortService.hpp"
 #include "ui/Screen.hpp"
+#include "ui/AttendTestScreen.hpp"
 #include "ui/Overworld3DTestScreen.hpp"
 #include "ui/TransferFlowCoordinator.hpp"
 #include "ui/TitleScreen.hpp"
@@ -602,6 +603,7 @@ int runApplication(const char* argv0, const char* config_path_override) {
         argv0,
         pokemon_resort_service ? pokemon_resort_service.get() : nullptr);
     Overworld3DTestScreen overworld3d_test(root);
+    AttendTestScreen attend_test(root, app_config);
     UserSettingsPersistence user_settings_persistence(
         config.persistence.save_options,
         save_file_path,
@@ -612,7 +614,7 @@ int runApplication(const char* argv0, const char* config_path_override) {
     }
 
     AppAudioDirector audio(root, config.audio);
-    AppScreenCoordinator screen_coordinator(title_screen, loading, transfer_flow, overworld3d_test);
+    AppScreenCoordinator screen_coordinator(title_screen, loading, transfer_flow, overworld3d_test, attend_test);
     AppScreenRecorder recorder(root);
     std::unique_ptr<FrameCounterOverlay> frame_counter;
     if (app_config.enable_frame_counter) {
@@ -643,13 +645,15 @@ int runApplication(const char* argv0, const char* config_path_override) {
             }
             if (event.type == SDL_KEYDOWN && !event.key.repeat) {
                 const SDL_Keycode key = event.key.keysym.sym;
-                const bool overworld_bgfx_keys =
-                    screen_coordinator.activeScreen() == &overworld3d_test &&
-                    overworld3d_test.wantsBgfxRenderer();
+                const bool bgfx_keys =
+                    (screen_coordinator.activeScreen() == &overworld3d_test &&
+                     overworld3d_test.wantsBgfxRenderer()) ||
+                    (screen_coordinator.activeScreen() == &attend_test &&
+                     attend_test.wantsBgfxRenderer());
                 if (!record_toggle_keys.empty() && matchesBinding(key, record_toggle_keys)) {
                     if (renderer) {
                         recorder.toggle(renderer.get(), config.window);
-                    } else if (overworld_bgfx_keys) {
+                    } else if (bgfx_keys) {
                         std::cerr << "[App] Screen recording is not available in bgfx 3D mode yet. "
                                   << "Press T for screenshots.\n";
                     }
@@ -683,8 +687,11 @@ int runApplication(const char* argv0, const char* config_path_override) {
 
         const bool overworld_wants_bgfx =
             screen_coordinator.activeScreen() == &overworld3d_test && overworld3d_test.wantsBgfxRenderer();
+        const bool attend_wants_bgfx =
+            screen_coordinator.activeScreen() == &attend_test && attend_test.wantsBgfxRenderer();
+        const bool active_wants_bgfx = overworld_wants_bgfx || attend_wants_bgfx;
 
-        if (overworld_wants_bgfx) {
+        if (active_wants_bgfx) {
             if (presentation != WindowPresentation::Bgfx3D) {
                 releaseSdlUi(renderer, title_screen, loading, transfer_flow);
                 SDL_PumpEvents();
@@ -737,7 +744,7 @@ int runApplication(const char* argv0, const char* config_path_override) {
             }
         }
 
-        const bool use_bgfx_presenter = presentation == WindowPresentation::Bgfx3D && overworld_wants_bgfx;
+        const bool use_bgfx_presenter = presentation == WindowPresentation::Bgfx3D && active_wants_bgfx;
 
         bool bgfx_frame_presented = false;
         bool bgfx_screenshot_this_frame = false;
@@ -757,19 +764,31 @@ int runApplication(const char* argv0, const char* config_path_override) {
             if (screenshot_requested) {
                 if (const auto output_path = buildScreenshotOutputPath(
                         root, screen_coordinator.screenshotNameContext(), true)) {
-                    overworld3d_test.queueBgfxScreenshot(output_path->string());
+                    if (overworld_wants_bgfx) {
+                        overworld3d_test.queueBgfxScreenshot(output_path->string());
+                    } else if (attend_wants_bgfx) {
+                        attend_test.queueBgfxScreenshot(output_path->string());
+                    }
                     bgfx_screenshot_this_frame = true;
                 }
                 screenshot_requested = false;
             }
-            bgfx_frame_presented = overworld3d_test.renderBgfx(
-                window.get(),
-                std::max(1, framebuffer_w),
-                std::max(1, framebuffer_h),
-                std::max(1, logical_w),
-                std::max(1, logical_h),
-                sdl_metal_view,
-                frame_counter ? frame_counter->label() : std::string{});
+            if (overworld_wants_bgfx) {
+                bgfx_frame_presented = overworld3d_test.renderBgfx(
+                    window.get(),
+                    std::max(1, framebuffer_w),
+                    std::max(1, framebuffer_h),
+                    std::max(1, logical_w),
+                    std::max(1, logical_h),
+                    sdl_metal_view,
+                    frame_counter ? frame_counter->label() : std::string{});
+            } else if (attend_wants_bgfx) {
+                bgfx_frame_presented = attend_test.renderBgfx(
+                    window.get(),
+                    std::max(1, framebuffer_w),
+                    std::max(1, framebuffer_h),
+                    sdl_metal_view);
+            }
             if (!bgfx_frame_presented && presentation == WindowPresentation::Bgfx3D) {
 #if defined(__APPLE__)
                 if (sdl_metal_view) {
@@ -820,6 +839,10 @@ int runApplication(const char* argv0, const char* config_path_override) {
             }
             if (screen_coordinator.activeScreen() == &overworld3d_test && renderer) {
                 overworld3d_test.renderPresentationOverlay(renderer.get());
+                SDL_SetRenderDrawBlendMode(renderer.get(), SDL_BLENDMODE_BLEND);
+                SDL_RenderPresent(renderer.get());
+            } else if (screen_coordinator.activeScreen() == &attend_test && renderer) {
+                attend_test.renderPresentationOverlay(renderer.get());
                 SDL_SetRenderDrawBlendMode(renderer.get(), SDL_BLENDMODE_BLEND);
                 SDL_RenderPresent(renderer.get());
             }

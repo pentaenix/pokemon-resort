@@ -9,6 +9,7 @@ enum class ResortMenuAction {
     None,
     Open3DTest,
     StartCinematic,
+    OpenTestAttend,
     CloseResortMenu,
 }
 ;

@@ -224,6 +224,10 @@ void BillboardBgfxDrawer::submitBillboardQuad(
     idx[5] = 3;
 
     float tint_uniform[4] = {1.0f, 1.0f, 1.0f, alpha_cutoff};
+    const float adjust[4] = {1.0f, 1.0f, 1.0f, 0.0f};
+    const float texture_blur[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    const float light_dir[4] = {0.0f, 1.0f, 0.0f, 0.0f};
+    const float light_params[4] = {1.0f, 0.0f, 0.0f, 0.0f};
     float model[16];
     identity(model);
     bgfx::setTransform(model);
@@ -231,6 +235,10 @@ void BillboardBgfxDrawer::submitBillboardQuad(
     bgfx::setIndexBuffer(&tib);
     bgfx::setTexture(0, deps_.tex_uniform, texture.handle, samplerFlags());
     bgfx::setUniform(deps_.tint_cutoff_uniform, tint_uniform);
+    bgfx::setUniform(deps_.color_adjust_uniform, adjust);
+    bgfx::setUniform(deps_.texture_blur_uniform, texture_blur);
+    bgfx::setUniform(deps_.light_dir_uniform, light_dir);
+    bgfx::setUniform(deps_.light_params_uniform, light_params);
     bgfx::setState(state);
     bgfx::submit(deps_.view_id, deps_.billboard_program);
 }
@@ -332,6 +340,10 @@ void BillboardBgfxDrawer::submitDepthCharacterQuad(
     idx[5] = 3;
 
     float tint_uniform[4] = {1.0f, 1.0f, 1.0f, alpha_cutoff};
+    const float adjust[4] = {1.0f, 1.0f, 1.0f, 0.0f};
+    const float texture_blur[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    const float light_dir[4] = {0.0f, 1.0f, 0.0f, 0.0f};
+    const float light_params[4] = {1.0f, 0.0f, 0.0f, 0.0f};
     float model[16];
     identity(model);
     bgfx::setTransform(model);
@@ -339,6 +351,10 @@ void BillboardBgfxDrawer::submitDepthCharacterQuad(
     bgfx::setIndexBuffer(&tib);
     bgfx::setTexture(0, deps_.tex_uniform, texture.handle, samplerFlags());
     bgfx::setUniform(deps_.tint_cutoff_uniform, tint_uniform);
+    bgfx::setUniform(deps_.color_adjust_uniform, adjust);
+    bgfx::setUniform(deps_.texture_blur_uniform, texture_blur);
+    bgfx::setUniform(deps_.light_dir_uniform, light_dir);
+    bgfx::setUniform(deps_.light_params_uniform, light_params);
     bgfx::setState(state);
     bgfx::submit(deps_.view_id, deps_.billboard_program);
 }

@@ -35,6 +35,10 @@ public:
         bgfx::ProgramHandle billboard_program = BGFX_INVALID_HANDLE;
         bgfx::UniformHandle tex_uniform = BGFX_INVALID_HANDLE;
         bgfx::UniformHandle tint_cutoff_uniform = BGFX_INVALID_HANDLE;
+        bgfx::UniformHandle color_adjust_uniform = BGFX_INVALID_HANDLE;
+        bgfx::UniformHandle texture_blur_uniform = BGFX_INVALID_HANDLE;
+        bgfx::UniformHandle light_dir_uniform = BGFX_INVALID_HANDLE;
+        bgfx::UniformHandle light_params_uniform = BGFX_INVALID_HANDLE;
         bgfx::ViewId view_id = 0;
         int base_viewport_w = 1;
         int base_viewport_h = 1;
@@ -71,6 +75,9 @@ private:
         std::uint32_t abgr = 0xffffffffu;
         float u = 0.0f;
         float v = 0.0f;
+        float nx = 0.0f;
+        float ny = 1.0f;
+        float nz = 0.0f;
     };
 
     Dependencies deps_;

@@ -13,6 +13,7 @@ For test strategy, use [`tests/README.md`](/Users/vanta/Desktop/title_screen_dem
 The app currently implements:
 
 - title intro, title hold, main menu, options menu, and Resort/Trade loading-transition test flows
+- Resort submenu routing to the 3D overworld test and standalone TEST ATTEND interaction preview
 - transfer entry from the main menu
 - loading screen while external saves are scanned and probed
 - transfer-ticket selection built from bridge/cache summaries
@@ -61,6 +62,7 @@ When changing behavior, name which source of truth you are changing before you e
 
 - [`ScreenInput.hpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/ui/ScreenInput.hpp) defines the reusable input vocabulary for screens.
 - [`Screen.hpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/ui/Screen.hpp) extends that vocabulary with `update(dt)` and `render(renderer)`.
+- [`OverlayCanvas.hpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/ui/overlay/OverlayCanvas.hpp) is the reusable logical overlay surface for buttons and lightweight HUD controls. It owns anchoring and hit testing in app/window logical coordinates. SDL screens can draw it directly; bgfx screens should use its rects as the shared layout source and draw the visible overlay through bgfx so Metal/canvas presentation layers cannot hide it.
 - Full-screen UI pages should prefer `Screen` unless they are intentionally only helper/controller code.
 
 ### Title, Menu, Options, And Placeholder Sections
@@ -73,6 +75,16 @@ When changing behavior, name which source of truth you are changing before you e
 - [`TitleScreenRender.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/title_screen/TitleScreenRender.cpp) owns title/menu/options/section rendering helpers, button geometry, texture caches, and logo shine generation.
 
 Title-side effects should flow through typed `TitleScreenEvent` values. Avoid adding more boolean consume methods.
+
+### TEST ATTEND Interaction Preview
+
+[`AttendTestScreen.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/AttendTestScreen.cpp) is a standalone `Screen` reached from `RESORT -> TEST ATTEND`. It renders a data-driven Pokemon interaction preview through [`AttendBgfxRenderer.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/gameplay/attend/rendering/AttendBgfxRenderer.cpp). Scene composition lives in [`config/gameplay/pokemon_attend/scene.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/gameplay/pokemon_attend/scene.json), while reusable Pokemon/provider defaults, the grass-field environment floor, and edge-proof sky/light presets live in sibling `pokemon.json`, `floors.json`, and `walls.json` files. Per-Pokemon entries should stay sparse: model paths are inferred from `activePokemon` plus the provider file pattern, while common placement, animation naming, interaction adapter defaults, and eye-close naming are inferred from defaults or provider rules. The current scene uses one world-placed environment GLB floor, weather material groups, mouse-edge look-target nudging, a simple data-driven contact shadow, and an initial auto-focus camera calculation that frames the active Pokemon from its setup pose without following animation. It is intentionally independent from transfer, Resort storage, and the Gen 4 overworld proof of concept.
+
+TEST ATTEND uses a Pokemon-specific GLB path under `gameplay/attend/rendering`: it preserves skinning, animation channels, material sampler wrap, RAE material policy extras, and Pokemon eye metadata that the static overworld prop loader intentionally does not model. RAE Gen 7-style exports must be rendered from `extras.rae.renderClass`, mesh `renderOrder`/`defaultVisible`, `eyeSheet`/`eyeExpression` UV metadata, and appearance variant metadata. Combined normal/shiny/form/pattern GLBs should expose root `extras.rae.appearanceVariants`; the renderer resolves form visibility/material swaps first and texture/color swaps second. Base-color eye sheets must not be routed through the older Violet-style `emissiveTexture`/`.lym` eye compositor unless the material actually exports that emissive-mask pattern.
+
+The TEST ATTEND weather button is laid out and hit-tested by [`AttendOverlay.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/attend/AttendOverlay.cpp), a scene-specific adapter over the shared overlay canvas. Its bgfx-visible button surface is drawn by [`AttendBgfxRenderer.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/gameplay/attend/rendering/AttendBgfxRenderer.cpp) from the same rect and scene `ui.weatherButton` style data. Keep new shared overlay layout, anchoring, and hit-test rules in `ui/overlay`; keep scene meanings such as weather, feed, or tutorial actions in the consuming screen/module.
+
+App-level routing for this placeholder lives in [`AppScreenCoordinatorAttend.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/app/screen/AppScreenCoordinatorAttend.cpp). The current return target is the title Resort flow. A future overworld-launched attend route should suspend the active overworld with `Overworld3DTestScreen::suspendForAttend()`, release heavyweight presentation resources while preserving overworld state, and resume with `resumeAfterAttend()` instead of `resetForNextLaunch()`.
 
 ### Transfer Flow Shell
 

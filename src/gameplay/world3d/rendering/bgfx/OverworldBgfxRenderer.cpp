@@ -220,6 +220,9 @@ private:
         std::uint32_t abgr = 0xffffffffu;
         float u = 0.0f;
         float v = 0.0f;
+        float nx = 0.0f;
+        float ny = 1.0f;
+        float nz = 0.0f;
     };
 
     struct TextureGpuResource {
@@ -314,6 +317,10 @@ private:
     bgfx::ProgramHandle billboard_program_ = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle tex_uniform_ = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle tint_cutoff_uniform_ = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle color_adjust_uniform_ = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle texture_blur_uniform_ = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle light_dir_uniform_ = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle light_params_uniform_ = BGFX_INVALID_HANDLE;
     TextureGpuResource white_texture_;
     TextureGpuResource shadow_texture_;
     mutable std::unordered_map<std::string, CharacterGpuTextures> character_textures_;
@@ -531,10 +538,15 @@ bool OverworldBgfxRenderer::Impl::initialize(
         .add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
         .add(bgfx::Attrib::Color0, 4, bgfx::AttribType::Uint8, true)
         .add(bgfx::Attrib::TexCoord0, 2, bgfx::AttribType::Float)
+        .add(bgfx::Attrib::Normal, 3, bgfx::AttribType::Float)
         .end();
 
     tex_uniform_ = bgfx::createUniform("s_texColor", bgfx::UniformType::Sampler);
     tint_cutoff_uniform_ = bgfx::createUniform("u_tintCutoff", bgfx::UniformType::Vec4);
+    color_adjust_uniform_ = bgfx::createUniform("u_colorAdjust", bgfx::UniformType::Vec4);
+    texture_blur_uniform_ = bgfx::createUniform("u_textureBlur", bgfx::UniformType::Vec4);
+    light_dir_uniform_ = bgfx::createUniform("u_lightDir", bgfx::UniformType::Vec4);
+    light_params_uniform_ = bgfx::createUniform("u_lightParams", bgfx::UniformType::Vec4);
 
     std::uint8_t white[4] = {255, 255, 255, 255};
     white_texture_ = createTextureFromRgba(white, 1, 1, "world3d-white");
@@ -599,6 +611,22 @@ void OverworldBgfxRenderer::Impl::shutdown() {
     if (bgfx::isValid(tint_cutoff_uniform_)) {
         bgfx::destroy(tint_cutoff_uniform_);
         tint_cutoff_uniform_ = BGFX_INVALID_HANDLE;
+    }
+    if (bgfx::isValid(color_adjust_uniform_)) {
+        bgfx::destroy(color_adjust_uniform_);
+        color_adjust_uniform_ = BGFX_INVALID_HANDLE;
+    }
+    if (bgfx::isValid(texture_blur_uniform_)) {
+        bgfx::destroy(texture_blur_uniform_);
+        texture_blur_uniform_ = BGFX_INVALID_HANDLE;
+    }
+    if (bgfx::isValid(light_dir_uniform_)) {
+        bgfx::destroy(light_dir_uniform_);
+        light_dir_uniform_ = BGFX_INVALID_HANDLE;
+    }
+    if (bgfx::isValid(light_params_uniform_)) {
+        bgfx::destroy(light_params_uniform_);
+        light_params_uniform_ = BGFX_INVALID_HANDLE;
     }
     backend_.shutdown();
     initialized_ = false;
@@ -1479,11 +1507,19 @@ void OverworldBgfxRenderer::Impl::submitMesh(
             tint[2] *= material->base_color[2];
             tint[3] = pass == MaterialClass::Opaque ? 0.0f : material->alpha_cutoff;
         }
+        const float adjust[4] = {1.0f, 1.0f, 1.0f, 0.0f};
+        const float texture_blur[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+        const float light_dir[4] = {0.0f, 1.0f, 0.0f, 0.0f};
+        const float light_params[4] = {1.0f, 0.0f, 0.0f, 0.0f};
         bgfx::setTransform(model_matrix);
         bgfx::setVertexBuffer(0, mesh.vbh);
         bgfx::setIndexBuffer(mesh.ibh, range.start_index, range.index_count);
         bgfx::setTexture(0, tex_uniform_, texture.handle, samplerFlags());
         bgfx::setUniform(tint_cutoff_uniform_, tint);
+        bgfx::setUniform(color_adjust_uniform_, adjust);
+        bgfx::setUniform(texture_blur_uniform_, texture_blur);
+        bgfx::setUniform(light_dir_uniform_, light_dir);
+        bgfx::setUniform(light_params_uniform_, light_params);
         bgfx::setState(state);
         bgfx::submit(view_id, program);
     }
@@ -1507,11 +1543,19 @@ void OverworldBgfxRenderer::Impl::submitAlphaDepthPrepass(
             ? std::max(material->alpha_cutoff, 1.0f / 255.0f)
             : 1.0f / 255.0f;
         const float tint[4] = {1.0f, 1.0f, 1.0f, cutoff};
+        const float adjust[4] = {1.0f, 1.0f, 1.0f, 0.0f};
+        const float texture_blur[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+        const float light_dir[4] = {0.0f, 1.0f, 0.0f, 0.0f};
+        const float light_params[4] = {1.0f, 0.0f, 0.0f, 0.0f};
         bgfx::setTransform(model_matrix);
         bgfx::setVertexBuffer(0, mesh.vbh);
         bgfx::setIndexBuffer(mesh.ibh, range.start_index, range.index_count);
         bgfx::setTexture(0, tex_uniform_, texture.handle, samplerFlags());
         bgfx::setUniform(tint_cutoff_uniform_, tint);
+        bgfx::setUniform(color_adjust_uniform_, adjust);
+        bgfx::setUniform(texture_blur_uniform_, texture_blur);
+        bgfx::setUniform(light_dir_uniform_, light_dir);
+        bgfx::setUniform(light_params_uniform_, light_params);
         bgfx::setState(stateForDepthOnly());
         bgfx::submit(view_id, program);
     }
@@ -1588,11 +1632,19 @@ void OverworldBgfxRenderer::Impl::submitPixelWorldToBackbuffer(
     float model[16];
     identity(model);
     const float tint[4] = {1.0f, 1.0f, 1.0f, 0.0f};
+    const float adjust[4] = {1.0f, 1.0f, 1.0f, 0.0f};
+    const float texture_blur[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    const float light_dir[4] = {0.0f, 1.0f, 0.0f, 0.0f};
+    const float light_params[4] = {1.0f, 0.0f, 0.0f, 0.0f};
     bgfx::setTransform(model);
     bgfx::setVertexBuffer(0, &tvb);
     bgfx::setIndexBuffer(&tib);
     bgfx::setTexture(0, tex_uniform_, texture, samplerFlags());
     bgfx::setUniform(tint_cutoff_uniform_, tint);
+    bgfx::setUniform(color_adjust_uniform_, adjust);
+    bgfx::setUniform(texture_blur_uniform_, texture_blur);
+    bgfx::setUniform(light_dir_uniform_, light_dir);
+    bgfx::setUniform(light_params_uniform_, light_params);
     bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A);
     bgfx::submit(3, world_program_);
 }
@@ -1784,12 +1836,20 @@ void OverworldBgfxRenderer::Impl::submitProjectedCharacterShadows(
             1.0f / 255.0f};
         float model[16];
         identity(model);
+        const float adjust[4] = {1.0f, 1.0f, 1.0f, 0.0f};
+        const float texture_blur[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+        const float light_dir[4] = {0.0f, 1.0f, 0.0f, 0.0f};
+        const float light_params[4] = {1.0f, 0.0f, 0.0f, 0.0f};
 
         bgfx::setTransform(model);
         bgfx::setVertexBuffer(0, &tvb);
         bgfx::setIndexBuffer(&tib);
         bgfx::setTexture(0, tex_uniform_, shadow_texture_.handle, samplerFlags());
         bgfx::setUniform(tint_cutoff_uniform_, tint);
+        bgfx::setUniform(color_adjust_uniform_, adjust);
+        bgfx::setUniform(texture_blur_uniform_, texture_blur);
+        bgfx::setUniform(light_dir_uniform_, light_dir);
+        bgfx::setUniform(light_params_uniform_, light_params);
         bgfx::setStencil(shadowStencilTestOnly());
         bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_BLEND_ALPHA | BGFX_STATE_DEPTH_TEST_LEQUAL);
         bgfx::submit(1, world_program_);
@@ -1799,6 +1859,10 @@ void OverworldBgfxRenderer::Impl::submitProjectedCharacterShadows(
         bgfx::setIndexBuffer(&tib);
         bgfx::setTexture(0, tex_uniform_, shadow_texture_.handle, samplerFlags());
         bgfx::setUniform(tint_cutoff_uniform_, tint);
+        bgfx::setUniform(color_adjust_uniform_, adjust);
+        bgfx::setUniform(texture_blur_uniform_, texture_blur);
+        bgfx::setUniform(light_dir_uniform_, light_dir);
+        bgfx::setUniform(light_params_uniform_, light_params);
         bgfx::setStencil(shadowStencilMark());
         bgfx::setState(BGFX_STATE_DEPTH_TEST_LEQUAL);
         bgfx::submit(1, world_program_);
@@ -1819,6 +1883,10 @@ void OverworldBgfxRenderer::Impl::refreshBillboardDrawer() {
     deps.billboard_program = billboard_program_;
     deps.tex_uniform = tex_uniform_;
     deps.tint_cutoff_uniform = tint_cutoff_uniform_;
+    deps.color_adjust_uniform = color_adjust_uniform_;
+    deps.texture_blur_uniform = texture_blur_uniform_;
+    deps.light_dir_uniform = light_dir_uniform_;
+    deps.light_params_uniform = light_params_uniform_;
     deps.view_id = 1;
     deps.scene = &scene_;
     deps.textures_for_character = [this, copyTexture](const CharacterSpriteDefinition& character) {

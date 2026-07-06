@@ -38,6 +38,9 @@ This file tracks people whose work contributed to this project, including borrow
 
 OW Sprites:
 https://eeveeexpo.com/resources/516/
+https://www.deviantart.com/kingofthe-x-roads/art/Gen-9-Sprites-Pokemon-Scarlet-and-Violet-908341834
+https://www.pokecommunity.com/threads/ds-style-gen-vii-and-beyond-pok%C3%A9mon-sprite-repository-in-64x64.368703/
+https://www.deviantart.com/willdinomaster55/art/Alola-Beach-Background-3-985971356
 NoNonever
 Golisopod User
 Help-14

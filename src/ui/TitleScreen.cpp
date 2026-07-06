@@ -262,6 +262,11 @@ void TitleScreen::prepareForOverworld3D() {
     changeState(TitleState::MainMenuIdle);
 }
 
+void TitleScreen::returnToResortMenuFromAttend() {
+    main_menu_.reset();
+    changeState(TitleState::ResortIdle);
+}
+
 void TitleScreen::returnToMainMenuFromResort() {
     main_menu_.reset();
     changeState(TitleState::MainMenuIdle);
@@ -465,6 +470,9 @@ void TitleScreen::activateResortSelection() {
             emitEvent(TitleScreenEvent::OpenResort3DTestRequested);
             break;
         case title_screen::ResortMenuAction::StartCinematic:
+            break;
+        case title_screen::ResortMenuAction::OpenTestAttend:
+            emitEvent(TitleScreenEvent::OpenTestAttendRequested);
             break;
         case title_screen::ResortMenuAction::CloseResortMenu:
             changeState(TitleState::ResortOutro);
