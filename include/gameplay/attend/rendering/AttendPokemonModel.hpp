@@ -137,6 +137,7 @@ struct AttendPokemonPoseOverlay {
     const AttendPokemonAnimation* animation = nullptr;
     double time_seconds = 0.0;
     float weight = 0.0f;
+    bool reverse = false;
     bool eyelids_only = false;
     std::vector<std::string> eyelid_node_substrings{"eyelid"};
     float head_yaw_degrees = 0.0f;
@@ -169,10 +170,20 @@ AttendPokemonModel loadAttendPokemonModel(const std::string& path, std::string* 
 const AttendPokemonAnimation* findAttendPokemonAnimation(
     const AttendPokemonModel& model,
     const std::string& animation_name);
+float attendPokemonAnimationLoopDurationForForm(
+    const AttendPokemonModel& model,
+    const AttendPokemonAnimation* animation,
+    int form_variant_index);
 std::vector<std::array<float, 16>> buildAttendPokemonGlobals(
     const AttendPokemonModel& model,
     const AttendPokemonAnimation* animation,
     double scene_time_seconds,
+    AttendPokemonPoseOverlay overlay = {});
+std::vector<std::array<float, 16>> buildAttendPokemonGlobals(
+    const AttendPokemonModel& model,
+    const AttendPokemonAnimation* animation,
+    double scene_time_seconds,
+    float animation_loop_duration_seconds,
     AttendPokemonPoseOverlay overlay = {});
 std::vector<std::vector<std::array<float, 16>>> buildAttendPokemonSkinMatrices(
     const AttendPokemonModel& model,

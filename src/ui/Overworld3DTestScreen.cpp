@@ -8,6 +8,7 @@
 #include "gameplay/world3d/camera/Gen4FollowCamera.hpp"
 #include "gameplay/world3d/data/GlbModelLoader.hpp"
 #include "gameplay/world3d/data/JsonOverworldLoader.hpp"
+#include "gameplay/world3d/dialogue/OverworldTextboxConfig.hpp"
 #include "gameplay/world3d/followers/NatureIdleConfig.hpp"
 #include "gameplay/world3d/npc/NpcActorDriver.hpp"
 #include "gameplay/world3d/rendering/FallbackTerrainRenderer.hpp"
@@ -138,6 +139,16 @@ std::pair<int, int> gridStepFromCameraInput(
     return {best_dx, best_dy};
 }
 
+std::pair<int, int> stepForFacing(gameplay::world3d::FacingDirection facing) {
+    switch (facing) {
+        case gameplay::world3d::FacingDirection::North: return {0, -1};
+        case gameplay::world3d::FacingDirection::South: return {0, 1};
+        case gameplay::world3d::FacingDirection::East: return {1, 0};
+        case gameplay::world3d::FacingDirection::West: return {-1, 0};
+    }
+    return {0, 1};
+}
+
 } // namespace
 
 Overworld3DTestScreen::Overworld3DTestScreen(const std::string& project_root)
@@ -192,6 +203,10 @@ void Overworld3DTestScreen::initializeSceneState() {
     }
     npc_actor_driver_ = std::make_unique<gameplay::world3d::npc::NpcActorDriver>(project_root_, scene_);
     npc_actor_driver_->initializeDefaultSceneActors(player_.position());
+    textbox_config_ = gameplay::world3d::dialogue::loadOverworldTextboxConfig(project_root_);
+    textbox_controller_.hide();
+    textbox_renderer_ =
+        std::make_unique<gameplay::world3d::dialogue::OverworldTextboxRenderer>(project_root_, textbox_config_);
     reloadWorldTerrainQueries();
     logLoadedWorldChunks();
     gameplay::world3d::camera::Gen4CameraPreset preset =
@@ -476,10 +491,12 @@ void Overworld3DTestScreen::update(double dt) {
     bool blocked_movement_attempt = false;
     if (!freecam_enabled_) {
         const Uint8* keys = SDL_GetKeyboardState(nullptr);
-        if (keys[SDL_SCANCODE_LEFT] || keys[SDL_SCANCODE_A]) keyboard_dx -= 1;
-        if (keys[SDL_SCANCODE_RIGHT] || keys[SDL_SCANCODE_D]) keyboard_dx += 1;
-        if (keys[SDL_SCANCODE_UP] || keys[SDL_SCANCODE_W]) keyboard_dy -= 1;
-        if (keys[SDL_SCANCODE_DOWN] || keys[SDL_SCANCODE_S]) keyboard_dy += 1;
+        if (!textbox_controller_.active()) {
+            if (keys[SDL_SCANCODE_LEFT] || keys[SDL_SCANCODE_A]) keyboard_dx -= 1;
+            if (keys[SDL_SCANCODE_RIGHT] || keys[SDL_SCANCODE_D]) keyboard_dx += 1;
+            if (keys[SDL_SCANCODE_UP] || keys[SDL_SCANCODE_W]) keyboard_dy -= 1;
+            if (keys[SDL_SCANCODE_DOWN] || keys[SDL_SCANCODE_S]) keyboard_dy += 1;
+        }
         if (keyboard_dx != 0 || keyboard_dy != 0) {
             input_dx_ = keyboard_dx;
             input_dy_ = keyboard_dy;
@@ -491,7 +508,9 @@ void Overworld3DTestScreen::update(double dt) {
             ? movement_config_.runSpeed()
             : movement_config_.walkSpeed());
 
-        auto [grid_dx, grid_dy] = gridStepFromCameraInput(camera_, input_dx_, input_dy_);
+        auto [grid_dx, grid_dy] = textbox_controller_.active()
+            ? std::pair<int, int>{0, 0}
+            : gridStepFromCameraInput(camera_, input_dx_, input_dy_);
         const auto move_result = player_.moveInput(
             grid_dx,
             grid_dy,
@@ -554,7 +573,8 @@ void Overworld3DTestScreen::update(double dt) {
     input_dy_ = 0;
     if (follower_controller_) {
         const bool player_idle = !player_.moving() && !freecam_enabled_;
-        const bool player_activity = !freecam_enabled_ && (keyboard_dx != 0 || keyboard_dy != 0);
+        const bool player_activity =
+            !textbox_controller_.active() && !freecam_enabled_ && (keyboard_dx != 0 || keyboard_dy != 0);
         follower_controller_->update(
             dt,
             player_.position(),
@@ -818,6 +838,22 @@ void Overworld3DTestScreen::queueBgfxScreenshot(const std::string& output_path) 
 }
 
 void Overworld3DTestScreen::renderPresentationOverlay(SDL_Renderer* renderer) {
+    int logical_w = 0;
+    int logical_h = 0;
+    SDL_RenderGetLogicalSize(renderer, &logical_w, &logical_h);
+    if (logical_w <= 0 || logical_h <= 0) {
+        SDL_GetRendererOutputSize(renderer, &logical_w, &logical_h);
+    }
+
+    if (textbox_controller_.active() && textbox_renderer_) {
+        const SDL_Rect world_view = visibleWorldViewportRect(logical_w, logical_h);
+        textbox_renderer_->render(
+            renderer,
+            world_view,
+            gameplay::world3d::rendering::worldViewportBaseWidth(scene_),
+            gameplay::world3d::rendering::worldViewportBaseHeight(scene_));
+    }
+
     if (!app_config_.enable_active_idle_behavior_debug || !debug_font_ || !follower_controller_) {
         return;
     }
@@ -841,11 +877,33 @@ void Overworld3DTestScreen::renderPresentationOverlay(SDL_Renderer* renderer) {
 }
 
 void Overworld3DTestScreen::onNavigate2d(int dx, int dy) {
-    if (freecam_enabled_) {
+    if (freecam_enabled_ || textbox_controller_.active()) {
         return;
     }
     input_dx_ = dx;
     input_dy_ = dy;
+}
+
+void Overworld3DTestScreen::onAdvancePressed() {
+    if (freecam_enabled_) {
+        return;
+    }
+    if (textbox_controller_.active()) {
+        clearInteractionTextBox();
+        return;
+    }
+    if (!gameplay::world3d::dialogue::overworldTextboxEnabled(textbox_config_)) {
+        return;
+    }
+
+    const auto target = findInteractionTarget();
+    if (target.kind == gameplay::world3d::dialogue::OverworldTextboxController::TargetKind::None) {
+        return;
+    }
+    if (!lockInteractionTarget(target)) {
+        return;
+    }
+    textbox_controller_.show(target);
 }
 
 bool Overworld3DTestScreen::handlePointerPressed(int logical_x, int logical_y) {
@@ -869,6 +927,10 @@ bool Overworld3DTestScreen::handlePointerReleased(int logical_x, int logical_y) 
 }
 
 void Overworld3DTestScreen::onBackPressed() {
+    if (textbox_controller_.active()) {
+        clearInteractionTextBox();
+        return;
+    }
     if (freecam_enabled_) {
         freecam_enabled_ = false;
         freecam_mouse_dragging_ = false;
@@ -938,6 +1000,73 @@ bool Overworld3DTestScreen::handleUnroutedSdlEvent(const SDL_Event& event) {
         return true;
     }
     return false;
+}
+
+gameplay::world3d::dialogue::OverworldTextboxController::Target
+Overworld3DTestScreen::findInteractionTarget() const {
+    using Target = gameplay::world3d::dialogue::OverworldTextboxController::Target;
+    using TargetKind = gameplay::world3d::dialogue::OverworldTextboxController::TargetKind;
+    const auto [dx, dy] = stepForFacing(player_.facing());
+    const int tx = player_.tileX() + dx;
+    const int ty = player_.tileY() + dy;
+
+    if (npc_actor_driver_) {
+        if (const auto actor_id = npc_actor_driver_->interactableActorIdAtTile(tx, ty)) {
+            return Target{TargetKind::NpcActor, *actor_id};
+        }
+    }
+    if (follower_controller_) {
+        if (const auto follower_id = follower_controller_->interactionTargetIdAtTile(tx, ty)) {
+            return Target{TargetKind::FollowerPokemon, *follower_id};
+        }
+    }
+    return Target{};
+}
+
+bool Overworld3DTestScreen::lockInteractionTarget(
+    const gameplay::world3d::dialogue::OverworldTextboxController::Target& target) {
+    using TargetKind = gameplay::world3d::dialogue::OverworldTextboxController::TargetKind;
+    if (npc_actor_driver_) {
+        npc_actor_driver_->clearInteractionLockedActor();
+    }
+    if (follower_controller_) {
+        follower_controller_->setInteractionLocked(false);
+    }
+
+    if (target.kind == TargetKind::NpcActor && npc_actor_driver_) {
+        return npc_actor_driver_->setInteractionLockedActor(target.id);
+    }
+    if (target.kind == TargetKind::FollowerPokemon && follower_controller_) {
+        return follower_controller_->setInteractionLocked(true);
+    }
+    return false;
+}
+
+void Overworld3DTestScreen::clearInteractionTextBox() {
+    textbox_controller_.hide();
+    if (npc_actor_driver_) {
+        npc_actor_driver_->clearInteractionLockedActor();
+    }
+    if (follower_controller_) {
+        follower_controller_->setInteractionLocked(false);
+    }
+}
+
+SDL_Rect Overworld3DTestScreen::visibleWorldViewportRect(int logical_w, int logical_h) const {
+    logical_w = std::max(1, logical_w);
+    logical_h = std::max(1, logical_h);
+    if (!scene_.world_viewport.enabled) {
+        return SDL_Rect{0, 0, logical_w, logical_h};
+    }
+
+    const int base_w = gameplay::world3d::rendering::worldViewportBaseWidth(scene_);
+    const int base_h = gameplay::world3d::rendering::worldViewportBaseHeight(scene_);
+    const double sx = static_cast<double>(logical_w) / static_cast<double>(std::max(1, base_w));
+    const double sy = static_cast<double>(logical_h) / static_cast<double>(std::max(1, base_h));
+    const double scale = std::min(sx, sy);
+    const int dest_w = std::max(1, static_cast<int>(std::lround(static_cast<double>(base_w) * scale)));
+    const int dest_h = std::max(1, static_cast<int>(std::lround(static_cast<double>(base_h) * scale)));
+    return SDL_Rect{(logical_w - dest_w) / 2, (logical_h - dest_h) / 2, dest_w, dest_h};
 }
 
 } // namespace pr

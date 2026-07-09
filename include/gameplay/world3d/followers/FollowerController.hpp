@@ -56,6 +56,8 @@ public:
         int viewport_w,
         int viewport_h) const;
     std::vector<std::pair<int, int>> reservedTiles() const;
+    std::optional<std::string> interactionTargetIdAtTile(int tx, int ty) const;
+    bool setInteractionLocked(bool locked);
     bool triggerDebugJump();
     bool triggerDebugPoke();
     std::string debugActivityLabel() const;
@@ -143,6 +145,7 @@ private:
     std::optional<effects::LandingDustSpawnRequest> pending_landing_dust_spawn_;
     bool initialized_rng_ = false;
     bool resources_ready_ = false;
+    bool interaction_locked_ = false;
     std::mt19937 rng_{};
 
     terrain::ActorTerrainBinding terrainBinding() const;

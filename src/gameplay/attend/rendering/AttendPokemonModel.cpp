@@ -939,6 +939,62 @@ bool equalsAny(const std::string& value, const std::vector<std::string>& candida
     return false;
 }
 
+bool stringListContains(const std::vector<std::string>& values, const std::string& needle) {
+    return std::find(values.begin(), values.end(), needle) != values.end();
+}
+
+std::string nodeFormSuffix(const std::string& node_name) {
+    const std::string marker = "__form_";
+    const std::size_t marker_pos = node_name.rfind(marker);
+    if (marker_pos == std::string::npos) return {};
+    std::string suffix;
+    for (std::size_t i = marker_pos + marker.size(); i < node_name.size(); ++i) {
+        const char c = node_name[i];
+        if (!std::isdigit(static_cast<unsigned char>(c))) break;
+        suffix.push_back(c);
+    }
+    return suffix;
+}
+
+int formSuffixIndex(const std::string& suffix) {
+    if (suffix.empty()) return -1;
+    int value = 0;
+    for (const char c : suffix) {
+        if (!std::isdigit(static_cast<unsigned char>(c))) return -1;
+        value = value * 10 + (c - '0');
+    }
+    return value;
+}
+
+int defaultFormVariantIndex(const AttendPokemonModel& model) {
+    if (model.form_variants.empty()) return -1;
+    for (std::size_t i = 0; i < model.form_variants.size(); ++i) {
+        if (model.form_variants[i].id == model.default_form_variant) {
+            return static_cast<int>(i);
+        }
+    }
+    return 0;
+}
+
+bool animationChannelMatchesForm(
+    const AttendPokemonModel& model,
+    const AttendPokemonAnimationChannel& channel,
+    int active_form_index,
+    const std::string& active_form_id,
+    int default_form_index) {
+    if (channel.target_node < 0 || channel.target_node >= static_cast<int>(model.nodes.size())) return false;
+    const AttendPokemonNode& node = model.nodes[static_cast<std::size_t>(channel.target_node)];
+    if (!node.visible_for_forms.empty()) {
+        return !active_form_id.empty() && stringListContains(node.visible_for_forms, active_form_id);
+    }
+    const std::string suffix = nodeFormSuffix(node.name);
+    if (!suffix.empty()) {
+        if (!active_form_id.empty() && suffix == active_form_id) return true;
+        return formSuffixIndex(suffix) == active_form_index;
+    }
+    return active_form_index == default_form_index;
+}
+
 bool animationNameContains(const AttendPokemonAnimation& animation, const std::vector<std::string>& needles) {
     const std::string lower = lowerAscii(animation.name);
     for (const std::string& needle : needles) {
@@ -986,6 +1042,7 @@ std::vector<std::array<float, 16>> computeAnimatedGlobals(
     const AttendPokemonModel& model,
     const AttendPokemonAnimation* animation,
     double scene_time_seconds,
+    float animation_loop_duration_seconds,
     AttendPokemonPoseOverlay overlay = {}) {
     std::vector<std::array<float, 3>> translations(model.nodes.size(), {0.0f, 0.0f, 0.0f});
     std::vector<std::array<float, 4>> rotations(model.nodes.size(), {0.0f, 0.0f, 0.0f, 1.0f});
@@ -1000,7 +1057,10 @@ std::vector<std::array<float, 16>> computeAnimatedGlobals(
     }
 
     if (animation && animation->duration_seconds > 0.0f) {
-        const float t = std::fmod(static_cast<float>(scene_time_seconds), animation->duration_seconds);
+        const float loop_duration = animation_loop_duration_seconds > 0.0f
+            ? animation_loop_duration_seconds
+            : animation->duration_seconds;
+        const float t = std::fmod(static_cast<float>(scene_time_seconds), loop_duration);
         for (const AttendPokemonAnimationChannel& channel : animation->channels) {
             if (channel.target_node < 0 || channel.target_node >= static_cast<int>(model.nodes.size())) continue;
             const std::array<float, 4> value = sampleChannel(channel, t);
@@ -1018,7 +1078,11 @@ std::vector<std::array<float, 16>> computeAnimatedGlobals(
         }
     }
     if (overlay.animation && overlay.animation->duration_seconds > 0.0f && overlay.weight > 0.0f) {
-        const float overlay_t = std::fmod(static_cast<float>(overlay.time_seconds), overlay.animation->duration_seconds);
+        const float duration = std::max(0.001f, overlay.animation->duration_seconds);
+        float overlay_t = std::fmod(static_cast<float>(std::max(0.0, overlay.time_seconds)), duration);
+        if (overlay.reverse) {
+            overlay_t = std::max(0.0f, duration - overlay_t);
+        }
         const float weight = std::clamp(overlay.weight, 0.0f, 1.0f);
         for (const AttendPokemonAnimationChannel& channel : overlay.animation->channels) {
             if (!overlayTargetsNode(model, channel, overlay)) continue;
@@ -1159,12 +1223,58 @@ const AttendPokemonAnimation* findAttendPokemonAnimation(
     return &model.animations.front();
 }
 
+float attendPokemonAnimationLoopDurationForForm(
+    const AttendPokemonModel& model,
+    const AttendPokemonAnimation* animation,
+    int form_variant_index) {
+    if (!animation || animation->duration_seconds <= 0.0f || model.form_variants.empty()) {
+        return animation ? animation->duration_seconds : 0.0f;
+    }
+    const int form_count = static_cast<int>(model.form_variants.size());
+    const int active_form_index = form_variant_index >= 0 && form_variant_index < form_count
+        ? form_variant_index
+        : defaultFormVariantIndex(model);
+    if (active_form_index < 0 || active_form_index >= form_count) return animation->duration_seconds;
+    const std::string& active_form_id = model.form_variants[static_cast<std::size_t>(active_form_index)].id;
+    const int default_form_index = defaultFormVariantIndex(model);
+    bool matched_channel = false;
+    float duration_seconds = 0.0f;
+    for (const AttendPokemonAnimationChannel& channel : animation->channels) {
+        if (channel.times.empty()) continue;
+        if (!animationChannelMatchesForm(
+                model,
+                channel,
+                active_form_index,
+                active_form_id,
+                default_form_index)) {
+            continue;
+        }
+        matched_channel = true;
+        duration_seconds = std::max(duration_seconds, channel.times.back());
+    }
+    return matched_channel && duration_seconds > 0.0f ? duration_seconds : animation->duration_seconds;
+}
+
 std::vector<std::array<float, 16>> buildAttendPokemonGlobals(
     const AttendPokemonModel& model,
     const AttendPokemonAnimation* animation,
     double scene_time_seconds,
     AttendPokemonPoseOverlay overlay) {
-    return computeAnimatedGlobals(model, animation, scene_time_seconds, std::move(overlay));
+    return buildAttendPokemonGlobals(model, animation, scene_time_seconds, 0.0f, std::move(overlay));
+}
+
+std::vector<std::array<float, 16>> buildAttendPokemonGlobals(
+    const AttendPokemonModel& model,
+    const AttendPokemonAnimation* animation,
+    double scene_time_seconds,
+    float animation_loop_duration_seconds,
+    AttendPokemonPoseOverlay overlay) {
+    return computeAnimatedGlobals(
+        model,
+        animation,
+        scene_time_seconds,
+        animation_loop_duration_seconds,
+        std::move(overlay));
 }
 
 std::vector<std::vector<std::array<float, 16>>> buildAttendPokemonSkinMatrices(

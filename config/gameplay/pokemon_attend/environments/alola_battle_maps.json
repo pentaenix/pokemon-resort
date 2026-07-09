@@ -1,0 +1,301 @@
+{
+  "_comment": "Environment catalog for ripped Alola battle maps. Map pieces and sky presets live here, not in the Pokemon/provider config.",
+  "activeFloor": "alola_grass_battle_map",
+  "activeSky": "clear",
+  "floorDefaults": {
+    "placementAnchor": "world",
+    "modelPlacement": {
+      "_comment": "World placement for the floor and any extension that does not override placement.",
+      "x": 0,
+      "y": -0.032,
+      "z": -8.5,
+      "yawDegrees": 0,
+      "scale": 0.009
+    },
+    "hiddenMaterialSubstrings": [],
+    "weatherMaterialSubstrings": [
+      "btl_G_all_rain",
+      "btl_G_all_rain0m",
+      "btl_G_all_snow0m"
+    ],
+    "activeWeather": 0,
+    "weatherModes": [
+      {
+        "id": "clear",
+        "label": "Clear",
+        "visibleMaterialSubstrings": []
+      },
+      {
+        "id": "rain",
+        "label": "Rain",
+        "visibleMaterialSubstrings": [
+          "btl_G_all_rain",
+          "btl_G_all_rain0m"
+        ]
+      },
+      {
+        "id": "snow",
+        "label": "Snow",
+        "visibleMaterialSubstrings": [
+          "btl_G_all_snow0m"
+        ]
+      }
+    ]
+  },
+  "shadow": {
+    "enabled": true,
+    "strength": 0.38,
+    "radiusX": 0.46,
+    "radiusZ": 0.28,
+    "yOffset": 0.006
+  },
+  "depthOfField": {
+    "enabled": true,
+    "strength": 0.68,
+    "maxRadius": 4.4,
+    "focusDepth": 0.8,
+    "falloff": 3.8
+  },
+  "background": {
+    "clearColor": "#8FD3F6"
+  },
+  "floors": {
+    "alola_grass_battle_map": {
+      "id": "alola_grass_battle_map",
+      "label": "Alola Grass Battle Map",
+      "model": "assets/pokemon_attend/floors/grass_field.glb",
+      "extensions": [
+        {
+          "id": "alola_grass_battle_map_extension",
+          "label": "Alola Grass Battle Map Extension",
+          "model": "assets/pokemon_attend/floors/grass_extension.glb"
+        }
+      ]
+    }
+  },
+  "skyDefaults": {
+    "enabled": true,
+    "shape": "dome",
+    "radius": 92,
+    "distance": 0,
+    "height": 92,
+    "bottomY": 0.2,
+    "arcDegrees": 360,
+    "segments": 128,
+    "verticalSegments": 48,
+    "edgeDarkening": 0.08,
+    "gradientColors": [
+      {
+        "at": 0,
+        "color": "#4DAFE8"
+      },
+      {
+        "at": 0.55,
+        "color": "#93D6F7"
+      },
+      {
+        "at": 1,
+        "color": "#FFFBE8"
+      }
+    ],
+    "lighting": {
+      "brightness": 1.08,
+      "pokemonBrightness": 1.02,
+      "backdropBrightness": 1,
+      "backdropSaturation": 1,
+      "backdropContrast": 1,
+      "ambient": 0.74,
+      "directional": 0.34,
+      "formShadow": 0.24,
+      "lightDirection": [
+        -0.35,
+        0.82,
+        0.45
+      ],
+      "tint": [
+        1,
+        0.99,
+        0.95
+      ]
+    }
+  },
+  "skyPresetOrder": [
+    "clear",
+    "sunset",
+    "cloudy",
+    "night"
+  ],
+  "skyPresets": {
+    "clear": {
+      "id": "clear",
+      "label": "Clear",
+      "gradientColors": [
+        {
+          "at": 0,
+          "color": "#4CAEE8"
+        },
+        {
+          "at": 0.5,
+          "color": "#90D7F8"
+        },
+        {
+          "at": 0.82,
+          "color": "#DDF5FF"
+        },
+        {
+          "at": 1,
+          "color": "#FFFBE8"
+        }
+      ],
+      "lighting": {
+        "brightness": 1.08,
+        "pokemonBrightness": 1.02,
+        "backdropBrightness": 1,
+        "backdropSaturation": 1,
+        "backdropContrast": 1,
+        "ambient": 0.74,
+        "directional": 0.34,
+        "formShadow": 0.24,
+        "lightDirection": [
+          -0.35,
+          0.82,
+          0.45
+        ],
+        "tint": [
+          1,
+          0.99,
+          0.95
+        ]
+      }
+    },
+    "sunset": {
+      "id": "sunset",
+      "label": "Sunset",
+      "edgeDarkening": 0.12,
+      "gradientColors": [
+        {
+          "at": 0,
+          "color": "#6E74B9"
+        },
+        {
+          "at": 0.36,
+          "color": "#EA8C72"
+        },
+        {
+          "at": 0.7,
+          "color": "#FFD089"
+        },
+        {
+          "at": 1,
+          "color": "#FFF0BC"
+        }
+      ],
+      "lighting": {
+        "brightness": 1.04,
+        "pokemonBrightness": 1.02,
+        "backdropBrightness": 0.98,
+        "backdropSaturation": 1.05,
+        "backdropContrast": 1.02,
+        "ambient": 0.72,
+        "directional": 0.38,
+        "formShadow": 0.28,
+        "lightDirection": [
+          -0.75,
+          0.48,
+          0.36
+        ],
+        "tint": [
+          1.06,
+          0.88,
+          0.72
+        ]
+      }
+    },
+    "cloudy": {
+      "id": "cloudy",
+      "label": "Cloudy",
+      "edgeDarkening": 0.04,
+      "gradientColors": [
+        {
+          "at": 0,
+          "color": "#6D90A9"
+        },
+        {
+          "at": 0.44,
+          "color": "#A8BBC7"
+        },
+        {
+          "at": 0.78,
+          "color": "#CBD6DB"
+        },
+        {
+          "at": 1,
+          "color": "#EEF2F0"
+        }
+      ],
+      "lighting": {
+        "brightness": 1,
+        "pokemonBrightness": 1.02,
+        "backdropBrightness": 0.97,
+        "backdropSaturation": 0.92,
+        "backdropContrast": 0.96,
+        "ambient": 0.86,
+        "directional": 0.18,
+        "formShadow": 0.18,
+        "lightDirection": [
+          -0.2,
+          0.9,
+          0.32
+        ],
+        "tint": [
+          0.92,
+          0.97,
+          1
+        ]
+      }
+    },
+    "night": {
+      "id": "night",
+      "label": "Night",
+      "edgeDarkening": 0.18,
+      "gradientColors": [
+        {
+          "at": 0,
+          "color": "#0B1C3C"
+        },
+        {
+          "at": 0.48,
+          "color": "#173767"
+        },
+        {
+          "at": 0.78,
+          "color": "#2B5487"
+        },
+        {
+          "at": 1,
+          "color": "#6E8EBD"
+        }
+      ],
+      "lighting": {
+        "brightness": 0.96,
+        "pokemonBrightness": 1.02,
+        "backdropBrightness": 0.78,
+        "backdropSaturation": 0.9,
+        "backdropContrast": 1.08,
+        "ambient": 0.52,
+        "directional": 0.18,
+        "formShadow": 0.34,
+        "lightDirection": [
+          -0.52,
+          0.68,
+          0.52
+        ],
+        "tint": [
+          0.7,
+          0.8,
+          1
+        ]
+      }
+    }
+  }
+}

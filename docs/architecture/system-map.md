@@ -3,7 +3,7 @@
 ## Domains
 - `engine`: reusable runtime systems (rendering/input/audio/camera core/chunk runtime).
 - `gameplay`: game rules and 3D world behavior (player/NPC/dialogue/events/quests/followers).
-- `gameplay/attend`: Pokemon interaction-scene config and rendering helpers; currently used by the `RESORT -> TEST ATTEND` preview. Scene composition, Pokemon provider defaults, the grass-field environment floor, and edge-proof sky/light presets are kept in separate `config/gameplay/pokemon_attend` files so Pokemon model-source swaps do not rewrite the whole scene. The attend Pokemon renderer consumes provider/exporter policy metadata such as RAE `renderClass`, sampler wrap, eye-sheet UVs, and mesh draw order behind this module boundary.
+- `gameplay/attend`: Pokemon interaction-scene config and rendering helpers; currently used by the `RESORT -> TEST ATTEND` debug scene. `config/gameplay/pokemon_attend.json` is a manifest that links concern-specific debug, interaction, provider, and environment files under `config/gameplay/pokemon_attend/` so temporary scene selections, shared interaction tuning, Pokemon-provider behavior, and Alola-map presentation stay separate. The attend Pokemon renderer consumes provider/exporter policy metadata such as RAE `renderClass`, sampler wrap, eye-sheet UVs, and mesh draw order behind this module boundary.
 - `transfer`: save movement, OpenHome identity, transfer orchestration.
 - `ui`: presentation and screen-level adapters, including reusable logical-coordinate overlays under `ui/overlay`.
 - `data`: authored configs and content packs.

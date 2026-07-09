@@ -7,6 +7,9 @@
 #include "gameplay/world3d/characters/SpriteSheetAnimator.hpp"
 #include "gameplay/world3d/followers/FollowerController.hpp"
 #include "gameplay/world3d/effects/LandingDustSystem.hpp"
+#include "gameplay/world3d/dialogue/OverworldTextboxConfig.hpp"
+#include "gameplay/world3d/dialogue/OverworldTextboxController.hpp"
+#include "gameplay/world3d/dialogue/OverworldTextboxRenderer.hpp"
 #include "gameplay/world3d/npc/NpcActorDriver.hpp"
 #include "gameplay/world3d/rendering/BillboardSpriteRenderer.hpp"
 #include "gameplay/world3d/rendering/GlbModelRenderer.hpp"
@@ -49,6 +52,7 @@ public:
     bool handlePointerPressed(int logical_x, int logical_y) override;
     bool handlePointerReleased(int logical_x, int logical_y) override;
     void onNavigate2d(int dx, int dy) override;
+    void onAdvancePressed() override;
     void onBackPressed() override;
 
     bool consumeReturnToTitleRequested();
@@ -63,6 +67,10 @@ private:
     buildStaticRenderChunks() const;
     void reloadWorldTerrainQueries();
     void logLoadedWorldChunks() const;
+    gameplay::world3d::dialogue::OverworldTextboxController::Target findInteractionTarget() const;
+    bool lockInteractionTarget(const gameplay::world3d::dialogue::OverworldTextboxController::Target& target);
+    void clearInteractionTextBox();
+    SDL_Rect visibleWorldViewportRect(int logical_w, int logical_h) const;
 
     std::string project_root_;
     gameplay::world3d::SceneConfig scene_;
@@ -93,6 +101,9 @@ private:
     std::unique_ptr<gameplay::world3d::followers::FollowerController> follower_controller_;
     std::unique_ptr<gameplay::world3d::effects::LandingDustSystem> landing_dust_system_;
     std::unique_ptr<gameplay::world3d::npc::NpcActorDriver> npc_actor_driver_;
+    gameplay::world3d::dialogue::OverworldTextboxConfig textbox_config_{};
+    gameplay::world3d::dialogue::OverworldTextboxController textbox_controller_{};
+    std::unique_ptr<gameplay::world3d::dialogue::OverworldTextboxRenderer> textbox_renderer_;
 
     bool map_loaded_ = false;
     bool initialized_renderer_ = false;

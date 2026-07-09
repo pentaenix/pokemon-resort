@@ -32,6 +32,7 @@ public:
     void playErrorSfx();
     void playSaveSfx();
     void playOverworldBlockedSfx();
+    void playOneShotSfx(const std::string& path);
     void stopMusic();
     void setMusicVolume(float volume_01);
     void setSfxVolume(float volume_01);

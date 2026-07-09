@@ -33,6 +33,8 @@ Character assets:
 Map assets and scene config:
 - `assets/overworld/maps/testing.owmap` (runtime default)
 - `assets/overworld/maps/flat_bootstrap.owmap` (reference sample)
+- Interaction text box config: `config/gameplay/world3d/textbox.json`
+- Interaction text box skins: `assets/overworld/ui/text_boxes.png`
 
 Loader policy:
 - `.owmap` is the primary runtime format.
@@ -69,6 +71,9 @@ Overworld systems:
 - `src/gameplay/world3d/characters/SpriteSheetAnimator.cpp`
 - `src/gameplay/world3d/followers/FollowerConfig.cpp`
 - `src/gameplay/world3d/followers/FollowerController.cpp`
+- `src/gameplay/world3d/dialogue/OverworldTextboxConfig.cpp`
+- `src/gameplay/world3d/dialogue/OverworldTextboxController.cpp`
+- `src/gameplay/world3d/dialogue/OverworldTextboxRenderer.cpp`
 - `src/gameplay/world3d/rendering/OverworldMapRenderer.cpp`
 - `src/gameplay/world3d/rendering/BillboardSpriteRenderer.cpp`
 
@@ -196,6 +201,17 @@ App-level debug overlay toggle:
 - `enable_active_idle_behavior_debug`
 
 When enabled, the overworld screen shows `AIB: ...` in the top-left with the follower's current idle or debug action label.
+
+## Interaction Text Box
+
+NPC/Pokemon interaction prompts use `config/gameplay/world3d/textbox.json`.
+
+- `textbox.visibleMode`: `enabled` or `disabled`.
+- `textbox.selectedSkinIndex`: choose skin `0` through `12`; visual order goes down the left column first, then down the right column. The 14th bottom-right sheet cell is empty and ignored.
+- `textbox.padding.bottomPx` / `textbox.padding.sidePx`: DS/internal viewport padding.
+- `textbox.horizontalStretch.stripWidthPx` / `sourceCenterXPx`: the central source strip stretched to fit the visible world viewport width. The left and right stylized sides are copied without stretching.
+
+Pressing Accept while facing an interactable NPC/Pokemon opens the empty text box. Pressing Accept again closes it. The active target is interaction-locked while the box is open so movement, rotation, and idle behavior do not start.
 
 ## Camera Preset
 The POC loads the camera preset ID from map config (`camera.preset`), currently targeting:

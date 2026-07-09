@@ -37,6 +37,18 @@ bool boolOr(const JsonValue* value, bool fallback) {
     return value && value->isBool() ? value->asBool() : fallback;
 }
 
+std::unordered_map<std::string, std::string> stringMapOr(
+    const JsonValue* value,
+    std::unordered_map<std::string, std::string> fallback) {
+    if (!value || !value->isObject()) return fallback;
+    for (const auto& [key, child_value] : value->asObject()) {
+        if (child_value.isString()) {
+            fallback[key] = child_value.asString();
+        }
+    }
+    return fallback;
+}
+
 std::string resolvePath(const std::string& root, const std::string& path);
 Color3 parseColor(const JsonValue* value, Color3 fallback);
 Color4 parseColor4(const JsonValue* value, Color4 fallback);
@@ -118,6 +130,28 @@ const JsonValue* catalogEntry(const JsonValue* catalog, const std::string& id) {
     return nullptr;
 }
 
+std::string resolveConfigPath(const std::string& project_root, const fs::path& manifest_path, const std::string& path) {
+    if (path.empty()) return {};
+    const fs::path p(path);
+    if (p.is_absolute()) return p.string();
+    const fs::path config_relative = fs::path(project_root) / "config" / p;
+    std::error_code ec;
+    if (fs::exists(config_relative, ec)) return config_relative.string();
+    return (manifest_path.parent_path() / p).string();
+}
+
+JsonValue referencedConfig(
+    const std::string& project_root,
+    const fs::path& manifest_path,
+    const JsonValue* root,
+    const char* section_key,
+    const char* legacy_key) {
+    const JsonValue* files = child(root, "files");
+    const std::string path = strOr(child(files, section_key), strOr(child(root, legacy_key), ""));
+    if (path.empty()) return JsonValue{};
+    return parseJsonFile(resolveConfigPath(project_root, manifest_path, path));
+}
+
 std::vector<std::string> stringArrayOr(const JsonValue* value, std::vector<std::string> fallback) {
     if (!value || !value->isArray()) return fallback;
     std::vector<std::string> out;
@@ -125,6 +159,22 @@ std::vector<std::string> stringArrayOr(const JsonValue* value, std::vector<std::
         if (item.isString()) out.push_back(item.asString());
     }
     return out.empty() ? fallback : out;
+}
+
+const JsonValue* firstChild(const JsonValue* obj, std::initializer_list<const char*> keys) {
+    for (const char* key : keys) {
+        if (const JsonValue* value = child(obj, key)) return value;
+    }
+    return nullptr;
+}
+
+float numOrAny(const JsonValue* obj, std::initializer_list<const char*> keys, float fallback) {
+    for (const char* key : keys) {
+        if (const JsonValue* value = child(obj, key); value && value->isNumber()) {
+            return static_cast<float>(value->asNumber());
+        }
+    }
+    return fallback;
 }
 
 void parseAxis(const JsonValue* value, float (&out)[3]) {
@@ -291,9 +341,11 @@ void parsePokemonProviderProfile(
     pokemon.yaw_degrees = numOr(child(defaults, "yawDegrees"), pokemon.yaw_degrees);
     pokemon.pitch_degrees = numOr(child(defaults, "pitchDegrees"), pokemon.pitch_degrees);
     pokemon.scale = numOr(child(defaults, "scale"), pokemon.scale);
+    pokemon.sprite_form_keys = stringMapOr(child(defaults, "spriteFormKeys"), pokemon.sprite_form_keys);
     pokemon.yaw_degrees = numOr(child(profile, "yawDegrees"), pokemon.yaw_degrees);
     pokemon.pitch_degrees = numOr(child(profile, "pitchDegrees"), pokemon.pitch_degrees);
     pokemon.scale = numOr(child(profile, "scale"), pokemon.scale);
+    pokemon.sprite_form_keys = stringMapOr(child(profile, "spriteFormKeys"), pokemon.sprite_form_keys);
 
     parsePokemon(defaults, project_root, pokemon);
     parsePokemon(profile, project_root, pokemon);
@@ -379,13 +431,266 @@ void parseOverlayButton(const JsonValue* value, AttendOverlayButtonConfig& out) 
     out.text = parseColor4(child(value, "text"), out.text);
 }
 
-void parseUi(const JsonValue* value, AttendUiConfig& out) {
+void parseCornerButton(const JsonValue* value, const std::string& project_root, AttendCornerButtonConfig& out) {
     if (!value || !value->isObject()) return;
+    out.enabled = boolOr(child(value, "enabled"), out.enabled);
+    out.icon_path = resolvePath(project_root, strOr(child(value, "icon"), out.icon_path));
+    out.scale = std::clamp(numOr(child(value, "scale"), out.scale), 0.5f, 3.0f);
+    out.icon_scale = std::clamp(numOr(child(value, "iconScale"), out.icon_scale), 0.2f, 1.2f);
+    out.icon_offset_x = std::clamp(numOr(child(value, "iconOffsetX"), out.icon_offset_x), -0.35f, 0.35f);
+    out.icon_offset_y = std::clamp(numOr(child(value, "iconOffsetY"), out.icon_offset_y), -0.35f, 0.35f);
+    out.side_extension_ratio =
+        std::clamp(numOr(child(value, "sideExtensionRatio"), out.side_extension_ratio), 0.0f, 1.0f);
+    out.outer_border = parseColor4(child(value, "outerBorder"), out.outer_border);
+    out.inner_border = parseColor4(child(value, "innerBorder"), out.inner_border);
+    out.fill_top = parseColor4(child(value, "fillTop"), out.fill_top);
+    out.fill_bottom = parseColor4(child(value, "fillBottom"), out.fill_bottom);
+}
+
+void parseCornerButtonBehavior(const JsonValue* value, AttendCornerButtonBehaviorConfig& out) {
+    if (!value || !value->isObject()) return;
+    out.hide_after_pet_seconds =
+        std::clamp(numOr(child(value, "hideAfterPetSeconds"), out.hide_after_pet_seconds), 0.0f, 5.0f);
+    out.return_delay_seconds =
+        std::clamp(numOr(child(value, "returnDelaySeconds"), out.return_delay_seconds), 0.0f, 5.0f);
+    out.slide_in_seconds =
+        std::clamp(numOr(child(value, "slideInSeconds"), out.slide_in_seconds), 0.01f, 2.0f);
+    out.slide_out_seconds =
+        std::clamp(numOr(child(value, "slideOutSeconds"), out.slide_out_seconds), 0.01f, 2.0f);
+}
+
+void parseProfilePlate(const JsonValue* value, AttendProfilePlateConfig& out) {
+    if (!value || !value->isObject()) return;
+    out.enabled = boolOr(child(value, "enabled"), out.enabled);
+    out.width = std::max(120, intOr(child(value, "width"), out.width));
+    out.height = std::max(48, intOr(child(value, "height"), out.height));
+    out.margin_x = std::max(0, intOr(child(value, "marginX"), out.margin_x));
+    out.margin_y = std::max(0, intOr(child(value, "marginY"), out.margin_y));
+    out.padding_x = std::max(0, intOr(child(value, "paddingX"), out.padding_x));
+    out.padding_y = std::max(0, intOr(child(value, "paddingY"), out.padding_y));
+    out.corner_radius = std::max(0, intOr(child(value, "cornerRadius"), out.corner_radius));
+    out.outer_stroke_width = std::max(0, intOr(child(value, "outerStrokeWidth"), out.outer_stroke_width));
+    out.inner_stroke_width = std::max(0, intOr(child(value, "innerStrokeWidth"), out.inner_stroke_width));
+    out.show_sprite = boolOr(child(value, "showSprite"), out.show_sprite);
+    out.sprite_size = std::max(1, intOr(child(value, "spriteSize"), out.sprite_size));
+    out.sprite_scale = std::clamp(numOr(child(value, "spriteScale"), out.sprite_scale), 0.25f, 6.0f);
+    out.sprite_gap = std::max(0, intOr(child(value, "spriteGap"), out.sprite_gap));
+    out.sprite_offset_x = intOr(child(value, "spriteOffsetX"), out.sprite_offset_x);
+    out.sprite_offset_y = intOr(child(value, "spriteOffsetY"), out.sprite_offset_y);
+    out.name_text_offset_x = intOr(child(value, "nameTextOffsetX"), out.name_text_offset_x);
+    out.name_text_offset_y = intOr(child(value, "nameTextOffsetY"), out.name_text_offset_y);
+    out.detail_text_offset_x = intOr(child(value, "detailTextOffsetX"), out.detail_text_offset_x);
+    out.detail_text_offset_y = intOr(child(value, "detailTextOffsetY"), out.detail_text_offset_y);
+    out.name_font_size = std::max(8, intOr(child(value, "nameFontSize"), out.name_font_size));
+    out.detail_font_size = std::max(8, intOr(child(value, "detailFontSize"), out.detail_font_size));
+    out.name_row_height = std::max(1, intOr(child(value, "nameRowHeight"), out.name_row_height));
+    out.detail_row_height = std::max(1, intOr(child(value, "detailRowHeight"), out.detail_row_height));
+    out.name_row_width = std::max(1, intOr(child(value, "nameRowWidth"), out.name_row_width));
+    out.characteristic_row_width = std::max(1, intOr(child(value, "characteristicRowWidth"), out.characteristic_row_width));
+    out.nature_row_width = std::max(1, intOr(child(value, "natureRowWidth"), out.nature_row_width));
+    out.row_gap = std::max(0, intOr(child(value, "rowGap"), out.row_gap));
+    out.left_fade_width = std::max(0, intOr(child(value, "leftFadeWidth"), out.left_fade_width));
+    out.slide_out_x = std::max(0, intOr(child(value, "slideOutX"), out.slide_out_x));
+    out.characteristic = strOr(child(value, "characteristic"), out.characteristic);
+    out.nature = strOr(child(value, "nature"), out.nature);
+    out.font_path = strOr(child(value, "font"), strOr(child(value, "fontPath"), out.font_path));
+    out.outer_border = parseColor4(child(value, "outerBorder"), out.outer_border);
+    out.inner_border = parseColor4(child(value, "innerBorder"), out.inner_border);
+    out.fill_top = parseColor4(child(value, "fillTop"), out.fill_top);
+    out.fill_bottom = parseColor4(child(value, "fillBottom"), out.fill_bottom);
+    out.divider = parseColor4(child(value, "divider"), out.divider);
+    out.name_text = parseColor4(child(value, "nameText"), out.name_text);
+    out.detail_text = parseColor4(child(value, "detailText"), out.detail_text);
+}
+
+void parseIdleBehavior(const JsonValue* value, AttendIdleBehaviorConfig& out) {
+    if (!value || !value->isObject()) return;
+    out.enabled = boolOr(child(value, "enabled"), out.enabled);
+    out.emote_after_seconds = std::max(1.0f, numOr(child(value, "emoteAfterSeconds"), out.emote_after_seconds));
+    out.emote_interval_min_seconds =
+        std::max(0.0f, numOr(child(value, "emoteIntervalMinSeconds"), out.emote_interval_min_seconds));
+    out.emote_interval_max_seconds =
+        std::max(out.emote_interval_min_seconds, numOr(child(value, "emoteIntervalMaxSeconds"), out.emote_interval_max_seconds));
+    out.sleep_after_seconds = std::max(1.0f, numOr(child(value, "sleepAfterSeconds"), out.sleep_after_seconds));
+    out.emote_animation_semantic = strOr(child(value, "emoteAnimation"), out.emote_animation_semantic);
+    out.sleep_animation_semantic = strOr(child(value, "sleepAnimation"), out.sleep_animation_semantic);
+    out.emote_eye_expression = strOr(child(value, "emoteEye"), out.emote_eye_expression);
+    out.emote_mouth_expression = strOr(child(value, "emoteMouth"), out.emote_mouth_expression);
+    out.sleep_eye_expression = strOr(child(value, "sleepEye"), out.sleep_eye_expression);
+    out.sleep_mouth_expression = strOr(child(value, "sleepMouth"), out.sleep_mouth_expression);
+    out.emote_duration_seconds = std::clamp(numOr(child(value, "emoteDurationSeconds"), out.emote_duration_seconds), 0.0f, 30.0f);
+    out.sleep_duration_seconds = std::clamp(numOr(child(value, "sleepDurationSeconds"), out.sleep_duration_seconds), 1.0f, 7200.0f);
+    out.fade_in_seconds = std::clamp(numOr(child(value, "fadeInSeconds"), out.fade_in_seconds), 0.0f, 5.0f);
+    out.fade_out_seconds = std::clamp(numOr(child(value, "fadeOutSeconds"), out.fade_out_seconds), 0.0f, 5.0f);
+}
+
+void parseCamera(const JsonValue* camera, AttendCameraConfig& out) {
+    if (!camera || !camera->isObject()) return;
+    out.auto_focus = boolOr(child(camera, "autoFocus"), out.auto_focus);
+    out.screen_height_ratio = std::clamp(numOr(child(camera, "screenHeightRatio"), out.screen_height_ratio), 0.15f, 0.95f);
+    out.distance_scale = std::clamp(numOr(child(camera, "distanceScale"), out.distance_scale), 0.35f, 2.5f);
+    out.face_screen_height_ratio =
+        std::clamp(numOr(child(camera, "faceScreenHeightRatio"), out.face_screen_height_ratio), 0.15f, 0.98f);
+    out.face_distance_scale =
+        std::clamp(numOr(child(camera, "faceDistanceScale"), out.face_distance_scale), 0.15f, 2.5f);
+    out.face_target_y_ratio =
+        std::clamp(numOr(child(camera, "faceTargetYRatio"), out.face_target_y_ratio), 0.0f, 1.0f);
+    out.face_height_offset = numOr(child(camera, "faceHeightOffset"), out.face_height_offset);
+    out.face_view_min_model_height =
+        std::max(0.0f, numOr(child(camera, "faceViewMinModelHeight"), out.face_view_min_model_height));
+    out.min_distance = std::max(0.1f, numOr(child(camera, "minDistance"), out.min_distance));
+    out.max_distance = std::max(out.min_distance, numOr(child(camera, "maxDistance"), out.max_distance));
+    out.height_offset = numOr(child(camera, "heightOffset"), out.height_offset);
+    out.target_y_ratio = std::clamp(numOr(child(camera, "targetYRatio"), out.target_y_ratio), 0.0f, 1.0f);
+    out.depth_padding_scale =
+        std::clamp(numOr(child(camera, "depthPaddingScale"), out.depth_padding_scale), 0.0f, 1.5f);
+    out.face_depth_padding_scale =
+        std::clamp(numOr(child(camera, "faceDepthPaddingScale"), out.face_depth_padding_scale), 0.0f, 1.5f);
+    out.target_x = numOr(child(camera, "targetX"), out.target_x);
+    out.target_z = numOr(child(camera, "targetZ"), out.target_z);
+    out.distance = numOr(child(camera, "distance"), out.distance);
+    out.height = numOr(child(camera, "height"), out.height);
+    out.target_height = numOr(child(camera, "targetHeight"), out.target_height);
+    out.fov_y_degrees = numOr(child(camera, "fovYDegrees"), out.fov_y_degrees);
+    out.near_clip = numOr(child(camera, "nearClip"), out.near_clip);
+    out.far_clip = numOr(child(camera, "farClip"), out.far_clip);
+    if (const JsonValue* framing = firstChild(camera, {"framing", "fullBodyFraming"}); framing && framing->isObject()) {
+        out.screen_height_ratio =
+            std::clamp(numOrAny(framing, {"screenHeightRatio", "pokemonScreenHeight"}, out.screen_height_ratio), 0.15f, 0.95f);
+        out.distance_scale =
+            std::clamp(numOrAny(framing, {"distanceScale", "distanceMultiplier"}, out.distance_scale), 0.35f, 2.5f);
+        out.min_distance = std::max(0.1f, numOrAny(framing, {"minDistance", "minimumDistance"}, out.min_distance));
+        out.max_distance =
+            std::max(out.min_distance, numOrAny(framing, {"maxDistance", "maximumDistance"}, out.max_distance));
+        out.target_y_ratio =
+            std::clamp(numOrAny(framing, {"targetYRatio", "targetHeightRatio"}, out.target_y_ratio), 0.0f, 1.0f);
+        out.height_offset = numOrAny(framing, {"heightOffset", "verticalOffset"}, out.height_offset);
+        out.depth_padding_scale =
+            std::clamp(numOrAny(framing, {"depthPaddingScale", "depthPadding"}, out.depth_padding_scale), 0.0f, 1.5f);
+    }
+    if (const JsonValue* face = child(camera, "faceFraming"); face && face->isObject()) {
+        out.face_screen_height_ratio =
+            std::clamp(numOrAny(face, {"screenHeightRatio", "faceScreenHeight"}, out.face_screen_height_ratio), 0.15f, 0.98f);
+        out.face_distance_scale =
+            std::clamp(numOrAny(face, {"distanceScale", "distanceMultiplier"}, out.face_distance_scale), 0.15f, 2.5f);
+        out.face_target_y_ratio =
+            std::clamp(numOrAny(face, {"targetYRatio", "headTargetHeightRatio"}, out.face_target_y_ratio), 0.0f, 1.0f);
+        out.face_height_offset = numOrAny(face, {"heightOffset", "verticalOffset"}, out.face_height_offset);
+        out.face_view_min_model_height =
+            std::max(0.0f, numOrAny(face, {"minModelHeight", "minimumPokemonHeight"}, out.face_view_min_model_height));
+        out.face_depth_padding_scale =
+            std::clamp(numOrAny(face, {"depthPaddingScale", "depthPadding"}, out.face_depth_padding_scale), 0.0f, 1.5f);
+    }
+    if (const JsonValue* forms = firstChild(camera, {"formFraming", "formAdjustments", "formFaceFraming", "formFaceAdjustments"});
+        forms && forms->isObject()) {
+        for (const auto& [form_id, value] : forms->asObject()) {
+            if (!value.isObject()) continue;
+            AttendCameraConfig::FormFramingAdjustment adjustment;
+            adjustment.target_y_ratio_offset = std::clamp(
+                numOrAny(&value, {"targetYRatioOffset", "headTargetHeightRatioOffset"}, adjustment.target_y_ratio_offset),
+                -0.25f,
+                0.25f);
+            adjustment.height_offset =
+                std::clamp(numOrAny(&value, {"heightOffset", "verticalOffset"}, adjustment.height_offset), -0.5f, 0.5f);
+            out.form_framing_adjustments[form_id] = adjustment;
+        }
+    }
+    const JsonValue* camera_advanced = child(camera, "advanced");
+    const JsonValue* fallback = firstChild(camera, {"manualFallback", "manualCameraFallback"});
+    if (!fallback) fallback = firstChild(camera_advanced, {"manualFallback", "manualCameraFallback"});
+    if (fallback && fallback->isObject()) {
+        out.target_x = numOr(child(fallback, "targetX"), out.target_x);
+        out.target_z = numOr(child(fallback, "targetZ"), out.target_z);
+        out.distance = numOr(child(fallback, "distance"), out.distance);
+        out.height = numOr(child(fallback, "height"), out.height);
+        out.target_height = numOr(child(fallback, "targetHeight"), out.target_height);
+    }
+    const JsonValue* lens = firstChild(camera, {"lens"});
+    if (!lens) lens = child(camera_advanced, "lens");
+    if (lens && lens->isObject()) {
+        out.fov_y_degrees = numOr(child(lens, "fovYDegrees"), out.fov_y_degrees);
+        out.near_clip = numOr(child(lens, "nearClip"), out.near_clip);
+        out.far_clip = numOr(child(lens, "farClip"), out.far_clip);
+    }
+    const JsonValue* freecam = firstChild(camera, {"freecam", "freeCamera"});
+    if (!freecam) freecam = firstChild(camera_advanced, {"freecam", "freeCamera"});
+    if (freecam && freecam->isObject()) {
+        out.freecam_move_speed = std::max(0.0f, numOr(child(freecam, "moveSpeed"), out.freecam_move_speed));
+        out.freecam_mouse_sensitivity =
+            std::max(0.0f, numOr(child(freecam, "mouseSensitivity"), out.freecam_mouse_sensitivity));
+        if (const JsonValue* offset = child(freecam, "initialOffset"); offset && offset->isArray()) {
+            const auto& arr = offset->asArray();
+            if (arr.size() > 0 && arr[0].isNumber()) out.freecam_initial_offset_x = numOr(&arr[0], out.freecam_initial_offset_x);
+            if (arr.size() > 1 && arr[1].isNumber()) out.freecam_initial_offset_y = numOr(&arr[1], out.freecam_initial_offset_y);
+            if (arr.size() > 2 && arr[2].isNumber()) out.freecam_initial_offset_z = numOr(&arr[2], out.freecam_initial_offset_z);
+        }
+        out.freecam_initial_yaw_degrees =
+            numOr(child(freecam, "initialYawDegrees"), numOr(child(freecam, "initialYawDeg"), out.freecam_initial_yaw_degrees));
+        out.freecam_initial_pitch_degrees =
+            numOr(child(freecam, "initialPitchDegrees"), numOr(child(freecam, "initialPitchDeg"), out.freecam_initial_pitch_degrees));
+        out.freecam_pitch_min_degrees =
+            numOr(child(freecam, "pitchClampMinDegrees"), numOr(child(freecam, "pitchClampMinDeg"), out.freecam_pitch_min_degrees));
+        out.freecam_pitch_max_degrees =
+            numOr(child(freecam, "pitchClampMaxDegrees"), numOr(child(freecam, "pitchClampMaxDeg"), out.freecam_pitch_max_degrees));
+    }
+}
+
+void parseViewportLook(const JsonValue* look, AttendViewportLookConfig& out) {
+    if (!look || !look->isObject()) return;
+    out.enabled = boolOr(child(look, "enabled"), out.enabled);
+    out.max_x = std::max(0.0f, numOr(child(look, "maxX"), out.max_x));
+    out.max_y = std::max(0.0f, numOr(child(look, "maxY"), out.max_y));
+    out.edge_margin_ratio = std::clamp(numOr(child(look, "edgeMarginRatio"), out.edge_margin_ratio), 0.01f, 0.45f);
+    out.smooth_seconds = std::clamp(numOr(child(look, "smoothSeconds"), out.smooth_seconds), 0.01f, 2.0f);
+}
+
+void parseDepthOfField(const JsonValue* dof, AttendDepthOfFieldConfig& out) {
+    if (!dof || !dof->isObject()) return;
+    out.enabled = boolOr(child(dof, "enabled"), out.enabled);
+    out.strength = std::clamp(numOr(child(dof, "strength"), out.strength), 0.0f, 1.0f);
+    out.max_radius = std::clamp(numOr(child(dof, "maxRadius"), out.max_radius), 0.0f, 12.0f);
+    out.focus_depth = std::max(0.0f, numOr(child(dof, "focusDepth"), out.focus_depth));
+    out.falloff = std::max(0.01f, numOr(child(dof, "falloff"), out.falloff));
+}
+
+void parseShadow(const JsonValue* shadow, AttendShadowConfig& out) {
+    if (!shadow || !shadow->isObject()) return;
+    out.enabled = boolOr(child(shadow, "enabled"), out.enabled);
+    out.strength = std::clamp(numOr(child(shadow, "strength"), out.strength), 0.0f, 1.0f);
+    out.radius_x = std::max(0.01f, numOr(child(shadow, "radiusX"), out.radius_x));
+    out.radius_z = std::max(0.01f, numOr(child(shadow, "radiusZ"), out.radius_z));
+    out.y_offset = numOr(child(shadow, "yOffset"), out.y_offset);
+}
+
+void parseUi(const JsonValue* value, const std::string& project_root, AttendUiConfig& out) {
+    if (!value || !value->isObject()) return;
+    out.pixelated_overlay = boolOr(child(value, "pixelatedOverlay"), out.pixelated_overlay);
+    auto parse_render_mode = [](std::string value, const std::string& fallback) {
+        std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
+            return static_cast<char>(std::tolower(c));
+        });
+        return value == "sd" ? std::string{"sd"} : (value == "hd" ? std::string{"hd"} : fallback);
+    };
+    if (const JsonValue* rendering = child(value, "rendering"); rendering && rendering->isObject()) {
+        out.normal_render_mode =
+            parse_render_mode(strOr(child(rendering, "normalUi"), out.normal_render_mode), out.normal_render_mode);
+        out.debug_render_mode =
+            parse_render_mode(strOr(child(rendering, "debugUi"), out.debug_render_mode), out.debug_render_mode);
+    }
     parseOverlayButton(child(value, "weatherButton"), out.weather_button);
     parseOverlayButton(child(value, "viewButton"), out.view_button);
     parseOverlayButton(child(value, "pokemonButton"), out.pokemon_button);
     parseOverlayButton(child(value, "textureVariantButton"), out.texture_variant_button);
     parseOverlayButton(child(value, "formVariantButton"), out.form_variant_button);
+    parseOverlayButton(child(value, "skyButton"), out.sky_button);
+    parseOverlayButton(child(value, "emoteButton"), out.emote_button);
+    parseOverlayButton(child(value, "sleepButton"), out.sleep_button);
+    parseOverlayButton(child(value, "cryButton"), out.cry_button);
+    parseCornerButton(child(value, "actionButton"), project_root, out.action_button);
+    parseCornerButton(child(value, "itemsButton"), project_root, out.items_button);
+    parseCornerButton(child(value, "returnButton"), project_root, out.return_button);
+    parseCornerButtonBehavior(child(value, "cornerButtons"), out.corner_buttons);
+    parseProfilePlate(child(value, "profilePlate"), out.profile_plate);
     if (const JsonValue* hand_cursor = child(value, "handCursor"); hand_cursor && hand_cursor->isObject()) {
         out.hand_cursor_scale = std::clamp(numOr(child(hand_cursor, "scale"), out.hand_cursor_scale), 0.5f, 4.0f);
         out.hand_cursor_hotspot_x_ratio =
@@ -533,6 +838,28 @@ void parseLighting(const JsonValue* lighting, AttendLightingConfig& out) {
     out.tint = parseColor(child(lighting, "tint"), out.tint);
 }
 
+void parseAudio(const JsonValue* audio, AttendAudioConfig& out) {
+    if (!audio || !audio->isObject()) return;
+    out.pet_happy_cry_delay_seconds =
+        std::clamp(numOr(child(audio, "petHappyCryDelaySeconds"), out.pet_happy_cry_delay_seconds), 0.0f, 10.0f);
+}
+
+std::string skyLabelFromId(std::string id) {
+    bool next_upper = true;
+    for (char& c : id) {
+        if (c == '_' || c == '-') {
+            c = ' ';
+            next_upper = true;
+        } else if (next_upper) {
+            c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+            next_upper = false;
+        } else {
+            c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        }
+    }
+    return id;
+}
+
 } // namespace
 
 AttendSceneConfig loadAttendSceneConfig(const std::string& project_root) {
@@ -542,27 +869,82 @@ AttendSceneConfig loadAttendSceneConfig(const std::string& project_root) {
         GradientStop{1.0f, Color3{0.98f, 0.88f, 0.68f}},
     };
 
-    const fs::path path = fs::path(project_root) / "config" / "gameplay" / "pokemon_attend" / "scene.json";
+    const fs::path path = fs::path(project_root) / "config" / "gameplay" / "pokemon_attend.json";
     const JsonValue root = parseJsonFile(path.string());
-    const fs::path config_dir = fs::path(project_root) / "config" / "gameplay" / "pokemon_attend";
-    const JsonValue pokemon_root = parseJsonFile((config_dir / "pokemon.json").string());
-    const JsonValue floors_root = parseJsonFile((config_dir / "floors.json").string());
-    const JsonValue walls_root = parseJsonFile((config_dir / "walls.json").string());
-    const std::string active = strOr(child(&root, "activeScene"), out.id);
+    JsonValue pokemon_file_root = referencedConfig(project_root, path, &root, "pokemonProvider", "pokemonProviderFile");
+    JsonValue environment_file_root = referencedConfig(project_root, path, &root, "environment", "environmentFile");
+    JsonValue interaction_file_root = referencedConfig(project_root, path, &root, "interaction", "interactionFile");
+    JsonValue ui_file_root = referencedConfig(project_root, path, &root, "ui", "uiFile");
+    JsonValue audio_file_root = referencedConfig(project_root, path, &root, "audio", "audioFile");
+    JsonValue debug_file_root = referencedConfig(project_root, path, &root, "debug", "debugFile");
+    if (!debug_file_root.isObject()) {
+        debug_file_root = referencedConfig(project_root, path, &root, "preview", "previewFile");
+    }
+    const JsonValue* pokemon_root = child(&root, "pokemonProvider");
+    if (!pokemon_root && pokemon_file_root.isObject()) {
+        pokemon_root = child(&pokemon_file_root, "pokemonProvider");
+        if (!pokemon_root) pokemon_root = &pokemon_file_root;
+    }
+    const JsonValue* environment_root = child(&root, "environment");
+    if (!environment_root && environment_file_root.isObject()) {
+        environment_root = child(&environment_file_root, "environment");
+        if (!environment_root) environment_root = &environment_file_root;
+    }
+    const JsonValue* interaction_root = child(&root, "interaction");
+    if (!interaction_root && interaction_file_root.isObject()) {
+        interaction_root = child(&interaction_file_root, "interaction");
+        if (!interaction_root) interaction_root = &interaction_file_root;
+    }
+    const JsonValue* ui_root = child(&root, "ui");
+    if (!ui_root && ui_file_root.isObject()) {
+        ui_root = child(&ui_file_root, "ui");
+        if (!ui_root) ui_root = &ui_file_root;
+    }
+    const JsonValue* audio_root = child(&root, "audio");
+    if (!audio_root && audio_file_root.isObject()) {
+        audio_root = child(&audio_file_root, "audio");
+        if (!audio_root) audio_root = &audio_file_root;
+    }
+    const std::string active = strOr(child(&root, "activeDebug"),
+                                     strOr(child(&root, "activePreview"), strOr(child(&root, "activeScene"), out.id)));
     const JsonValue* selected = nullptr;
-    if (const JsonValue* scenes = child(&root, "scenes"); scenes && scenes->isArray()) {
-        for (const JsonValue& scene : scenes->asArray()) {
-            if (scene.isObject() && strOr(child(&scene, "id"), "") == active) {
-                selected = &scene;
-                break;
+    if (const JsonValue* debug = child(&root, "debug"); debug && debug->isObject()) {
+        selected = debug;
+    }
+    if (!selected && debug_file_root.isObject()) {
+        selected = child(&debug_file_root, "debug");
+        if (!selected) selected = child(&debug_file_root, "preview");
+        if (!selected) selected = &debug_file_root;
+    }
+    if (!selected) {
+        const JsonValue* debug_scenes = child(&root, "debugScenes");
+        if (!debug_scenes) debug_scenes = child(&root, "previews");
+        if (!debug_scenes) debug_scenes = child(&root, "scenes");
+        if (debug_scenes && debug_scenes->isArray()) {
+            for (const JsonValue& scene : debug_scenes->asArray()) {
+                if (scene.isObject() && strOr(child(&scene, "id"), "") == active) {
+                    selected = &scene;
+                    break;
+                }
             }
-        }
-        if (!selected && !scenes->asArray().empty() && scenes->asArray().front().isObject()) {
-            selected = &scenes->asArray().front();
+            if (!selected && !debug_scenes->asArray().empty() && debug_scenes->asArray().front().isObject()) {
+                selected = &debug_scenes->asArray().front();
+            }
         }
     }
     if (!selected) {
-        throw std::runtime_error("pokemon_attend scene.json has no scenes");
+        throw std::runtime_error("pokemon_attend.json has no debug scene");
+    }
+
+    parseCamera(child(interaction_root, "camera"), out.camera);
+    parseViewportLook(child(interaction_root, "viewportLook"), out.viewport_look);
+    parseUi(child(interaction_root, "ui"), project_root, out.ui);
+    parseUi(ui_root, project_root, out.ui);
+    parseAudio(audio_root, out.audio);
+    parseShadow(child(environment_root, "shadow"), out.shadow);
+    parseDepthOfField(child(environment_root, "depthOfField"), out.depth_of_field);
+    if (const JsonValue* background = child(environment_root, "background")) {
+        out.clear_color = parseColor(child(background, "clearColor"), out.clear_color);
     }
 
     out.id = strOr(child(selected, "id"), out.id);
@@ -571,10 +953,15 @@ AttendSceneConfig loadAttendSceneConfig(const std::string& project_root) {
 
     const std::string active_pokemon = strOr(child(selected, "activePokemon"), strOr(child(&root, "activePokemon"), ""));
     if (!active_pokemon.empty()) {
-        const JsonValue* defaults = child(&pokemon_root, "defaults");
-        const JsonValue* profile = catalogEntry(child(&pokemon_root, "pokemon"), active_pokemon);
+        const JsonValue* defaults = child(pokemon_root, "defaults");
+        const JsonValue* profile = catalogEntry(child(pokemon_root, "pokemon"), active_pokemon);
+        parseIdleBehavior(child(defaults, "idleBehavior"), out.idle_behavior);
+        parseIdleBehavior(child(profile, "idleBehavior"), out.idle_behavior);
         parsePokemonProviderProfile(defaults, profile, active_pokemon, project_root, out.pokemon, out.interaction_adapter);
+        parseCamera(child(defaults, "camera"), out.camera);
+        parseCamera(child(profile, "camera"), out.camera);
     }
+    parseIdleBehavior(child(selected, "idleBehavior"), out.idle_behavior);
     if (const JsonValue* camera = child(selected, "camera")) {
         out.camera.auto_focus = boolOr(child(camera, "autoFocus"), out.camera.auto_focus);
         out.camera.screen_height_ratio = std::clamp(numOr(child(camera, "screenHeightRatio"), out.camera.screen_height_ratio), 0.15f, 0.95f);
@@ -604,6 +991,104 @@ AttendSceneConfig loadAttendSceneConfig(const std::string& project_root) {
         out.camera.fov_y_degrees = numOr(child(camera, "fovYDegrees"), out.camera.fov_y_degrees);
         out.camera.near_clip = numOr(child(camera, "nearClip"), out.camera.near_clip);
         out.camera.far_clip = numOr(child(camera, "farClip"), out.camera.far_clip);
+        if (const JsonValue* framing = firstChild(camera, {"framing", "fullBodyFraming"}); framing && framing->isObject()) {
+            out.camera.screen_height_ratio =
+                std::clamp(numOrAny(framing, {"screenHeightRatio", "pokemonScreenHeight"}, out.camera.screen_height_ratio), 0.15f, 0.95f);
+            out.camera.distance_scale =
+                std::clamp(numOrAny(framing, {"distanceScale", "distanceMultiplier"}, out.camera.distance_scale), 0.35f, 2.5f);
+            out.camera.min_distance = std::max(0.1f, numOrAny(framing, {"minDistance", "minimumDistance"}, out.camera.min_distance));
+            out.camera.max_distance =
+                std::max(out.camera.min_distance, numOrAny(framing, {"maxDistance", "maximumDistance"}, out.camera.max_distance));
+            out.camera.target_y_ratio =
+                std::clamp(numOrAny(framing, {"targetYRatio", "targetHeightRatio"}, out.camera.target_y_ratio), 0.0f, 1.0f);
+            out.camera.height_offset = numOrAny(framing, {"heightOffset", "verticalOffset"}, out.camera.height_offset);
+            out.camera.depth_padding_scale =
+                std::clamp(numOrAny(framing, {"depthPaddingScale", "depthPadding"}, out.camera.depth_padding_scale), 0.0f, 1.5f);
+        }
+        if (const JsonValue* face = child(camera, "faceFraming"); face && face->isObject()) {
+            out.camera.face_screen_height_ratio =
+                std::clamp(numOrAny(face, {"screenHeightRatio", "faceScreenHeight"}, out.camera.face_screen_height_ratio), 0.15f, 0.98f);
+            out.camera.face_distance_scale =
+                std::clamp(numOrAny(face, {"distanceScale", "distanceMultiplier"}, out.camera.face_distance_scale), 0.15f, 2.5f);
+            out.camera.face_target_y_ratio =
+                std::clamp(numOrAny(face, {"targetYRatio", "headTargetHeightRatio"}, out.camera.face_target_y_ratio), 0.0f, 1.0f);
+            out.camera.face_height_offset = numOrAny(face, {"heightOffset", "verticalOffset"}, out.camera.face_height_offset);
+            out.camera.face_view_min_model_height =
+                std::max(0.0f, numOrAny(face, {"minModelHeight", "minimumPokemonHeight"}, out.camera.face_view_min_model_height));
+            out.camera.face_depth_padding_scale =
+                std::clamp(numOrAny(face, {"depthPaddingScale", "depthPadding"}, out.camera.face_depth_padding_scale), 0.0f, 1.5f);
+        }
+        const JsonValue* camera_advanced = child(camera, "advanced");
+        if (const JsonValue* fallback = firstChild(camera, {"manualFallback", "manualCameraFallback"}); !fallback) {
+            fallback = firstChild(camera_advanced, {"manualFallback", "manualCameraFallback"});
+            if (fallback && fallback->isObject()) {
+                out.camera.target_x = numOr(child(fallback, "targetX"), out.camera.target_x);
+                out.camera.target_z = numOr(child(fallback, "targetZ"), out.camera.target_z);
+                out.camera.distance = numOr(child(fallback, "distance"), out.camera.distance);
+                out.camera.height = numOr(child(fallback, "height"), out.camera.height);
+                out.camera.target_height = numOr(child(fallback, "targetHeight"), out.camera.target_height);
+            }
+        } else if (fallback->isObject()) {
+            out.camera.target_x = numOr(child(fallback, "targetX"), out.camera.target_x);
+            out.camera.target_z = numOr(child(fallback, "targetZ"), out.camera.target_z);
+            out.camera.distance = numOr(child(fallback, "distance"), out.camera.distance);
+            out.camera.height = numOr(child(fallback, "height"), out.camera.height);
+            out.camera.target_height = numOr(child(fallback, "targetHeight"), out.camera.target_height);
+        }
+        if (const JsonValue* lens = firstChild(camera, {"lens"}); !lens) {
+            lens = child(camera_advanced, "lens");
+            if (lens && lens->isObject()) {
+                out.camera.fov_y_degrees = numOr(child(lens, "fovYDegrees"), out.camera.fov_y_degrees);
+                out.camera.near_clip = numOr(child(lens, "nearClip"), out.camera.near_clip);
+                out.camera.far_clip = numOr(child(lens, "farClip"), out.camera.far_clip);
+            }
+        } else if (lens->isObject()) {
+            out.camera.fov_y_degrees = numOr(child(lens, "fovYDegrees"), out.camera.fov_y_degrees);
+            out.camera.near_clip = numOr(child(lens, "nearClip"), out.camera.near_clip);
+            out.camera.far_clip = numOr(child(lens, "farClip"), out.camera.far_clip);
+        }
+        if (const JsonValue* freecam = firstChild(camera, {"freecam", "freeCamera"}); !freecam) {
+            freecam = firstChild(camera_advanced, {"freecam", "freeCamera"});
+            if (freecam && freecam->isObject()) {
+                out.camera.freecam_move_speed =
+                    std::max(0.0f, numOr(child(freecam, "moveSpeed"), out.camera.freecam_move_speed));
+                out.camera.freecam_mouse_sensitivity =
+                    std::max(0.0f, numOr(child(freecam, "mouseSensitivity"), out.camera.freecam_mouse_sensitivity));
+                if (const JsonValue* offset = child(freecam, "initialOffset"); offset && offset->isArray()) {
+                    const auto& arr = offset->asArray();
+                    if (arr.size() > 0 && arr[0].isNumber()) out.camera.freecam_initial_offset_x = numOr(&arr[0], out.camera.freecam_initial_offset_x);
+                    if (arr.size() > 1 && arr[1].isNumber()) out.camera.freecam_initial_offset_y = numOr(&arr[1], out.camera.freecam_initial_offset_y);
+                    if (arr.size() > 2 && arr[2].isNumber()) out.camera.freecam_initial_offset_z = numOr(&arr[2], out.camera.freecam_initial_offset_z);
+                }
+                out.camera.freecam_initial_yaw_degrees =
+                    numOr(child(freecam, "initialYawDegrees"), numOr(child(freecam, "initialYawDeg"), out.camera.freecam_initial_yaw_degrees));
+                out.camera.freecam_initial_pitch_degrees =
+                    numOr(child(freecam, "initialPitchDegrees"), numOr(child(freecam, "initialPitchDeg"), out.camera.freecam_initial_pitch_degrees));
+                out.camera.freecam_pitch_min_degrees =
+                    numOr(child(freecam, "pitchClampMinDegrees"), numOr(child(freecam, "pitchClampMinDeg"), out.camera.freecam_pitch_min_degrees));
+                out.camera.freecam_pitch_max_degrees =
+                    numOr(child(freecam, "pitchClampMaxDegrees"), numOr(child(freecam, "pitchClampMaxDeg"), out.camera.freecam_pitch_max_degrees));
+            }
+        } else if (freecam->isObject()) {
+            out.camera.freecam_move_speed =
+                std::max(0.0f, numOr(child(freecam, "moveSpeed"), out.camera.freecam_move_speed));
+            out.camera.freecam_mouse_sensitivity =
+                std::max(0.0f, numOr(child(freecam, "mouseSensitivity"), out.camera.freecam_mouse_sensitivity));
+            if (const JsonValue* offset = child(freecam, "initialOffset"); offset && offset->isArray()) {
+                const auto& arr = offset->asArray();
+                if (arr.size() > 0 && arr[0].isNumber()) out.camera.freecam_initial_offset_x = numOr(&arr[0], out.camera.freecam_initial_offset_x);
+                if (arr.size() > 1 && arr[1].isNumber()) out.camera.freecam_initial_offset_y = numOr(&arr[1], out.camera.freecam_initial_offset_y);
+                if (arr.size() > 2 && arr[2].isNumber()) out.camera.freecam_initial_offset_z = numOr(&arr[2], out.camera.freecam_initial_offset_z);
+            }
+            out.camera.freecam_initial_yaw_degrees =
+                numOr(child(freecam, "initialYawDegrees"), numOr(child(freecam, "initialYawDeg"), out.camera.freecam_initial_yaw_degrees));
+            out.camera.freecam_initial_pitch_degrees =
+                numOr(child(freecam, "initialPitchDegrees"), numOr(child(freecam, "initialPitchDeg"), out.camera.freecam_initial_pitch_degrees));
+            out.camera.freecam_pitch_min_degrees =
+                numOr(child(freecam, "pitchClampMinDegrees"), numOr(child(freecam, "pitchClampMinDeg"), out.camera.freecam_pitch_min_degrees));
+            out.camera.freecam_pitch_max_degrees =
+                numOr(child(freecam, "pitchClampMaxDegrees"), numOr(child(freecam, "pitchClampMaxDeg"), out.camera.freecam_pitch_max_degrees));
+        }
     }
     if (const JsonValue* look = child(selected, "viewportLook")) {
         out.viewport_look.enabled = boolOr(child(look, "enabled"), out.viewport_look.enabled);
@@ -615,6 +1100,7 @@ AttendSceneConfig loadAttendSceneConfig(const std::string& project_root) {
             std::clamp(numOr(child(look, "smoothSeconds"), out.viewport_look.smooth_seconds), 0.01f, 2.0f);
     }
     parseLighting(child(selected, "lighting"), out.lighting);
+    const AttendLightingConfig scene_lighting = out.lighting;
     if (const JsonValue* dof = child(selected, "depthOfField")) {
         out.depth_of_field.enabled = boolOr(child(dof, "enabled"), out.depth_of_field.enabled);
         out.depth_of_field.strength =
@@ -633,10 +1119,14 @@ AttendSceneConfig loadAttendSceneConfig(const std::string& project_root) {
         out.shadow.radius_z = std::max(0.01f, numOr(child(shadow, "radiusZ"), out.shadow.radius_z));
         out.shadow.y_offset = numOr(child(shadow, "yOffset"), out.shadow.y_offset);
     }
-    const std::string active_floor = strOr(child(selected, "activeFloor"), strOr(child(&root, "activeFloor"), out.floor.id));
+    const std::string active_floor = strOr(
+        child(selected, "activeFloor"),
+        strOr(child(environment_root, "activeFloor"), strOr(child(&root, "activeFloor"), out.floor.id)));
     if (!active_floor.empty()) {
-        const JsonValue* floor_entry = catalogEntry(child(&floors_root, "floors"), active_floor);
-        parseFloor(child(&floors_root, "environmentDefaults"), project_root, out.floor);
+        const JsonValue* floor_entry = catalogEntry(child(environment_root, "floors"), active_floor);
+        const JsonValue* floor_defaults = child(environment_root, "floorDefaults");
+        if (!floor_defaults) floor_defaults = child(environment_root, "environmentDefaults");
+        parseFloor(floor_defaults, project_root, out.floor);
         parseFloor(floor_entry, project_root, out.floor);
     }
     if (const JsonValue* floor = child(selected, "floor")) {
@@ -645,17 +1135,54 @@ AttendSceneConfig loadAttendSceneConfig(const std::string& project_root) {
     applyFloorAnchor(out.pokemon, out.floor);
     const std::string active_wall = strOr(
         child(selected, "activeSky"),
-        strOr(child(&root, "activeSky"), strOr(child(selected, "activeWall"), strOr(child(&root, "activeWall"), out.wall.id))));
+        strOr(
+            child(environment_root, "activeSky"),
+            strOr(child(&root, "activeSky"), strOr(child(selected, "activeWall"), strOr(child(&root, "activeWall"), out.wall.id)))));
     if (!active_wall.empty()) {
-        const JsonValue* wall_defaults = child(&walls_root, "defaults");
+        const JsonValue* wall_defaults = child(environment_root, "skyDefaults");
+        if (!wall_defaults) wall_defaults = child(environment_root, "defaults");
+        const JsonValue* sky_catalog = child(environment_root, "skyPresets");
+        if (sky_catalog && sky_catalog->isObject()) {
+            const std::vector<std::string> preset_order = stringArrayOr(child(environment_root, "skyPresetOrder"), {});
+            std::vector<std::string> ids = preset_order;
+            if (ids.empty()) {
+                for (const auto& [id, value] : sky_catalog->asObject()) {
+                    if (value.isObject()) ids.push_back(id);
+                }
+            }
+            for (const std::string& id : ids) {
+                const JsonValue* preset_value = catalogEntry(sky_catalog, id);
+                if (!preset_value || !preset_value->isObject()) continue;
+                const JsonValue& value = *preset_value;
+                if (!value.isObject()) continue;
+                AttendSkyPresetConfig preset;
+                preset.id = id;
+                preset.label = skyLabelFromId(id);
+                preset.wall = out.wall;
+                preset.lighting = scene_lighting;
+                parseWall(wall_defaults, preset.wall);
+                parseLighting(child(wall_defaults, "lighting"), preset.lighting);
+                parseWall(&value, preset.wall);
+                parseLighting(child(&value, "lighting"), preset.lighting);
+                preset.id = strOr(child(&value, "id"), preset.id);
+                preset.label = strOr(child(&value, "label"), preset.label);
+                out.sky_presets.push_back(std::move(preset));
+            }
+        }
         parseWall(wall_defaults, out.wall);
         parseLighting(child(wall_defaults, "lighting"), out.lighting);
-        const JsonValue* selected_wall = catalogEntry(child(&walls_root, "skyPresets"), active_wall);
+        const JsonValue* selected_wall = catalogEntry(child(environment_root, "skyPresets"), active_wall);
         if (!selected_wall) {
-            selected_wall = catalogEntry(child(&walls_root, "walls"), active_wall);
+            selected_wall = catalogEntry(child(environment_root, "walls"), active_wall);
         }
         parseWall(selected_wall, out.wall);
         parseLighting(child(selected_wall, "lighting"), out.lighting);
+        for (std::size_t i = 0; i < out.sky_presets.size(); ++i) {
+            if (out.sky_presets[i].id == out.wall.id || out.sky_presets[i].id == active_wall) {
+                out.active_sky = static_cast<int>(i);
+                break;
+            }
+        }
     }
     if (const JsonValue* wall = child(selected, "wall")) {
         parseWall(wall, out.wall);
@@ -664,7 +1191,7 @@ AttendSceneConfig loadAttendSceneConfig(const std::string& project_root) {
     if (const JsonValue* background = child(selected, "background")) {
         out.clear_color = parseColor(child(background, "clearColor"), out.clear_color);
     }
-    parseUi(child(selected, "ui"), out.ui);
+    parseUi(child(selected, "ui"), project_root, out.ui);
     return out;
 }
 

@@ -14,9 +14,9 @@ This repository now uses a top-level [`tests`](/Users/vanta/Desktop/title_screen
 - **Bridge integration:** probe smoke tests on committed saves under `tests/test-data/saves/` (`BridgeProbeIntegrationTests`), write-back round-trip tests (`BridgeWriteBackIntegrationTests`) when `tests/test-data/pkhex_bridge/writeback_fixture.sav` or `PKHEX_WRITEBACK_FIXTURE_PATH` is provided, a schema-2 PC payload compatibility sweep over committed `tests/test-data/saves/` binaries (optional `PKHEX_WRITEBACK_COMPAT_FIXTURES` override), and held-item patch parity tests (`HeldItemTransferIntegrationTests`) using `tests/test-data/pkhex_bridge/item_transfer.sav`.
 - **Bridge e2e:** CLI smoke coverage for the built helper.
 - **Native backend:** SQLite-backed Resort storage, import, matching/merge, mirror sessions, export projection, managed returns, rollback, bridge import parsing, and backend seed/export tooling.
-- **Native core/config/assets:** app transition state, frame-request aggregation, config loading contracts, config-driven input routing, input router behavior, shared overlay canvas layout/hit testing, PokeSprite Pokemon/item/misc asset resolution, save-bridge failure message formatting (stdout JSON / stderr fallbacks), and save-library cache generation/hit/miss/staleness behavior.
+- **Native core/config/assets:** app transition state, frame-request aggregation, config loading contracts, config-driven input routing, input router behavior, shared overlay canvas layout/hit testing, PokeSprite Pokemon/item/misc asset resolution, Pokemon cry asset resolution, save-bridge failure message formatting (stdout JSON / stderr fallbacks), and save-library cache generation/hit/miss/staleness behavior.
 - **Native title:** main menu, Resort submenu, options, placeholder section controllers, Resort loading-transition state, headless boot smoke, and title-flow harness coverage for key navigation plus music/SFX event contracts.
-- **Native attend:** split Pokemon/environment-floor/sky attend config, species-name model resolution, initial auto-focus camera config, large-Pokemon face-view gate config, weighted mouse edge-look config, simple shadow config, pet eye-close delay/cooldown, eye-expression frame config, semantic animation slot config, pet-happy reaction combo config, shared overlay coverage, Pokemon GLB asset loading, skinning animation sampling, Violet eye-mask material coverage, and RAE Gen 7 material-policy coverage for render class, sampler wrap, eye sheets, and mesh draw metadata.
+- **Native attend:** split Pokemon/Alola-map/sky attend config, species-name model resolution, initial auto-focus camera config, large-Pokemon face-view gate config, weighted mouse edge-look config, simple shadow config, pet eye-close delay/cooldown, eye-expression frame config, semantic animation slot config, pet-happy reaction combo config, shared overlay coverage, Pokemon GLB asset loading, skinning animation sampling, Violet eye-mask material coverage, and RAE Gen 1-7/3DS material-policy coverage for render class, sampler wrap, eye sheets, and mesh draw metadata.
 - **Native transfer flow/ticket:** transfer selection mapping, pure transfer-flow controller behavior, transfer-ticket list controller behavior, and transfer-ticket Unicode rendering harness coverage.
 - **Native transfer system:** `game_transfer.json` parsing, info banner presentation, top-level transfer UI state, game box browser/dropdown/Box Space behavior, Pokemon action-menu behavior, multi-Pokemon move layout rules, focus-graph topology, and SDL harness coverage for keyboard/controller/pointer flows including Box Space, dropdown activation, speech-bubble visibility, Pokemon moves, multi-select moves, and held item move/swap/cancel behavior.
 
@@ -48,6 +48,7 @@ transfer_system_focus_graph_tests
 input_router_tests
 config_loader_tests
 pokesprite_assets_tests
+pokemon_cry_assets_tests
 save_bridge_client_tests
 save_library_cache_tests
 input_config_integration_tests

@@ -1,12 +1,12 @@
-# TEST ATTEND Gen 7 Animation And Expression Semantics
+# TEST ATTEND Gen 1-7 Animation And Expression Semantics
 
-This file is the working dictionary for 3DS/Gen 7 Pokemon Attend animation semantics.
+This file is the working dictionary for Gen 1-7 Pokemon Attend animation semantics from the 3DS/Alola-style model set.
 
-The source of truth at runtime is `config/gameplay/pokemon_attend/pokemon.json`. This document explains why those defaults exist and which combinations are useful for interaction features.
+The source of truth at runtime is `config/gameplay/pokemon_attend/providers/gen1_7.json`, specifically `defaults.interactionAdapter`. This document explains why those defaults exist and which combinations are useful for interaction features.
 
 ## Eye Frames
 
-RAE Gen 7 eye sheets use a shared 8-frame expression layout for eye-named materials.
+RAE Gen 1-7/3DS eye sheets use a shared 8-frame expression layout for eye-named materials.
 
 | Frame | Semantic | Use |
 |---:|---|---|
@@ -23,7 +23,7 @@ Separate iris/pupil meshes are composited through the eye-white mask in the atte
 
 ## Mouth Frames
 
-Some Gen 7 Pokemon, including Eevee-style models, use frame-sheet mouths rather than a separate mesh-mouth skeletal animation. These mouth sheets are driven separately from eye sheets so interactions can later mix body animations, eye expressions, and mouth expressions.
+Some Gen 1-7/3DS Pokemon, including Eevee-style models, use frame-sheet mouths rather than a separate mesh-mouth skeletal animation. These mouth sheets are driven separately from eye sheets so interactions can later mix body animations, eye expressions, and mouth expressions.
 
 | Frame | Semantic | Use |
 |---:|---|---|
@@ -38,7 +38,7 @@ Some Gen 7 Pokemon, including Eevee-style models, use frame-sheet mouths rather 
 
 ## Skeletal Slots
 
-These slots are observed from Gen 7/3DS Pokemon GLBs and should be treated as provider defaults, not hard game rules. Some Pokemon omit slots, and a few species swap meanings around locomotion/idle.
+These slots are observed from Gen 1-7/3DS Pokemon GLBs and should be treated as provider defaults, not hard game rules. Some Pokemon omit slots, and a few species swap meanings around locomotion/idle.
 
 | Slot | Semantic | Notes |
 |---|---|---|

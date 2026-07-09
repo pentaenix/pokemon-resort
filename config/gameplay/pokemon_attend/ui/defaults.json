@@ -1,0 +1,103 @@
+{
+  "_comment": "Shared Attend UI defaults. Organized by UI type so interaction/camera tuning stays separate.",
+  "ui": {
+    "pixelatedOverlay": true,
+    "rendering": {
+      "normalUi": "hd",
+      "debugUi": "hd"
+    },
+    "handCursor": {
+      "scale": 1.5,
+      "hotspotXRatio": 0.5,
+      "hotspotYRatio": 0.5,
+      "petAnimationSpeed": 1.5
+    },
+    "profilePlate": {
+      "enabled": true,
+      "width": 360,
+      "height": 166,
+      "marginX": 0,
+      "marginY": 5,
+      "paddingX": 16,
+      "paddingY": 10,
+      "cornerRadius": 8,
+      "outerStrokeWidth": 0,
+      "innerStrokeWidth": 0,
+      "showSprite": true,
+      "spriteSize": 16,
+      "spriteScale": 15,
+      "spriteGap": 10,
+      "spriteOffsetX": 0,
+      "spriteOffsetY": -6,
+      "nameTextOffsetX": 0,
+      "nameTextOffsetY": 0,
+      "detailTextOffsetX": 0,
+      "detailTextOffsetY": 0,
+      "nameFontSize": 40,
+      "detailFontSize": 36,
+      "nameRowHeight": 42,
+      "detailRowHeight": 42,
+      "nameRowWidth": 360,
+      "characteristicRowWidth": 255,
+      "natureRowWidth": 236,
+      "rowGap": 10,
+      "leftFadeWidth": 46,
+      "slideOutX": 72,
+      "characteristic": "Loves to eat",
+      "nature": "Hardy",
+      "font": "assets/fonts/power clear.ttf",
+      "outerBorder": "#FFFFFFF5",
+      "innerBorder": "#70BCEEEB",
+      "fillTop": "#53B7FFF0",
+      "fillBottom": "#1A66B3F0",
+      "divider": "#FFFFFF7A",
+      "nameText": "#FFFFFFFF",
+      "detailText": "#DBF5FFF5"
+    },
+    "actionButton": {
+      "enabled": true,
+      "icon": "assets/pokemon_attend/ui/actions.png",
+      "scale": 1,
+      "iconScale": 0.7,
+      "iconOffsetX": -0.09,
+      "iconOffsetY": 0.06,
+      "sideExtensionRatio": 0.28,
+      "outerBorder": "#FFFFFFFF",
+      "innerBorder": "#70BCEEFF",
+      "fillTop": "#A0DCFFFF",
+      "fillBottom": "#53B7FFFF"
+    },
+    "itemsButton": {
+      "enabled": true,
+      "icon": "assets/pokemon_attend/ui/items.png",
+      "scale": 1,
+      "iconScale": 0.7,
+      "iconOffsetX": 0.09,
+      "iconOffsetY": 0.025,
+      "sideExtensionRatio": 0.28,
+      "outerBorder": "#FFFFFFFF",
+      "innerBorder": "#70BCEEFF",
+      "fillTop": "#A0DCFFFF",
+      "fillBottom": "#53B7FFFF"
+    },
+    "returnButton": {
+      "enabled": true,
+      "icon": "assets/pokemon_attend/ui/return.png",
+      "scale": 1,
+      "iconScale": 0.5,
+      "iconOffsetX": -0.15,
+      "iconOffsetY": -0.05,
+      "sideExtensionRatio": 0.28,
+      "outerBorder": "#FFFFFFFF",
+      "innerBorder": "#70BCEEFF",
+      "fillTop": "#53B7FFFF",
+      "fillBottom": "#A0DCFFFF"
+    },
+    "cornerButtons": {
+      "hideAfterPetSeconds": 0.5,
+      "returnDelaySeconds": 1,
+      "slideInSeconds": 0.5,
+      "slideOutSeconds": 0.5
+    }
+  }
+}

@@ -195,6 +195,9 @@ void FollowerController::updateActiveStep(double dt) {
 
 bool FollowerController::updateReplayFollow(
     const characters::CharacterController::MovementSegment& player_segment) {
+    if (interaction_locked_) {
+        return false;
+    }
     if (!player_segment.active || player_step_trail_.size() < 3) {
         if (replay_follow_active_) {
             follower_pos_ = tileToWorldCenter(replay_to_tile_.x, replay_to_tile_.y);
@@ -631,10 +634,31 @@ void FollowerController::update(
         follower_animator_->setFacing(follower_facing_);
         follower_animator_->setPlaybackSpeedMultiplier(playback_speed);
         follower_animator_->setRunning(player_running_ && (follower_moving_ || !path_.empty()));
-        follower_animator_->setMoving(follower_moving_);
-        if (manual_debug_action_ == ManualDebugActionType::None) {
+        follower_animator_->setMoving(interaction_locked_ ? false : follower_moving_);
+        if (!interaction_locked_ && manual_debug_action_ == ManualDebugActionType::None) {
             follower_animator_->update(dt);
         }
+    }
+
+    if (interaction_locked_) {
+        path_.clear();
+        idle_actions_.clear();
+        idle_behavior_active_ = false;
+        returning_to_origin_ = false;
+        cancel_return_active_ = false;
+        sleep_action_active_ = false;
+        manual_debug_action_ = ManualDebugActionType::None;
+        render_offset_ = camera::Vec3{};
+        render_screen_offset_y_px_ = 0;
+        active_behavior_label_ = "none";
+        pending_landing_dust_spawn_.reset();
+        idle_seconds_ = 0.0;
+        if (follower_moving_) {
+            follower_moving_ = false;
+            replay_follow_active_ = false;
+            follower_pos_ = tileToWorldCenter(follower_tile_.x, follower_tile_.y);
+        }
+        return;
     }
 
     if (player_activity && idle_behavior_active_) {
@@ -791,6 +815,42 @@ std::vector<std::pair<int, int>> FollowerController::reservedTiles() const {
         tiles.push_back({step_dest_tile_.x, step_dest_tile_.y});
     }
     return tiles;
+}
+
+std::optional<std::string> FollowerController::interactionTargetIdAtTile(int tx, int ty) const {
+    if (state_ != State::Active || follower_moving_ || replay_follow_active_ || !resources_ready_) {
+        return std::nullopt;
+    }
+    if (follower_tile_.x == tx && follower_tile_.y == ty) {
+        return session_config_.pokemon_species.empty()
+            ? std::string{"follower_pokemon"}
+            : std::string{"follower_pokemon:" + session_config_.pokemon_species};
+    }
+    return std::nullopt;
+}
+
+bool FollowerController::setInteractionLocked(bool locked) {
+    if (locked && (state_ != State::Active || follower_moving_ || replay_follow_active_ || !resources_ready_)) {
+        interaction_locked_ = false;
+        return false;
+    }
+    interaction_locked_ = locked;
+    if (!interaction_locked_) {
+        return true;
+    }
+    path_.clear();
+    idle_actions_.clear();
+    idle_behavior_active_ = false;
+    returning_to_origin_ = false;
+    cancel_return_active_ = false;
+    sleep_action_active_ = false;
+    manual_debug_action_ = ManualDebugActionType::None;
+    render_offset_ = camera::Vec3{};
+    render_screen_offset_y_px_ = 0;
+    active_behavior_label_ = "none";
+    pending_landing_dust_spawn_.reset();
+    idle_seconds_ = 0.0;
+    return true;
 }
 
 void FollowerController::collectBillboardDraws(

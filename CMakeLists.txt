@@ -89,6 +89,17 @@ set(RESORT_STORAGE_SOURCES
 
 add_library(world3d_bgfx_renderer STATIC
     src/gameplay/attend/rendering/AttendBgfxRenderer.cpp
+    src/gameplay/attend/rendering/AttendBgfxRendererAnimation.cpp
+    src/gameplay/attend/rendering/AttendBgfxRendererCamera.cpp
+    src/gameplay/attend/rendering/AttendBgfxRendererCommon.cpp
+    src/gameplay/attend/rendering/AttendBgfxRendererCore.cpp
+    src/gameplay/attend/rendering/AttendBgfxRendererPokemonBuild.cpp
+    src/gameplay/attend/rendering/AttendBgfxRendererRender.cpp
+    src/gameplay/attend/rendering/AttendBgfxRendererScene.cpp
+    src/gameplay/attend/rendering/AttendBgfxRendererSubmit.cpp
+    src/gameplay/attend/rendering/AttendBgfxRendererCornerButton.cpp
+    src/gameplay/attend/rendering/AttendBgfxRendererProfilePlate.cpp
+    src/gameplay/attend/rendering/AttendBgfxRendererUi.cpp
     src/gameplay/attend/rendering/AttendPokemonModel.cpp
     src/gameplay/world3d/rendering/bgfx/BgfxBackend.cpp
     src/gameplay/world3d/rendering/bgfx/BillboardBgfxDrawer.cpp
@@ -111,6 +122,7 @@ add_executable(title_screen_demo
     src/main.cpp
     src/core/App.cpp
     src/core/app/audio/AppAudioDirector.cpp
+    src/core/app/audio/PokemonCryPlayer.cpp
     src/core/app/frame/AppFrameRequests.cpp
     src/core/app/loading/AppLoadingCoordinator.cpp
     src/core/app/AppPaths.cpp
@@ -129,6 +141,7 @@ add_executable(title_screen_demo
     src/core/config/Json.cpp
     src/core/domain/PokemonBall.cpp
     src/core/domain/PokemonOrigin.cpp
+    src/core/assets/PokemonCryAssets.cpp
     src/core/assets/PokeSpriteAssets.cpp
     src/core/config/ConfigLoader.cpp
     src/core/bridge/SaveBridgeClient.cpp
@@ -157,6 +170,9 @@ add_executable(title_screen_demo
     src/gameplay/world3d/followers/NatureIdleConfig.cpp
     src/gameplay/world3d/followers/NatureIdlePlanner.cpp
     src/gameplay/world3d/npc/NpcActorDriver.cpp
+    src/gameplay/world3d/dialogue/OverworldTextboxConfig.cpp
+    src/gameplay/world3d/dialogue/OverworldTextboxController.cpp
+    src/gameplay/world3d/dialogue/OverworldTextboxRenderer.cpp
     src/gameplay/world3d/rendering/BillboardSpriteRenderer.cpp
     src/gameplay/world3d/rendering/FallbackTerrainRenderer.cpp
     src/gameplay/world3d/rendering/OverworldMapRenderer.cpp
@@ -276,6 +292,15 @@ else()
 endif()
 
 if(APPLE)
+    find_path(VORBIS_INCLUDE_DIR vorbis/vorbisfile.h PATHS /opt/homebrew /usr/local PATH_SUFFIXES include)
+    find_library(VORBISFILE_LIBRARY vorbisfile PATHS /opt/homebrew /usr/local PATH_SUFFIXES lib)
+    find_library(VORBIS_LIBRARY vorbis PATHS /opt/homebrew /usr/local PATH_SUFFIXES lib)
+    find_library(OGG_LIBRARY ogg PATHS /opt/homebrew /usr/local PATH_SUFFIXES lib)
+    if(VORBIS_INCLUDE_DIR AND VORBISFILE_LIBRARY AND VORBIS_LIBRARY AND OGG_LIBRARY)
+        target_include_directories(title_screen_demo PRIVATE ${VORBIS_INCLUDE_DIR})
+        target_link_libraries(title_screen_demo PRIVATE ${VORBISFILE_LIBRARY} ${VORBIS_LIBRARY} ${OGG_LIBRARY})
+        target_compile_definitions(title_screen_demo PRIVATE PR_ENABLE_VORBIS_AUDIO=1)
+    endif()
     target_link_libraries(title_screen_demo PRIVATE "-framework AVFoundation" "-framework Foundation")
 endif()
 
@@ -560,6 +585,17 @@ target_include_directories(owmap_overworld_loader_tests PRIVATE include)
 target_link_libraries(owmap_overworld_loader_tests PRIVATE SDL2::SDL2)
 add_test(NAME owmap_overworld_loader_tests COMMAND owmap_overworld_loader_tests)
 
+add_executable(overworld_textbox_tests
+    tests/native/world3d/overworld_textbox_tests.cpp
+    src/core/config/Json.cpp
+    src/gameplay/world3d/dialogue/OverworldTextboxConfig.cpp
+    src/gameplay/world3d/dialogue/OverworldTextboxController.cpp
+    src/gameplay/world3d/dialogue/OverworldTextboxRenderer.cpp
+)
+target_include_directories(overworld_textbox_tests PRIVATE include)
+target_link_libraries(overworld_textbox_tests PRIVATE SDL2::SDL2 SDL2_image::SDL2_image)
+add_test(NAME overworld_textbox_tests COMMAND overworld_textbox_tests)
+
 add_executable(transfer_box_edits_store_tests
     tests/native/core/transfer_box_edits_store_tests.cpp
     src/core/save/TransferBoxEditsStore.cpp
@@ -600,6 +636,15 @@ add_executable(pokesprite_assets_tests
 target_include_directories(pokesprite_assets_tests PRIVATE include)
 target_link_libraries(pokesprite_assets_tests PRIVATE SDL2::SDL2 SDL2_image::SDL2_image SDL2_ttf::SDL2_ttf)
 add_test(NAME pokesprite_assets_tests COMMAND pokesprite_assets_tests)
+
+add_executable(pokemon_cry_assets_tests
+    tests/native/core/pokemon_cry_assets_tests.cpp
+    src/core/app/audio/PokemonCryPlayer.cpp
+    src/core/app/frame/AppFrameRequests.cpp
+    src/core/assets/PokemonCryAssets.cpp
+)
+target_include_directories(pokemon_cry_assets_tests PRIVATE include)
+add_test(NAME pokemon_cry_assets_tests COMMAND pokemon_cry_assets_tests)
 
 add_executable(save_library_cache_tests
     tests/native/core/save_library_cache_tests.cpp

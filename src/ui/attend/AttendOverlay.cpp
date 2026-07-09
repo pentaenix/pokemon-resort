@@ -134,6 +134,86 @@ OverlayButton AttendOverlay::formVariantButton(const std::string& form_variant_l
     return button;
 }
 
+OverlayButton AttendOverlay::skyButton(const std::string& sky_label) const {
+    const auto& style_config = config_.sky_button;
+    OverlayButton button;
+    button.id = "sky";
+    button.label = skyButtonLabel(sky_label);
+    button.anchor = parseAnchor(style_config.anchor);
+    button.style.fill = toUiColor(style_config.fill);
+    button.style.stroke = toUiColor(style_config.stroke);
+    button.style.text = toUiColor(style_config.text);
+    button.style.width = style_config.width;
+    button.style.height = style_config.height;
+    button.style.margin_x = style_config.margin_x;
+    button.style.margin_y = style_config.margin_y;
+    button.style.padding_x = style_config.padding_x;
+    button.style.corner_radius = style_config.corner_radius;
+    button.style.stroke_width = style_config.stroke_width;
+    button.style.font_size = style_config.font_size;
+    return button;
+}
+
+OverlayButton AttendOverlay::emoteButton() const {
+    const auto& style_config = config_.emote_button;
+    OverlayButton button;
+    button.id = "emote";
+    button.label = emoteButtonLabel();
+    button.anchor = parseAnchor(style_config.anchor);
+    button.style.fill = toUiColor(style_config.fill);
+    button.style.stroke = toUiColor(style_config.stroke);
+    button.style.text = toUiColor(style_config.text);
+    button.style.width = style_config.width;
+    button.style.height = style_config.height;
+    button.style.margin_x = style_config.margin_x;
+    button.style.margin_y = style_config.margin_y;
+    button.style.padding_x = style_config.padding_x;
+    button.style.corner_radius = style_config.corner_radius;
+    button.style.stroke_width = style_config.stroke_width;
+    button.style.font_size = style_config.font_size;
+    return button;
+}
+
+OverlayButton AttendOverlay::sleepButton() const {
+    const auto& style_config = config_.sleep_button;
+    OverlayButton button;
+    button.id = "sleep";
+    button.label = sleepButtonLabel();
+    button.anchor = parseAnchor(style_config.anchor);
+    button.style.fill = toUiColor(style_config.fill);
+    button.style.stroke = toUiColor(style_config.stroke);
+    button.style.text = toUiColor(style_config.text);
+    button.style.width = style_config.width;
+    button.style.height = style_config.height;
+    button.style.margin_x = style_config.margin_x;
+    button.style.margin_y = style_config.margin_y;
+    button.style.padding_x = style_config.padding_x;
+    button.style.corner_radius = style_config.corner_radius;
+    button.style.stroke_width = style_config.stroke_width;
+    button.style.font_size = style_config.font_size;
+    return button;
+}
+
+OverlayButton AttendOverlay::cryButton() const {
+    const auto& style_config = config_.cry_button;
+    OverlayButton button;
+    button.id = "cry";
+    button.label = cryButtonLabel();
+    button.anchor = parseAnchor(style_config.anchor);
+    button.style.fill = toUiColor(style_config.fill);
+    button.style.stroke = toUiColor(style_config.stroke);
+    button.style.text = toUiColor(style_config.text);
+    button.style.width = style_config.width;
+    button.style.height = style_config.height;
+    button.style.margin_x = style_config.margin_x;
+    button.style.margin_y = style_config.margin_y;
+    button.style.padding_x = style_config.padding_x;
+    button.style.corner_radius = style_config.corner_radius;
+    button.style.stroke_width = style_config.stroke_width;
+    button.style.font_size = style_config.font_size;
+    return button;
+}
+
 std::string AttendOverlay::weatherButtonLabel(const std::string& weather_label) const {
     return config_.weather_button.label_prefix + weather_label;
 }
@@ -154,6 +234,22 @@ std::string AttendOverlay::formVariantButtonLabel(const std::string& form_varian
     return config_.form_variant_button.label_prefix + form_variant_label;
 }
 
+std::string AttendOverlay::skyButtonLabel(const std::string& sky_label) const {
+    return config_.sky_button.label_prefix + sky_label;
+}
+
+std::string AttendOverlay::emoteButtonLabel() const {
+    return config_.emote_button.label_prefix;
+}
+
+std::string AttendOverlay::sleepButtonLabel() const {
+    return config_.sleep_button.label_prefix;
+}
+
+std::string AttendOverlay::cryButtonLabel() const {
+    return config_.cry_button.label_prefix;
+}
+
 void AttendOverlay::render(
     SDL_Renderer* renderer,
     const std::string& project_root,
@@ -161,7 +257,8 @@ void AttendOverlay::render(
     const std::string& view_label,
     const std::string& pokemon_label,
     const std::string& texture_variant_label,
-    const std::string& form_variant_label) {
+    const std::string& form_variant_label,
+    const std::string& sky_label) {
     if (config_.weather_button.enabled) {
         canvas_.renderButton(renderer, project_root, weatherButton(weather_label));
     }
@@ -176,6 +273,18 @@ void AttendOverlay::render(
     }
     if (config_.form_variant_button.enabled) {
         canvas_.renderButton(renderer, project_root, formVariantButton(form_variant_label));
+    }
+    if (config_.sky_button.enabled) {
+        canvas_.renderButton(renderer, project_root, skyButton(sky_label));
+    }
+    if (config_.emote_button.enabled) {
+        canvas_.renderButton(renderer, project_root, emoteButton());
+    }
+    if (config_.sleep_button.enabled) {
+        canvas_.renderButton(renderer, project_root, sleepButton());
+    }
+    if (config_.cry_button.enabled) {
+        canvas_.renderButton(renderer, project_root, cryButton());
     }
 }
 
@@ -197,6 +306,22 @@ SDL_Rect AttendOverlay::textureVariantButtonRect() const {
 
 SDL_Rect AttendOverlay::formVariantButtonRect() const {
     return canvas_.buttonRect(formVariantButton({}));
+}
+
+SDL_Rect AttendOverlay::skyButtonRect() const {
+    return canvas_.buttonRect(skyButton({}));
+}
+
+SDL_Rect AttendOverlay::emoteButtonRect() const {
+    return canvas_.buttonRect(emoteButton());
+}
+
+SDL_Rect AttendOverlay::sleepButtonRect() const {
+    return canvas_.buttonRect(sleepButton());
+}
+
+SDL_Rect AttendOverlay::cryButtonRect() const {
+    return canvas_.buttonRect(cryButton());
 }
 
 bool AttendOverlay::hitWeatherButton(int logical_x, int logical_y) const {
@@ -226,6 +351,30 @@ bool AttendOverlay::hitTextureVariantButton(int logical_x, int logical_y) const 
 bool AttendOverlay::hitFormVariantButton(int logical_x, int logical_y) const {
     if (!config_.form_variant_button.enabled) return false;
     const SDL_Rect r = formVariantButtonRect();
+    return logical_x >= r.x && logical_x < r.x + r.w && logical_y >= r.y && logical_y < r.y + r.h;
+}
+
+bool AttendOverlay::hitSkyButton(int logical_x, int logical_y) const {
+    if (!config_.sky_button.enabled) return false;
+    const SDL_Rect r = skyButtonRect();
+    return logical_x >= r.x && logical_x < r.x + r.w && logical_y >= r.y && logical_y < r.y + r.h;
+}
+
+bool AttendOverlay::hitEmoteButton(int logical_x, int logical_y) const {
+    if (!config_.emote_button.enabled) return false;
+    const SDL_Rect r = emoteButtonRect();
+    return logical_x >= r.x && logical_x < r.x + r.w && logical_y >= r.y && logical_y < r.y + r.h;
+}
+
+bool AttendOverlay::hitSleepButton(int logical_x, int logical_y) const {
+    if (!config_.sleep_button.enabled) return false;
+    const SDL_Rect r = sleepButtonRect();
+    return logical_x >= r.x && logical_x < r.x + r.w && logical_y >= r.y && logical_y < r.y + r.h;
+}
+
+bool AttendOverlay::hitCryButton(int logical_x, int logical_y) const {
+    if (!config_.cry_button.enabled) return false;
+    const SDL_Rect r = cryButtonRect();
     return logical_x >= r.x && logical_x < r.x + r.w && logical_y >= r.y && logical_y < r.y + r.h;
 }
 

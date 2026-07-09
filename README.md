@@ -77,6 +77,7 @@ Use this map before changing code:
 - **Save scanning and bridge summaries:** `src/core/save/SaveLibrary.cpp` owns save discovery, bridge probing, cache behavior, and parsed transfer models.
 - **PKHeX bridge boundary:** `src/core/bridge/SaveBridgeClient.cpp` launches the .NET helper in `tools/pkhex_bridge`; native C++ should not link `PKHeX.Core`.
 - **PokeSprite assets:** `src/core/assets/PokeSpriteAssets.cpp` owns Pokemon, item, and misc icon path resolution plus texture caching.
+- **Pokemon cry assets:** `src/core/assets/PokemonCryAssets.cpp` owns reusable Pokemon cry asset lookup by species id. `src/core/app/audio/PokemonCryPlayer.cpp` turns resolved cries into app one-shot SFX requests for Attend and future UI/gameplay callers.
 - **Resort backend:** `src/resort/` and `include/resort/` own canonical Pokemon storage, import/export services, repositories, and SQLite persistence.
 
 ## Config Sources Of Truth

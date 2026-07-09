@@ -68,6 +68,9 @@ public:
     void setPlayerReservedTile(int tx, int ty);
     void setReservedTiles(std::vector<std::pair<int, int>> tiles, std::size_t player_reserved_tile_count);
     bool canPlayerEnterTile(int from_tx, int from_ty, int to_tx, int to_ty);
+    std::optional<std::string> interactableActorIdAtTile(int tx, int ty) const;
+    bool setInteractionLockedActor(const std::string& actor_id);
+    void clearInteractionLockedActor();
     void collectBillboardDraws(
         const camera::Gen4FollowCamera& camera,
         int viewport_w,
@@ -143,6 +146,7 @@ private:
     std::vector<Actor> actors_;
     std::vector<std::pair<int, int>> reserved_tiles_;
     std::size_t player_reserved_tile_count_ = 1U;
+    std::optional<std::size_t> interaction_locked_actor_;
     std::mt19937 rng_{std::random_device{}()};
 };
 

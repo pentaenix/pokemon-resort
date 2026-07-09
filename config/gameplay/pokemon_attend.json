@@ -1,0 +1,13 @@
+{
+  "_comment": "TEST ATTEND manifest. Keep this file small: choose the active debug scene and point to the concern-specific config files below.",
+  "activeDebug": "alola_battle_map_debug",
+  "files": {
+    "_comment": "Paths are relative to pokemon-resort/config unless absolute.",
+    "debug": "gameplay/pokemon_attend/debug/alola_battle_map_debug.json",
+    "interaction": "gameplay/pokemon_attend/interaction/defaults.json",
+    "ui": "gameplay/pokemon_attend/ui/defaults.json",
+    "audio": "gameplay/pokemon_attend/audio/defaults.json",
+    "pokemonProvider": "gameplay/pokemon_attend/providers/gen1_7.json",
+    "environment": "gameplay/pokemon_attend/environments/alola_battle_maps.json"
+  }
+}

@@ -21,14 +21,13 @@ void expect(bool condition, const std::string& message) {
 fs::path repositoryRoot() {
     fs::path current = fs::current_path();
     while (!current.empty()) {
-        if (fs::exists(current / "config" / "gameplay" / "pokemon_attend" / "scene.json") &&
-            fs::exists(current / "config" / "gameplay" / "pokemon_attend" / "pokemon.json") &&
-            fs::exists(current / "config" / "gameplay" / "pokemon_attend" / "floors.json") &&
-            fs::exists(current / "config" / "gameplay" / "pokemon_attend" / "walls.json") &&
+        if (fs::exists(current / "config" / "gameplay" / "pokemon_attend.json") &&
             fs::is_directory(current / "assets" / "pokemon_attend" / "pokemon_models")) {
             return current;
         }
-        current = current.parent_path();
+        const fs::path parent = current.parent_path();
+        if (parent == current) break;
+        current = parent;
     }
     return {};
 }
@@ -45,14 +44,14 @@ int main() {
     const pr::gameplay::attend::AttendSceneConfig config =
         pr::gameplay::attend::loadAttendSceneConfig(root.string());
 
-    expect(config.id == "grass_field_environment",
-           "TEST ATTEND should resolve the single grass field environment scene");
-    expect(config.pokemon.id == "giratina", "active Pokemon should resolve directly from species name");
+    expect(config.id == "alola_battle_map_debug",
+           "TEST ATTEND should resolve the Alola battle map debug scene");
+    expect(config.pokemon.id == "dewgong", "active Pokemon should resolve directly from species name");
     expect(fs::exists(config.pokemon.model_path), "active Pokemon GLB path should resolve to an existing asset");
-    expect(config.pokemon.model_path.find("pm0487_00_Giratina.glb") != std::string::npos,
+    expect(config.pokemon.model_path.find("pm0087_00_Dewgong.glb") != std::string::npos,
            "active Pokemon should infer its RAE pm#### form GLB from assets by species name without a per-Pokemon config entry");
     expect(config.pokemon.animation_name.empty(),
-           "dex-less species should allow renderer animation fallback instead of requiring per-Pokemon animation config");
+           "profile-less Dewgong should allow renderer animation fallback instead of requiring per-Pokemon animation config");
     expect(config.pokemon.scale > 0.0f, "active Pokemon scale should be positive");
     expect(config.pokemon.z >= -2.0f && config.pokemon.z <= 2.0f,
            "active Pokemon start depth should stay in the authored attend setup range");
@@ -60,7 +59,7 @@ int main() {
     expect(!config.pokemon.idle_motion.enabled, "active Pokemon should not use placeholder transform animation");
     expect(config.pokemon.idle_motion.bob_amplitude == 0.0f, "active Pokemon idle should not bob vertically");
     expect(config.pokemon.idle_motion.rock_degrees == 0.0f, "active Pokemon idle should not rock without GLB animation");
-    expect(config.interaction_adapter.source == "gen7", "active Pokemon adapter source should be declared in config");
+    expect(config.interaction_adapter.source == "gen1_7", "active Pokemon adapter source should cover the Gen 1-7 model set");
     expect(!config.interaction_adapter.head_node_names.empty() &&
                config.interaction_adapter.head_node_names.front() == "head",
            "interaction adapter should define semantic head node candidates");
@@ -68,7 +67,7 @@ int main() {
                config.interaction_adapter.eyelid_node_substrings.front() == "eyelid",
            "interaction adapter should define semantic eyelid node matching");
     expect(config.interaction_adapter.eye_close_animation.empty(),
-           "dex-less species should allow renderer eye animation fallback instead of requiring per-Pokemon eye config");
+           "profile-less Dewgong should allow renderer eye animation fallback instead of requiring per-Pokemon eye config");
     expect(config.interaction_adapter.eye_expression_frames.at("normal_open") == 0,
            "eye expression frame dictionary should map frame 0 to normal open eyes");
     expect(config.interaction_adapter.eye_expression_frames.at("closed") == 4,
@@ -89,10 +88,10 @@ int main() {
                config.interaction_adapter.mouth_expression_frames.at("unused_5") == 5 &&
                config.interaction_adapter.mouth_expression_frames.at("closed_narrow") == 6 &&
                config.interaction_adapter.mouth_expression_frames.at("unused_7") == 7,
-           "mouth expression frame dictionary should preserve the known Gen 7 sheet frame order");
+           "mouth expression frame dictionary should preserve the known Gen 1-7/3DS sheet frame order");
     expect(!config.interaction_adapter.semantic_animation_slots.at("idle_default").empty() &&
                config.interaction_adapter.semantic_animation_slots.at("idle_default").front() == "slot4_00",
-           "Gen 7 semantic animation map should identify slot4_00 as default idle");
+           "profile-less Dewgong should use the provider default idle semantic");
     expect(config.interaction_adapter.semantic_animation_slots.at("emote_happy").front() == "slot5_21",
            "happy pet emote should prefer slot5_21 before older fallback emotes");
     expect(config.interaction_adapter.semantic_animation_slots.at("eat_start").front() == "slot5_22" &&
@@ -163,6 +162,10 @@ int main() {
     expect(config.camera.face_target_y_ratio >= 0.78f &&
                config.camera.face_target_y_ratio <= 0.88f,
            "face view should target the upper head instead of large Pokemon necks");
+    expect(config.camera.form_framing_adjustments.empty(),
+           "Dewgong should not inherit Giratina-only form framing overrides");
+    expect(config.pokemon.sprite_form_keys.empty(),
+           "Dewgong should not inherit Giratina-only PokeSprite form suffixes");
     expect(config.camera.face_height_offset <= 0.10f,
            "face view camera should use a low angle instead of looking down from above");
     expect(config.camera.face_view_min_model_height > 1.0f,
@@ -176,15 +179,21 @@ int main() {
     expect(config.camera.target_y_ratio >= 0.0f && config.camera.target_y_ratio <= 1.0f,
            "auto-focus camera should target a normalized height within the Pokemon bounds");
     expect(config.camera.distance > 0.0f, "manual camera fallback distance should remain data-driven and positive");
+    expect(config.camera.freecam_move_speed > 0.0f,
+           "attend camera should expose Q freecam movement speed");
+    expect(config.camera.freecam_mouse_sensitivity > 0.0f,
+           "attend camera should expose Q freecam mouse sensitivity");
+    expect(config.camera.freecam_pitch_min_degrees < config.camera.freecam_pitch_max_degrees,
+           "attend Q freecam should clamp pitch to a valid authored range");
     expect(config.camera.target_z == config.pokemon.z,
            "manual fallback camera should target the active Pokemon start depth");
 
-    expect(config.floor.enabled, "grass field environment floor should be enabled");
-    expect(config.floor.id == "grass_field", "TEST ATTEND should use the grass field environment floor");
+    expect(config.floor.enabled, "Alola battle map floor should be enabled");
+    expect(config.floor.id == "alola_grass_battle_map", "TEST ATTEND should use the Alola grass battle map");
     expect(config.floor.placement_anchor == "world",
            "environment attend floor should keep authored world placement");
     expect(!config.floor.model_path.empty(), "environment floor should resolve a model path");
-    expect(fs::exists(config.floor.model_path), "grass field environment GLB should exist");
+    expect(fs::exists(config.floor.model_path), "Alola battle map GLB should exist");
     expect(config.floor.model_scale < 0.02f,
            "environment floor should use a large-map scale instead of platform scale");
     expect(config.floor.model_y < 0.0f && config.floor.model_y > -0.1f,
@@ -192,13 +201,13 @@ int main() {
     expect(config.floor.model_yaw_degrees >= -360.0f && config.floor.model_yaw_degrees <= 360.0f,
            "environment floor should support authored yaw rotation for initial map setup");
     expect(config.floor.extensions.size() == 1,
-           "grass field environment should include its authored large-map extension");
+           "Alola battle map should include its authored large-map extension");
     if (!config.floor.extensions.empty()) {
         const auto& extension = config.floor.extensions.front();
-        expect(extension.id == "grass_extension",
-               "grass field extension should keep its data-driven id");
+        expect(extension.id == "alola_grass_battle_map_extension",
+               "Alola grass battle map extension should keep its data-driven id");
         expect(fs::exists(extension.model_path),
-               "grass field extension GLB should resolve to an existing asset");
+               "Alola grass battle map extension GLB should resolve to an existing asset");
         expect(extension.model_x == config.floor.model_x &&
                    extension.model_y == config.floor.model_y &&
                    extension.model_z == config.floor.model_z &&
@@ -248,6 +257,8 @@ int main() {
     expect(config.floor.weather_material_substrings.size() == 3,
            "environment floor should declare weather material filters");
     expect(config.ui.weather_button.enabled, "environment attend scene should show the weather overlay button");
+    expect(config.ui.pixelated_overlay,
+           "attend UI should composite into the pixel scene by default so it shares the DS-style definition");
     expect(config.ui.weather_button.anchor == "top_right",
            "weather overlay button should default to the top-right corner");
     expect(config.ui.weather_button.corner_radius > 0,
@@ -285,12 +296,109 @@ int main() {
            "hand cursor hotspot should be configurable and centered for the active point");
     expect(config.ui.hand_cursor_pet_animation_speed == 1.5f,
            "hand cursor pet animation speed should be configurable and faster than the charbin default");
+    expect(config.ui.action_button.enabled && config.ui.items_button.enabled && config.ui.return_button.enabled,
+           "attend action/items/return corner buttons should be enabled through shared interaction config");
+    expect(fs::exists(config.ui.action_button.icon_path) &&
+               fs::exists(config.ui.items_button.icon_path) &&
+               fs::exists(config.ui.return_button.icon_path),
+           "attend corner button icons should resolve to existing UI assets");
+    expect(config.ui.action_button.scale > 0.2f && config.ui.action_button.scale <= 1.5f &&
+               config.ui.items_button.scale > 0.2f && config.ui.items_button.scale <= 1.5f &&
+               config.ui.return_button.scale > 0.2f && config.ui.return_button.scale <= 1.5f,
+           "attend corner button visual scale should remain data-driven and within a sane authored range");
+    expect(config.ui.action_button.icon_scale > 0.2f && config.ui.action_button.icon_scale <= 0.8f &&
+               config.ui.items_button.icon_scale > 0.2f && config.ui.items_button.icon_scale <= 0.8f &&
+               config.ui.return_button.icon_scale > 0.2f && config.ui.return_button.icon_scale <= 0.6f,
+           "attend corner button icon scale should be data-driven separately from button scale");
+    expect(config.ui.action_button.icon_offset_x != 0.0f ||
+               config.ui.action_button.icon_offset_y != 0.0f ||
+               config.ui.items_button.icon_offset_x != 0.0f ||
+               config.ui.items_button.icon_offset_y != 0.0f ||
+               config.ui.return_button.icon_offset_x != 0.0f ||
+               config.ui.return_button.icon_offset_y != 0.0f,
+           "attend corner button icon offsets should be data-driven for per-icon centering");
+    expect(config.ui.normal_render_mode == "hd" && config.ui.debug_render_mode == "hd",
+           "attend UI screens should default to HD with screen-level sd/hd render mode switches");
+    expect(config.ui.corner_buttons.hide_after_pet_seconds == 0.5f,
+           "attend corner buttons should hide only after the configured sustained petting threshold");
+    expect(config.ui.corner_buttons.return_delay_seconds > 0.0f &&
+               config.ui.corner_buttons.slide_in_seconds > 0.0f &&
+               config.ui.corner_buttons.slide_out_seconds > 0.0f,
+           "attend corner button return and slide timing should be data-driven");
+    expect(config.ui.profile_plate.enabled &&
+               config.ui.profile_plate.width > 300 &&
+               config.ui.profile_plate.height > 140,
+           "attend profile plate should be enabled and sized from shared UI config");
+    expect(config.ui.profile_plate.characteristic == "Loves to eat" &&
+               config.ui.profile_plate.nature == "Hardy",
+           "attend profile plate trait rows should be data-driven until real Pokemon data is wired");
+    expect(config.ui.profile_plate.show_sprite,
+           "attend profile plate sprite should be enabled for the split overlay sprite preview");
+    expect(!config.ui.profile_plate.font_path.empty(),
+           "attend profile plate font should remain data-driven");
+    expect(config.ui.profile_plate.font_path.find("power clear.ttf") != std::string::npos,
+           "attend profile plate should use Power Clear for the current split text overlay pass");
+    expect(config.ui.profile_plate.sprite_size > 0 &&
+               config.ui.profile_plate.sprite_scale >= 1.0f,
+           "attend profile plate should expose a true sprite scale multiplier for final-overlay icons");
+    expect(config.ui.profile_plate.name_font_size > config.ui.profile_plate.detail_font_size,
+           "attend profile plate name text should remain larger than trait text");
+    expect(config.ui.profile_plate.name_row_height == config.ui.profile_plate.detail_row_height &&
+               config.ui.profile_plate.row_gap > 0,
+           "attend profile plate should keep consistent banner heights with separate three-row spacing controls");
+    expect(config.ui.profile_plate.name_row_width > config.ui.profile_plate.characteristic_row_width &&
+               config.ui.profile_plate.characteristic_row_width > config.ui.profile_plate.nature_row_width,
+           "attend profile plate rows should be independently sized from longest name row to shortest nature row");
+    expect(config.ui.profile_plate.left_fade_width > 0 &&
+               config.ui.profile_plate.slide_out_x > 0,
+           "attend profile plate fade and slide behavior should be configurable with the rest of the UI");
+    expect(config.ui.profile_plate.sprite_offset_y < 0 &&
+               config.ui.profile_plate.name_text_offset_y == 0 &&
+               config.ui.profile_plate.detail_text_offset_y == 0,
+           "attend profile plate icon and row text alignment should be data-driven fine-tuning");
+    expect(config.idle_behavior.enabled, "attend idle behavior should be data-driven and enabled for the debug scene");
+    expect(config.idle_behavior.emote_after_seconds == 30.0f,
+           "idle emotes should wait for at least 30 seconds without Pokemon interaction");
+    expect(config.idle_behavior.emote_interval_min_seconds == 0.0f &&
+               config.idle_behavior.emote_interval_max_seconds == 30.0f,
+           "idle emotes should use a random delay after the minimum inactivity threshold");
+    expect(config.idle_behavior.sleep_after_seconds == 180.0f,
+           "idle sleep should wait for three minutes without Pokemon interaction");
+    expect(config.idle_behavior.emote_animation_semantic == "emote_vocal" &&
+               config.idle_behavior.sleep_animation_semantic == "sleep_loop",
+           "idle behavior should request semantic animations so missing Pokemon slots no-op");
     expect(config.wall.enabled, "attend sky should be enabled");
     expect(config.wall.id == "clear", "TEST ATTEND should use the clear sky preset by default");
     expect(config.wall.shape == "dome", "attend sky should use the edge-proof dome shape");
     expect(config.wall.radius >= 50.0f, "attend sky dome should be large enough to cover wide and tall Pokemon framing");
     expect(config.wall.arc_degrees >= 360.0f, "attend sky dome should keep full horizontal coverage in config");
     expect(config.wall.gradient_colors.size() >= 2, "sky gradient should have multiple stops");
+    expect(config.sky_presets.size() == 4,
+           "attend sky config should expose clear/sunset/cloudy/night presets for the Time button");
+    if (config.sky_presets.size() >= 4) {
+        expect(config.sky_presets[0].id == "clear" &&
+                   config.sky_presets[1].id == "sunset" &&
+                   config.sky_presets[2].id == "cloudy" &&
+                   config.sky_presets[3].id == "night",
+               "attend sky presets should keep the authored Time button cycle order");
+        expect(config.sky_presets[1].lighting.tint.r > config.sky_presets[0].lighting.tint.r &&
+                   config.sky_presets[1].lighting.tint.b < config.sky_presets[0].lighting.tint.b,
+               "sunset sky preset should carry its own warmer lighting tint");
+    }
+    expect(config.active_sky == 0, "clear should be the active sky preset at startup");
+    expect(config.ui.sky_button.enabled && config.ui.sky_button.anchor == "top_left",
+           "Time sky button should be enabled on the opposite side of the debug menu");
+    expect(config.ui.emote_button.enabled && config.ui.emote_button.anchor == "top_left" &&
+               config.ui.emote_button.margin_y > config.ui.sky_button.margin_y,
+           "manual Emote button should sit under Time in the debug menu");
+    expect(config.ui.sleep_button.enabled && config.ui.sleep_button.anchor == "top_left" &&
+               config.ui.sleep_button.margin_y > config.ui.emote_button.margin_y,
+           "manual Sleep button should sit under Emote in the debug menu");
+    expect(config.ui.cry_button.enabled && config.ui.cry_button.anchor == "top_left" &&
+               config.ui.cry_button.margin_y > config.ui.sleep_button.margin_y,
+           "manual Cry button should sit under Sleep in the debug menu");
+    expect(config.audio.pet_happy_cry_delay_seconds == 0.2f,
+           "pet happy cry should use the data-driven post-petting audio delay");
 
     return failures == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }

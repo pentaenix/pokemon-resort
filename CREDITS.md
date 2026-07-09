@@ -33,6 +33,13 @@ This file tracks people whose work contributed to this project, including borrow
 - Contribution:
   Unofficial sprite assets merged for now, including custom mega forms and other additional Pokemon or form icons such as Mega Absol, Mega Garchomp Z, Mega Meowstic, Mega Lucario Z, Mega Zeraora, Mega Raichu X/Y, Rotom Stereo, Mega Golurk, and the Gen 10 concepts Pombon, Browt, and Gecqua.
 
+### PokeAPI
+
+- Status: `okay`
+- Source: [PokeAPI/cries `cries/pokemon/latest`](https://github.com/PokeAPI/cries/tree/main/cries/pokemon/latest)
+- Contribution:
+  Pokemon cry audio files copied from the upstream `cries/pokemon/latest` folder into `assets/pokemon/cries` as standalone `.ogg` assets, without upstream repository metadata.
+
 
 
 

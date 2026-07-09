@@ -5,7 +5,112 @@
 #import <AVFoundation/AVFoundation.h>
 #import <Foundation/Foundation.h>
 
+#include <algorithm>
+#include <cstdint>
+#include <cstdio>
+#include <string>
+#include <utility>
+#include <vector>
+
+#if defined(PR_ENABLE_VORBIS_AUDIO)
+#include <vorbis/vorbisfile.h>
+#endif
+
 namespace pr {
+
+namespace {
+
+std::string lowercaseExtension(const std::string& path) {
+    const std::size_t dot = path.find_last_of('.');
+    if (dot == std::string::npos) return {};
+    std::string ext = path.substr(dot);
+    std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) {
+        return static_cast<char>(std::tolower(c));
+    });
+    return ext;
+}
+
+void appendU16Le(std::vector<std::uint8_t>& out, std::uint16_t value) {
+    out.push_back(static_cast<std::uint8_t>(value & 0xffU));
+    out.push_back(static_cast<std::uint8_t>((value >> 8U) & 0xffU));
+}
+
+void appendU32Le(std::vector<std::uint8_t>& out, std::uint32_t value) {
+    out.push_back(static_cast<std::uint8_t>(value & 0xffU));
+    out.push_back(static_cast<std::uint8_t>((value >> 8U) & 0xffU));
+    out.push_back(static_cast<std::uint8_t>((value >> 16U) & 0xffU));
+    out.push_back(static_cast<std::uint8_t>((value >> 24U) & 0xffU));
+}
+
+void appendAscii(std::vector<std::uint8_t>& out, const char* text) {
+    while (*text) {
+        out.push_back(static_cast<std::uint8_t>(*text));
+        ++text;
+    }
+}
+
+std::vector<std::uint8_t> wavBytesFromPcm16(
+    const std::vector<std::uint8_t>& pcm,
+    int sample_rate,
+    int channels) {
+    if (pcm.empty() || sample_rate <= 0 || channels <= 0) return {};
+    const std::uint32_t data_size = static_cast<std::uint32_t>(pcm.size());
+    const std::uint16_t channel_count = static_cast<std::uint16_t>(channels);
+    const std::uint16_t bits_per_sample = 16;
+    const std::uint32_t byte_rate =
+        static_cast<std::uint32_t>(sample_rate) * channel_count * bits_per_sample / 8U;
+    const std::uint16_t block_align = channel_count * bits_per_sample / 8U;
+
+    std::vector<std::uint8_t> wav;
+    wav.reserve(44U + pcm.size());
+    appendAscii(wav, "RIFF");
+    appendU32Le(wav, 36U + data_size);
+    appendAscii(wav, "WAVE");
+    appendAscii(wav, "fmt ");
+    appendU32Le(wav, 16U);
+    appendU16Le(wav, 1U);
+    appendU16Le(wav, channel_count);
+    appendU32Le(wav, static_cast<std::uint32_t>(sample_rate));
+    appendU32Le(wav, byte_rate);
+    appendU16Le(wav, block_align);
+    appendU16Le(wav, bits_per_sample);
+    appendAscii(wav, "data");
+    appendU32Le(wav, data_size);
+    wav.insert(wav.end(), pcm.begin(), pcm.end());
+    return wav;
+}
+
+#if defined(PR_ENABLE_VORBIS_AUDIO)
+std::vector<std::uint8_t> decodeOggVorbisToWav(const std::string& path) {
+    OggVorbis_File vf{};
+    if (ov_fopen(path.c_str(), &vf) != 0) return {};
+    vorbis_info* info = ov_info(&vf, -1);
+    if (!info || info->rate <= 0 || info->channels <= 0) {
+        ov_clear(&vf);
+        return {};
+    }
+
+    std::vector<std::uint8_t> pcm;
+    char buffer[4096];
+    int bitstream = 0;
+    while (true) {
+        const long read = ov_read(&vf, buffer, sizeof(buffer), 0, 2, 1, &bitstream);
+        if (read == 0) break;
+        if (read < 0) {
+            ov_clear(&vf);
+            return {};
+        }
+        const auto begin = reinterpret_cast<const std::uint8_t*>(buffer);
+        pcm.insert(pcm.end(), begin, begin + read);
+    }
+    const int rate = static_cast<int>(info->rate);
+    const int channels = info->channels;
+    ov_clear(&vf);
+    return wavBytesFromPcm16(pcm, rate, channels);
+}
+#endif
+
+} // namespace
 
 class AudioController::Impl {
 public:
@@ -55,6 +160,13 @@ public:
             [overworld_blocked_player_ release];
             overworld_blocked_player_ = nil;
         }
+        for (AVAudioPlayer* player : one_shot_players_) {
+            if (player != nil) {
+                [player stop];
+                [player release];
+            }
+        }
+        one_shot_players_.clear();
     }
 
     bool loadMusic(const std::string& path) {
@@ -79,75 +191,15 @@ public:
     }
 
     bool loadButtonSfx(const std::string& path) {
-        if (button_player_ != nil) {
-            [button_player_ stop];
-            [button_player_ release];
-            button_player_ = nil;
-        }
-
-        NSString* ns_path = [NSString stringWithUTF8String:path.c_str()];
-        if (ns_path == nil) {
-            return false;
-        }
-
-        NSURL* url = [NSURL fileURLWithPath:ns_path];
-        NSError* error = nil;
-        AVAudioPlayer* player = [[AVAudioPlayer alloc] initWithContentsOfURL:url error:&error];
-        if (player == nil) {
-            return false;
-        }
-
-        [player prepareToPlay];
-        button_player_ = player;
-        return true;
+        return loadSfx(path, button_player_);
     }
 
     bool loadRipSfx(const std::string& path) {
-        if (rip_player_ != nil) {
-            [rip_player_ stop];
-            [rip_player_ release];
-            rip_player_ = nil;
-        }
-
-        NSString* ns_path = [NSString stringWithUTF8String:path.c_str()];
-        if (ns_path == nil) {
-            return false;
-        }
-
-        NSURL* url = [NSURL fileURLWithPath:ns_path];
-        NSError* error = nil;
-        AVAudioPlayer* player = [[AVAudioPlayer alloc] initWithContentsOfURL:url error:&error];
-        if (player == nil) {
-            return false;
-        }
-
-        [player prepareToPlay];
-        rip_player_ = player;
-        return true;
+        return loadSfx(path, rip_player_);
     }
 
     bool loadUiMoveSfx(const std::string& path) {
-        if (ui_move_player_ != nil) {
-            [ui_move_player_ stop];
-            [ui_move_player_ release];
-            ui_move_player_ = nil;
-        }
-
-        NSString* ns_path = [NSString stringWithUTF8String:path.c_str()];
-        if (ns_path == nil) {
-            return false;
-        }
-
-        NSURL* url = [NSURL fileURLWithPath:ns_path];
-        NSError* error = nil;
-        AVAudioPlayer* player = [[AVAudioPlayer alloc] initWithContentsOfURL:url error:&error];
-        if (player == nil) {
-            return false;
-        }
-
-        [player prepareToPlay];
-        ui_move_player_ = player;
-        return true;
+        return loadSfx(path, ui_move_player_);
     }
 
     bool loadPickupSfx(const std::string& path) {
@@ -217,6 +269,32 @@ public:
         playSfx(overworld_blocked_player_);
     }
 
+    void playOneShotSfx(const std::string& path) {
+        pruneOneShotPlayers();
+        NSError* error = nil;
+        AVAudioPlayer* player = nil;
+#if defined(PR_ENABLE_VORBIS_AUDIO)
+        if (lowercaseExtension(path) == ".ogg") {
+            const std::vector<std::uint8_t> wav = decodeOggVorbisToWav(path);
+            if (!wav.empty()) {
+                NSData* data = [NSData dataWithBytes:wav.data() length:wav.size()];
+                player = [[AVAudioPlayer alloc] initWithData:data error:&error];
+            }
+        }
+#endif
+        if (player == nil) {
+            NSString* ns_path = [NSString stringWithUTF8String:path.c_str()];
+            if (ns_path == nil) return;
+            NSURL* url = [NSURL fileURLWithPath:ns_path];
+            player = [[AVAudioPlayer alloc] initWithContentsOfURL:url error:&error];
+        }
+        if (player == nil) return;
+        player.volume = sfx_volume_;
+        [player prepareToPlay];
+        [player play];
+        one_shot_players_.push_back(player);
+    }
+
     void stopMusic() {
         if (player_ != nil) {
             [player_ stop];
@@ -232,37 +310,35 @@ public:
     }
 
     void setSfxVolume(float volume_01) {
+        sfx_volume_ = volume_01 < 0.0f ? 0.0f : (volume_01 > 1.0f ? 1.0f : volume_01);
         if (button_player_ != nil) {
-            const float clamped = volume_01 < 0.0f ? 0.0f : (volume_01 > 1.0f ? 1.0f : volume_01);
-            button_player_.volume = clamped;
+            button_player_.volume = sfx_volume_;
         }
         if (rip_player_ != nil) {
-            const float clamped = volume_01 < 0.0f ? 0.0f : (volume_01 > 1.0f ? 1.0f : volume_01);
-            rip_player_.volume = clamped;
+            rip_player_.volume = sfx_volume_;
         }
         if (ui_move_player_ != nil) {
-            const float clamped = volume_01 < 0.0f ? 0.0f : (volume_01 > 1.0f ? 1.0f : volume_01);
-            ui_move_player_.volume = clamped;
+            ui_move_player_.volume = sfx_volume_;
         }
         if (pickup_player_ != nil) {
-            const float clamped = volume_01 < 0.0f ? 0.0f : (volume_01 > 1.0f ? 1.0f : volume_01);
-            pickup_player_.volume = clamped;
+            pickup_player_.volume = sfx_volume_;
         }
         if (putdown_player_ != nil) {
-            const float clamped = volume_01 < 0.0f ? 0.0f : (volume_01 > 1.0f ? 1.0f : volume_01);
-            putdown_player_.volume = clamped;
+            putdown_player_.volume = sfx_volume_;
         }
         if (error_player_ != nil) {
-            const float clamped = volume_01 < 0.0f ? 0.0f : (volume_01 > 1.0f ? 1.0f : volume_01);
-            error_player_.volume = clamped;
+            error_player_.volume = sfx_volume_;
         }
         if (save_player_ != nil) {
-            const float clamped = volume_01 < 0.0f ? 0.0f : (volume_01 > 1.0f ? 1.0f : volume_01);
-            save_player_.volume = clamped;
+            save_player_.volume = sfx_volume_;
         }
         if (overworld_blocked_player_ != nil) {
-            const float clamped = volume_01 < 0.0f ? 0.0f : (volume_01 > 1.0f ? 1.0f : volume_01);
-            overworld_blocked_player_.volume = clamped;
+            overworld_blocked_player_.volume = sfx_volume_;
+        }
+        for (AVAudioPlayer* player : one_shot_players_) {
+            if (player != nil) {
+                player.volume = sfx_volume_;
+            }
         }
     }
 
@@ -306,6 +382,19 @@ private:
         }
     }
 
+    void pruneOneShotPlayers() {
+        std::vector<AVAudioPlayer*> active;
+        active.reserve(one_shot_players_.size());
+        for (AVAudioPlayer* player : one_shot_players_) {
+            if (player != nil && player.playing) {
+                active.push_back(player);
+            } else if (player != nil) {
+                [player release];
+            }
+        }
+        one_shot_players_ = std::move(active);
+    }
+
     AVAudioPlayer* player_ = nil;
     AVAudioPlayer* button_player_ = nil;
     AVAudioPlayer* rip_player_ = nil;
@@ -315,6 +404,8 @@ private:
     AVAudioPlayer* error_player_ = nil;
     AVAudioPlayer* save_player_ = nil;
     AVAudioPlayer* overworld_blocked_player_ = nil;
+    std::vector<AVAudioPlayer*> one_shot_players_;
+    float sfx_volume_ = 1.0f;
 };
 
 AudioController::AudioController()
@@ -430,6 +521,12 @@ void AudioController::playOverworldBlockedSfx() {
     }
 }
 
+void AudioController::playOneShotSfx(const std::string& path) {
+    if (impl_ != nullptr) {
+        impl_->playOneShotSfx(path);
+    }
+}
+
 void AudioController::stopMusic() {
     if (impl_ != nullptr) {
         impl_->stopMusic();
@@ -504,6 +601,7 @@ void AudioController::playPutdownSfx() {}
 void AudioController::playErrorSfx() {}
 void AudioController::playSaveSfx() {}
 void AudioController::playOverworldBlockedSfx() {}
+void AudioController::playOneShotSfx(const std::string&) {}
 void AudioController::stopMusic() {}
 void AudioController::setMusicVolume(float) {}
 void AudioController::setSfxVolume(float) {}

@@ -118,6 +118,10 @@ void AppAudioDirector::playSfx(const AppSfxRequests& requests, float sfx_volume)
     if (requests.overworld_blocked) {
         audio_.playOverworldBlockedSfx();
     }
+    for (const std::string& relative_path : requests.one_shot_sfx_paths) {
+        if (relative_path.empty()) continue;
+        audio_.playOneShotSfx((project_root_ / relative_path).string());
+    }
 }
 
 bool AppAudioDirector::loadMenuMusic() {

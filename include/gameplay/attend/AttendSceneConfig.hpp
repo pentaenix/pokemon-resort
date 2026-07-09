@@ -42,6 +42,7 @@ struct PokemonAttendModelConfig {
     std::string id = "psyduck";
     std::string model_path;
     std::string animation_name;
+    std::unordered_map<std::string, std::string> sprite_form_keys{};
     float yaw_degrees = 180.0f;
     float pitch_degrees = 0.0f;
     float scale = 0.018f;
@@ -117,6 +118,11 @@ struct AttendInteractionAdapterConfig {
 };
 
 struct AttendCameraConfig {
+    struct FormFramingAdjustment {
+        float target_y_ratio_offset = 0.0f;
+        float height_offset = 0.0f;
+    };
+
     bool auto_focus = true;
     float screen_height_ratio = 0.58f;
     float distance_scale = 1.0f;
@@ -139,6 +145,16 @@ struct AttendCameraConfig {
     float fov_y_degrees = 38.0f;
     float near_clip = 0.05f;
     float far_clip = 80.0f;
+    float freecam_move_speed = 4.0f;
+    float freecam_mouse_sensitivity = 0.12f;
+    float freecam_initial_offset_x = 0.0f;
+    float freecam_initial_offset_y = 0.0f;
+    float freecam_initial_offset_z = 0.0f;
+    float freecam_initial_yaw_degrees = 180.0f;
+    float freecam_initial_pitch_degrees = -12.0f;
+    float freecam_pitch_min_degrees = -75.0f;
+    float freecam_pitch_max_degrees = 75.0f;
+    std::unordered_map<std::string, FormFramingAdjustment> form_framing_adjustments{};
 };
 
 struct AttendViewportLookConfig {
@@ -227,14 +243,21 @@ struct AttendWallConfig {
     std::vector<GradientStop> gradient_colors;
 };
 
+struct AttendSkyPresetConfig {
+    std::string id;
+    std::string label;
+    AttendWallConfig wall{};
+    AttendLightingConfig lighting{};
+};
+
 struct AttendOverlayButtonConfig {
     bool enabled = true;
     std::string anchor = "top_right";
     std::string label_prefix = "WEATHER: ";
     int width = 190;
     int height = 40;
-    int margin_x = 24;
-    int margin_y = 22;
+    int margin_x = 0;
+    int margin_y = 10;
     int padding_x = 14;
     int corner_radius = 10;
     int stroke_width = 2;
@@ -244,22 +267,151 @@ struct AttendOverlayButtonConfig {
     Color4 text{1.0f, 1.0f, 1.0f, 1.0f};
 };
 
+struct AttendCornerButtonConfig {
+    bool enabled = true;
+    std::string icon_path;
+    float scale = 1.0f;
+    float icon_scale = 0.62f;
+    float icon_offset_x = 0.0f;
+    float icon_offset_y = 0.0f;
+    float side_extension_ratio = 0.38f;
+    Color4 outer_border{1.0f, 1.0f, 1.0f, 1.0f};
+    Color4 inner_border{0.44f, 0.74f, 0.93f, 1.0f};
+    Color4 fill_top{0.63f, 0.86f, 1.0f, 1.0f};
+    Color4 fill_bottom{0.33f, 0.72f, 1.0f, 1.0f};
+};
+
+struct AttendCornerButtonBehaviorConfig {
+    float hide_after_pet_seconds = 0.5f;
+    float return_delay_seconds = 0.35f;
+    float slide_in_seconds = 0.16f;
+    float slide_out_seconds = 0.18f;
+};
+
+struct AttendProfilePlateConfig {
+    bool enabled = true;
+    int width = 286;
+    int height = 92;
+    int margin_x = 24;
+    int margin_y = 22;
+    int padding_x = 16;
+    int padding_y = 10;
+    int corner_radius = 8;
+    int outer_stroke_width = 0;
+    int inner_stroke_width = 0;
+    bool show_sprite = true;
+    int sprite_size = 68;
+    float sprite_scale = 1.0f;
+    int sprite_gap = 10;
+    int sprite_offset_x = 0;
+    int sprite_offset_y = -6;
+    int name_text_offset_x = 0;
+    int name_text_offset_y = 0;
+    int detail_text_offset_x = 0;
+    int detail_text_offset_y = 0;
+    int name_font_size = 47;
+    int detail_font_size = 35;
+    int name_row_height = 42;
+    int detail_row_height = 42;
+    int name_row_width = 360;
+    int characteristic_row_width = 255;
+    int nature_row_width = 236;
+    int row_gap = 10;
+    int left_fade_width = 46;
+    int slide_out_x = 72;
+    std::string characteristic = "Loves to eat";
+    std::string nature = "Hardy";
+    std::string font_path = "assets/fonts/power clear.ttf";
+    Color4 outer_border{1.0f, 1.0f, 1.0f, 0.96f};
+    Color4 inner_border{0.44f, 0.74f, 0.93f, 0.92f};
+    Color4 fill_top{0.33f, 0.72f, 1.0f, 0.94f};
+    Color4 fill_bottom{0.10f, 0.40f, 0.70f, 0.94f};
+    Color4 divider{1.0f, 1.0f, 1.0f, 0.48f};
+    Color4 name_text{1.0f, 1.0f, 1.0f, 1.0f};
+    Color4 detail_text{0.86f, 0.96f, 1.0f, 0.96f};
+};
+
 struct AttendUiConfig {
+    bool pixelated_overlay = true;
+    std::string normal_render_mode = "hd";
+    std::string debug_render_mode = "hd";
     AttendOverlayButtonConfig weather_button{};
     AttendOverlayButtonConfig view_button{};
     AttendOverlayButtonConfig pokemon_button{};
     AttendOverlayButtonConfig texture_variant_button{};
     AttendOverlayButtonConfig form_variant_button{};
+    AttendOverlayButtonConfig sky_button{};
+    AttendOverlayButtonConfig emote_button = [] {
+        AttendOverlayButtonConfig button;
+        button.enabled = false;
+        button.anchor = "top_left";
+        button.label_prefix = "EMOTE";
+        return button;
+    }();
+    AttendOverlayButtonConfig sleep_button = [] {
+        AttendOverlayButtonConfig button;
+        button.enabled = false;
+        button.anchor = "top_left";
+        button.label_prefix = "SLEEP";
+        return button;
+    }();
+    AttendOverlayButtonConfig cry_button = [] {
+        AttendOverlayButtonConfig button;
+        button.enabled = false;
+        button.anchor = "top_left";
+        button.label_prefix = "CRY";
+        return button;
+    }();
+    AttendCornerButtonConfig action_button = [] {
+        AttendCornerButtonConfig button;
+        button.icon_path = "assets/pokemon_attend/ui/actions.png";
+        return button;
+    }();
+    AttendCornerButtonConfig items_button = [] {
+        AttendCornerButtonConfig button;
+        button.icon_path = "assets/pokemon_attend/ui/items.png";
+        return button;
+    }();
+    AttendCornerButtonConfig return_button = [] {
+        AttendCornerButtonConfig button;
+        button.icon_path = "assets/pokemon_attend/ui/return.png";
+        return button;
+    }();
+    AttendCornerButtonBehaviorConfig corner_buttons{};
+    AttendProfilePlateConfig profile_plate{};
     float hand_cursor_scale = 1.0f;
     float hand_cursor_hotspot_x_ratio = 0.5f;
     float hand_cursor_hotspot_y_ratio = 0.5f;
     float hand_cursor_pet_animation_speed = 1.0f;
 };
 
+struct AttendIdleBehaviorConfig {
+    bool enabled = true;
+    float emote_after_seconds = 30.0f;
+    float emote_interval_min_seconds = 30.0f;
+    float emote_interval_max_seconds = 75.0f;
+    float sleep_after_seconds = 180.0f;
+    std::string emote_animation_semantic = "emote_vocal";
+    std::string sleep_animation_semantic = "sleep_loop";
+    std::string emote_eye_expression = "normal_open";
+    std::string emote_mouth_expression = "closed_normal";
+    std::string sleep_eye_expression = "closed";
+    std::string sleep_mouth_expression = "closed_narrow";
+    float emote_duration_seconds = 0.0f;
+    float sleep_duration_seconds = 3600.0f;
+    float fade_in_seconds = 0.35f;
+    float fade_out_seconds = 0.55f;
+};
+
+struct AttendAudioConfig {
+    float pet_happy_cry_delay_seconds = 0.1f;
+};
+
 struct AttendSceneConfig {
     std::string id = "psyduck_default";
     PokemonAttendModelConfig pokemon{};
     AttendInteractionAdapterConfig interaction_adapter{};
+    AttendIdleBehaviorConfig idle_behavior{};
     AttendCameraConfig camera{};
     AttendViewportLookConfig viewport_look{};
     AttendLightingConfig lighting{};
@@ -267,7 +419,10 @@ struct AttendSceneConfig {
     AttendShadowConfig shadow{};
     AttendFloorConfig floor{};
     AttendWallConfig wall{};
+    std::vector<AttendSkyPresetConfig> sky_presets;
+    int active_sky = 0;
     AttendUiConfig ui{};
+    AttendAudioConfig audio{};
     Color3 clear_color{0.08f, 0.12f, 0.18f};
 };
 

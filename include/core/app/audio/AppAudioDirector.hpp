@@ -5,6 +5,7 @@
 
 #include <filesystem>
 #include <string>
+#include <vector>
 
 namespace pr {
 
@@ -26,6 +27,7 @@ struct AppSfxRequests {
     bool error = false;
     bool save = false;
     bool overworld_blocked = false;
+    std::vector<std::string> one_shot_sfx_paths;
 };
 
 class AppAudioDirector {

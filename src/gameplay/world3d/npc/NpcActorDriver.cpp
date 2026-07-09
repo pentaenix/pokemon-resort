@@ -244,17 +244,31 @@ void NpcActorDriver::setTerrainQuery(std::shared_ptr<characters::CharacterTerrai
 }
 
 void NpcActorDriver::update(double dt) {
-    for (Actor& actor : actors_) {
+    for (std::size_t i = 0; i < actors_.size(); ++i) {
+        Actor& actor = actors_[i];
+        const bool interaction_locked = interaction_locked_actor_ && *interaction_locked_actor_ == i;
         if (actor.animator) {
-            actor.animator->setMoving(actor.moving);
+            actor.animator->setMoving(interaction_locked ? false : actor.moving);
             actor.animator->setRunning(actor.running);
             actor.animator->setPlaybackSpeedMultiplier(
-                actor.moving
+                actor.moving && !interaction_locked
                     ? static_cast<double>(actor.move_speed_units_per_second / std::max(1.0f, movement_config_.walkSpeed()))
                     : 1.0);
             actor.animator->setFacing(actor.facing);
-            actor.animator->update(dt);
+            if (!interaction_locked) {
+                actor.animator->update(dt);
+            }
             actor.source_rect = actor.animator->sourceRect();
+        }
+
+        if (interaction_locked) {
+            actor.moving = false;
+            actor.path.clear();
+            actor.motor.stop();
+            actor.target_tile_x = actor.tile_x;
+            actor.target_tile_y = actor.tile_y;
+            actor.wait_seconds = 0.25;
+            continue;
         }
 
         if (actor.moving) {
@@ -270,6 +284,9 @@ void NpcActorDriver::update(double dt) {
 
     for (std::size_t i = 0; i < actors_.size(); ++i) {
         Actor& actor = actors_[i];
+        if (interaction_locked_actor_ && *interaction_locked_actor_ == i) {
+            continue;
+        }
         if (actor.moving) {
             continue;
         }
@@ -327,6 +344,41 @@ bool NpcActorDriver::canPlayerEnterTile(int from_tx, int from_ty, int to_tx, int
         }
     }
     return true;
+}
+
+std::optional<std::string> NpcActorDriver::interactableActorIdAtTile(int tx, int ty) const {
+    for (const Actor& actor : actors_) {
+        if (actor.moving) {
+            continue;
+        }
+        if (actor.tile_x == tx && actor.tile_y == ty) {
+            return actor.definition.id;
+        }
+    }
+    return std::nullopt;
+}
+
+bool NpcActorDriver::setInteractionLockedActor(const std::string& actor_id) {
+    const std::optional<std::size_t> index = findActor(actor_id);
+    if (!index || *index >= actors_.size()) {
+        interaction_locked_actor_.reset();
+        return false;
+    }
+    Actor& actor = actors_[*index];
+    if (actor.moving) {
+        interaction_locked_actor_.reset();
+        return false;
+    }
+    actor.path.clear();
+    actor.wait_seconds = 0.25;
+    actor.target_tile_x = actor.tile_x;
+    actor.target_tile_y = actor.tile_y;
+    interaction_locked_actor_ = *index;
+    return true;
+}
+
+void NpcActorDriver::clearInteractionLockedActor() {
+    interaction_locked_actor_.reset();
 }
 
 void NpcActorDriver::collectBillboardDraws(
