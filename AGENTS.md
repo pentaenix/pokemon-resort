@@ -49,6 +49,7 @@ Then follow the task-specific path:
 - Treat persisted save/profile data as source of truth only for player/profile state that must survive app restarts.
 - Keep `App.cpp` as the composition/main-loop layer. Put app-level routing changes in `src/core/app/screen`, loading-screen selection in `src/core/app/loading`, app transition timing in `src/core/app/transition`, audio policy in `src/core/app/audio`, and one-frame app requests in `src/core/app/frame`.
 - Keep `TitleScreen.cpp` and `TransferSystemScreen.cpp` from growing new long-lived state bags when a smaller controller, presenter, renderer, or config parser can own the rule.
+- Build new behavior as small reusable modules instead of baking it into a larger screen or renderer script. Put generic layout, scaling, slicing, texture-building, hit-testing, and render-submission primitives in shared helpers; keep scene-specific meaning in thin adapters. If a second screen needs the same UI/rendering behavior, extract the shared piece first so agents do not fix the same bug twice.
 - Preserve compatibility with existing save files unless a migration is intentionally introduced.
 - Keep `PKHeX.Core` behind the external bridge in [`tools/pkhex_bridge`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/tools/pkhex_bridge) instead of linking it into the native target.
 - For shipping work, prefer the published self-contained bridge executable over `dotnet run` or raw DLL execution.

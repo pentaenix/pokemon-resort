@@ -33,6 +33,7 @@ struct CharacterBillboardDraw {
     float tint_g = 1.0f;
     float tint_b = 1.0f;
     float depth_priority_bias = 0.0f;
+    std::string activity_id;
     bool draw_shadow = true;
     bool use_run_texture = false;
 };

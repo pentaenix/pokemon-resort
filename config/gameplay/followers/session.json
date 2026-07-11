@@ -6,6 +6,7 @@
     "_movementModeComment": "trail = classic lag/catch-up follower personality; replay = smoother step-phase replay, but feels more glued to the player.",
     "movementMode": "trail",
     "nature": "Jolly",
+    "idleScriptId": "idle_follower_default",
     "forcedBehavior": "circle_player"
   }
 }

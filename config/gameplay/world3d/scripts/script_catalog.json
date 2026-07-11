@@ -1,0 +1,11 @@
+{
+  "scripts": [
+    { "path": "interactions/pokemon_default.json" },
+    { "path": "interactions/character_default.json" },
+    { "path": "idle/follower_default.json" },
+    { "path": "npc/wander.json" },
+    { "path": "npc/patrol.json" },
+    { "path": "npc/follow.json" },
+    { "path": "npc/idle_rotate.json" }
+  ]
+}

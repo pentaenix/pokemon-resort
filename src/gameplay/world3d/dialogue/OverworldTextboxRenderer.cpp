@@ -3,7 +3,6 @@
 #include <SDL_image.h>
 
 #include <algorithm>
-#include <cmath>
 #include <filesystem>
 #include <iostream>
 #include <utility>
@@ -68,58 +67,32 @@ SDL_Rect OverworldTextboxRenderer::sourceRectForSkin(
     const OverworldTextboxConfig& config,
     int sheet_w,
     int sheet_h) {
-    const int cell_w = std::max(1, config.source_cell_width_px);
-    const int cell_h = std::max(1, config.source_cell_height_px);
-    const int columns = std::max(1, config.sheet_columns);
-    const int rows = std::max(1, sheet_h / cell_h);
-    const int valid_index = clampedTextboxSkinIndex(config);
-    const int col = valid_index / rows;
-    const int row = valid_index % rows;
-    if (col >= columns || ((col + 1) * cell_w) > sheet_w || ((row + 1) * cell_h) > sheet_h) {
-        return SDL_Rect{0, 0, 0, 0};
-    }
-    return SDL_Rect{col * cell_w, row * cell_h, cell_w, cell_h};
+    return pr::overlaySliceSourceRect(sliceConfig(config), sheet_w, sheet_h);
 }
 
-OverworldTextboxLayout OverworldTextboxRenderer::buildLayout(
+pr::OverlayThreeSliceConfig OverworldTextboxRenderer::sliceConfig(const OverworldTextboxConfig& config) {
+    return pr::OverlayThreeSliceConfig{
+        config.selected_skin_index,
+        config.valid_skin_count,
+        config.source_cell_width_px,
+        config.source_cell_height_px,
+        config.sheet_columns,
+        config.side_padding_px,
+        config.bottom_padding_px,
+        config.stretch_strip_width_px,
+        config.stretch_strip_center_x_px};
+}
+
+pr::OverlayThreeSliceLayout OverworldTextboxRenderer::buildLayout(
     const OverworldTextboxConfig& config,
     int viewport_w,
     int viewport_h,
     int sheet_w,
     int sheet_h) {
-    OverworldTextboxLayout layout{};
     if (!overworldTextboxEnabled(config) || viewport_w <= 0 || viewport_h <= 0) {
-        return layout;
+        return {};
     }
-
-    const SDL_Rect skin = sourceRectForSkin(config, sheet_w, sheet_h);
-    if (skin.w <= 0 || skin.h <= 0) {
-        return layout;
-    }
-
-    const int box_w = std::max(1, viewport_w - (std::max(0, config.side_padding_px) * 2));
-    const int box_h = std::max(1, config.source_cell_height_px);
-    const int box_x = std::max(0, config.side_padding_px);
-    const int box_y = std::max(0, viewport_h - std::max(0, config.bottom_padding_px) - box_h);
-
-    const int strip_w = std::clamp(config.stretch_strip_width_px, 1, skin.w);
-    const int strip_x = skin.x + std::clamp(
-        config.stretch_strip_center_x_px - (strip_w / 2),
-        0,
-        std::max(0, skin.w - strip_w));
-    const int left_w = std::max(0, strip_x - skin.x);
-    const int right_x = strip_x + strip_w;
-    const int right_w = std::max(0, (skin.x + skin.w) - right_x);
-    const int middle_dst_w = std::max(1, box_w - left_w - right_w);
-
-    layout.left_src = SDL_Rect{skin.x, skin.y, left_w, skin.h};
-    layout.middle_src = SDL_Rect{strip_x, skin.y, strip_w, skin.h};
-    layout.right_src = SDL_Rect{right_x, skin.y, right_w, skin.h};
-    layout.left_dst = SDL_Rect{box_x, box_y, left_w, box_h};
-    layout.middle_dst = SDL_Rect{box_x + left_w, box_y, middle_dst_w, box_h};
-    layout.right_dst = SDL_Rect{box_x + left_w + middle_dst_w, box_y, right_w, box_h};
-    layout.visible = left_w > 0 && right_w > 0 && box_w > left_w + right_w;
-    return layout;
+    return pr::buildOverlayThreeSliceLayout(sliceConfig(config), viewport_w, viewport_h, sheet_w, sheet_h);
 }
 
 void OverworldTextboxRenderer::render(SDL_Renderer* renderer, int viewport_w, int viewport_h) {
@@ -136,7 +109,7 @@ void OverworldTextboxRenderer::render(SDL_Renderer* renderer, int viewport_w, in
         }
     }
 
-    const OverworldTextboxLayout layout = buildLayout(config_, viewport_w, viewport_h, texture_w_, texture_h_);
+    const pr::OverlayThreeSliceLayout layout = buildLayout(config_, viewport_w, viewport_h, texture_w_, texture_h_);
     if (!layout.visible) {
         return;
     }
@@ -167,25 +140,15 @@ void OverworldTextboxRenderer::render(
         }
     }
 
-    const OverworldTextboxLayout layout =
+    const pr::OverlayThreeSliceLayout layout =
         buildLayout(config_, base_viewport_w, base_viewport_h, texture_w_, texture_h_);
     if (!layout.visible) {
         return;
     }
 
-    auto scaleRect = [&](const SDL_Rect& src) {
-        const double sx = static_cast<double>(viewport_dst.w) / static_cast<double>(std::max(1, base_viewport_w));
-        const double sy = static_cast<double>(viewport_dst.h) / static_cast<double>(std::max(1, base_viewport_h));
-        const int x0 = viewport_dst.x + static_cast<int>(std::lround(static_cast<double>(src.x) * sx));
-        const int y0 = viewport_dst.y + static_cast<int>(std::lround(static_cast<double>(src.y) * sy));
-        const int x1 = viewport_dst.x + static_cast<int>(std::lround(static_cast<double>(src.x + src.w) * sx));
-        const int y1 = viewport_dst.y + static_cast<int>(std::lround(static_cast<double>(src.y + src.h) * sy));
-        return SDL_Rect{x0, y0, std::max(1, x1 - x0), std::max(1, y1 - y0)};
-    };
-
-    const SDL_Rect left_dst = scaleRect(layout.left_dst);
-    const SDL_Rect middle_dst = scaleRect(layout.middle_dst);
-    const SDL_Rect right_dst = scaleRect(layout.right_dst);
+    const SDL_Rect left_dst = pr::scaleOverlayRect(layout.left_dst, viewport_dst, base_viewport_w, base_viewport_h);
+    const SDL_Rect middle_dst = pr::scaleOverlayRect(layout.middle_dst, viewport_dst, base_viewport_w, base_viewport_h);
+    const SDL_Rect right_dst = pr::scaleOverlayRect(layout.right_dst, viewport_dst, base_viewport_w, base_viewport_h);
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "nearest");
     SDL_RenderCopy(renderer, texture_.get(), &layout.left_src, &left_dst);
     SDL_RenderCopy(renderer, texture_.get(), &layout.middle_src, &middle_dst);

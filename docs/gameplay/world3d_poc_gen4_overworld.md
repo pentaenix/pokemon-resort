@@ -33,8 +33,12 @@ Character assets:
 Map assets and scene config:
 - `assets/overworld/maps/testing.owmap` (runtime default)
 - `assets/overworld/maps/flat_bootstrap.owmap` (reference sample)
+- Interaction behavior scripts: `config/gameplay/world3d/interactions.json`
+- Interaction text catalog: `config/gameplay/world3d/interaction_text.json`
 - Interaction text box config: `config/gameplay/world3d/textbox.json`
 - Interaction text box skins: `assets/overworld/ui/text_boxes.png`
+- Temporary Resort-box Pokemon roster: `config/gameplay/world3d/pokemon_spawns.json`
+- Overworld script catalog: `config/gameplay/world3d/scripts/script_catalog.json`
 
 Loader policy:
 - `.owmap` is the primary runtime format.
@@ -71,9 +75,13 @@ Overworld systems:
 - `src/gameplay/world3d/characters/SpriteSheetAnimator.cpp`
 - `src/gameplay/world3d/followers/FollowerConfig.cpp`
 - `src/gameplay/world3d/followers/FollowerController.cpp`
+- `src/gameplay/world3d/npc/ResortPokemonSpawnConfig.cpp`
+- `src/gameplay/world3d/npc/NpcActorDriver.cpp`
 - `src/gameplay/world3d/dialogue/OverworldTextboxConfig.cpp`
 - `src/gameplay/world3d/dialogue/OverworldTextboxController.cpp`
 - `src/gameplay/world3d/dialogue/OverworldTextboxRenderer.cpp`
+- `src/gameplay/world3d/interactions/InteractionSequence.cpp`
+- `src/gameplay/world3d/interactions/InteractionText.cpp`
 - `src/gameplay/world3d/rendering/OverworldMapRenderer.cpp`
 - `src/gameplay/world3d/rendering/BillboardSpriteRenderer.cpp`
 
@@ -99,6 +107,17 @@ Shared rendering profile supports:
 Global billboard presentation (`config/gameplay/world3d/render.json`):
 - `billboard.tileAnchorOffsetTiles.forward` — legacy presentation offset; keep `0.0` so actor feet stay on the simulation XZ position.
 - `billboard.tileAnchorOffsetTiles.right` — legacy lateral offset; keep `0.0` for collision-aligned actor rendering.
+
+## Temporary Resort-box Pokemon Roster
+
+`config/gameplay/world3d/pokemon_spawns.json` controls the temporary overworld Pokemon source before map spawn points and companion selection exist.
+
+- `enabled`: turns this temporary roster on or off.
+- `profileId`: Resort profile to read.
+- `boxId`: zero-based Resort box id to read (`0` is Box 1).
+- `maxPokemon`: maximum valid Pokemon used from that box, including the follower.
+
+The first valid Pokemon, in box-slot order, becomes the follower. Later selected Pokemon spawn on random valid map tiles and use the roaming behavior. Each actor carries the Resort slot's `form_key` and `shiny` state into charbin appearance selection: matching `formId` and `modifiers: ["shiny"]` sheets are used when present, otherwise the matching base sheet is used. `maxPokemon: 0`, a disabled roster, or an empty box produces no follower and no roster Pokemon. `config/character_testing/characters.json` is only for fixed test actors and does not source Pokemon from Resort boxes.
 
 Per-character `worldOffset` from charbin is unchanged.
 
@@ -145,6 +164,8 @@ Summon behavior is shared gameplay tuning and contains:
 - `entryAnimation.colorRgba`
 
 Follower flow:
+- The first valid Pokemon found in Resort Box 1 becomes the follower Pokemon. `config/gameplay/followers/session.json` remains the fallback when Box 1 has no valid Resort Pokemon package.
+- Other valid Resort Box 1 Pokemon spawn at random valid points as roaming Pokemon actors.
 - Follower starts hidden.
 - On first player movement, ball release animation runs.
 - Pokémon entry flash/scale animation plays from size `0` and stays white until full size.
@@ -204,14 +225,25 @@ When enabled, the overworld screen shows `AIB: ...` in the top-left with the fol
 
 ## Interaction Text Box
 
-NPC/Pokemon interaction prompts use `config/gameplay/world3d/textbox.json`.
+NPC/Pokemon interaction prompts are driven by the interaction system documented in `docs/gameplay/overworld_interactions.md`. Pressing Accept while facing an interactable target starts a behavior sequence rather than directly opening the textbox.
+
+Default behavior:
+
+- NPC/character targets face the player, then request free text.
+- Pokemon targets face the player, then Haru's player charbin enters the size-based interaction activity when available. Free text opens while Haru holds the session stay phase.
+- Accept closes the current textbox and advances the sequence.
+- Back cancels the sequence, exits any active player interaction session, and unlocks the target.
+
+Behavior scripts live in `config/gameplay/world3d/scripts/`. Pokemon free text selection lives in `config/gameplay/world3d/interaction_text.json`: matching text entries are filtered by required tags, the most-specific matching group wins, weighted random selects inside that group, and selected text ids enter a global in-memory cooldown. Human NPC free text instead comes from that character's charbin `dialogue.lines`.
+
+The visible textbox skin still uses `config/gameplay/world3d/textbox.json`.
 
 - `textbox.visibleMode`: `enabled` or `disabled`.
 - `textbox.selectedSkinIndex`: choose skin `0` through `12`; visual order goes down the left column first, then down the right column. The 14th bottom-right sheet cell is empty and ignored.
 - `textbox.padding.bottomPx` / `textbox.padding.sidePx`: DS/internal viewport padding.
 - `textbox.horizontalStretch.stripWidthPx` / `sourceCenterXPx`: the central source strip stretched to fit the visible world viewport width. The left and right stylized sides are copied without stretching.
 
-Pressing Accept while facing an interactable NPC/Pokemon opens the empty text box. Pressing Accept again closes it. The active target is interaction-locked while the box is open so movement, rotation, and idle behavior do not start.
+The active target is interaction-locked during the full sequence so movement, rotation, and idle behavior do not start until cleanup finishes.
 
 ## Camera Preset
 The POC loads the camera preset ID from map config (`camera.preset`), currently targeting:

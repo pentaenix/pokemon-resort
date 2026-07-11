@@ -230,6 +230,20 @@ void testPlayableCharacterRunSheetLoads() {
     expect(!character.run_texture_png_bytes.empty(), "Haru run action should load its separate run sheet texture");
 }
 
+void testPokemonShinyAppearanceLoadsItsVariantSheet() {
+    const fs::path root = repositoryRoot();
+    const fs::path package = root / "assets" / "characters" / "pokemon" / "psyduck.charbin";
+    const auto base = pr::gameplay::world3d::data::loadCharacterDefinition(root.string(), package.string());
+    const auto shiny = pr::gameplay::world3d::data::loadCharacterDefinition(
+        root.string(),
+        package.string(),
+        pr::gameplay::world3d::data::CharacterAppearanceSelection{"default", true});
+
+    expect(!shiny.texture_png_bytes.empty(), "shiny appearance should load a walk texture");
+    expect(shiny.texture_png_bytes != base.texture_png_bytes,
+        "shiny appearance should select the charbin shiny walk sheet");
+}
+
 void testCameraEastProjectsScreenRight() {
     pr::gameplay::world3d::camera::Gen4CameraPreset preset{};
     preset.distance = 520.0f;
@@ -1301,6 +1315,8 @@ int main() {
         std::cout << "[PASS] player cannot step into unloaded chunk\n";
         testPlayableCharacterRunSheetLoads();
         std::cout << "[PASS] playable character run sheet loads\n";
+        testPokemonShinyAppearanceLoadsItsVariantSheet();
+        std::cout << "[PASS] Pokemon shiny appearance loads its variant sheet\n";
         testCameraEastProjectsScreenRight();
         std::cout << "[PASS] camera east projects screen-right\n";
         testNorthRampHeightMatchesCornerSlope();

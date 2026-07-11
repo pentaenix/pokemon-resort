@@ -1,5 +1,7 @@
 #include "gameplay/world3d/npc/NpcActorDriver.hpp"
 
+#include "gameplay/world3d/interactions/InteractionSequence.hpp"
+
 #include "core/app/AppPaths.hpp"
 #include "core/config/ConfigLoader.hpp"
 #include "core/config/Json.hpp"
@@ -21,8 +23,6 @@ namespace pr::gameplay::world3d::npc {
 namespace fs = std::filesystem;
 
 namespace {
-
-constexpr const char* kDefaultResortProfileId = "default";
 
 std::string strOr(const JsonValue* value, const std::string& fallback) {
     return value && value->isString() ? value->asString() : fallback;
@@ -66,6 +66,20 @@ NpcBehaviorKind behaviorFromString(const std::string& value) {
     if (lower == "wander") return NpcBehaviorKind::Wander;
     if (lower == "path") return NpcBehaviorKind::Path;
     return NpcBehaviorKind::Static;
+}
+
+NpcBehaviorKind behaviorFromScriptId(const std::string& value, NpcBehaviorKind fallback) {
+    std::string lower;
+    lower.reserve(value.size());
+    for (unsigned char ch : value) {
+        lower.push_back(static_cast<char>(std::tolower(ch)));
+    }
+    if (lower == "npc_wander") return NpcBehaviorKind::Wander;
+    if (lower == "npc_patrol") return NpcBehaviorKind::Path;
+    if (lower == "npc_follow") return NpcBehaviorKind::FollowActor;
+    if (lower == "npc_idle_rotate") return NpcBehaviorKind::IdleRotate;
+    if (lower == "npc_static") return NpcBehaviorKind::Static;
+    return fallback;
 }
 
 PokemonCollisionMode pokemonCollisionModeFromString(const std::string& value) {
@@ -149,7 +163,8 @@ NpcActorDriver::NpcActorDriver(std::string project_root, const SceneConfig& scen
     : project_root_(std::move(project_root)),
       scene_(&scene),
       terrain_query_(characters::makeLocalCharacterTerrainQuery(scene)),
-      movement_config_(characters::loadCharacterMovementConfig(project_root_)) {}
+      movement_config_(characters::loadCharacterMovementConfig(project_root_)),
+      resort_pokemon_spawn_config_(loadResortPokemonSpawnConfig(project_root_)) {}
 
 void NpcActorDriver::initializeDefaultSceneActors(const camera::Vec3& player_position) {
     actors_.clear();
@@ -160,32 +175,38 @@ void NpcActorDriver::initializeDefaultSceneActors(const camera::Vec3& player_pos
         static_cast<int>(std::floor(player_position.z / tile_size))});
 
     const std::vector<NpcActorDefinition> testing_actors = loadTestingActorDefinitions();
-    if (!testing_actors.empty()) {
-        std::vector<std::size_t> owner_indices;
-        for (const NpcActorDefinition& definition : testing_actors) {
-            std::optional<std::size_t> added = definition.use_random_spawn
-                ? addActorAtRandomValidTile(definition)
-                : addActorAtTile(definition, definition.spawn_tile_x, definition.spawn_tile_y);
-            if (added) {
-                owner_indices.push_back(*added);
-            }
+    std::vector<std::size_t> owner_indices;
+    for (const NpcActorDefinition& definition : testing_actors) {
+        std::optional<std::size_t> added = definition.use_random_spawn
+            ? addActorAtRandomValidTile(definition)
+            : addActorAtTile(definition, definition.spawn_tile_x, definition.spawn_tile_y);
+        if (added) {
+            owner_indices.push_back(*added);
         }
-        for (const std::size_t index : owner_indices) {
-            if (index < actors_.size() && actors_[index].definition.kind == NpcActorKind::Human) {
-                addPartnerPokemonForActor(actors_[index]);
-            }
+    }
+    for (const std::size_t index : owner_indices) {
+        if (index < actors_.size() && actors_[index].definition.kind == NpcActorKind::Human) {
+            addPartnerPokemonForActor(actors_[index]);
         }
-        return;
     }
 
-    if (const std::string pokemon_path = firstResortPokemonCharbinPath(); !pokemon_path.empty()) {
-        addActorAtRandomValidTile(NpcActorDefinition{
-            "resort_box_pokemon_0",
-            pokemon_path,
-            NpcActorKind::Pokemon,
-            NpcBehaviorKind::Wander,
-            {},
-            "walk"});
+    const std::vector<ResortPokemonSpawnInfo> resort_pokemon = resortPokemonSpawnList();
+    for (std::size_t i = 1; i < resort_pokemon.size(); ++i) {
+        const ResortPokemonSpawnInfo& pokemon = resort_pokemon[i];
+        NpcActorDefinition definition{};
+        definition.id = pokemon.id;
+        definition.character_package_path = pokemon.character_package_path;
+        definition.kind = NpcActorKind::Pokemon;
+        definition.behavior = NpcBehaviorKind::Wander;
+        definition.movement_speed_profile = "walk";
+        definition.script_id = "npc_wander";
+        definition.pokemon_form_id = pokemon.form_id;
+        definition.pokemon_shiny = pokemon.shiny;
+        addActorAtRandomValidTile(definition);
+    }
+
+    if (!testing_actors.empty()) {
+        return;
     }
 
     const fs::path watanave_path = fs::path(project_root_) / "assets" / "characters" / "npc" / "watanave.charbin";
@@ -255,7 +276,7 @@ void NpcActorDriver::update(double dt) {
                     ? static_cast<double>(actor.move_speed_units_per_second / std::max(1.0f, movement_config_.walkSpeed()))
                     : 1.0);
             actor.animator->setFacing(actor.facing);
-            if (!interaction_locked) {
+            if (!interaction_locked || actor.animator->activitySessionActive()) {
                 actor.animator->update(dt);
             }
             actor.source_rect = actor.animator->sourceRect();
@@ -377,6 +398,89 @@ bool NpcActorDriver::setInteractionLockedActor(const std::string& actor_id) {
     return true;
 }
 
+std::optional<NpcInteractionActorInfo> NpcActorDriver::interactionActorInfo(const std::string& actor_id) const {
+    const std::optional<std::size_t> index = findActor(actor_id);
+    if (!index || *index >= actors_.size()) {
+        return std::nullopt;
+    }
+    const Actor& actor = actors_[*index];
+    NpcInteractionActorInfo info{};
+    info.kind = actor.definition.kind;
+    info.tile_x = actor.tile_x;
+    info.tile_y = actor.tile_y;
+    info.display_name = actor.display_name.empty() ? actor.definition.id : actor.display_name;
+    info.species_name = actor.character.species_name;
+    info.pokemon_size = actor.character.pokemon_size;
+    info.pokemon_types = actor.character.pokemon_types;
+    info.dialogue_lines = actor.dialogue_lines;
+    return info;
+}
+
+bool NpcActorDriver::faceInteractionLockedActorTowardTile(int tx, int ty) {
+    if (!interaction_locked_actor_ || *interaction_locked_actor_ >= actors_.size()) {
+        return false;
+    }
+    Actor& actor = actors_[*interaction_locked_actor_];
+    actor.facing = interactions::facingTowardTiles(actor.tile_x, actor.tile_y, tx, ty, actor.facing);
+    if (actor.animator) {
+        actor.animator->setFacing(actor.facing);
+        actor.source_rect = actor.animator->sourceRect();
+    }
+    return true;
+}
+
+bool NpcActorDriver::faceInteractionLockedActor(FacingDirection facing) {
+    if (!interaction_locked_actor_ || *interaction_locked_actor_ >= actors_.size()) {
+        return false;
+    }
+    Actor& actor = actors_[*interaction_locked_actor_];
+    actor.facing = facing;
+    if (actor.animator) {
+        actor.animator->setFacing(actor.facing);
+        actor.source_rect = actor.animator->sourceRect();
+    }
+    return true;
+}
+
+bool NpcActorDriver::startInteractionSessionForLockedActor() {
+    if (!interaction_locked_actor_ || *interaction_locked_actor_ >= actors_.size()) {
+        return false;
+    }
+    Actor& actor = actors_[*interaction_locked_actor_];
+    if (actor.definition.kind != NpcActorKind::Pokemon || !actor.animator) {
+        return false;
+    }
+    const std::optional<std::string> action_id =
+        interactions::interactionActivityIdForPokemonSize(actor.character.pokemon_size);
+    return action_id && actor.animator->startActivitySession(*action_id);
+}
+
+void NpcActorDriver::requestInteractionSessionExitForLockedActor() {
+    if (!interaction_locked_actor_ || *interaction_locked_actor_ >= actors_.size()) {
+        return;
+    }
+    Actor& actor = actors_[*interaction_locked_actor_];
+    if (actor.animator) {
+        actor.animator->requestActivityExit();
+    }
+}
+
+bool NpcActorDriver::lockedActorInteractionSessionReady() const {
+    if (!interaction_locked_actor_ || *interaction_locked_actor_ >= actors_.size()) {
+        return true;
+    }
+    const Actor& actor = actors_[*interaction_locked_actor_];
+    return !actor.animator || !actor.animator->activitySessionActive() || actor.animator->activityStayActive();
+}
+
+bool NpcActorDriver::lockedActorInteractionSessionFinished() const {
+    if (!interaction_locked_actor_ || *interaction_locked_actor_ >= actors_.size()) {
+        return true;
+    }
+    const Actor& actor = actors_[*interaction_locked_actor_];
+    return !actor.animator || actor.animator->activityFinished();
+}
+
 void NpcActorDriver::clearInteractionLockedActor() {
     interaction_locked_actor_.reset();
 }
@@ -390,6 +494,7 @@ void NpcActorDriver::collectBillboardDraws(
         rendering::CharacterBillboardDraw draw{};
         draw.character = &actor.character;
         draw.source_rect = actor.source_rect;
+        draw.activity_id = actor.animator ? actor.animator->activeActivityId() : std::string{};
         draw.draw_shadow = true;
         draw.use_run_texture = actor.running;
         draw.placement = rendering::buildCharacterBillboardPlacement(
@@ -427,7 +532,10 @@ std::optional<std::size_t> NpcActorDriver::addActor(const NpcActorDefinition& de
     try {
         Actor actor{};
         actor.definition = definition;
-        actor.character = data::loadCharacterDefinition(project_root_, definition.character_package_path);
+        actor.character = data::loadCharacterDefinition(
+            project_root_,
+            definition.character_package_path,
+            data::CharacterAppearanceSelection{definition.pokemon_form_id, definition.pokemon_shiny});
         std::string speed_profile = definition.movement_speed_profile.empty()
             ? "walk"
             : definition.movement_speed_profile;
@@ -437,6 +545,8 @@ std::optional<std::size_t> NpcActorDriver::addActor(const NpcActorDefinition& de
             if (!metadata.movement_speed_profile.empty()) {
                 speed_profile = metadata.movement_speed_profile;
             }
+            actor.display_name = metadata.display_name;
+            actor.dialogue_lines = metadata.dialogue_lines;
         } catch (const std::exception&) {
             // Character loading already validates the package; metadata is optional for movement.
         }
@@ -794,36 +904,32 @@ std::vector<NpcActorDefinition> NpcActorDriver::loadTestingActorDefinitions() {
             definition.id = strOr(item.get("id"), "");
             definition.movement_speed_profile = strOr(item.get("movementSpeedProfile"), definition.movement_speed_profile);
             definition.behavior = behaviorFromString(strOr(item.get("behaviorProfile"), "static"));
+            definition.script_id = strOr(item.get("scriptId"), "");
+            definition.behavior = behaviorFromScriptId(definition.script_id, definition.behavior);
             definition.facing = facingFromString(strOr(item.get("facing"), "south"));
             definition.follower_pokemon_freedom = boolOr(item.get("followerPokemonFreedom"), false);
 
-            const std::string source = strOr(item.get("source"), "");
-            if (source == "firstResortPokemon") {
-                definition.character_package_path = firstResortPokemonCharbinPath();
+            const std::string character_path = strOr(item.get("characterPath"), "");
+            if (!character_path.empty()) {
+                const fs::path path(character_path);
+                definition.character_package_path = path.is_absolute()
+                    ? path.string()
+                    : (fs::path(project_root_) / path).string();
+            }
+            const std::string kind = strOr(item.get("kind"), "");
+            if (kind == "pokemon") {
                 definition.kind = NpcActorKind::Pokemon;
-            } else {
-                const std::string character_path = strOr(item.get("characterPath"), "");
-                if (!character_path.empty()) {
-                    const fs::path path(character_path);
-                    definition.character_package_path = path.is_absolute()
-                        ? path.string()
-                        : (fs::path(project_root_) / path).string();
-                }
-                const std::string kind = strOr(item.get("kind"), "");
-                if (kind == "pokemon") {
-                    definition.kind = NpcActorKind::Pokemon;
-                } else if (kind == "human" || kind == "npc") {
+            } else if (kind == "human" || kind == "npc") {
+                definition.kind = NpcActorKind::Human;
+            } else if (!definition.character_package_path.empty()) {
+                try {
+                    const data::CharacterPackageMetadata metadata =
+                        data::loadCharacterPackageMetadata(definition.character_package_path);
+                    definition.kind = metadata.character_type == "pokemon"
+                        ? NpcActorKind::Pokemon
+                        : NpcActorKind::Human;
+                } catch (const std::exception&) {
                     definition.kind = NpcActorKind::Human;
-                } else if (!definition.character_package_path.empty()) {
-                    try {
-                        const data::CharacterPackageMetadata metadata =
-                            data::loadCharacterPackageMetadata(definition.character_package_path);
-                        definition.kind = metadata.character_type == "pokemon"
-                            ? NpcActorKind::Pokemon
-                            : NpcActorKind::Human;
-                    } catch (const std::exception&) {
-                        definition.kind = NpcActorKind::Human;
-                    }
                 }
             }
 
@@ -1025,27 +1131,43 @@ bool NpcActorDriver::actorCanYieldFromTile(Actor& actor, int player_from_tx, int
     return false;
 }
 
-std::string NpcActorDriver::firstResortPokemonCharbinPath() const {
+std::vector<ResortPokemonSpawnInfo> NpcActorDriver::resortPokemonSpawnList() const {
+    std::vector<ResortPokemonSpawnInfo> out;
+    if (!resort_pokemon_spawn_config_.enabled || resort_pokemon_spawn_config_.max_pokemon == 0) {
+        return out;
+    }
     try {
         const TitleScreenConfig title_config =
             loadConfigFromJson((fs::path(project_root_) / "config" / "title_screen.json").string());
         const fs::path save_directory = resolveSaveDirectory(title_config.persistence, project_root_);
         resort::PokemonResortService resort_service(resortProfileDatabasePath(save_directory, title_config.persistence));
-        resort_service.ensureProfile(kDefaultResortProfileId);
-        for (const auto& [box_id, name] : resort_service.listProfileBoxes(kDefaultResortProfileId)) {
-            (void)name;
-            for (const resort::PokemonSlotView& slot : resort_service.getBoxSlotViews(kDefaultResortProfileId, box_id)) {
-                const std::string path = pokemonCharbinPathForResortSlot(slot.species_slug, slot.species_name);
-                if (!path.empty()) {
-                    return path;
+        resort_service.ensureProfile(resort_pokemon_spawn_config_.profile_id);
+        for (const resort::PokemonSlotView& slot :
+             resort_service.getBoxSlotViews(
+                 resort_pokemon_spawn_config_.profile_id,
+                 resort_pokemon_spawn_config_.box_id)) {
+            const std::string path = pokemonCharbinPathForResortSlot(slot.species_slug, slot.species_name);
+            if (!path.empty()) {
+                out.push_back(ResortPokemonSpawnInfo{
+                    "resort_box" + std::to_string(resort_pokemon_spawn_config_.box_id + 1) +
+                        "_slot_" + std::to_string(slot.slot_index),
+                    path,
+                    slot.species_slug,
+                    slot.species_name,
+                    resort_pokemon_spawn_config_.box_id,
+                    slot.slot_index,
+                    slot.form_key.empty() ? "default" : slot.form_key,
+                    slot.shiny});
+                if (out.size() >= static_cast<std::size_t>(resort_pokemon_spawn_config_.max_pokemon)) {
+                    break;
                 }
             }
         }
     } catch (const std::exception& ex) {
-        std::cerr << "[Overworld3D][NPC] Could not read first Resort box Pokemon: "
+        std::cerr << "[Overworld3D][NPC] Could not read Resort box Pokemon: "
                   << ex.what() << '\n';
     }
-    return {};
+    return out;
 }
 
 std::string NpcActorDriver::pokemonCharbinPathForSpecies(const std::string& species) const {

@@ -1,0 +1,21 @@
+{
+  "behaviors": [
+    {
+      "id": "pokemon_default",
+      "gates": ["POKEMON"],
+      "actions": [
+        { "action": "facePlayer" },
+        { "action": "pokemonInteractionSession" },
+        { "action": "textFree" }
+      ]
+    },
+    {
+      "id": "character_default",
+      "gates": ["CHARACTER"],
+      "actions": [
+        { "action": "facePlayer" },
+        { "action": "textFree" }
+      ]
+    }
+  ]
+}

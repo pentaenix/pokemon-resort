@@ -5,6 +5,7 @@
 #include "gameplay/world3d/characters/CharacterMovementConfig.hpp"
 #include "gameplay/world3d/characters/GridActorMotor.hpp"
 #include "gameplay/world3d/characters/SpriteSheetAnimator.hpp"
+#include "gameplay/world3d/npc/ResortPokemonSpawnConfig.hpp"
 #include "gameplay/world3d/rendering/BillboardPlacement.hpp"
 #include "gameplay/world3d/terrain/ActorTerrainBinding.hpp"
 
@@ -50,12 +51,37 @@ struct NpcActorDefinition {
     NpcBehaviorKind behavior = NpcBehaviorKind::Static;
     std::string follow_target_id;
     std::string movement_speed_profile = "walk";
+    std::string script_id;
     bool use_random_spawn = true;
     int spawn_tile_x = 0;
     int spawn_tile_y = 0;
     FacingDirection facing = FacingDirection::South;
     bool follower_pokemon_freedom = false;
     std::vector<NpcPathPoint> path_points;
+    std::string pokemon_form_id = "default";
+    bool pokemon_shiny = false;
+};
+
+struct NpcInteractionActorInfo {
+    NpcActorKind kind = NpcActorKind::Human;
+    int tile_x = 0;
+    int tile_y = 0;
+    std::string display_name;
+    std::string species_name;
+    std::string pokemon_size = "small";
+    std::vector<std::string> pokemon_types;
+    std::vector<std::string> dialogue_lines;
+};
+
+struct ResortPokemonSpawnInfo {
+    std::string id;
+    std::string character_package_path;
+    std::string species_slug;
+    std::string species_name;
+    int box_id = 0;
+    int slot_index = 0;
+    std::string form_id = "default";
+    bool shiny = false;
 };
 
 class NpcActorDriver {
@@ -63,13 +89,21 @@ public:
     NpcActorDriver(std::string project_root, const SceneConfig& scene);
 
     void initializeDefaultSceneActors(const camera::Vec3& player_position);
+    std::vector<ResortPokemonSpawnInfo> resortPokemonSpawnList() const;
     void setTerrainQuery(std::shared_ptr<characters::CharacterTerrainQuery> terrain_query);
     void update(double dt);
     void setPlayerReservedTile(int tx, int ty);
     void setReservedTiles(std::vector<std::pair<int, int>> tiles, std::size_t player_reserved_tile_count);
     bool canPlayerEnterTile(int from_tx, int from_ty, int to_tx, int to_ty);
     std::optional<std::string> interactableActorIdAtTile(int tx, int ty) const;
+    std::optional<NpcInteractionActorInfo> interactionActorInfo(const std::string& actor_id) const;
     bool setInteractionLockedActor(const std::string& actor_id);
+    bool faceInteractionLockedActorTowardTile(int tx, int ty);
+    bool faceInteractionLockedActor(FacingDirection facing);
+    bool startInteractionSessionForLockedActor();
+    void requestInteractionSessionExitForLockedActor();
+    bool lockedActorInteractionSessionReady() const;
+    bool lockedActorInteractionSessionFinished() const;
     void clearInteractionLockedActor();
     void collectBillboardDraws(
         const camera::Gen4FollowCamera& camera,
@@ -108,6 +142,8 @@ private:
         float move_speed_units_per_second = 64.0f;
         float base_move_speed_units_per_second = 64.0f;
         std::deque<std::pair<int, int>> path;
+        std::string display_name;
+        std::vector<std::string> dialogue_lines;
     };
 
     std::optional<std::size_t> addActorAtRandomValidTile(const NpcActorDefinition& definition);
@@ -134,7 +170,6 @@ private:
     Actor* actorAtTile(int tx, int ty);
     bool followerPokemonSettledWithTarget(const Actor& actor) const;
     bool actorCanYieldFromTile(Actor& actor, int player_from_tx, int player_from_ty);
-    std::string firstResortPokemonCharbinPath() const;
     std::string pokemonCharbinPathForSpecies(const std::string& species) const;
     std::string pokemonCharbinPathForResortSlot(const std::string& species_slug, const std::string& species_name) const;
 
@@ -142,6 +177,7 @@ private:
     const SceneConfig* scene_ = nullptr;
     std::shared_ptr<characters::CharacterTerrainQuery> terrain_query_;
     characters::CharacterMovementConfig movement_config_{};
+    ResortPokemonSpawnConfig resort_pokemon_spawn_config_{};
     PokemonCollisionMode pokemon_collision_mode_ = PokemonCollisionMode::BlockCell;
     std::vector<Actor> actors_;
     std::vector<std::pair<int, int>> reserved_tiles_;

@@ -47,9 +47,13 @@ struct FollowerSummonConfig {
 struct FollowerSessionConfig {
     bool enabled = true;
     std::string pokemon_species;
+    std::string pokemon_charbin_path;
+    std::string pokemon_form_id = "default";
+    bool pokemon_shiny = false;
     std::string pokeball_id = "poke_ball";
     std::string nature;
     std::string forced_behavior;
+    std::string idle_script_id = "idle_follower_default";
     std::string movement_mode = "trail";
 };
 

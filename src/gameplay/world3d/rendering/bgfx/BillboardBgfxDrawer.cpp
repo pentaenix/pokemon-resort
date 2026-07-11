@@ -366,10 +366,18 @@ void BillboardBgfxDrawer::submitCharacterDraw(
         return;
     }
     const CharacterGpuTextures textures = deps_.textures_for_character(*draw.character);
-    const TextureGpuResource& color_texture =
-        draw.use_run_texture && textures.run_color.valid() ? textures.run_color : textures.color;
-    const TextureGpuResource& white_texture =
-        draw.use_run_texture && textures.run_white.valid() ? textures.run_white : textures.white;
+    const auto activity_color = textures.activity_color.find(draw.activity_id);
+    const auto activity_white = textures.activity_white.find(draw.activity_id);
+    const TextureGpuResource& color_texture = !draw.activity_id.empty() &&
+            activity_color != textures.activity_color.end() &&
+            activity_color->second.valid()
+        ? activity_color->second
+        : (draw.use_run_texture && textures.run_color.valid() ? textures.run_color : textures.color);
+    const TextureGpuResource& white_texture = !draw.activity_id.empty() &&
+            activity_white != textures.activity_white.end() &&
+            activity_white->second.valid()
+        ? activity_white->second
+        : (draw.use_run_texture && textures.run_white.valid() ? textures.run_white : textures.white);
     if (!color_texture.valid()) {
         return;
     }

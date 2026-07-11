@@ -10,6 +10,8 @@
 #include "gameplay/world3d/dialogue/OverworldTextboxConfig.hpp"
 #include "gameplay/world3d/dialogue/OverworldTextboxController.hpp"
 #include "gameplay/world3d/dialogue/OverworldTextboxRenderer.hpp"
+#include "gameplay/world3d/interactions/InteractionSequence.hpp"
+#include "gameplay/world3d/interactions/InteractionText.hpp"
 #include "gameplay/world3d/npc/NpcActorDriver.hpp"
 #include "gameplay/world3d/rendering/BillboardSpriteRenderer.hpp"
 #include "gameplay/world3d/rendering/GlbModelRenderer.hpp"
@@ -21,6 +23,7 @@
 #include "ui/Screen.hpp"
 
 #include <memory>
+#include <random>
 #include <string>
 #include <vector>
 
@@ -69,6 +72,18 @@ private:
     void logLoadedWorldChunks() const;
     gameplay::world3d::dialogue::OverworldTextboxController::Target findInteractionTarget() const;
     bool lockInteractionTarget(const gameplay::world3d::dialogue::OverworldTextboxController::Target& target);
+    bool interactionActive() const;
+    void beginInteraction(const gameplay::world3d::dialogue::OverworldTextboxController::Target& target);
+    void updateInteractionSequence();
+    void closeInteractionText();
+    void requestInteractionExit();
+    void finishInteraction();
+    gameplay::world3d::interactions::InteractionTargetKind interactionTargetKind(
+        const gameplay::world3d::dialogue::OverworldTextboxController::Target& target) const;
+    gameplay::world3d::interactions::InteractionTextContext buildInteractionTextContext(
+        const gameplay::world3d::dialogue::OverworldTextboxController::Target& target) const;
+    std::string characterDialogueForTarget(
+        const gameplay::world3d::dialogue::OverworldTextboxController::Target& target);
     void clearInteractionTextBox();
     SDL_Rect visibleWorldViewportRect(int logical_w, int logical_h) const;
 
@@ -104,6 +119,15 @@ private:
     gameplay::world3d::dialogue::OverworldTextboxConfig textbox_config_{};
     gameplay::world3d::dialogue::OverworldTextboxController textbox_controller_{};
     std::unique_ptr<gameplay::world3d::dialogue::OverworldTextboxRenderer> textbox_renderer_;
+    gameplay::world3d::dialogue::OverworldTextboxController::Target active_interaction_target_{};
+    gameplay::world3d::interactions::InteractionBehaviorCatalog interaction_behaviors_{};
+    gameplay::world3d::interactions::InteractionSequenceController interaction_sequence_{};
+    gameplay::world3d::interactions::InteractionTextCatalog interaction_text_catalog_{};
+    gameplay::world3d::interactions::InteractionTextCooldowns interaction_text_cooldowns_{};
+    std::mt19937 interaction_rng_{0x52534f52U};
+    double interaction_time_seconds_ = 0.0;
+    bool interaction_exit_requested_ = false;
+    bool interaction_pokemon_session_started_ = false;
 
     bool map_loaded_ = false;
     bool initialized_renderer_ = false;

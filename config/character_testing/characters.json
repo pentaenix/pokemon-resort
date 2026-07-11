@@ -3,19 +3,10 @@
   "pokemonCollisionMode": "swap",
   "characters": [
     {
-      "id": "resort_box_pokemon_0",
-      "source": "firstResortPokemon",
-      "kind": "pokemon",
-      "spawn": [9, 9],
-      "facing": "south",
-      "behaviorProfile": "wander",
-      "movementSpeedProfile": "walk",
-      "followerPokemonFreedom": false
-    },
-    {
       "id": "npc_watanave",
       "characterPath": "assets/characters/npc/watanave.charbin",
       "kind": "human",
+      "scriptId": "npc_idle_rotate",
       "spawn": [15, 12],
       "facing": "south",
       "behaviorProfile": "idle",

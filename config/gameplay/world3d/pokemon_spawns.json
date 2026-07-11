@@ -1,0 +1,9 @@
+{
+  "resortBoxRoster": {
+    "_comment": "Temporary overworld roster source. The first valid Pokemon in the selected box becomes the follower. Later valid Pokemon spawn on random valid map tiles and wander. maxPokemon includes the follower: 0 disables this roster, 1 means follower only.",
+    "enabled": true,
+    "profileId": "default",
+    "boxId": 0,
+    "maxPokemon": 8
+  }
+}

@@ -7,6 +7,7 @@
 #include <SDL.h>
 #include <bgfx/bgfx.h>
 #include <functional>
+#include <unordered_map>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -28,6 +29,8 @@ public:
         TextureGpuResource white;
         TextureGpuResource run_color;
         TextureGpuResource run_white;
+        std::unordered_map<std::string, TextureGpuResource> activity_color;
+        std::unordered_map<std::string, TextureGpuResource> activity_white;
     };
 
     struct Dependencies {

@@ -1,0 +1,85 @@
+{
+  "manifestVersion": 1,
+  "storageFormat": "glb",
+  "id": "MACOSX",
+  "displayName": "__MACOSX",
+  "defaultYawDeg": 0,
+  "defaultScale": 1,
+  "compiledAt": "2026-07-09T15:07:31.351Z",
+  "sourceFormat": "obj",
+  "sourceFile": "MACOSX.glb",
+  "glbFile": "MACOSX.glb",
+  "modelFile": "MACOSX.glb",
+  "modelByteSize": 35560,
+  "modelHash": "fb9a29f4222dba63",
+  "footprintTiles": {
+    "w": 9,
+    "d": 7,
+    "h": 7
+  },
+  "renderFootprintTiles": {
+    "w": 9,
+    "d": 7,
+    "h": 7
+  },
+  "authoringFootprintTiles": {
+    "w": 9,
+    "d": 7,
+    "h": 7
+  },
+  "collisionFootprintTiles": {
+    "w": 9,
+    "d": 7,
+    "h": 7
+  },
+  "previewOffsetTiles": {
+    "x": 0,
+    "y": 0
+  },
+  "aabb": {
+    "min": [
+      -64,
+      1,
+      -52
+    ],
+    "max": [
+      69,
+      112,
+      60
+    ]
+  },
+  "vertexCount": 696,
+  "triangleCount": 441,
+  "materials": [
+    "h_kage",
+    "kbc_pr01w",
+    "h_in",
+    "kbc_pr03",
+    "kbc_pr02"
+  ],
+  "textureCount": 5,
+  "convertedFromObj": true,
+  "sourceObj": "Vermilion Port Entrance.obj",
+  "materialsMeta": {
+    "h_in": {
+      "textureResolved": "h_in.png",
+      "textureName": "h_in.png"
+    },
+    "h_kage": {
+      "textureResolved": "h_kage.png",
+      "textureName": "h_kage.png"
+    },
+    "kbc_pr01w": {
+      "textureResolved": "kbc_pr01w.png",
+      "textureName": "kbc_pr01w.png"
+    },
+    "kbc_pr02": {
+      "textureResolved": "kbc_pr02.png",
+      "textureName": "kbc_pr02.png"
+    },
+    "kbc_pr03": {
+      "textureResolved": "kbc_pr03.png",
+      "textureName": "kbc_pr03.png"
+    }
+  }
+}

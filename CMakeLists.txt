@@ -112,6 +112,7 @@ add_library(world3d_bgfx_renderer STATIC
     src/gameplay/world3d/rendering/CharacterTextureCache.cpp
     src/gameplay/world3d/rendering/SpriteShadowDecal.cpp
     src/gameplay/world3d/terrain/TerrainSurface.cpp
+    src/ui/overlay/OverlaySliceLayout.cpp
 )
 target_include_directories(world3d_bgfx_renderer PUBLIC include)
 target_include_directories(world3d_bgfx_renderer PRIVATE ${bgfx_cmake_SOURCE_DIR}/bimg/3rdparty/tinyexr/deps/miniz)
@@ -169,10 +170,14 @@ add_executable(title_screen_demo
     src/gameplay/world3d/followers/FollowerIdleExitTarget.cpp
     src/gameplay/world3d/followers/NatureIdleConfig.cpp
     src/gameplay/world3d/followers/NatureIdlePlanner.cpp
+    src/gameplay/world3d/npc/ResortPokemonSpawnConfig.cpp
     src/gameplay/world3d/npc/NpcActorDriver.cpp
+    src/gameplay/world3d/scripts/OverworldScript.cpp
     src/gameplay/world3d/dialogue/OverworldTextboxConfig.cpp
     src/gameplay/world3d/dialogue/OverworldTextboxController.cpp
     src/gameplay/world3d/dialogue/OverworldTextboxRenderer.cpp
+    src/gameplay/world3d/interactions/InteractionSequence.cpp
+    src/gameplay/world3d/interactions/InteractionText.cpp
     src/gameplay/world3d/rendering/BillboardSpriteRenderer.cpp
     src/gameplay/world3d/rendering/FallbackTerrainRenderer.cpp
     src/gameplay/world3d/rendering/OverworldMapRenderer.cpp
@@ -591,10 +596,24 @@ add_executable(overworld_textbox_tests
     src/gameplay/world3d/dialogue/OverworldTextboxConfig.cpp
     src/gameplay/world3d/dialogue/OverworldTextboxController.cpp
     src/gameplay/world3d/dialogue/OverworldTextboxRenderer.cpp
+    src/ui/overlay/OverlaySliceLayout.cpp
 )
 target_include_directories(overworld_textbox_tests PRIVATE include)
 target_link_libraries(overworld_textbox_tests PRIVATE SDL2::SDL2 SDL2_image::SDL2_image)
 add_test(NAME overworld_textbox_tests COMMAND overworld_textbox_tests)
+
+add_executable(interaction_system_tests
+    tests/native/world3d/interaction_system_tests.cpp
+    src/core/config/Json.cpp
+    src/gameplay/world3d/characters/SpriteSheetAnimator.cpp
+    src/gameplay/world3d/interactions/InteractionSequence.cpp
+    src/gameplay/world3d/interactions/InteractionText.cpp
+    src/gameplay/world3d/npc/ResortPokemonSpawnConfig.cpp
+    src/gameplay/world3d/scripts/OverworldScript.cpp
+)
+target_include_directories(interaction_system_tests PRIVATE include)
+target_link_libraries(interaction_system_tests PRIVATE SDL2::SDL2)
+add_test(NAME interaction_system_tests COMMAND interaction_system_tests)
 
 add_executable(transfer_box_edits_store_tests
     tests/native/core/transfer_box_edits_store_tests.cpp

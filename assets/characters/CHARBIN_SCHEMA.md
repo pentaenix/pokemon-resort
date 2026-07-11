@@ -115,7 +115,7 @@ Unknown top-level keys on import are **preserved** (deep merge does not strip th
 | `selectedFormId` | `string` | no | Active form id. |
 | `pokedexEntry` | `string` | no | Flavor text (Pokémon only). |
 | `pokemonTypes` | `string[]` | no | e.g. `["dragon","ground"]` (Pokémon only). |
-| `pokemonSize` | `string` | no | `small` or `large` — large uses 64×64 cells on a 256×256 sheet (`pokemon_large` profile). |
+| `pokemonSize` | `string` | no | `small`, `human`, `medium`, or `large`. Human uses `character` profile at 32px; medium uses 40×40 cells on `pokemon_small`; large uses `pokemon_large` (64×64). |
 | `pokeapi` | `object \| null` | no | Cached PokéAPI snapshot (Pokémon only). See [metadata.pokeapi](#metadatapokeapi). Filled by SPMK **Fetch from PokéAPI**; embedded in `.charbin` so the game need not call the API. |
 | `description` | `string` | no | Short bio (single text area). Shown for both types. |
 | `personality` | `string[]` | no | Trait chips. Legacy single string is coerced to one item. **UI:** NPC only. |
@@ -124,8 +124,13 @@ Unknown top-level keys on import are **preserved** (deep merge does not strip th
 | `tags` | `string[]` | no | **UI:** NPC only; chip list. |
 | `partnerPokemon` | `object \| null` | yes* | `null` if none. *Validator warns if key missing. **UI:** NPC only. |
 | `extraPartnerPokemon` | `array` | no | Additional partners. |
+| `identityType` | `string` | no | NPC intel: `unique_character`, `trainer_class`, `generic_npc`, `unknown`. |
+| `role` | `string` | no | NPC intel role label. |
+| `region` | `string` | no | NPC intel region. |
+| `intelConfidence` | `number` | no | LLM confidence 0–1. |
+| `intelCustomOrEdited` | `boolean` | no | NPC was customized after import. |
 | `pokemonVariant` | `object` | no | **Pokémon only.** Structured forms / appearance modifiers / behaviors. See [metadata.pokemonVariant](#metadatapokemonvariant). |
-| `custom` | `object` | no | Extension point. |
+| `custom` | `object` | no | Extension point. `custom.npcIntel` holds the full LLM NPC intel JSON (availability, canon, structured dialogue, …). |
 
 ### metadata.pokemonVariant
 
@@ -215,7 +220,7 @@ Each sheet is one embedded PNG grid.
 | `name` | `string` | no | Display name (e.g. `Walk`). |
 | `assetId` | `string` | yes | Key into embedded assets (e.g. `walk_png`). |
 | `profile` | `string` | no | Profile key; defaults to package `baseProfile`. |
-| `profileOverrides` | `object` | no | Override `columns`, `rows`, etc. from profile. |
+| `profileOverrides` | `object` | no | Override profile grid settings for this sheet only. Common keys: `columns`, `rows`, `frameWidth`, `frameHeight`. Width and height may differ for non-square cells (e.g. `32×48`). |
 | `formId` | `string` | no | **Pokémon.** Form id for this sheet; default `default`. |
 | `modifiers` | `string[]` | no | **Pokémon.** Appearance modifiers (e.g. `["shiny"]`). |
 | `behavior` | `string` | no | **Pokémon.** Sheet behavior: `walk`, `sleep`, `swim`, `eating`. |

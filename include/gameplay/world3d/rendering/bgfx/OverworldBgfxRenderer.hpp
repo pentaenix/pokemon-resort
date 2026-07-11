@@ -2,6 +2,7 @@
 
 #include "gameplay/world3d/Overworld3DConfig.hpp"
 #include "gameplay/world3d/camera/Gen4FollowCamera.hpp"
+#include "gameplay/world3d/dialogue/OverworldTextboxConfig.hpp"
 #include "gameplay/world3d/rendering/BillboardPlacement.hpp"
 
 #include <SDL.h>
@@ -45,11 +46,13 @@ public:
     bool valid() const;
     std::string lastError() const;
     void setStaticMapChunks(std::vector<StaticMapChunk> chunks);
+    void setTextboxOverlay(dialogue::OverworldTextboxConfig config, bool visible);
 
     void render(
         const camera::Gen4FollowCamera& camera,
         const camera::Vec3& player_pos,
         const SDL_Rect& player_source_rect,
+        const std::string& player_activity_id,
         bool player_use_run_texture,
         const terrain::ActorTerrainBinding& player_binding,
         int logical_w,

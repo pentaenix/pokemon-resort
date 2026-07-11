@@ -11,6 +11,7 @@
 #include "gameplay/world3d/followers/FollowerIdleExitTarget.hpp"
 #include "gameplay/world3d/followers/NatureIdleConfig.hpp"
 #include "gameplay/world3d/followers/NatureIdlePlanner.hpp"
+#include "gameplay/world3d/scripts/OverworldScript.hpp"
 #include "gameplay/world3d/rendering/BillboardPlacement.hpp"
 #include "gameplay/world3d/terrain/ActorTerrainBinding.hpp"
 #include "gameplay/world3d/terrain/GridStepMotor.hpp"
@@ -23,6 +24,15 @@
 #include <utility>
 
 namespace pr::gameplay::world3d::followers {
+
+struct FollowerInteractionInfo {
+    int tile_x = 0;
+    int tile_y = 0;
+    std::string display_name;
+    std::string species_name;
+    std::string pokemon_size = "small";
+    std::vector<std::string> pokemon_types;
+};
 
 class FollowerController {
 public:
@@ -57,7 +67,14 @@ public:
         int viewport_h) const;
     std::vector<std::pair<int, int>> reservedTiles() const;
     std::optional<std::string> interactionTargetIdAtTile(int tx, int ty) const;
+    std::optional<FollowerInteractionInfo> interactionInfo() const;
     bool setInteractionLocked(bool locked);
+    bool faceInteractionLockedTowardTile(int tx, int ty);
+    bool faceInteractionLocked(FacingDirection facing);
+    bool startInteractionSession();
+    void requestInteractionSessionExit();
+    bool interactionSessionReady() const;
+    bool interactionSessionFinished() const;
     bool triggerDebugJump();
     bool triggerDebugPoke();
     std::string debugActivityLabel() const;
@@ -95,6 +112,9 @@ private:
     std::unique_ptr<characters::SpriteSheetAnimator> follower_animator_;
     CharacterSpriteDefinition ball_def_{};
     NatureIdleBehaviorConfig idle_config_{};
+    scripts::ScriptCatalog idle_script_catalog_{};
+    scripts::ScriptCooldowns idle_script_cooldowns_{};
+    double script_time_seconds_ = 0.0;
 
     camera::Vec3 follower_pos_{};
     camera::Vec3 ball_pos_{};

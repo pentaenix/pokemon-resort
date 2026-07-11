@@ -1,6 +1,7 @@
 #pragma once
 
 #include "gameplay/world3d/dialogue/OverworldTextboxConfig.hpp"
+#include "ui/overlay/OverlaySliceLayout.hpp"
 
 #include <SDL.h>
 
@@ -8,16 +9,6 @@
 #include <string>
 
 namespace pr::gameplay::world3d::dialogue {
-
-struct OverworldTextboxLayout {
-    SDL_Rect left_src{};
-    SDL_Rect middle_src{};
-    SDL_Rect right_src{};
-    SDL_Rect left_dst{};
-    SDL_Rect middle_dst{};
-    SDL_Rect right_dst{};
-    bool visible = false;
-};
 
 class OverworldTextboxRenderer {
 public:
@@ -32,7 +23,8 @@ public:
     bool ready() const { return texture_ != nullptr; }
 
     static SDL_Rect sourceRectForSkin(const OverworldTextboxConfig& config, int sheet_w, int sheet_h);
-    static OverworldTextboxLayout buildLayout(
+    static pr::OverlayThreeSliceConfig sliceConfig(const OverworldTextboxConfig& config);
+    static pr::OverlayThreeSliceLayout buildLayout(
         const OverworldTextboxConfig& config,
         int viewport_w,
         int viewport_h,

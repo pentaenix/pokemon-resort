@@ -1,5 +1,7 @@
 #include "gameplay/world3d/followers/FollowerController.hpp"
 
+#include "gameplay/world3d/interactions/InteractionSequence.hpp"
+
 #include "gameplay/world3d/data/JsonOverworldLoader.hpp"
 #include "gameplay/world3d/rendering/BillboardPlacement.hpp"
 #include "gameplay/world3d/terrain/ActorTerrainBinding.hpp"
@@ -80,7 +82,8 @@ FollowerController::FollowerController(
       session_config_(session_config),
       movement_config_(characters::loadCharacterMovementConfig(project_root)),
       terrain_query_(characters::makeLocalCharacterTerrainQuery(scene)),
-      idle_config_(loadNatureIdleBehaviorConfig(project_root)) {}
+      idle_config_(loadNatureIdleBehaviorConfig(project_root)),
+      idle_script_catalog_(scripts::loadScriptCatalog(project_root)) {}
 
 bool FollowerController::initializeResources() {
     if (!session_config_.enabled || session_config_.pokemon_species.empty()) {
@@ -96,9 +99,13 @@ bool FollowerController::initializeResources() {
         initialized_rng_ = true;
     }
 
+    const std::string follower_path = session_config_.pokemon_charbin_path.empty()
+        ? resolveFollowerPokemonCharbinPath(project_root_, session_config_.pokemon_species)
+        : session_config_.pokemon_charbin_path;
     const auto follower_opt = data::tryLoadCharacterDefinition(
         project_root_,
-        resolveFollowerPokemonCharbinPath(project_root_, session_config_.pokemon_species));
+        follower_path,
+        data::CharacterAppearanceSelection{session_config_.pokemon_form_id, session_config_.pokemon_shiny});
     if (!follower_opt) {
         resources_ready_ = false;
         return false;
@@ -525,6 +532,7 @@ void FollowerController::update(
     bool player_activity,
     bool player_running) {
     if (!resources_ready_ || !session_config_.enabled) return;
+    script_time_seconds_ += dt;
 
     player_facing_ = player_facing;
     player_idle_ = player_idle;
@@ -635,7 +643,8 @@ void FollowerController::update(
         follower_animator_->setPlaybackSpeedMultiplier(playback_speed);
         follower_animator_->setRunning(player_running_ && (follower_moving_ || !path_.empty()));
         follower_animator_->setMoving(interaction_locked_ ? false : follower_moving_);
-        if (!interaction_locked_ && manual_debug_action_ == ManualDebugActionType::None) {
+        if ((!interaction_locked_ || follower_animator_->activitySessionActive()) &&
+            manual_debug_action_ == ManualDebugActionType::None) {
             follower_animator_->update(dt);
         }
     }
@@ -747,6 +756,16 @@ void FollowerController::update(
     idle_seconds_ += dt;
     if (idle_seconds_ < idle_config_.start_after_idle_seconds) return;
     idle_seconds_ = 0.0;
+    scripts::ScriptContext script_context{};
+    script_context.tags = {"POKEMON", "FOLLOWER", "NATURE_" + scripts::normalizeScriptTag(canonical_nature)};
+    script_context.nearest_tag_distance_tiles["PLAYER"] =
+        std::abs(player_tile.x - follower_tile_.x) + std::abs(player_tile.y - follower_tile_.y);
+    const scripts::OverworldScript* selected_script = scripts::selectScript(
+        idle_script_catalog_, scripts::ScriptKind::Idle, script_context,
+        idle_script_cooldowns_, script_time_seconds_, rng_);
+    if (!selected_script || (!session_config_.idle_script_id.empty() && selected_script->id != session_config_.idle_script_id)) {
+        return;
+    }
     idle_origin_tile_ = follower_tile_;
     idle_origin_facing_ = follower_facing_;
     IdlePlan plan;
@@ -853,6 +872,67 @@ bool FollowerController::setInteractionLocked(bool locked) {
     return true;
 }
 
+std::optional<FollowerInteractionInfo> FollowerController::interactionInfo() const {
+    if (state_ != State::Active || !resources_ready_) {
+        return std::nullopt;
+    }
+    FollowerInteractionInfo info{};
+    info.tile_x = follower_tile_.x;
+    info.tile_y = follower_tile_.y;
+    info.display_name = session_config_.pokemon_species.empty() ? std::string{"Pokemon"} : session_config_.pokemon_species;
+    info.species_name = follower_def_.species_name.empty() ? session_config_.pokemon_species : follower_def_.species_name;
+    info.pokemon_size = follower_def_.pokemon_size;
+    info.pokemon_types = follower_def_.pokemon_types;
+    return info;
+}
+
+bool FollowerController::faceInteractionLockedTowardTile(int tx, int ty) {
+    if (!interaction_locked_) {
+        return false;
+    }
+    follower_facing_ = interactions::facingTowardTiles(follower_tile_.x, follower_tile_.y, tx, ty, follower_facing_);
+    if (follower_animator_) {
+        follower_animator_->setFacing(follower_facing_);
+    }
+    return true;
+}
+
+bool FollowerController::faceInteractionLocked(FacingDirection facing) {
+    if (!interaction_locked_) {
+        return false;
+    }
+    follower_facing_ = facing;
+    if (follower_animator_) {
+        follower_animator_->setFacing(follower_facing_);
+    }
+    return true;
+}
+
+bool FollowerController::startInteractionSession() {
+    if (!interaction_locked_ || !follower_animator_) {
+        return false;
+    }
+    const std::optional<std::string> action_id =
+        interactions::interactionActivityIdForPokemonSize(follower_def_.pokemon_size);
+    return action_id && follower_animator_->startActivitySession(*action_id);
+}
+
+void FollowerController::requestInteractionSessionExit() {
+    if (follower_animator_) {
+        follower_animator_->requestActivityExit();
+    }
+}
+
+bool FollowerController::interactionSessionReady() const {
+    return !follower_animator_ ||
+        !follower_animator_->activitySessionActive() ||
+        follower_animator_->activityStayActive();
+}
+
+bool FollowerController::interactionSessionFinished() const {
+    return !follower_animator_ || follower_animator_->activityFinished();
+}
+
 void FollowerController::collectBillboardDraws(
     const camera::Gen4FollowCamera& camera,
     int viewport_w,
@@ -919,6 +999,7 @@ void FollowerController::collectBillboardDraws(
     rendering::CharacterBillboardDraw draw{};
     draw.character = &follower_def_;
     draw.source_rect = follower_animator_->sourceRect();
+    draw.activity_id = follower_animator_->activeActivityId();
     draw.draw_shadow = true;
     draw.use_run_texture = follower_animator_->running();
     if (state_ == State::EntryFlash) {

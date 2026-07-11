@@ -2,6 +2,7 @@
 
 #include <string>
 #include <cstdint>
+#include <unordered_map>
 #include <vector>
 
 namespace pr::gameplay::world3d {
@@ -18,11 +19,19 @@ struct CharacterAnimationDef {
     int frame_time_ms = 120;
 };
 
+struct CharacterActivitySessionDef {
+    CharacterAnimationDef enter;
+    CharacterAnimationDef stay;
+    CharacterAnimationDef exit;
+    bool valid = false;
+};
+
 struct CharacterSpriteDefinition {
     std::string id;
     std::string texture_path;
     std::vector<std::uint8_t> texture_png_bytes;
     std::vector<std::uint8_t> run_texture_png_bytes;
+    std::unordered_map<std::string, std::vector<std::uint8_t>> activity_texture_png_bytes;
     int frame_width = 32;
     int frame_height = 32;
     int columns = 4;
@@ -46,6 +55,11 @@ struct CharacterSpriteDefinition {
     CharacterAnimationDef run;
     CharacterAnimationDef pause;
     CharacterAnimationDef play;
+    std::unordered_map<std::string, CharacterActivitySessionDef> activity_sessions;
+    std::string character_type = "npc";
+    std::string pokemon_size = "small";
+    std::string species_name;
+    std::vector<std::string> pokemon_types;
     bool has_run = false;
 };
 

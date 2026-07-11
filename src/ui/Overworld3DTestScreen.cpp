@@ -10,6 +10,8 @@
 #include "gameplay/world3d/data/JsonOverworldLoader.hpp"
 #include "gameplay/world3d/dialogue/OverworldTextboxConfig.hpp"
 #include "gameplay/world3d/followers/NatureIdleConfig.hpp"
+#include "gameplay/world3d/interactions/InteractionSequence.hpp"
+#include "gameplay/world3d/interactions/InteractionText.hpp"
 #include "gameplay/world3d/npc/NpcActorDriver.hpp"
 #include "gameplay/world3d/rendering/FallbackTerrainRenderer.hpp"
 
@@ -176,6 +178,23 @@ void Overworld3DTestScreen::initializeSceneState() {
     map_ = gameplay::world3d::rendering::OverworldMapRenderer(scene_);
     follower_summon_config_ = gameplay::world3d::followers::loadFollowerSummonConfig(project_root_);
     follower_session_config_ = gameplay::world3d::followers::loadFollowerSessionConfig(project_root_);
+    npc_actor_driver_ = std::make_unique<gameplay::world3d::npc::NpcActorDriver>(project_root_, scene_);
+    const std::vector<gameplay::world3d::npc::ResortPokemonSpawnInfo> resort_pokemon =
+        npc_actor_driver_->resortPokemonSpawnList();
+    follower_session_config_.enabled = !resort_pokemon.empty();
+    if (follower_session_config_.enabled) {
+        follower_session_config_.pokemon_charbin_path = resort_pokemon.front().character_package_path;
+        follower_session_config_.pokemon_species = !resort_pokemon.front().species_slug.empty()
+            ? resort_pokemon.front().species_slug
+            : resort_pokemon.front().species_name;
+        follower_session_config_.pokemon_form_id = resort_pokemon.front().form_id;
+        follower_session_config_.pokemon_shiny = resort_pokemon.front().shiny;
+    } else {
+        follower_session_config_.pokemon_charbin_path.clear();
+        follower_session_config_.pokemon_species.clear();
+        follower_session_config_.pokemon_form_id = "default";
+        follower_session_config_.pokemon_shiny = false;
+    }
     follower_controller_ = std::make_unique<gameplay::world3d::followers::FollowerController>(
         project_root_,
         scene_,
@@ -201,12 +220,20 @@ void Overworld3DTestScreen::initializeSceneState() {
     if (landing_dust_system_) {
         landing_dust_system_->initializeResources();
     }
-    npc_actor_driver_ = std::make_unique<gameplay::world3d::npc::NpcActorDriver>(project_root_, scene_);
     npc_actor_driver_->initializeDefaultSceneActors(player_.position());
     textbox_config_ = gameplay::world3d::dialogue::loadOverworldTextboxConfig(project_root_);
     textbox_controller_.hide();
     textbox_renderer_ =
         std::make_unique<gameplay::world3d::dialogue::OverworldTextboxRenderer>(project_root_, textbox_config_);
+    interaction_behaviors_ =
+        gameplay::world3d::interactions::loadInteractionBehaviorCatalog(project_root_);
+    interaction_text_catalog_ =
+        gameplay::world3d::interactions::loadInteractionTextCatalog(project_root_);
+    active_interaction_target_ = {};
+    interaction_sequence_.cancel();
+    interaction_exit_requested_ = false;
+    interaction_pokemon_session_started_ = false;
+    interaction_time_seconds_ = 0.0;
     reloadWorldTerrainQueries();
     logLoadedWorldChunks();
     gameplay::world3d::camera::Gen4CameraPreset preset =
@@ -481,6 +508,7 @@ void Overworld3DTestScreen::logLoadedWorldChunks() const {
 
 
 void Overworld3DTestScreen::update(double dt) {
+    interaction_time_seconds_ += dt;
     if (blocked_movement_repeat_seconds_ > 0.0) {
         blocked_movement_repeat_seconds_ = std::max(0.0, blocked_movement_repeat_seconds_ - dt);
     }
@@ -491,7 +519,7 @@ void Overworld3DTestScreen::update(double dt) {
     bool blocked_movement_attempt = false;
     if (!freecam_enabled_) {
         const Uint8* keys = SDL_GetKeyboardState(nullptr);
-        if (!textbox_controller_.active()) {
+        if (!interactionActive()) {
             if (keys[SDL_SCANCODE_LEFT] || keys[SDL_SCANCODE_A]) keyboard_dx -= 1;
             if (keys[SDL_SCANCODE_RIGHT] || keys[SDL_SCANCODE_D]) keyboard_dx += 1;
             if (keys[SDL_SCANCODE_UP] || keys[SDL_SCANCODE_W]) keyboard_dy -= 1;
@@ -508,7 +536,7 @@ void Overworld3DTestScreen::update(double dt) {
             ? movement_config_.runSpeed()
             : movement_config_.walkSpeed());
 
-        auto [grid_dx, grid_dy] = textbox_controller_.active()
+        auto [grid_dx, grid_dy] = interactionActive()
             ? std::pair<int, int>{0, 0}
             : gridStepFromCameraInput(camera_, input_dx_, input_dy_);
         const auto move_result = player_.moveInput(
@@ -574,7 +602,7 @@ void Overworld3DTestScreen::update(double dt) {
     if (follower_controller_) {
         const bool player_idle = !player_.moving() && !freecam_enabled_;
         const bool player_activity =
-            !textbox_controller_.active() && !freecam_enabled_ && (keyboard_dx != 0 || keyboard_dy != 0);
+            !interactionActive() && !freecam_enabled_ && (keyboard_dx != 0 || keyboard_dy != 0);
         follower_controller_->update(
             dt,
             player_.position(),
@@ -607,6 +635,7 @@ void Overworld3DTestScreen::update(double dt) {
         npc_actor_driver_->setReservedTiles(std::move(reserved_tiles), player_reserved_tile_count);
         npc_actor_driver_->update(dt);
     }
+    updateInteractionSequence();
 }
 
 bool Overworld3DTestScreen::consumeBlockedMovementSfxRequested() {
@@ -817,10 +846,12 @@ bool Overworld3DTestScreen::renderBgfx(
         landing_dust_system_->collectTextureBillboardDraws(
             scene_, camera_, world_view_w, world_view_h, texture_draws);
     }
+    bgfx_renderer_->setTextboxOverlay(textbox_config_, textbox_controller_.active());
     bgfx_renderer_->render(
         camera_,
         player_.position(),
         animator_.sourceRect(),
+        animator_.activeActivityId(),
         animator_.running(),
         player_.terrainBinding(),
         logical_w,
@@ -845,7 +876,7 @@ void Overworld3DTestScreen::renderPresentationOverlay(SDL_Renderer* renderer) {
         SDL_GetRendererOutputSize(renderer, &logical_w, &logical_h);
     }
 
-    if (textbox_controller_.active() && textbox_renderer_) {
+    if (textbox_controller_.active() && textbox_renderer_ && !isBgfxActive()) {
         const SDL_Rect world_view = visibleWorldViewportRect(logical_w, logical_h);
         textbox_renderer_->render(
             renderer,
@@ -877,7 +908,7 @@ void Overworld3DTestScreen::renderPresentationOverlay(SDL_Renderer* renderer) {
 }
 
 void Overworld3DTestScreen::onNavigate2d(int dx, int dy) {
-    if (freecam_enabled_ || textbox_controller_.active()) {
+    if (freecam_enabled_ || interactionActive()) {
         return;
     }
     input_dx_ = dx;
@@ -889,10 +920,10 @@ void Overworld3DTestScreen::onAdvancePressed() {
         return;
     }
     if (textbox_controller_.active()) {
-        clearInteractionTextBox();
+        closeInteractionText();
         return;
     }
-    if (!gameplay::world3d::dialogue::overworldTextboxEnabled(textbox_config_)) {
+    if (interactionActive()) {
         return;
     }
 
@@ -903,7 +934,7 @@ void Overworld3DTestScreen::onAdvancePressed() {
     if (!lockInteractionTarget(target)) {
         return;
     }
-    textbox_controller_.show(target);
+    beginInteraction(target);
 }
 
 bool Overworld3DTestScreen::handlePointerPressed(int logical_x, int logical_y) {
@@ -927,8 +958,11 @@ bool Overworld3DTestScreen::handlePointerReleased(int logical_x, int logical_y) 
 }
 
 void Overworld3DTestScreen::onBackPressed() {
-    if (textbox_controller_.active()) {
-        clearInteractionTextBox();
+    if (interactionActive()) {
+        if (textbox_controller_.active()) {
+            textbox_controller_.hide();
+        }
+        requestInteractionExit();
         return;
     }
     if (freecam_enabled_) {
@@ -1040,6 +1074,246 @@ bool Overworld3DTestScreen::lockInteractionTarget(
         return follower_controller_->setInteractionLocked(true);
     }
     return false;
+}
+
+bool Overworld3DTestScreen::interactionActive() const {
+    return textbox_controller_.active() ||
+        interaction_sequence_.active() ||
+        interaction_exit_requested_;
+}
+
+gameplay::world3d::interactions::InteractionTargetKind
+Overworld3DTestScreen::interactionTargetKind(
+    const gameplay::world3d::dialogue::OverworldTextboxController::Target& target) const {
+    using TargetKind = gameplay::world3d::dialogue::OverworldTextboxController::TargetKind;
+    using InteractionTargetKind = gameplay::world3d::interactions::InteractionTargetKind;
+    if (target.kind == TargetKind::FollowerPokemon) {
+        return InteractionTargetKind::Pokemon;
+    }
+    if (target.kind == TargetKind::NpcActor && npc_actor_driver_) {
+        const auto info = npc_actor_driver_->interactionActorInfo(target.id);
+        if (info && info->kind == gameplay::world3d::npc::NpcActorKind::Pokemon) {
+            return InteractionTargetKind::Pokemon;
+        }
+    }
+    return InteractionTargetKind::Character;
+}
+
+void Overworld3DTestScreen::beginInteraction(
+    const gameplay::world3d::dialogue::OverworldTextboxController::Target& target) {
+    active_interaction_target_ = target;
+    interaction_exit_requested_ = false;
+    interaction_pokemon_session_started_ = false;
+    interaction_sequence_.begin(interactionTargetKind(target), interaction_behaviors_);
+    updateInteractionSequence();
+}
+
+gameplay::world3d::interactions::InteractionTextContext
+Overworld3DTestScreen::buildInteractionTextContext(
+    const gameplay::world3d::dialogue::OverworldTextboxController::Target& target) const {
+    namespace interactions = gameplay::world3d::interactions;
+    using TargetKind = gameplay::world3d::dialogue::OverworldTextboxController::TargetKind;
+    interactions::InteractionTextContext context{};
+    const auto add_tag = [&context](const std::string& tag) {
+        context.tags.insert(interactions::normalizeInteractionTag(tag));
+    };
+    add_tag(interactionTargetKind(target) == interactions::InteractionTargetKind::Pokemon
+        ? "POKEMON"
+        : "CHARACTER");
+    add_tag("TILE_GROUND");
+    context.variables["PLAYER_NAME"] = "Player";
+    context.variables["ROLE"] = interactionTargetKind(target) == interactions::InteractionTargetKind::Pokemon
+        ? "Pokemon"
+        : "Character";
+    context.variables["TILE"] = "ground";
+    context.variables["TYPE_PRIMARY"] = "";
+    context.variables["TYPE_SECONDARY"] = "";
+    context.variables["NATURE"] = "";
+    context.variables["FORM"] = "";
+    context.variables["COMPANION_NAME"] = "";
+    context.variables["NEARBY_POKEMON_NAME"] = "";
+    if (target.kind == TargetKind::FollowerPokemon && follower_controller_) {
+        if (const auto info = follower_controller_->interactionInfo()) {
+            add_tag("POKEMON");
+            context.variables["NAME"] = info->display_name;
+            context.variables["SPECIES"] = info->species_name;
+            if (!info->species_name.empty()) add_tag("SPECIES_" + info->species_name);
+            if (!info->pokemon_types.empty()) context.variables["TYPE_PRIMARY"] = info->pokemon_types.front();
+            if (info->pokemon_types.size() > 1) context.variables["TYPE_SECONDARY"] = info->pokemon_types[1];
+            for (const std::string& type : info->pokemon_types) {
+                add_tag("TYPE_" + type);
+            }
+        }
+    } else if (target.kind == TargetKind::NpcActor && npc_actor_driver_) {
+        if (const auto info = npc_actor_driver_->interactionActorInfo(target.id)) {
+            if (info->kind == gameplay::world3d::npc::NpcActorKind::Pokemon) {
+                add_tag("POKEMON");
+            }
+            context.variables["NAME"] = info->display_name;
+            context.variables["SPECIES"] = info->species_name;
+            if (!info->species_name.empty()) add_tag("SPECIES_" + info->species_name);
+            if (!info->pokemon_types.empty()) context.variables["TYPE_PRIMARY"] = info->pokemon_types.front();
+            if (info->pokemon_types.size() > 1) context.variables["TYPE_SECONDARY"] = info->pokemon_types[1];
+            for (const std::string& type : info->pokemon_types) {
+                add_tag("TYPE_" + type);
+            }
+        }
+    }
+    return context;
+}
+
+std::string Overworld3DTestScreen::characterDialogueForTarget(
+    const gameplay::world3d::dialogue::OverworldTextboxController::Target& target) {
+    using TargetKind = gameplay::world3d::dialogue::OverworldTextboxController::TargetKind;
+    if (target.kind != TargetKind::NpcActor || !npc_actor_driver_) return {};
+    const auto info = npc_actor_driver_->interactionActorInfo(target.id);
+    if (!info || info->kind != gameplay::world3d::npc::NpcActorKind::Human || info->dialogue_lines.empty()) return {};
+    std::uniform_int_distribution<std::size_t> pick(0, info->dialogue_lines.size() - 1U);
+    return gameplay::world3d::interactions::renderInteractionTextTemplate(info->dialogue_lines[pick(interaction_rng_)],
+        buildInteractionTextContext(target).variables);
+}
+
+void Overworld3DTestScreen::updateInteractionSequence() {
+    namespace interactions = gameplay::world3d::interactions;
+    using TargetKind = gameplay::world3d::dialogue::OverworldTextboxController::TargetKind;
+    if (interaction_exit_requested_) {
+        if (animator_.activityFinished()) {
+            finishInteraction();
+        }
+        return;
+    }
+    if (textbox_controller_.active() || !interaction_sequence_.active()) {
+        if (!textbox_controller_.active() && !interaction_sequence_.active() &&
+            active_interaction_target_.kind != TargetKind::None) {
+            requestInteractionExit();
+        }
+        return;
+    }
+
+    while (const interactions::InteractionAction* action = interaction_sequence_.currentAction()) {
+        switch (action->kind) {
+            case interactions::InteractionActionKind::FacePlayer:
+                if (active_interaction_target_.kind == TargetKind::FollowerPokemon && follower_controller_) {
+                    follower_controller_->faceInteractionLockedTowardTile(player_.tileX(), player_.tileY());
+                } else if (active_interaction_target_.kind == TargetKind::NpcActor && npc_actor_driver_) {
+                    npc_actor_driver_->faceInteractionLockedActorTowardTile(player_.tileX(), player_.tileY());
+                }
+                interaction_sequence_.advance();
+                break;
+            case interactions::InteractionActionKind::FaceDirection:
+                if (active_interaction_target_.kind == TargetKind::FollowerPokemon && follower_controller_) {
+                    follower_controller_->faceInteractionLocked(action->direction);
+                } else if (active_interaction_target_.kind == TargetKind::NpcActor && npc_actor_driver_) {
+                    npc_actor_driver_->faceInteractionLockedActor(action->direction);
+                }
+                interaction_sequence_.advance();
+                break;
+            case interactions::InteractionActionKind::FaceAway: {
+                const auto away = interactions::oppositeFacing(interactions::facingTowardTiles(
+                    player_.tileX(),
+                    player_.tileY(),
+                    player_.tileX(),
+                    player_.tileY(),
+                    player_.facing()));
+                if (active_interaction_target_.kind == TargetKind::FollowerPokemon && follower_controller_) {
+                    follower_controller_->faceInteractionLocked(away);
+                } else if (active_interaction_target_.kind == TargetKind::NpcActor && npc_actor_driver_) {
+                    npc_actor_driver_->faceInteractionLockedActor(away);
+                }
+                interaction_sequence_.advance();
+                break;
+            }
+            case interactions::InteractionActionKind::PokemonInteractionSession:
+                if (interactionTargetKind(active_interaction_target_) != interactions::InteractionTargetKind::Pokemon) {
+                    interaction_sequence_.advance();
+                    break;
+                }
+                if (!interaction_pokemon_session_started_) {
+                    std::string pokemon_size = "small";
+                    if (active_interaction_target_.kind == TargetKind::FollowerPokemon && follower_controller_) {
+                        if (const auto info = follower_controller_->interactionInfo()) {
+                            pokemon_size = info->pokemon_size;
+                        }
+                    } else if (active_interaction_target_.kind == TargetKind::NpcActor && npc_actor_driver_) {
+                        if (const auto info = npc_actor_driver_->interactionActorInfo(active_interaction_target_.id)) {
+                            pokemon_size = info->pokemon_size;
+                        }
+                    }
+                    const std::optional<std::string> activity_id =
+                        interactions::interactionActivityIdForPokemonSize(pokemon_size);
+                    if (!activity_id) {
+                        interaction_sequence_.advance();
+                        break;
+                    }
+                    interaction_pokemon_session_started_ = animator_.startActivitySession(*activity_id);
+                    if (!interaction_pokemon_session_started_) {
+                        interaction_sequence_.advance();
+                        break;
+                    }
+                }
+                if (animator_.activityStayActive()) {
+                    interaction_sequence_.advance();
+                } else {
+                    return;
+                }
+                break;
+            case interactions::InteractionActionKind::TextLiteral:
+            case interactions::InteractionActionKind::TextFree: {
+                if (!gameplay::world3d::dialogue::overworldTextboxEnabled(textbox_config_)) {
+                    interaction_sequence_.advance();
+                    break;
+                }
+                std::string text = action->value;
+                if (action->kind == interactions::InteractionActionKind::TextFree) {
+                    if (interactionTargetKind(active_interaction_target_) == interactions::InteractionTargetKind::Character) {
+                        text = characterDialogueForTarget(active_interaction_target_);
+                    } else {
+                        interactions::InteractionTextContext context = buildInteractionTextContext(active_interaction_target_);
+                        const interactions::InteractionTextSelection selection = interactions::selectInteractionText(
+                            interaction_text_catalog_,
+                            context,
+                            interaction_text_cooldowns_,
+                            interaction_time_seconds_,
+                            interaction_rng_);
+                        text = selection.found ? selection.body : std::string{};
+                    }
+                }
+                textbox_controller_.show(active_interaction_target_, std::move(text));
+                return;
+            }
+            case interactions::InteractionActionKind::Cry:
+            case interactions::InteractionActionKind::Emoticon:
+                interaction_sequence_.advance();
+                break;
+        }
+    }
+}
+
+void Overworld3DTestScreen::closeInteractionText() {
+    textbox_controller_.hide();
+    interaction_sequence_.advance();
+    updateInteractionSequence();
+}
+
+void Overworld3DTestScreen::requestInteractionExit() {
+    if (active_interaction_target_.kind == gameplay::world3d::dialogue::OverworldTextboxController::TargetKind::None) {
+        return;
+    }
+    interaction_sequence_.cancel();
+    if (interaction_pokemon_session_started_) {
+        animator_.requestActivityExit();
+        interaction_exit_requested_ = true;
+        return;
+    }
+    finishInteraction();
+}
+
+void Overworld3DTestScreen::finishInteraction() {
+    active_interaction_target_ = {};
+    interaction_sequence_.cancel();
+    interaction_exit_requested_ = false;
+    interaction_pokemon_session_started_ = false;
+    clearInteractionTextBox();
 }
 
 void Overworld3DTestScreen::clearInteractionTextBox() {

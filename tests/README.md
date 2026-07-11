@@ -33,6 +33,7 @@ resort_menu_controller_tests
 attend_scene_config_tests
 attend_pokemon_model_tests
 overlay_canvas_tests
+interaction_system_tests
 resort_loading_transition_screen_tests
 transfer_ticket_list_tests
 transfer_selection_builder_tests

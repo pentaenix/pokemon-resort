@@ -126,9 +126,13 @@ FollowerSessionConfig loadFollowerSessionConfig(const std::string& project_root)
         if (!follower || !follower->isObject()) return out;
         out.enabled = follower->get("enabled") ? follower->get("enabled")->asBool() : out.enabled;
         out.pokemon_species = strOr(follower->get("pokemonSpecies"), out.pokemon_species);
+        out.pokemon_charbin_path = strOr(follower->get("pokemonCharbinPath"), out.pokemon_charbin_path);
+        out.pokemon_form_id = strOr(follower->get("pokemonFormId"), out.pokemon_form_id);
+        out.pokemon_shiny = follower->get("pokemonShiny") ? follower->get("pokemonShiny")->asBool() : out.pokemon_shiny;
         out.pokeball_id = strOr(follower->get("pokeballId"), out.pokeball_id);
         out.nature = strOr(follower->get("nature"), out.nature);
         out.forced_behavior = strOr(follower->get("forcedBehavior"), out.forced_behavior);
+        out.idle_script_id = strOr(follower->get("idleScriptId"), out.idle_script_id);
         out.movement_mode = strOr(follower->get("movementMode"), out.movement_mode);
     } catch (...) {
         return out;

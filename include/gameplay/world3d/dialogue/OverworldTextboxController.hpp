@@ -19,14 +19,16 @@ public:
 
     bool active() const { return active_; }
     Target activeTarget() const { return target_; }
+    const std::string& text() const { return text_; }
 
-    void show(Target target);
+    void show(Target target, std::string text = {});
     void hide();
     bool toggleForTarget(Target target);
 
 private:
     bool active_ = false;
     Target target_{};
+    std::string text_;
 };
 
 } // namespace pr::gameplay::world3d::dialogue

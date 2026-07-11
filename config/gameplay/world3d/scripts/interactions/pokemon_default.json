@@ -1,0 +1,15 @@
+{
+  "id": "interaction_pokemon_default",
+  "kind": "interaction",
+  "targetGates": ["POKEMON"],
+  "trigger": "ACCEPT",
+  "priority": 0,
+  "weight": 1,
+  "cooldownSeconds": 0,
+  "when": { "allTags": ["POKEMON"] },
+  "actions": [
+    { "action": "FACE_PLAYER" },
+    { "action": "POKEMON_INTERACTION_SESSION" },
+    { "action": "TEXT_FREE" }
+  ]
+}

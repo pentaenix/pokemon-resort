@@ -1,0 +1,11 @@
+{
+  "id": "idle_follower_default",
+  "kind": "idle",
+  "targetGates": ["POKEMON", "FOLLOWER"],
+  "trigger": "PLAYER_IDLE",
+  "priority": 0,
+  "weight": 1,
+  "cooldownSeconds": 0,
+  "when": { "allTags": ["POKEMON", "FOLLOWER"] },
+  "actions": [ { "action": "WANDER" } ]
+}

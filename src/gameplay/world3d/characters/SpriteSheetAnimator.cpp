@@ -24,6 +24,28 @@ const CharacterAnimationDef& activeMoveAnimation(const CharacterSpriteDefinition
     return (running && def.has_run) ? def.run : def.walk;
 }
 
+void SpriteSheetAnimator::resetFrameClock() {
+    frame_index_ = 0U;
+    elapsed_ms_ = 0.0;
+}
+
+const CharacterAnimationDef& SpriteSheetAnimator::activeAnimation() const {
+    if (activity_phase_ != ActivityPhase::None && activity_phase_ != ActivityPhase::Finished) {
+        const auto it = def_.activity_sessions.find(activity_id_);
+        if (it != def_.activity_sessions.end() && it->second.valid) {
+            switch (activity_phase_) {
+                case ActivityPhase::Enter: return it->second.enter;
+                case ActivityPhase::Stay: return it->second.stay;
+                case ActivityPhase::Exit: return it->second.exit;
+                case ActivityPhase::None:
+                case ActivityPhase::Finished:
+                    break;
+            }
+        }
+    }
+    return moving_ ? activeMoveAnimation(def_, running_) : def_.idle;
+}
+
 void SpriteSheetAnimator::setMoving(bool moving) {
     if (moving_ == moving) {
         return;
@@ -41,8 +63,7 @@ void SpriteSheetAnimator::setMoving(bool moving) {
         alternate_walk_start_ = !alternate_walk_start_;
         elapsed_ms_ = 0.0;
     } else if (moving_ && !moving) {
-        frame_index_ = 0U;
-        elapsed_ms_ = 0.0;
+        resetFrameClock();
     }
     moving_ = moving;
 }
@@ -53,8 +74,7 @@ void SpriteSheetAnimator::setRunning(bool running) {
         return;
     }
     running_ = running;
-    frame_index_ = 0U;
-    elapsed_ms_ = 0.0;
+    resetFrameClock();
 }
 
 void SpriteSheetAnimator::setPlaybackSpeedMultiplier(double multiplier) {
@@ -66,23 +86,78 @@ void SpriteSheetAnimator::setFacing(FacingDirection facing) {
 }
 
 void SpriteSheetAnimator::update(double dt) {
-    const CharacterAnimationDef& anim = moving_ ? activeMoveAnimation(def_, running_) : def_.idle;
+    const CharacterAnimationDef& anim = activeAnimation();
     if (anim.frames.empty()) {
         return;
     }
     elapsed_ms_ += dt * playback_speed_multiplier_ * 1000.0;
     while (elapsed_ms_ >= anim.frame_time_ms) {
         elapsed_ms_ -= anim.frame_time_ms;
-        frame_index_ = (frame_index_ + 1U) % anim.frames.size();
+        if (activity_phase_ == ActivityPhase::Enter || activity_phase_ == ActivityPhase::Exit) {
+            if (frame_index_ + 1U < anim.frames.size()) {
+                ++frame_index_;
+            } else if (activity_phase_ == ActivityPhase::Enter) {
+                activity_phase_ = ActivityPhase::Stay;
+                resetFrameClock();
+            } else {
+                activity_phase_ = ActivityPhase::Finished;
+                activity_id_.clear();
+                resetFrameClock();
+            }
+        } else {
+            frame_index_ = (frame_index_ + 1U) % anim.frames.size();
+        }
     }
 }
 
 SDL_Rect SpriteSheetAnimator::sourceRect() const {
-    const CharacterAnimationDef& anim = moving_ ? activeMoveAnimation(def_, running_) : def_.idle;
+    const CharacterAnimationDef& anim = activeAnimation();
     const int frame = anim.frames.empty() ? 0 : anim.frames[frame_index_ % anim.frames.size()];
     const int col = std::clamp(frame, 0, std::max(0, def_.columns - 1));
     const int row = std::clamp(rowForFacing(def_, facing_), 0, std::max(0, def_.rows - 1));
     return SDL_Rect{col * def_.frame_width, row * def_.frame_height, def_.frame_width, def_.frame_height};
+}
+
+bool SpriteSheetAnimator::hasActivitySession(const std::string& action_id) const {
+    const auto it = def_.activity_sessions.find(action_id);
+    return it != def_.activity_sessions.end() && it->second.valid;
+}
+
+bool SpriteSheetAnimator::startActivitySession(const std::string& action_id) {
+    if (!hasActivitySession(action_id)) {
+        return false;
+    }
+    activity_id_ = action_id;
+    activity_phase_ = ActivityPhase::Enter;
+    moving_ = false;
+    running_ = false;
+    resetFrameClock();
+    return true;
+}
+
+void SpriteSheetAnimator::requestActivityExit() {
+    if (activity_phase_ == ActivityPhase::Enter || activity_phase_ == ActivityPhase::Stay) {
+        activity_phase_ = ActivityPhase::Exit;
+        resetFrameClock();
+    }
+}
+
+bool SpriteSheetAnimator::activitySessionActive() const {
+    return activity_phase_ == ActivityPhase::Enter ||
+        activity_phase_ == ActivityPhase::Stay ||
+        activity_phase_ == ActivityPhase::Exit;
+}
+
+bool SpriteSheetAnimator::activityStayActive() const {
+    return activity_phase_ == ActivityPhase::Stay;
+}
+
+bool SpriteSheetAnimator::activityFinished() const {
+    return activity_phase_ == ActivityPhase::Finished || activity_phase_ == ActivityPhase::None;
+}
+
+std::string SpriteSheetAnimator::activeActivityId() const {
+    return activitySessionActive() ? activity_id_ : std::string{};
 }
 
 } // namespace pr::gameplay::world3d::characters

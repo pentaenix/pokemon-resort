@@ -10,6 +10,7 @@
 #include "gameplay/world3d/rendering/bgfx/BgfxBackend.hpp"
 #include "gameplay/world3d/rendering/bgfx/RampTerrainRender.hpp"
 #include "gameplay/world3d/terrain/TerrainSurface.hpp"
+#include "ui/overlay/OverlaySliceLayout.hpp"
 
 #include <SDL_image.h>
 
@@ -197,10 +198,12 @@ public:
     bool valid() const { return initialized_ && backend_.valid(); }
     std::string lastError() const { return last_error_; }
     void setStaticMapChunks(std::vector<OverworldBgfxRenderer::StaticMapChunk> chunks);
+    void setTextboxOverlay(dialogue::OverworldTextboxConfig config, bool visible);
     void render(
         const camera::Gen4FollowCamera& camera,
         const camera::Vec3& player_pos,
         const SDL_Rect& player_source_rect,
+        const std::string& player_activity_id,
         bool player_use_run_texture,
         const terrain::ActorTerrainBinding& player_binding,
         int logical_w,
@@ -240,6 +243,8 @@ private:
         TextureGpuResource white;
         TextureGpuResource run_color;
         TextureGpuResource run_white;
+        std::unordered_map<std::string, TextureGpuResource> activity_color;
+        std::unordered_map<std::string, TextureGpuResource> activity_white;
     };
 
     struct MaterialGpuResource {
@@ -323,6 +328,11 @@ private:
     bgfx::UniformHandle light_params_uniform_ = BGFX_INVALID_HANDLE;
     TextureGpuResource white_texture_;
     TextureGpuResource shadow_texture_;
+    TextureGpuResource textbox_texture_;
+    dialogue::OverworldTextboxConfig textbox_config_{};
+    std::string textbox_texture_path_;
+    bool textbox_overlay_visible_ = false;
+    bool textbox_load_warned_ = false;
     mutable std::unordered_map<std::string, CharacterGpuTextures> character_textures_;
     mutable std::unordered_map<std::string, TextureGpuResource> effect_textures_;
     MeshGpuResource terrain_flat_top_mesh_;
@@ -362,6 +372,7 @@ private:
         const std::string& fallback_path,
         const char* debug_name) const;
     bool ensurePixelWorldTarget(int width, int height);
+    bool ensureTextboxTexture();
 
     void submitMesh(
         const MeshGpuResource& mesh,
@@ -378,6 +389,19 @@ private:
         MaterialClass pass,
         bgfx::ViewId view_id) const;
     void submitPixelWorldToBackbuffer(int framebuffer_w, int framebuffer_h, int source_w, int source_h) const;
+    void submitTextboxOverlay(
+        int framebuffer_w,
+        int framebuffer_h,
+        const SDL_Rect& viewport_dst,
+        int base_viewport_w,
+        int base_viewport_h) const;
+    void submitOverlaySlice(
+        bgfx::ViewId view_id,
+        bgfx::TextureHandle texture,
+        int texture_w,
+        int texture_h,
+        const SDL_Rect& src,
+        const SDL_Rect& dst) const;
     void submitProjectedCharacterShadows(
         const camera::Gen4FollowCamera& camera,
         const std::vector<rendering::CharacterBillboardDraw>& characters) const;
@@ -475,10 +499,17 @@ void OverworldBgfxRenderer::setStaticMapChunks(std::vector<StaticMapChunk> chunk
     }
 }
 
+void OverworldBgfxRenderer::setTextboxOverlay(dialogue::OverworldTextboxConfig config, bool visible) {
+    if (impl_) {
+        impl_->setTextboxOverlay(std::move(config), visible);
+    }
+}
+
 void OverworldBgfxRenderer::render(
     const camera::Gen4FollowCamera& camera,
     const camera::Vec3& player_pos,
     const SDL_Rect& player_source_rect,
+    const std::string& player_activity_id,
     bool player_use_run_texture,
     const terrain::ActorTerrainBinding& player_binding,
     int logical_w,
@@ -493,6 +524,7 @@ void OverworldBgfxRenderer::render(
             camera,
             player_pos,
             player_source_rect,
+            player_activity_id,
             player_use_run_texture,
             player_binding,
             logical_w,
@@ -517,6 +549,16 @@ void OverworldBgfxRenderer::Impl::queueScreenshot(const std::string& output_path
 
 void OverworldBgfxRenderer::Impl::setStaticMapChunks(std::vector<OverworldBgfxRenderer::StaticMapChunk> chunks) {
     pending_static_chunks_ = std::move(chunks);
+}
+
+void OverworldBgfxRenderer::Impl::setTextboxOverlay(dialogue::OverworldTextboxConfig config, bool visible) {
+    if (config.sprite_sheet_path != textbox_texture_path_) {
+        textbox_texture_.destroy();
+        textbox_texture_path_.clear();
+        textbox_load_warned_ = false;
+    }
+    textbox_config_ = std::move(config);
+    textbox_overlay_visible_ = visible;
 }
 
 bool OverworldBgfxRenderer::Impl::initialize(
@@ -596,12 +638,20 @@ void OverworldBgfxRenderer::Impl::shutdown() {
         entry.second.white.destroy();
         entry.second.run_color.destroy();
         entry.second.run_white.destroy();
+        for (auto& activity : entry.second.activity_color) {
+            activity.second.destroy();
+        }
+        for (auto& activity : entry.second.activity_white) {
+            activity.second.destroy();
+        }
     }
     character_textures_.clear();
     for (auto& entry : effect_textures_) {
         entry.second.destroy();
     }
     effect_textures_.clear();
+    textbox_texture_.destroy();
+    textbox_texture_path_.clear();
     white_texture_.destroy();
     destroyPrograms();
     if (bgfx::isValid(tex_uniform_)) {
@@ -766,6 +816,31 @@ bool OverworldBgfxRenderer::Impl::ensurePixelWorldTarget(int width, int height) 
     pixel_world_target_.height = height;
     std::cerr << "[OverworldBgfx] Pixel-perfect world target "
               << width << "x" << height << '\n';
+    return true;
+}
+
+bool OverworldBgfxRenderer::Impl::ensureTextboxTexture() {
+    if (textbox_texture_.valid()) {
+        return true;
+    }
+    if (!dialogue::overworldTextboxEnabled(textbox_config_)) {
+        return false;
+    }
+
+    std::filesystem::path path(textbox_config_.sprite_sheet_path);
+    if (!path.is_absolute()) {
+        path = std::filesystem::path(project_root_) / path;
+    }
+    textbox_texture_ = decodeImageBytes({}, path.string(), "overworld-textbox");
+    if (!textbox_texture_.valid()) {
+        if (!textbox_load_warned_) {
+            std::cerr << "[OverworldBgfx] Could not load textbox sprite sheet: "
+                      << path << '\n';
+            textbox_load_warned_ = true;
+        }
+        return false;
+    }
+    textbox_texture_path_ = textbox_config_.sprite_sheet_path;
     return true;
 }
 
@@ -1452,6 +1527,30 @@ const OverworldBgfxRenderer::Impl::CharacterGpuTextures& OverworldBgfxRenderer::
             loaded.run_white = loaded.run_color;
         }
     }
+    for (const auto& [activity_id, png_bytes] : character.activity_texture_png_bytes) {
+        if (activity_id.empty() || png_bytes.empty()) {
+            continue;
+        }
+        TextureGpuResource color = decodeImageBytes(
+            png_bytes,
+            character.texture_path + "|activity|" + activity_id,
+            "character-billboard-activity");
+        if (!color.valid()) {
+            continue;
+        }
+        loaded.activity_color[activity_id] = color;
+        const RgbaImage activity_white_rgba = buildWhiteSilhouetteFromPngBytes(png_bytes);
+        if (activity_white_rgba.valid()) {
+            loaded.activity_white[activity_id] = createTextureFromRgba(
+                activity_white_rgba.pixels.data(),
+                activity_white_rgba.width,
+                activity_white_rgba.height,
+                "character-billboard-activity-white");
+        }
+        if (!loaded.activity_white[activity_id].valid()) {
+            loaded.activity_white[activity_id] = loaded.activity_color[activity_id];
+        }
+    }
     if (loaded.color.valid()) {
         character_textures_[character.texture_path] = loaded;
         return character_textures_[character.texture_path];
@@ -1647,6 +1746,139 @@ void OverworldBgfxRenderer::Impl::submitPixelWorldToBackbuffer(
     bgfx::setUniform(light_params_uniform_, light_params);
     bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A);
     bgfx::submit(3, world_program_);
+}
+
+void OverworldBgfxRenderer::Impl::submitOverlaySlice(
+    bgfx::ViewId view_id,
+    bgfx::TextureHandle texture,
+    int texture_w,
+    int texture_h,
+    const SDL_Rect& src,
+    const SDL_Rect& dst) const {
+    if (!bgfx::isValid(texture) || texture_w <= 0 || texture_h <= 0 ||
+        src.w <= 0 || src.h <= 0 || dst.w <= 0 || dst.h <= 0) {
+        return;
+    }
+
+    bgfx::TransientVertexBuffer tvb;
+    bgfx::TransientIndexBuffer tib;
+    if (!bgfx::allocTransientBuffers(&tvb, layout_, 4, &tib, 6)) {
+        return;
+    }
+
+    const float x0 = static_cast<float>(dst.x);
+    const float y0 = static_cast<float>(dst.y);
+    const float x1 = static_cast<float>(dst.x + dst.w);
+    const float y1 = static_cast<float>(dst.y + dst.h);
+    const float u0 = static_cast<float>(src.x) / static_cast<float>(texture_w);
+    const float u1 = static_cast<float>(src.x + src.w) / static_cast<float>(texture_w);
+    const float raw_v0 = static_cast<float>(src.y) / static_cast<float>(texture_h);
+    const float raw_v1 = static_cast<float>(src.y + src.h) / static_cast<float>(texture_h);
+    const float v_top = backend_.originBottomLeft() ? raw_v1 : raw_v0;
+    const float v_bottom = backend_.originBottomLeft() ? raw_v0 : raw_v1;
+
+    auto* verts = reinterpret_cast<Vertex*>(tvb.data);
+    verts[0] = Vertex{x0, y0, 0.0f, 0xffffffffu, u0, v_top, 0.0f, 1.0f, 0.0f};
+    verts[1] = Vertex{x1, y0, 0.0f, 0xffffffffu, u1, v_top, 0.0f, 1.0f, 0.0f};
+    verts[2] = Vertex{x1, y1, 0.0f, 0xffffffffu, u1, v_bottom, 0.0f, 1.0f, 0.0f};
+    verts[3] = Vertex{x0, y1, 0.0f, 0xffffffffu, u0, v_bottom, 0.0f, 1.0f, 0.0f};
+    auto* idx = reinterpret_cast<std::uint16_t*>(tib.data);
+    const std::uint16_t indices[6] = {0, 1, 2, 0, 2, 3};
+    std::copy(std::begin(indices), std::end(indices), idx);
+
+    float model[16];
+    identity(model);
+    const float tint[4] = {1.0f, 1.0f, 1.0f, 0.0f};
+    const float adjust[4] = {1.0f, 1.0f, 1.0f, 0.0f};
+    const float texture_blur[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    const float light_dir[4] = {0.0f, 1.0f, 0.0f, 0.0f};
+    const float light_params[4] = {1.0f, 0.0f, 0.0f, 0.0f};
+    bgfx::setTransform(model);
+    bgfx::setVertexBuffer(0, &tvb);
+    bgfx::setIndexBuffer(&tib);
+    bgfx::setTexture(0, tex_uniform_, texture, samplerFlags());
+    bgfx::setUniform(tint_cutoff_uniform_, tint);
+    bgfx::setUniform(color_adjust_uniform_, adjust);
+    bgfx::setUniform(texture_blur_uniform_, texture_blur);
+    bgfx::setUniform(light_dir_uniform_, light_dir);
+    bgfx::setUniform(light_params_uniform_, light_params);
+    bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_BLEND_ALPHA);
+    bgfx::submit(view_id, world_program_);
+}
+
+void OverworldBgfxRenderer::Impl::submitTextboxOverlay(
+    int framebuffer_w,
+    int framebuffer_h,
+    const SDL_Rect& viewport_dst,
+    int base_viewport_w,
+    int base_viewport_h) const {
+    if (!textbox_overlay_visible_ || !textbox_texture_.valid() || !dialogue::overworldTextboxEnabled(textbox_config_)) {
+        return;
+    }
+    const OverlayThreeSliceLayout layout = buildOverlayThreeSliceLayout(
+        OverlayThreeSliceConfig{
+            textbox_config_.selected_skin_index,
+            textbox_config_.valid_skin_count,
+            textbox_config_.source_cell_width_px,
+            textbox_config_.source_cell_height_px,
+            textbox_config_.sheet_columns,
+            textbox_config_.side_padding_px,
+            textbox_config_.bottom_padding_px,
+            textbox_config_.stretch_strip_width_px,
+            textbox_config_.stretch_strip_center_x_px},
+        base_viewport_w,
+        base_viewport_h,
+        textbox_texture_.width,
+        textbox_texture_.height);
+    if (!layout.visible) {
+        return;
+    }
+
+    float view[16];
+    float proj[16];
+    identity(view);
+    bx::mtxOrtho(
+        proj,
+        0.0f,
+        static_cast<float>(std::max(1, framebuffer_w)),
+        static_cast<float>(std::max(1, framebuffer_h)),
+        0.0f,
+        0.0f,
+        100.0f,
+        0.0f,
+        backend_.homogeneousDepth());
+    constexpr bgfx::ViewId kTextboxView = 4;
+    bgfx::setViewTransform(kTextboxView, view, proj);
+    bgfx::setViewRect(
+        kTextboxView,
+        0,
+        0,
+        static_cast<std::uint16_t>(std::max(1, framebuffer_w)),
+        static_cast<std::uint16_t>(std::max(1, framebuffer_h)));
+    bgfx::setViewFrameBuffer(kTextboxView, BGFX_INVALID_HANDLE);
+    bgfx::setViewMode(kTextboxView, bgfx::ViewMode::Sequential);
+
+    submitOverlaySlice(
+        kTextboxView,
+        textbox_texture_.handle,
+        textbox_texture_.width,
+        textbox_texture_.height,
+        layout.left_src,
+        scaleOverlayRect(layout.left_dst, viewport_dst, base_viewport_w, base_viewport_h));
+    submitOverlaySlice(
+        kTextboxView,
+        textbox_texture_.handle,
+        textbox_texture_.width,
+        textbox_texture_.height,
+        layout.middle_src,
+        scaleOverlayRect(layout.middle_dst, viewport_dst, base_viewport_w, base_viewport_h));
+    submitOverlaySlice(
+        kTextboxView,
+        textbox_texture_.handle,
+        textbox_texture_.width,
+        textbox_texture_.height,
+        layout.right_src,
+        scaleOverlayRect(layout.right_dst, viewport_dst, base_viewport_w, base_viewport_h));
 }
 
 void OverworldBgfxRenderer::Impl::appendProjectedShadowForScene(
@@ -1896,6 +2128,12 @@ void OverworldBgfxRenderer::Impl::refreshBillboardDrawer() {
         out.white = copyTexture(src.white);
         out.run_color = copyTexture(src.run_color);
         out.run_white = copyTexture(src.run_white);
+        for (const auto& [activity_id, texture] : src.activity_color) {
+            out.activity_color[activity_id] = copyTexture(texture);
+        }
+        for (const auto& [activity_id, texture] : src.activity_white) {
+            out.activity_white[activity_id] = copyTexture(texture);
+        }
         return out;
     };
     deps.texture_for_key = [this, copyTexture](
@@ -1912,6 +2150,7 @@ void OverworldBgfxRenderer::Impl::render(
     const camera::Gen4FollowCamera& camera,
     const camera::Vec3& player_pos,
     const SDL_Rect& player_source_rect,
+    const std::string& player_activity_id,
     bool player_use_run_texture,
     const terrain::ActorTerrainBinding& player_binding,
     int logical_w,
@@ -2024,6 +2263,7 @@ void OverworldBgfxRenderer::Impl::render(
     rendering::CharacterBillboardDraw player_draw{};
     player_draw.character = &character_;
     player_draw.source_rect = player_source_rect;
+    player_draw.activity_id = player_activity_id;
     player_draw.use_run_texture = player_use_run_texture;
     player_draw.draw_shadow = true;
     player_draw.depth_priority_bias = kPlayerBillboardDepthPriorityBias;
@@ -2092,6 +2332,29 @@ void OverworldBgfxRenderer::Impl::render(
 
     if (pixel_world_enabled) {
         submitPixelWorldToBackbuffer(framebuffer_w, framebuffer_h, render_w, render_h);
+    }
+
+    if (textbox_overlay_visible_ && ensureTextboxTexture()) {
+        SDL_Rect world_viewport{0, 0, std::max(1, framebuffer_w), std::max(1, framebuffer_h)};
+        int textbox_base_w = std::max(1, logical_w);
+        int textbox_base_h = std::max(1, logical_h);
+        if (pixel_world_enabled) {
+            const int integer_scale = std::max(
+                1,
+                std::min(
+                    std::max(1, framebuffer_w) / std::max(1, render_w),
+                    std::max(1, framebuffer_h) / std::max(1, render_h)));
+            const int dest_w = render_w * integer_scale;
+            const int dest_h = render_h * integer_scale;
+            world_viewport = SDL_Rect{
+                (std::max(1, framebuffer_w) - dest_w) / 2,
+                (std::max(1, framebuffer_h) - dest_h) / 2,
+                dest_w,
+                dest_h};
+            textbox_base_w = base_w;
+            textbox_base_h = base_h;
+        }
+        submitTextboxOverlay(framebuffer_w, framebuffer_h, world_viewport, textbox_base_w, textbox_base_h);
     }
 
     if (!debug_frame_counter_label.empty()) {
