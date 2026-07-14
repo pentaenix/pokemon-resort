@@ -1,13 +1,13 @@
 #include "gameplay/attend/rendering/AttendPokemonModel.hpp"
 
 #include "core/config/Json.hpp"
+#include "gameplay/attend/rendering/AttendPokemonAsset.hpp"
 
 #include <algorithm>
 #include <array>
 #include <cctype>
 #include <cmath>
 #include <cstring>
-#include <fstream>
 #include <limits>
 #include <utility>
 
@@ -657,6 +657,9 @@ void readMaterials(const JsonValue& root, const std::uint8_t* bin, std::size_t b
             }
         }
         if (const JsonValue* rae = raeExtras(mat)) {
+            if (const JsonValue* nitro = rae->get("nitro"); nitro && nitro->isObject()) {
+                material.nitro_texture_alpha = stringMember(nitro, "textureAlpha");
+            }
             material.shiny_material_index = intMember(rae, "shinyMaterialIndex", material.shiny_material_index);
             if (const JsonValue* forms = rae->get("formMaterialIndices"); forms && forms->isObject()) {
                 for (const auto& [form_id, value] : forms->asObject()) {
@@ -1145,20 +1148,12 @@ std::vector<std::array<float, 16>> computeAnimatedGlobals(
 
 AttendPokemonModel loadAttendPokemonModel(const std::string& path, std::string* error) {
     AttendPokemonModel out;
-    std::ifstream in(path, std::ios::binary);
-    if (!in.is_open()) {
-        fail(error, "Could not open attend Pokemon GLB: " + path);
-        return out;
-    }
-    in.seekg(0, std::ios::end);
-    const std::streamoff size = in.tellg();
-    in.seekg(0, std::ios::beg);
-    if (size < 20) {
+    std::vector<std::uint8_t> bytes;
+    if (!loadAttendPokemonAssetBytes(path, bytes, error)) return out;
+    if (bytes.size() < 20) {
         fail(error, "Attend Pokemon GLB too small: " + path);
         return out;
     }
-    std::vector<std::uint8_t> bytes(static_cast<std::size_t>(size));
-    in.read(reinterpret_cast<char*>(bytes.data()), size);
     if (readU32Le(bytes.data()) != kGlbMagic || readU32Le(bytes.data() + 4) != 2u) {
         fail(error, "Unsupported attend Pokemon GLB: " + path);
         return out;

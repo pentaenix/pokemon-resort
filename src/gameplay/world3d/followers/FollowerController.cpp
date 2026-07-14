@@ -489,8 +489,11 @@ void FollowerController::updateManualDebugAction(double dt) {
     if (manual_debug_action_ == ManualDebugActionType::Jump) {
         const double duration = std::max(0.01, idle_config_.jump.duration_seconds);
         const double phase = std::clamp(manual_debug_elapsed_seconds_ / duration, 0.0, 1.0);
+        const int jump_height_pixels = manual_debug_jump_height_pixels_ > 0
+            ? manual_debug_jump_height_pixels_
+            : idle_config_.jump.height_pixels;
         render_screen_offset_y_px_ =
-            -static_cast<int>(std::lround((4.0 * phase * (1.0 - phase)) * static_cast<double>(idle_config_.jump.height_pixels)));
+            -static_cast<int>(std::lround((4.0 * phase * (1.0 - phase)) * static_cast<double>(jump_height_pixels)));
         if (manual_debug_elapsed_seconds_ >= duration) {
             pending_landing_dust_spawn_ = effects::LandingDustSpawnRequest{
                 reinterpret_cast<std::uintptr_t>(this),
@@ -498,6 +501,7 @@ void FollowerController::updateManualDebugAction(double dt) {
                 duration};
             manual_debug_action_ = ManualDebugActionType::None;
             manual_debug_elapsed_seconds_ = 0.0;
+            manual_debug_jump_height_pixels_ = 0;
             render_screen_offset_y_px_ = 0;
             active_behavior_label_ = "none";
         }
@@ -656,16 +660,24 @@ void FollowerController::update(
         returning_to_origin_ = false;
         cancel_return_active_ = false;
         sleep_action_active_ = false;
-        manual_debug_action_ = ManualDebugActionType::None;
-        render_offset_ = camera::Vec3{};
-        render_screen_offset_y_px_ = 0;
-        active_behavior_label_ = "none";
-        pending_landing_dust_spawn_.reset();
         idle_seconds_ = 0.0;
         if (follower_moving_) {
             follower_moving_ = false;
             replay_follow_active_ = false;
             follower_pos_ = tileToWorldCenter(follower_tile_.x, follower_tile_.y);
+        }
+        if (interaction_action_active_ && manual_debug_action_ != ManualDebugActionType::None) {
+            updateManualDebugAction(dt);
+            if (manual_debug_action_ == ManualDebugActionType::None) {
+                interaction_action_active_ = false;
+            }
+        } else {
+            manual_debug_action_ = ManualDebugActionType::None;
+            interaction_action_active_ = false;
+            render_offset_ = camera::Vec3{};
+            render_screen_offset_y_px_ = 0;
+            active_behavior_label_ = "none";
+            pending_landing_dust_spawn_.reset();
         }
         return;
     }
@@ -864,6 +876,7 @@ bool FollowerController::setInteractionLocked(bool locked) {
     cancel_return_active_ = false;
     sleep_action_active_ = false;
     manual_debug_action_ = ManualDebugActionType::None;
+    interaction_action_active_ = false;
     render_offset_ = camera::Vec3{};
     render_screen_offset_y_px_ = 0;
     active_behavior_label_ = "none";
@@ -1048,11 +1061,20 @@ bool FollowerController::triggerDebugJump() {
         return false;
     }
     manual_debug_action_ = ManualDebugActionType::Jump;
+    interaction_action_active_ = false;
     manual_debug_elapsed_seconds_ = 0.0;
+    manual_debug_jump_height_pixels_ = 0;
     render_offset_ = camera::Vec3{};
     render_screen_offset_y_px_ = 0;
     pending_landing_dust_spawn_.reset();
     active_behavior_label_ = "debug_jump";
+    return true;
+}
+
+bool FollowerController::triggerInteractionJump(int height_pixels) {
+    if (!triggerDebugJump()) return false;
+    interaction_action_active_ = true;
+    manual_debug_jump_height_pixels_ = std::max(0, height_pixels);
     return true;
 }
 

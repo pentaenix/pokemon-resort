@@ -48,8 +48,8 @@ int main() {
            "TEST ATTEND should resolve the Alola battle map debug scene");
     expect(config.pokemon.id == "dewgong", "active Pokemon should resolve directly from species name");
     expect(fs::exists(config.pokemon.model_path), "active Pokemon GLB path should resolve to an existing asset");
-    expect(config.pokemon.model_path.find("pm0087_00_Dewgong.glb") != std::string::npos,
-           "active Pokemon should infer its RAE pm#### form GLB from assets by species name without a per-Pokemon config entry");
+    expect(config.pokemon.model_path.find("pm0087_00_Dewgong.glbz") != std::string::npos,
+           "active Pokemon should infer its compiled RAE pm#### form GLBZ from assets by species name without a per-Pokemon config entry");
     expect(config.pokemon.animation_name.empty(),
            "profile-less Dewgong should allow renderer animation fallback instead of requiring per-Pokemon animation config");
     expect(config.pokemon.scale > 0.0f, "active Pokemon scale should be positive");

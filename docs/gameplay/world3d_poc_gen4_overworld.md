@@ -229,14 +229,21 @@ NPC/Pokemon interaction prompts are driven by the interaction system documented 
 
 Default behavior:
 
-- NPC/character targets face the player, then request free text.
-- Pokemon targets face the player, then Haru's player charbin enters the size-based interaction activity when available. Free text opens while Haru holds the session stay phase.
+- Pokemon are script-first. With no eligible valid script, targets face the player, then Haru's player charbin enters the size-based interaction activity when available. Free text opens while Haru holds the session stay phase.
+- NPC charbins use `metadata.npcInteractionMode`: missing or `direct_dialogue` faces the player and reads that NPC's `dialogue.lines`; `scripted` selects an eligible shared interaction script and falls back to direct dialogue when none is available. Human NPCs do not use Pokemon size-session animations.
+- The source boundary reserves future precedence for a transient runtime-assigned script over NPC scripted mode over direct dialogue; spawning and assignment are not implemented here.
 - Accept closes the current textbox and advances the sequence.
 - Back cancels the sequence, exits any active player interaction session, and unlocks the target.
 
 Behavior scripts live in `config/gameplay/world3d/scripts/`. Pokemon free text selection lives in `config/gameplay/world3d/interaction_text.json`: matching text entries are filtered by required tags, the most-specific matching group wins, weighted random selects inside that group, and selected text ids enter a global in-memory cooldown. Human NPC free text instead comes from that character's charbin `dialogue.lines`.
 
 The visible textbox skin still uses `config/gameplay/world3d/textbox.json`.
+
+Textbox text presentation is data-driven under `textbox.text`: `fontPath`, `fontSizePx`, `leftInsetPx`, `rightInsetPx`, and `topInsetPx` select the font, wrapping width, and placement inside the skin. The default uses the regular non-bold `assets/fonts/power clear.ttf` face. The legacy `futureText` object remains readable for compatibility.
+
+The top-right Attend shortcut is authored in the same file under `attendButton`: `enabled`, `iconPath`, `topPx`, `rightPx`, `widthPx`, and `heightPx`. It is visible only while a Pokemon interaction textbox is active. Clicking it or pressing the app-level `input.attend_keys` binding (default `X`) opens Attend without resetting the overworld screen. Attend Back or its top-left return button returns to the same overworld instance, preserving player position and runtime state.
+
+Overworld screen changes use reusable controllers under `ui/transitions`. `config/gameplay/world3d/transitions.json` selects the Attend transition type and owns `durationSeconds`, `circleSegments`, and `maxRadiusScale`. The first type, `black_iris`, runs a four-stage handoff: close around the projected player in the overworld, open over Attend, close over Attend on return, then open over the restored overworld. The active interaction textbox is closed and its target unlocked on return.
 
 - `textbox.visibleMode`: `enabled` or `disabled`.
 - `textbox.selectedSkinIndex`: choose skin `0` through `12`; visual order goes down the left column first, then down the right column. The 14th bottom-right sheet cell is empty and ignored.

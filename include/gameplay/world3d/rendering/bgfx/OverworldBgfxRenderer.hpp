@@ -46,7 +46,10 @@ public:
     bool valid() const;
     std::string lastError() const;
     void setStaticMapChunks(std::vector<StaticMapChunk> chunks);
-    void setTextboxOverlay(dialogue::OverworldTextboxConfig config, bool visible);
+    void setTextboxOverlay(dialogue::OverworldTextboxConfig config, bool visible, std::string text = {});
+    void setAttendButtonOverlay(std::string icon_path, SDL_Rect logical_rect, bool visible);
+    void setBlackIrisTransition(float logical_x, float logical_y, float closed_amount,
+        bool visible, int circle_segments, float max_radius_scale);
 
     void render(
         const camera::Gen4FollowCamera& camera,

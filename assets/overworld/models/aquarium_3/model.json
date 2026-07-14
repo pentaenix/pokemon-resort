@@ -1,0 +1,63 @@
+{
+  "manifestVersion": 1,
+  "storageFormat": "glb",
+  "id": "aquarium_3",
+  "displayName": "aquarium__3_",
+  "defaultYawDeg": 0,
+  "defaultScale": 1,
+  "compiledAt": "2026-07-12T05:05:44.541Z",
+  "sourceFormat": "glb",
+  "sourceFile": "aquarium (3).glb",
+  "glbFile": "aquarium_3.glb",
+  "modelFile": "aquarium_3.glb",
+  "modelByteSize": 537900,
+  "modelHash": "fa89c6b911d41a00",
+  "footprintTiles": {
+    "w": 7,
+    "d": 4,
+    "h": 4
+  },
+  "renderFootprintTiles": {
+    "w": 7,
+    "d": 4,
+    "h": 4
+  },
+  "authoringFootprintTiles": {
+    "w": 7,
+    "d": 4,
+    "h": 4
+  },
+  "collisionFootprintTiles": {
+    "w": 7,
+    "d": 4,
+    "h": 4
+  },
+  "previewOffsetTiles": {
+    "x": 0,
+    "y": 0
+  },
+  "aabb": {
+    "min": [
+      -51,
+      -33.5,
+      -26
+    ],
+    "max": [
+      51,
+      29.5,
+      26
+    ]
+  },
+  "vertexCount": 1691,
+  "triangleCount": 3084,
+  "materials": [
+    "Plinth_Painted",
+    "Frame_Steel",
+    "SubFloor_Body",
+    "Acrylic_Glass",
+    "Ground_sand",
+    "Water_Volume",
+    "Water_Surface_balanced"
+  ],
+  "textureCount": 2
+}

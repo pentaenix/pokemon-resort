@@ -40,7 +40,7 @@ cd /Users/vanta/Desktop/title_screen_demo/pokemon-resort
 Install dependencies:
 
 ```bash
-brew install sdl2 sdl2_image sdl2_ttf
+brew install sdl2 sdl2_image sdl2_ttf zstd pkg-config
 ```
 
 Build and run:

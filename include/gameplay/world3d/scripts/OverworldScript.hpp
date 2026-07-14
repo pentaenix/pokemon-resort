@@ -11,7 +11,10 @@
 namespace pr::gameplay::world3d::scripts {
 
 enum class ScriptKind { Idle, Interaction, Npc };
-enum class ScriptActionKind { Wait, Face, Move, Wander, Jump, TextLiteral, TextFree, PokemonInteractionSession, Cry, Emoticon };
+enum class ScriptActionKind {
+    Wait, Face, Move, Wander, Jump, TextLiteral, TextFree, PokemonInteractionSession,
+    DisableAttend, EnableAttend, ExitInteraction, Cry, Emoticon
+};
 
 struct ScriptCondition {
     std::vector<std::string> all_tags;
@@ -39,6 +42,7 @@ struct OverworldScript {
     double cooldown_seconds = 0.0;
     ScriptCondition when;
     std::vector<ScriptAction> actions;
+    bool valid = true;
 };
 
 struct ScriptCatalog { std::vector<OverworldScript> scripts; };

@@ -318,11 +318,20 @@ AttendBgfxRenderer::Impl::TextureResource AttendBgfxRenderer::Impl::decodeTextur
     out.width = rgba->w;
     out.height = rgba->h;
     const auto* pixels = static_cast<const std::uint8_t*>(rgba->pixels);
+    int partial_alpha_pixels = 0;
     for (int i = 0; i < rgba->w * rgba->h; ++i) {
         const std::uint8_t alpha = pixels[i * 4 + 3];
+        out.minimum_alpha = std::min(out.minimum_alpha, alpha);
         if (alpha == 0) out.has_zero_alpha = true;
-        if (alpha > 0 && alpha < 255) out.has_partial_alpha = true;
+        if (alpha > 0 && alpha < 255) {
+            out.has_partial_alpha = true;
+            ++partial_alpha_pixels;
+        }
     }
+    const int pixel_count = rgba->w * rgba->h;
+    out.partial_alpha_fraction = pixel_count > 0
+        ? static_cast<float>(partial_alpha_pixels) / static_cast<float>(pixel_count)
+        : 0.0f;
     const bgfx::Memory* mem = bgfx::copy(rgba->pixels, static_cast<std::uint32_t>(rgba->w * rgba->h * 4));
     out.handle = bgfx::createTexture2D(
         static_cast<std::uint16_t>(rgba->w),

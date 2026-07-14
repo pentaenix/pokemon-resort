@@ -1,5 +1,7 @@
 #include "AttendBgfxRendererInternal.hpp"
 
+#include "gameplay/attend/rendering/AttendPokemonMaterialPolicy.hpp"
+
 namespace pr::gameplay::attend::rendering {
 
 std::uint32_t packAbgr(float r, float g, float b, float a) {
@@ -404,17 +406,7 @@ bool materialIsSeparateEyeIris(const AttendPokemonMaterial* material) {
 bool pokemonPrimitivePreviewVisible(
     const AttendPokemonModel& model,
     const AttendPokemonPrimitive& primitive) {
-    if (primitive.default_visible) return true;
-    if (!primitive.visible_for_forms.empty()) return true;
-    if (primitive.mesh_node >= 0 && primitive.mesh_node < static_cast<int>(model.nodes.size()) &&
-        containsAscii(model.nodes[static_cast<std::size_t>(primitive.mesh_node)].name, "vco")) {
-        return true;
-    }
-    if (primitive.material >= 0 && primitive.material < static_cast<int>(model.materials.size()) &&
-        containsAscii(model.materials[static_cast<std::size_t>(primitive.material)].name, "vco")) {
-        return true;
-    }
-    return false;
+    return shouldRenderAttendPokemonPrimitive(model, primitive);
 }
 
 bool stringListContains(const std::vector<std::string>& values, const std::string& needle) {

@@ -185,6 +185,13 @@ void AttendBgfxRenderer::Impl::setProfilePlate(
     profile_plate_logical_h_ = std::max(1, logical_h);
 }
 
+void AttendBgfxRenderer::Impl::setBlackIrisTransition(float x, float y, float amount,
+    bool visible, int segments, float radius_scale) {
+    iris_x_ = x; iris_y_ = y; iris_amount_ = std::clamp(amount, 0.0f, 1.0f);
+    iris_visible_ = visible; iris_segments_ = std::clamp(segments, 16, 192);
+    iris_radius_scale_ = std::max(1.0f, radius_scale);
+}
+
 int AttendBgfxRenderer::Impl::weatherModeCount() const {
     return static_cast<int>(config_.floor.weather_modes.size());
 }

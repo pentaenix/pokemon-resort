@@ -91,6 +91,7 @@ public:
     void setOverlayButtons(std::vector<AttendBgfxOverlayButton> buttons, int logical_w, int logical_h);
     void setCornerButtons(std::vector<AttendBgfxCornerButton> buttons, int logical_w, int logical_h);
     void setProfilePlate(AttendBgfxProfilePlate plate, int logical_w, int logical_h);
+    void setBlackIrisTransition(float x, float y, float amount, bool visible, int segments, float radius_scale);
     void setFaceView(bool face_view);
     bool faceViewTransitionActive() const;
     bool faceViewAvailable() const;

@@ -68,9 +68,25 @@ When changing behavior, name which source of truth you are changing before you e
 
 ### Overworld Interactions
 
-The Gen 4 overworld test routes player-triggered NPC/Pokemon interaction through reusable modules under [`gameplay/world3d/interactions`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/gameplay/world3d/interactions). [`InteractionSequenceController`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/gameplay/world3d/interactions/InteractionSequence.hpp) owns pure action ordering such as `facePlayer`, `pokemonInteractionSession`, and `textFree`; [`InteractionText`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/gameplay/world3d/interactions/InteractionText.hpp) owns tag-specific weighted text selection and global in-memory cooldowns. [`Overworld3DTestScreen.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/Overworld3DTestScreen.cpp) remains the scene adapter that locks targets, applies facing, opens the textbox, and asks Haru's player animator to run the size-based interaction activity for Pokemon targets. Keep new interaction rules in the shared interaction modules and authored JSON under `config/gameplay/world3d/`; do not put new script logic directly in the screen.
+The Gen 4 overworld test routes player-triggered NPC/Pokemon interaction through reusable modules under [`gameplay/world3d/interactions`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/gameplay/world3d/interactions). [`InteractionSequenceController`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/gameplay/world3d/interactions/InteractionSequence.hpp) owns pure source selection and action ordering such as `facePlayer`, `pokemonInteractionSession`, and `textFree`; [`InteractionText`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/gameplay/world3d/interactions/InteractionText.hpp) owns tag-specific weighted text selection and global in-memory cooldowns. Pokemon are script-first and retain the established sequence as a safe fallback. NPC charbins own only `metadata.npcInteractionMode` (`direct_dialogue` by default, or `scripted`); scripted selection falls back to that NPC's `dialogue.lines`. A future spawner may provide a transient runtime interaction script reference with precedence over NPC mode, but charbins do not require a permanent script id. [`Overworld3DTestScreen.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/Overworld3DTestScreen.cpp) remains the scene adapter that locks targets, applies facing, opens the textbox, and asks Haru's player animator to run the size-based interaction activity for Pokemon targets. Keep new interaction rules in the shared interaction modules and authored JSON under `config/gameplay/world3d/`; do not put new script logic directly in the screen.
 
 Detailed authoring and extension guidance lives in [`docs/gameplay/overworld_interactions.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/gameplay/overworld_interactions.md).
+
+### Overworld Tile Packages
+
+`.owmap` metadata binds one RTPKS package and stores stable `resortTileId`
+placements in decoration layers. [`RtpksTilePackageLoader.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/gameplay/world3d/data/RtpksTilePackageLoader.cpp)
+loads meshes, materials, frame animation assets, gameplay tags, and collision
+authoring metadata. [`OverworldBgfxRenderer.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/gameplay/world3d/rendering/bgfx/OverworldBgfxRenderer.cpp)
+keeps static geometry batched by material and selects globally synchronized
+texture-animation frames during submission.
+
+The Operations Desk Map Editor owns RTPKS authoring. Its Tile Pack Editor may
+reorganize tabs and smart paths or append assets, but must never renumber an
+existing stable tile id. Automatic tile collision is applied to the `.owmap`
+terrain collision grid while painting; it is not a second runtime collision
+source. See [`docs/gameplay/owmap_format.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/gameplay/owmap_format.md)
+and [`docs/gameplay/owmap_tile_layers_proposal.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/gameplay/owmap_tile_layers_proposal.md).
 
 ### Overworld Script Engine
 

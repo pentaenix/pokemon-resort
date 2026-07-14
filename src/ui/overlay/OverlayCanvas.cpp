@@ -1,8 +1,25 @@
 #include "ui/overlay/OverlayCanvas.hpp"
 
 #include <algorithm>
+#include <cmath>
 
 namespace pr {
+
+SDL_Point mapOverlayPointerToLogical(
+    int window_x, int window_y, int window_w, int window_h, int logical_w, int logical_h) {
+    window_w = std::max(1, window_w);
+    window_h = std::max(1, window_h);
+    logical_w = std::max(1, logical_w);
+    logical_h = std::max(1, logical_h);
+    const float scale = std::max(0.01f, std::min(
+        static_cast<float>(window_w) / logical_w,
+        static_cast<float>(window_h) / logical_h));
+    const float view_x = (window_w - logical_w * scale) * 0.5f;
+    const float view_y = (window_h - logical_h * scale) * 0.5f;
+    return SDL_Point{
+        std::clamp(static_cast<int>(std::round((window_x - view_x) / scale)), 0, logical_w - 1),
+        std::clamp(static_cast<int>(std::round((window_y - view_y) / scale)), 0, logical_h - 1)};
+}
 
 namespace {
 

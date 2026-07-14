@@ -6,10 +6,15 @@ This document is the source-of-truth handoff for the Gen 4 overworld interaction
 
 Pressing Accept while facing an interactable target starts an interaction sequence instead of directly toggling the textbox.
 
-Current default sequences live in `config/gameplay/world3d/interactions.json`:
+Interaction sources are selected before the existing sequence runtime executes:
 
-- Pokemon: `facePlayer`, `pokemonInteractionSession`, `textFree`
-- Characters: `facePlayer`, `textFree`
+- Pokemon are always script-first. Eligible interaction scripts use the shared priority, weight, condition, and cooldown selector. With no eligible valid script, the safe fallback remains `facePlayer`, `pokemonInteractionSession`, `textFree`.
+- NPC charbins may set `metadata.npcInteractionMode` to `direct_dialogue` (the default for new and legacy NPCs) or `scripted`.
+- `direct_dialogue` uses `facePlayer`, `textFree`, where `textFree` resolves that NPC's own `dialogue.lines`.
+- `scripted` asks the shared selector for an eligible NPC interaction script. If none is available or valid, it falls back to the same direct-dialogue sequence.
+- Pokemon, players, and objects do not use `npcInteractionMode`. Human NPCs never start the Pokemon small/medium/large player interaction session.
+
+The interaction-source request includes an optional transient runtime script reference for future spawners. Its preserved precedence is: runtime-assigned interaction script, then NPC scripted-mode selection, then NPC direct-dialogue fallback. This task does not spawn NPCs or persist a script id in charbins.
 
 The screen adapter owns world effects only:
 
@@ -57,6 +62,8 @@ Selection rules:
 5. Put the selected text id on a global in-memory cooldown.
 
 Cooldowns are global for the runtime session, not per Pokemon. If one water Pokemon uses a specific pool line, another water Pokemon cannot immediately use the same text while that text id is cooling down.
+
+When every line matching the current context is cooling down, the selector resets that exhausted matching pool and starts a new weighted-random cycle. This prevents empty Pokemon textboxes while still avoiding repeats until the eligible pool has been used.
 
 Template variables available to authored text are:
 
@@ -106,7 +113,7 @@ Until the real spawn system and companion-selection UI exist, `config/gameplay/w
 
 ## Extension Rules
 
-- Add authored behavior choices to `interactions.json`.
+- Add authored interaction scripts to `config/gameplay/world3d/scripts/` and its catalog.
 - Add reusable Pokemon text to `interaction_text.json`; add human-specific text to the target character's charbin `dialogue.lines`.
 - Feed future database, charbin, map, tile, or relationship data into `InteractionTextContext` instead of changing selector rules per scene.
 - Keep text rendering separate from selection. The selector returns a string; textbox renderers decide how to draw it.

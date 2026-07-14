@@ -10,14 +10,17 @@
 #include "gameplay/world3d/rendering/bgfx/BgfxBackend.hpp"
 #include "gameplay/world3d/rendering/bgfx/RampTerrainRender.hpp"
 #include "gameplay/world3d/terrain/TerrainSurface.hpp"
+#include "core/assets/Font.hpp"
 #include "ui/overlay/OverlaySliceLayout.hpp"
 
 #include <SDL_image.h>
+#include <SDL_ttf.h>
 
 #include <bgfx/bgfx.h>
 #include <bx/math.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstring>
 #include <filesystem>
@@ -198,7 +201,10 @@ public:
     bool valid() const { return initialized_ && backend_.valid(); }
     std::string lastError() const { return last_error_; }
     void setStaticMapChunks(std::vector<OverworldBgfxRenderer::StaticMapChunk> chunks);
-    void setTextboxOverlay(dialogue::OverworldTextboxConfig config, bool visible);
+    void setTextboxOverlay(dialogue::OverworldTextboxConfig config, bool visible, std::string text);
+    void setAttendButtonOverlay(std::string icon_path, SDL_Rect logical_rect, bool visible);
+    void setBlackIrisTransition(float logical_x, float logical_y, float closed_amount,
+        bool visible, int circle_segments, float max_radius_scale);
     void render(
         const camera::Gen4FollowCamera& camera,
         const camera::Vec3& player_pos,
@@ -249,6 +255,8 @@ private:
 
     struct MaterialGpuResource {
         TextureGpuResource texture;
+        std::vector<TextureGpuResource> animation_frames;
+        int animation_frame_time_ms = 0;
         MaterialClass material_class = MaterialClass::Opaque;
         float base_color[4] = {1.0f, 1.0f, 1.0f, 1.0f};
         float alpha_cutoff = 0.5f;
@@ -329,8 +337,23 @@ private:
     TextureGpuResource white_texture_;
     TextureGpuResource shadow_texture_;
     TextureGpuResource textbox_texture_;
+    TextureGpuResource textbox_text_texture_;
+    TextureGpuResource attend_button_texture_;
     dialogue::OverworldTextboxConfig textbox_config_{};
     std::string textbox_texture_path_;
+    std::string textbox_text_;
+    std::string cached_textbox_text_;
+    int cached_textbox_wrap_width_ = 0;
+    FontHandle textbox_font_;
+    std::string attend_button_texture_path_;
+    SDL_Rect attend_button_logical_rect_{};
+    bool attend_button_visible_ = false;
+    float iris_logical_x_ = 0.0f;
+    float iris_logical_y_ = 0.0f;
+    float iris_closed_amount_ = 0.0f;
+    float iris_max_radius_scale_ = 1.15f;
+    int iris_segments_ = 64;
+    bool iris_visible_ = false;
     bool textbox_overlay_visible_ = false;
     bool textbox_load_warned_ = false;
     mutable std::unordered_map<std::string, CharacterGpuTextures> character_textures_;
@@ -373,6 +396,8 @@ private:
         const char* debug_name) const;
     bool ensurePixelWorldTarget(int width, int height);
     bool ensureTextboxTexture();
+    bool ensureTextboxTextTexture(int wrap_width);
+    bool ensureAttendButtonTexture();
 
     void submitMesh(
         const MeshGpuResource& mesh,
@@ -395,6 +420,8 @@ private:
         const SDL_Rect& viewport_dst,
         int base_viewport_w,
         int base_viewport_h) const;
+    void submitAttendButtonOverlay(int framebuffer_w, int framebuffer_h, int logical_w, int logical_h) const;
+    void submitBlackIrisTransition(int framebuffer_w, int framebuffer_h, int logical_w, int logical_h) const;
     void submitOverlaySlice(
         bgfx::ViewId view_id,
         bgfx::TextureHandle texture,
@@ -446,6 +473,8 @@ bool OverworldBgfxRenderer::Impl::MeshGpuResource::destroy() {
     if (owns_material_textures) {
         for (MaterialGpuResource& material : materials) {
             material.texture.destroy();
+            for (TextureGpuResource& frame : material.animation_frames) frame.destroy();
+            material.animation_frames.clear();
         }
     }
     ranges.clear();
@@ -499,10 +528,23 @@ void OverworldBgfxRenderer::setStaticMapChunks(std::vector<StaticMapChunk> chunk
     }
 }
 
-void OverworldBgfxRenderer::setTextboxOverlay(dialogue::OverworldTextboxConfig config, bool visible) {
+void OverworldBgfxRenderer::setTextboxOverlay(
+    dialogue::OverworldTextboxConfig config, bool visible, std::string text) {
     if (impl_) {
-        impl_->setTextboxOverlay(std::move(config), visible);
+        impl_->setTextboxOverlay(std::move(config), visible, std::move(text));
     }
+}
+
+void OverworldBgfxRenderer::setAttendButtonOverlay(
+    std::string icon_path, SDL_Rect logical_rect, bool visible) {
+    if (impl_) impl_->setAttendButtonOverlay(std::move(icon_path), logical_rect, visible);
+}
+
+void OverworldBgfxRenderer::setBlackIrisTransition(
+    float logical_x, float logical_y, float closed_amount,
+    bool visible, int circle_segments, float max_radius_scale) {
+    if (impl_) impl_->setBlackIrisTransition(logical_x, logical_y, closed_amount,
+        visible, circle_segments, max_radius_scale);
 }
 
 void OverworldBgfxRenderer::render(
@@ -551,14 +593,44 @@ void OverworldBgfxRenderer::Impl::setStaticMapChunks(std::vector<OverworldBgfxRe
     pending_static_chunks_ = std::move(chunks);
 }
 
-void OverworldBgfxRenderer::Impl::setTextboxOverlay(dialogue::OverworldTextboxConfig config, bool visible) {
+void OverworldBgfxRenderer::Impl::setTextboxOverlay(
+    dialogue::OverworldTextboxConfig config, bool visible, std::string text) {
     if (config.sprite_sheet_path != textbox_texture_path_) {
         textbox_texture_.destroy();
         textbox_texture_path_.clear();
         textbox_load_warned_ = false;
     }
+    if (config.text_font_path != textbox_config_.text_font_path ||
+        config.text_font_size_px != textbox_config_.text_font_size_px) {
+        textbox_font_.reset();
+        textbox_text_texture_.destroy();
+        cached_textbox_text_.clear();
+        cached_textbox_wrap_width_ = 0;
+    }
     textbox_config_ = std::move(config);
     textbox_overlay_visible_ = visible;
+    textbox_text_ = std::move(text);
+}
+
+void OverworldBgfxRenderer::Impl::setAttendButtonOverlay(
+    std::string icon_path, SDL_Rect logical_rect, bool visible) {
+    if (icon_path != attend_button_texture_path_) {
+        attend_button_texture_.destroy();
+        attend_button_texture_path_ = std::move(icon_path);
+    }
+    attend_button_logical_rect_ = logical_rect;
+    attend_button_visible_ = visible;
+}
+
+void OverworldBgfxRenderer::Impl::setBlackIrisTransition(
+    float logical_x, float logical_y, float closed_amount,
+    bool visible, int circle_segments, float max_radius_scale) {
+    iris_logical_x_ = logical_x;
+    iris_logical_y_ = logical_y;
+    iris_closed_amount_ = std::clamp(closed_amount, 0.0f, 1.0f);
+    iris_visible_ = visible;
+    iris_segments_ = std::clamp(circle_segments, 16, 192);
+    iris_max_radius_scale_ = std::max(1.0f, max_radius_scale);
 }
 
 bool OverworldBgfxRenderer::Impl::initialize(
@@ -651,7 +723,13 @@ void OverworldBgfxRenderer::Impl::shutdown() {
     }
     effect_textures_.clear();
     textbox_texture_.destroy();
+    textbox_text_texture_.destroy();
+    attend_button_texture_.destroy();
     textbox_texture_path_.clear();
+    textbox_font_.reset();
+    cached_textbox_text_.clear();
+    cached_textbox_wrap_width_ = 0;
+    attend_button_texture_path_.clear();
     white_texture_.destroy();
     destroyPrograms();
     if (bgfx::isValid(tex_uniform_)) {
@@ -844,6 +922,56 @@ bool OverworldBgfxRenderer::Impl::ensureTextboxTexture() {
     return true;
 }
 
+bool OverworldBgfxRenderer::Impl::ensureTextboxTextTexture(int wrap_width) {
+    wrap_width = std::max(1, wrap_width);
+    if (textbox_text_.empty()) {
+        textbox_text_texture_.destroy();
+        cached_textbox_text_.clear();
+        cached_textbox_wrap_width_ = wrap_width;
+        return false;
+    }
+    if (textbox_text_texture_.valid() && cached_textbox_text_ == textbox_text_ &&
+        cached_textbox_wrap_width_ == wrap_width) {
+        return true;
+    }
+    if (!textbox_font_) {
+        try {
+            textbox_font_ = loadFont(
+                textbox_config_.text_font_path,
+                textbox_config_.text_font_size_px,
+                project_root_);
+        } catch (const std::exception& ex) {
+            std::cerr << "[OverworldBgfx] Could not load textbox font: " << ex.what() << '\n';
+            return false;
+        }
+    }
+
+    const SDL_Color color{32, 32, 32, 255};
+    SDL_Surface* rendered = TTF_RenderUTF8_Solid(
+        textbox_font_.get(), textbox_text_.c_str(), color);
+    if (!rendered) return false;
+    SDL_Surface* rgba = SDL_ConvertSurfaceFormat(rendered, SDL_PIXELFORMAT_RGBA32, 0);
+    SDL_FreeSurface(rendered);
+    if (!rgba) return false;
+
+    textbox_text_texture_.destroy();
+    textbox_text_texture_ = createTextureFromRgba(
+        static_cast<const std::uint8_t*>(rgba->pixels), rgba->w, rgba->h, "overworld-textbox-text");
+    SDL_FreeSurface(rgba);
+    cached_textbox_text_ = textbox_text_;
+    cached_textbox_wrap_width_ = wrap_width;
+    return textbox_text_texture_.valid();
+}
+
+bool OverworldBgfxRenderer::Impl::ensureAttendButtonTexture() {
+    if (attend_button_texture_.valid()) return true;
+    if (!attend_button_visible_ || attend_button_texture_path_.empty()) return false;
+    std::filesystem::path path(attend_button_texture_path_);
+    if (!path.is_absolute()) path = std::filesystem::path(project_root_) / path;
+    attend_button_texture_ = decodeImageBytes({}, path.string(), "overworld-attend-button");
+    return attend_button_texture_.valid();
+}
+
 bool OverworldBgfxRenderer::Impl::loadTilePackage() {
     tile_package_.reset();
     if (scene_.tile_package.path.empty() || scene_.tile_layers.layers.empty()) {
@@ -880,6 +1008,11 @@ bool OverworldBgfxRenderer::Impl::buildTileLayers() {
         material.base_color[3] = std::clamp(static_cast<float>(src.alpha) / 31.0f, 0.0f, 1.0f);
         if (!src.image_bytes.empty()) {
             material.texture = decodeImageBytes(src.image_bytes, "", src.name.empty() ? "rtpks-tile" : src.name.c_str());
+        }
+        material.animation_frame_time_ms = src.animation_frame_time_ms;
+        for (const std::vector<std::uint8_t>& frame_bytes : src.animation_frame_bytes) {
+            TextureGpuResource frame = decodeImageBytes(frame_bytes, "", src.name.empty() ? "rtpks-animation" : src.name.c_str());
+            if (frame.valid()) material.animation_frames.push_back(std::move(frame));
         }
         if (material.base_color[3] < 0.999f || material.texture.has_partial_alpha) {
             material.material_class = MaterialClass::TrueBlend;
@@ -1592,7 +1725,14 @@ void OverworldBgfxRenderer::Impl::submitMesh(
         if (range.material >= 0 && range.material < static_cast<int>(mesh.materials.size())) {
             material = &mesh.materials[static_cast<std::size_t>(range.material)];
         }
-        const TextureGpuResource& texture = (material && material->texture.valid()) ? material->texture : white_texture_;
+        const TextureGpuResource* selected_texture = material && material->texture.valid() ? &material->texture : &white_texture_;
+        if (material && !material->animation_frames.empty() && material->animation_frame_time_ms > 0) {
+            const auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now().time_since_epoch()).count();
+            const std::size_t frame_index = static_cast<std::size_t>(now_ms / material->animation_frame_time_ms) % material->animation_frames.size();
+            if (material->animation_frames[frame_index].valid()) selected_texture = &material->animation_frames[frame_index];
+        }
+        const TextureGpuResource& texture = *selected_texture;
         const float br = std::max(0.0f, scene_.lighting_brightness);
         float tint[4] = {
             scene_.lighting_tint_r * br,
@@ -1637,7 +1777,14 @@ void OverworldBgfxRenderer::Impl::submitAlphaDepthPrepass(
         if (range.material >= 0 && range.material < static_cast<int>(mesh.materials.size())) {
             material = &mesh.materials[static_cast<std::size_t>(range.material)];
         }
-        const TextureGpuResource& texture = (material && material->texture.valid()) ? material->texture : white_texture_;
+        const TextureGpuResource* selected_texture = material && material->texture.valid() ? &material->texture : &white_texture_;
+        if (material && !material->animation_frames.empty() && material->animation_frame_time_ms > 0) {
+            const auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now().time_since_epoch()).count();
+            const std::size_t frame_index = static_cast<std::size_t>(now_ms / material->animation_frame_time_ms) % material->animation_frames.size();
+            if (material->animation_frames[frame_index].valid()) selected_texture = &material->animation_frames[frame_index];
+        }
+        const TextureGpuResource& texture = *selected_texture;
         const float cutoff = material
             ? std::max(material->alpha_cutoff, 1.0f / 255.0f)
             : 1.0f / 255.0f;
@@ -1879,6 +2026,90 @@ void OverworldBgfxRenderer::Impl::submitTextboxOverlay(
         textbox_texture_.height,
         layout.right_src,
         scaleOverlayRect(layout.right_dst, viewport_dst, base_viewport_w, base_viewport_h));
+
+    if (textbox_text_texture_.valid()) {
+        const SDL_Rect text_src{0, 0, textbox_text_texture_.width, textbox_text_texture_.height};
+        const SDL_Rect text_base{
+            textbox_config_.text_left_inset_px,
+            layout.left_dst.y + textbox_config_.text_top_inset_px,
+            textbox_text_texture_.width,
+            textbox_text_texture_.height};
+        submitOverlaySlice(
+            kTextboxView,
+            textbox_text_texture_.handle,
+            textbox_text_texture_.width,
+            textbox_text_texture_.height,
+            text_src,
+            scaleOverlayRect(text_base, viewport_dst, base_viewport_w, base_viewport_h));
+    }
+}
+
+void OverworldBgfxRenderer::Impl::submitAttendButtonOverlay(
+    int framebuffer_w, int framebuffer_h, int logical_w, int logical_h) const {
+    if (!attend_button_visible_ || !attend_button_texture_.valid()) return;
+    float view[16];
+    float proj[16];
+    identity(view);
+    bx::mtxOrtho(proj, 0.0f, static_cast<float>(std::max(1, framebuffer_w)),
+        static_cast<float>(std::max(1, framebuffer_h)), 0.0f, 0.0f, 100.0f, 0.0f,
+        backend_.homogeneousDepth());
+    constexpr bgfx::ViewId kAttendButtonView = 5;
+    bgfx::setViewTransform(kAttendButtonView, view, proj);
+    bgfx::setViewRect(kAttendButtonView, 0, 0,
+        static_cast<std::uint16_t>(std::max(1, framebuffer_w)),
+        static_cast<std::uint16_t>(std::max(1, framebuffer_h)));
+    bgfx::setViewFrameBuffer(kAttendButtonView, BGFX_INVALID_HANDLE);
+    bgfx::setViewMode(kAttendButtonView, bgfx::ViewMode::Sequential);
+    const SDL_Rect src{0, 0, attend_button_texture_.width, attend_button_texture_.height};
+    const SDL_Rect dst{
+        attend_button_logical_rect_.x * framebuffer_w / std::max(1, logical_w),
+        attend_button_logical_rect_.y * framebuffer_h / std::max(1, logical_h),
+        attend_button_logical_rect_.w * framebuffer_w / std::max(1, logical_w),
+        attend_button_logical_rect_.h * framebuffer_h / std::max(1, logical_h)};
+    submitOverlaySlice(kAttendButtonView, attend_button_texture_.handle,
+        attend_button_texture_.width, attend_button_texture_.height, src, dst);
+}
+
+void OverworldBgfxRenderer::Impl::submitBlackIrisTransition(
+    int framebuffer_w, int framebuffer_h, int logical_w, int logical_h) const {
+    if (!iris_visible_ || !white_texture_.valid()) return;
+    const float cx = iris_logical_x_ * framebuffer_w / std::max(1, logical_w);
+    const float cy = iris_logical_y_ * framebuffer_h / std::max(1, logical_h);
+    const float diagonal = std::hypot(static_cast<float>(framebuffer_w), static_cast<float>(framebuffer_h));
+    const float inner = diagonal * iris_max_radius_scale_ * (1.0f - iris_closed_amount_);
+    const float outer = diagonal * 2.5f;
+    const int segments = iris_segments_;
+    bgfx::TransientVertexBuffer tvb;
+    bgfx::TransientIndexBuffer tib;
+    if (!bgfx::allocTransientBuffers(&tvb, layout_, static_cast<std::uint32_t>(segments * 4),
+            &tib, static_cast<std::uint32_t>(segments * 6))) return;
+    auto* vertices = reinterpret_cast<Vertex*>(tvb.data);
+    auto* indices = reinterpret_cast<std::uint16_t*>(tib.data);
+    for (int i = 0; i < segments; ++i) {
+        const float a0 = 2.0f * bx::kPi * i / segments;
+        const float a1 = 2.0f * bx::kPi * (i + 1) / segments;
+        const int v = i * 4;
+        vertices[v + 0] = Vertex{cx + std::cos(a0) * inner, cy + std::sin(a0) * inner, 0, 0xff000000u, 0, 0, 0, 1, 0};
+        vertices[v + 1] = Vertex{cx + std::cos(a1) * inner, cy + std::sin(a1) * inner, 0, 0xff000000u, 0, 0, 0, 1, 0};
+        vertices[v + 2] = Vertex{cx + std::cos(a1) * outer, cy + std::sin(a1) * outer, 0, 0xff000000u, 0, 0, 0, 1, 0};
+        vertices[v + 3] = Vertex{cx + std::cos(a0) * outer, cy + std::sin(a0) * outer, 0, 0xff000000u, 0, 0, 0, 1, 0};
+        const int k = i * 6;
+        indices[k+0]=v; indices[k+1]=v+1; indices[k+2]=v+2;
+        indices[k+3]=v; indices[k+4]=v+2; indices[k+5]=v+3;
+    }
+    float view[16], proj[16], model[16]; identity(view); identity(model);
+    bx::mtxOrtho(proj, 0, static_cast<float>(framebuffer_w), static_cast<float>(framebuffer_h), 0,
+        0, 100, 0, backend_.homogeneousDepth());
+    constexpr bgfx::ViewId view_id = 6;
+    bgfx::setViewTransform(view_id, view, proj);
+    bgfx::setViewRect(view_id, 0, 0, static_cast<uint16_t>(framebuffer_w), static_cast<uint16_t>(framebuffer_h));
+    bgfx::setViewFrameBuffer(view_id, BGFX_INVALID_HANDLE);
+    bgfx::setTransform(model); bgfx::setVertexBuffer(0, &tvb); bgfx::setIndexBuffer(&tib);
+    bgfx::setTexture(0, tex_uniform_, white_texture_.handle, samplerFlags());
+    const float tint[4]={1,1,1,0}, adjust[4]={1,1,1,0}, zero[4]={0,0,0,0}, light[4]={0,1,0,0}, params[4]={1,0,0,0};
+    bgfx::setUniform(tint_cutoff_uniform_, tint); bgfx::setUniform(color_adjust_uniform_, adjust);
+    bgfx::setUniform(texture_blur_uniform_, zero); bgfx::setUniform(light_dir_uniform_, light); bgfx::setUniform(light_params_uniform_, params);
+    bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A); bgfx::submit(view_id, world_program_);
 }
 
 void OverworldBgfxRenderer::Impl::appendProjectedShadowForScene(
@@ -2354,8 +2585,15 @@ void OverworldBgfxRenderer::Impl::render(
             textbox_base_w = base_w;
             textbox_base_h = base_h;
         }
+        ensureTextboxTextTexture(std::max(
+            1,
+            textbox_base_w - textbox_config_.text_left_inset_px - textbox_config_.text_right_inset_px));
         submitTextboxOverlay(framebuffer_w, framebuffer_h, world_viewport, textbox_base_w, textbox_base_h);
     }
+    if (attend_button_visible_ && ensureAttendButtonTexture()) {
+        submitAttendButtonOverlay(framebuffer_w, framebuffer_h, logical_w, logical_h);
+    }
+    submitBlackIrisTransition(framebuffer_w, framebuffer_h, logical_w, logical_h);
 
     if (!debug_frame_counter_label.empty()) {
         bgfx::setDebug(BGFX_DEBUG_TEXT);

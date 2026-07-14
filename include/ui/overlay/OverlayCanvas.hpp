@@ -38,6 +38,9 @@ struct OverlayButton {
     OverlayButtonStyle style{};
 };
 
+SDL_Point mapOverlayPointerToLogical(
+    int window_x, int window_y, int window_w, int window_h, int logical_w, int logical_h);
+
 class OverlayCanvas {
 public:
     OverlayCanvas(int logical_w, int logical_h);

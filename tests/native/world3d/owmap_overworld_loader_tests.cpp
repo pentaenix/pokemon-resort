@@ -52,6 +52,18 @@ fs::path repositoryRoot() {
     throw TestFailure("Could not locate repository root from " + fs::current_path().string());
 }
 
+void testLegacyNpcAndPokemonInteractionMetadataCompatibility() {
+    const fs::path root = repositoryRoot();
+    const auto npc = pr::gameplay::world3d::data::loadCharacterPackageMetadata(
+        (root / "assets" / "characters" / "npc" / "watanabe.charbin").string());
+    expect(npc.character_type == "npc" && npc.npc_interaction_mode == "direct_dialogue",
+        "legacy NPC charbins should default to direct_dialogue");
+    const auto pokemon = pr::gameplay::world3d::data::loadCharacterPackageMetadata(
+        (root / "assets" / "characters" / "pokemon" / "psyduck.charbin").string());
+    expect(pokemon.character_type == "pokemon" && pokemon.npc_interaction_mode == "direct_dialogue",
+        "Pokemon should not read or require npcInteractionMode");
+}
+
 pr::gameplay::world3d::camera::Gen4CameraPreset sceneCameraPreset(
     const pr::gameplay::world3d::SceneConfig& scene,
     float distance_multiplier = 1.0f) {
@@ -1301,6 +1313,8 @@ void testStitchedHeightBlendsAcrossNorthEdge() {
 
 int main() {
     try {
+        testLegacyNpcAndPokemonInteractionMetadataCompatibility();
+        std::cout << "[PASS] legacy NPC and Pokemon interaction metadata compatibility\n";
         testFlatBootstrapOwmapParsesExpectedCells();
         std::cout << "[PASS] flat_bootstrap owmap parses expected cells\n";
         testOwmapMagicSniffAndDispatch();

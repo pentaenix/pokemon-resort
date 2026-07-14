@@ -100,7 +100,8 @@ std::string findModelFileForSpecies(
     if (!fs::exists(dir, ec)) return {};
     for (const fs::directory_entry& entry : fs::directory_iterator(dir, ec)) {
         if (ec || !entry.is_regular_file()) continue;
-        if (entry.path().extension() != ".glb") continue;
+        const fs::path extension = entry.path().extension();
+        if (extension != ".glb" && extension != ".glbz") continue;
         if (pokemonIdFromModelStem(entry.path().stem().string()) == species_id) {
             return entry.path().string();
         }

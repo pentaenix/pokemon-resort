@@ -60,6 +60,8 @@ struct NpcActorDefinition {
     std::vector<NpcPathPoint> path_points;
     std::string pokemon_form_id = "default";
     bool pokemon_shiny = false;
+    // Future spawners may set this transient reference; it is intentionally not charbin metadata.
+    std::optional<std::string> runtime_interaction_script_id;
 };
 
 struct NpcInteractionActorInfo {
@@ -71,6 +73,8 @@ struct NpcInteractionActorInfo {
     std::string pokemon_size = "small";
     std::vector<std::string> pokemon_types;
     std::vector<std::string> dialogue_lines;
+    std::string npc_interaction_mode = "direct_dialogue";
+    std::optional<std::string> runtime_interaction_script_id;
 };
 
 struct ResortPokemonSpawnInfo {
@@ -104,6 +108,7 @@ public:
     void requestInteractionSessionExitForLockedActor();
     bool lockedActorInteractionSessionReady() const;
     bool lockedActorInteractionSessionFinished() const;
+    bool triggerInteractionJump(int height_pixels);
     void clearInteractionLockedActor();
     void collectBillboardDraws(
         const camera::Gen4FollowCamera& camera,
@@ -135,6 +140,8 @@ private:
         std::size_t path_point_index = 0;
         float move_t = 1.0f;
         double wait_seconds = 0.0;
+        double interaction_jump_elapsed_seconds = -1.0;
+        int interaction_jump_height_pixels = 0;
         bool moving = false;
         bool running = false;
         bool have_follow_last_target_tile = false;
@@ -144,6 +151,8 @@ private:
         std::deque<std::pair<int, int>> path;
         std::string display_name;
         std::vector<std::string> dialogue_lines;
+        std::string npc_interaction_mode = "direct_dialogue";
+        std::optional<std::string> runtime_interaction_script_id;
     };
 
     std::optional<std::size_t> addActorAtRandomValidTile(const NpcActorDefinition& definition);

@@ -144,6 +144,34 @@ void AttendBgfxRenderer::Impl::render(double scene_time_seconds, int width, int 
         submitCornerButtons(width, height, BGFX_INVALID_HANDLE, 4);
     }
 
+    if (iris_visible_ && white_texture_.valid()) {
+        const int segments = iris_segments_;
+        bgfx::TransientVertexBuffer tvb; bgfx::TransientIndexBuffer tib;
+        if (bgfx::allocTransientBuffers(&tvb, layout_, segments * 4, &tib, segments * 6)) {
+            const float cx = iris_x_ * width / std::max(1, overlay_logical_w_);
+            const float cy = iris_y_ * height / std::max(1, overlay_logical_h_);
+            const float diagonal = std::hypot(static_cast<float>(width), static_cast<float>(height));
+            const float inner = diagonal * iris_radius_scale_ * (1.0f - iris_amount_);
+            const float outer = diagonal * 2.5f;
+            auto* v = reinterpret_cast<Vertex*>(tvb.data); auto* idx = reinterpret_cast<uint16_t*>(tib.data);
+            for (int i=0;i<segments;++i) {
+                const float a0=2*kPi*i/segments, a1=2*kPi*(i+1)/segments; const int n=i*4, k=i*6;
+                v[n]={cx+std::cos(a0)*inner,cy+std::sin(a0)*inner,0,0,1,0,0xff000000u,0,0};
+                v[n+1]={cx+std::cos(a1)*inner,cy+std::sin(a1)*inner,0,0,1,0,0xff000000u,0,0};
+                v[n+2]={cx+std::cos(a1)*outer,cy+std::sin(a1)*outer,0,0,1,0,0xff000000u,0,0};
+                v[n+3]={cx+std::cos(a0)*outer,cy+std::sin(a0)*outer,0,0,1,0,0xff000000u,0,0};
+                idx[k]=n;idx[k+1]=n+1;idx[k+2]=n+2;idx[k+3]=n;idx[k+4]=n+2;idx[k+5]=n+3;
+            }
+            float iv[16], ip[16], im[16]; identity(iv); identity(im);
+            bx::mtxOrtho(ip,0.0f,(float)width,(float)height,0.0f,0.0f,100.0f,0.0f,bgfx::getCaps()->homogeneousDepth);
+            constexpr bgfx::ViewId iris_view=8; bgfx::setViewTransform(iris_view,iv,ip); bgfx::setViewRect(iris_view,0,0,width,height);
+            bgfx::setTransform(im); bgfx::setVertexBuffer(0,&tvb); bgfx::setIndexBuffer(&tib);
+            bgfx::setTexture(0,tex_uniform_,white_texture_.handle,samplerFlags());
+            const float z[4]={0,0,0,0}, one[4]={1,1,1,0}, light[4]={0,1,0,0};
+            bgfx::setUniform(tint_cutoff_uniform_,one);bgfx::setUniform(color_adjust_uniform_,one);bgfx::setUniform(texture_blur_uniform_,z);bgfx::setUniform(light_dir_uniform_,light);bgfx::setUniform(light_params_uniform_,one);
+            bgfx::setState(BGFX_STATE_WRITE_RGB|BGFX_STATE_WRITE_A);bgfx::submit(iris_view,program_);
+        }
+    }
     backend_.endFrame();
 }
 

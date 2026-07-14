@@ -1,6 +1,8 @@
 #pragma once
 
 #include "gameplay/world3d/dialogue/OverworldTextboxConfig.hpp"
+#include "core/assets/Assets.hpp"
+#include "core/assets/Font.hpp"
 #include "ui/overlay/OverlaySliceLayout.hpp"
 
 #include <SDL.h>
@@ -18,8 +20,9 @@ public:
     const OverworldTextboxConfig& config() const { return config_; }
 
     bool initialize(SDL_Renderer* renderer);
-    void render(SDL_Renderer* renderer, int viewport_w, int viewport_h);
-    void render(SDL_Renderer* renderer, const SDL_Rect& viewport_dst, int base_viewport_w, int base_viewport_h);
+    void render(SDL_Renderer* renderer, int viewport_w, int viewport_h, const std::string& text = {});
+    void render(SDL_Renderer* renderer, const SDL_Rect& viewport_dst, int base_viewport_w, int base_viewport_h,
+        const std::string& text = {});
     bool ready() const { return texture_ != nullptr; }
 
     static SDL_Rect sourceRectForSkin(const OverworldTextboxConfig& config, int sheet_w, int sheet_h);
@@ -39,6 +42,10 @@ private:
     int texture_h_ = 0;
     bool warned_load_failure_ = false;
     bool warned_invalid_index_ = false;
+    FontHandle font_;
+    TextureHandle text_texture_{};
+    std::string cached_text_;
+    int cached_wrap_width_ = 0;
 };
 
 } // namespace pr::gameplay::world3d::dialogue

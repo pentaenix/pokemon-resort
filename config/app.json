@@ -20,6 +20,7 @@
     "back_keys": ["N", "ESCAPE", "BACKSPACE"],
     "run_keys": ["B"],
     "run_toggle_keys": [],
+    "attend_keys": ["X"],
     "record_toggle_keys": ["R"],
     "screenshot_keys": ["T"]
   },

@@ -12,6 +12,8 @@ struct RtpksMaterial {
     std::string texture_name;
     int alpha = 31;
     std::vector<std::uint8_t> image_bytes;
+    int animation_frame_time_ms = 0;
+    std::vector<std::vector<std::uint8_t>> animation_frame_bytes;
 };
 
 struct RtpksMaterialRange {
@@ -35,6 +37,12 @@ struct RtpksTileMesh {
     std::vector<float> colors_tri;
     std::vector<float> colors_quad;
     std::vector<RtpksMaterialRange> material_ranges;
+    std::string name;
+    std::vector<std::string> tags;
+    std::string collision_mode = "none";
+    bool collision_auto_apply = false;
+    bool collision_clear_on_erase = false;
+    std::vector<std::vector<bool>> collision_mask;
 };
 
 struct RtpksTilePackage {

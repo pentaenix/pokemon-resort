@@ -35,6 +35,7 @@ class InteractionTextCooldowns {
 public:
     bool available(const std::string& id, double now_seconds) const;
     void markUsed(const std::string& id, double now_seconds, double cooldown_seconds);
+    void reset(const std::vector<std::string>& ids);
 
 private:
     std::unordered_map<std::string, double> expires_at_;

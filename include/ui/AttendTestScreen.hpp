@@ -5,6 +5,7 @@
 #include "gameplay/attend/rendering/AttendBgfxRenderer.hpp"
 #include "ui/Screen.hpp"
 #include "ui/attend/AttendOverlay.hpp"
+#include "ui/transitions/ScreenTransition.hpp"
 
 #include <cstdint>
 #include <memory>
@@ -38,6 +39,7 @@ public:
     bool handlePointerPressed(int logical_x, int logical_y) override;
     bool handlePointerReleased(int logical_x, int logical_y) override;
     bool consumeReturnRequested();
+    void beginFromOverworld();
     std::vector<std::string> consumeOneShotSfxRequests();
 
 private:
@@ -60,6 +62,9 @@ private:
     double scene_time_seconds_ = 0.0;
     std::string pending_bgfx_screenshot_;
     bool return_requested_ = false;
+    bool returning_to_overworld_ = false;
+    transitions::OverworldTransitionConfig transition_config_{};
+    transitions::ScreenTransition transition_{};
 
     bool pointer_over_pokemon_ = false;
     bool pointer_pet_active_ = false;
@@ -123,6 +128,7 @@ private:
     bool pointerOverSleepButton(int logical_x, int logical_y) const;
     bool pointerOverCryButton(int logical_x, int logical_y) const;
     bool pointerOverOverlayButton(int logical_x, int logical_y) const;
+    SDL_Rect returnButtonRect() const;
     std::string currentWeatherLabel() const;
     std::string currentViewLabel() const;
     std::string currentPokemonLabel() const;

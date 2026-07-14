@@ -3,10 +3,7 @@
     {
       "id": "pokemon_ground_interest",
       "body": "{NAME} nudges the ground with interest.",
-      "requiredTags": [
-        "POKEMON",
-        "TILE_GROUND"
-      ],
+      "requiredTags": [],
       "weight": 3,
       "globalCooldownSeconds": 35
     },

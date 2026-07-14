@@ -23,6 +23,7 @@ struct CharacterPackageMetadata {
     std::string species_name;
     std::vector<std::string> pokemon_types;
     std::vector<std::string> dialogue_lines;
+    std::string npc_interaction_mode = "direct_dialogue";
     std::string movement_speed_profile = "walk";
     std::optional<CharacterPackagePartnerPokemon> partner_pokemon;
 };

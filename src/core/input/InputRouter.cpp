@@ -40,6 +40,10 @@ bool InputRouter::handleEvent(
             }
             return true;
         }
+        if (matchesBinding(key, config.attend_keys)) {
+            if (input) input->onAttendPressed();
+            return true;
+        }
         if (matchesBinding(key, config.forward_keys)) {
             if (input && input->acceptsAdvanceInput()) {
                 if (input->captureAdvanceForLongPress()) {

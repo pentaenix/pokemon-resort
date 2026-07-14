@@ -69,6 +69,7 @@ void applyInputConfig(InputConfig& out, const JsonValue& obj) {
     if (auto v = child(obj, "back_keys")) applyStringVector(out.back_keys, *v, "input.back_keys");
     if (auto v = child(obj, "run_keys")) applyStringVector(out.run_keys, *v, "input.run_keys");
     if (auto v = child(obj, "run_toggle_keys")) applyStringVector(out.run_toggle_keys, *v, "input.run_toggle_keys");
+    if (auto v = child(obj, "attend_keys")) applyStringVector(out.attend_keys, *v, "input.attend_keys");
     if (auto v = child(obj, "record_toggle_keys")) applyStringVector(out.record_toggle_keys, *v, "input.record_toggle_keys");
     if (auto v = child(obj, "screenshot_keys")) applyStringVector(out.screenshot_keys, *v, "input.screenshot_keys");
 }

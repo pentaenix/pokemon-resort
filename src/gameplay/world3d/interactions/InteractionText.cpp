@@ -77,6 +77,10 @@ void InteractionTextCooldowns::markUsed(
     expires_at_[id] = now_seconds + cooldown_seconds;
 }
 
+void InteractionTextCooldowns::reset(const std::vector<std::string>& ids) {
+    for (const std::string& id : ids) expires_at_.erase(id);
+}
+
 InteractionTextCatalog loadInteractionTextCatalog(const std::string& project_root) {
     InteractionTextCatalog catalog{};
     const fs::path path = fs::path(project_root) / "config" / "gameplay" / "world3d" / "interaction_text.json";
@@ -126,7 +130,16 @@ InteractionTextSelection selectInteractionText(
         }
     }
     if (candidates.empty()) {
-        return {};
+        std::vector<std::string> matching_ids;
+        for (const InteractionTextEntry& entry : catalog.entries) {
+            if (entryMatches(entry, context)) matching_ids.push_back(entry.id);
+        }
+        if (matching_ids.empty()) return {};
+
+        // Every matching line has been used. Start a fresh randomized cycle instead
+        // of presenting an empty textbox, then run the normal specificity selection again.
+        cooldowns.reset(matching_ids);
+        return selectInteractionText(catalog, context, cooldowns, now_seconds, rng);
     }
 
     const int total_weight = std::accumulate(

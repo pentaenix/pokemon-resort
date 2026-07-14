@@ -74,7 +74,11 @@ OverworldScript parseScript(const JsonValue& root, std::vector<ScriptValidationI
             action.tiles = std::max(0, intOr(node.get("tiles"), 0));
             action.height_pixels = std::max(0, intOr(node.get("heightPixels"), 0));
             action.duration_seconds = std::max(0.0, numOr(node.get("durationSeconds"), 0.0));
-            if (!known && issues) issues->push_back({script.id, "Unknown action: " + strOr(node.get("action"))});
+            if (!known) {
+                script.valid = false;
+                if (issues) issues->push_back({script.id, "Unknown action: " + strOr(node.get("action"))});
+            }
+            if (!actionAvailable(action.kind)) script.valid = false;
             script.actions.push_back(std::move(action));
         }
     }
@@ -104,6 +108,9 @@ ScriptActionKind scriptActionKindFromString(const std::string& value, bool* know
     if (tag == "TEXT" || tag == "TEXT_LITERAL") return ScriptActionKind::TextLiteral;
     if (tag == "TEXT_FREE") return ScriptActionKind::TextFree;
     if (tag == "POKEMON_INTERACTION_SESSION") return ScriptActionKind::PokemonInteractionSession;
+    if (tag == "DISABLE_ATTEND") return ScriptActionKind::DisableAttend;
+    if (tag == "ENABLE_ATTEND") return ScriptActionKind::EnableAttend;
+    if (tag == "EXIT_INTERACTION") return ScriptActionKind::ExitInteraction;
     if (tag == "CRY") return ScriptActionKind::Cry;
     if (tag == "EMOTICON") return ScriptActionKind::Emoticon;
     if (known) *known = false;
@@ -116,6 +123,9 @@ std::string scriptActionKindName(ScriptActionKind kind) {
         case ScriptActionKind::Move: return "MOVE"; case ScriptActionKind::Wander: return "WANDER";
         case ScriptActionKind::Jump: return "JUMP"; case ScriptActionKind::TextLiteral: return "TEXT";
         case ScriptActionKind::TextFree: return "TEXT_FREE"; case ScriptActionKind::PokemonInteractionSession: return "POKEMON_INTERACTION_SESSION";
+        case ScriptActionKind::DisableAttend: return "DISABLE_ATTEND";
+        case ScriptActionKind::EnableAttend: return "ENABLE_ATTEND";
+        case ScriptActionKind::ExitInteraction: return "EXIT_INTERACTION";
         case ScriptActionKind::Cry: return "CRY"; case ScriptActionKind::Emoticon: return "EMOTICON";
     }
     return "WAIT";
@@ -150,6 +160,7 @@ std::vector<ScriptValidationIssue> validateScriptCatalog(const ScriptCatalog& ca
     std::unordered_set<std::string> ids;
     for (const OverworldScript& script : catalog.scripts) {
         if (!ids.insert(script.id).second) issues.push_back({script.id, "Duplicate script id"});
+        if (!script.valid) issues.push_back({script.id, "Script contains an invalid or unavailable action"});
         if (script.actions.empty()) issues.push_back({script.id, "Script needs at least one action"});
         for (const ScriptAction& action : script.actions) {
             if (!actionAvailable(action.kind)) issues.push_back({script.id, scriptActionKindName(action.kind) + " has no runtime adapter"});

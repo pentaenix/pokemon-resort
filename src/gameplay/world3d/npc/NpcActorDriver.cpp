@@ -281,6 +281,13 @@ void NpcActorDriver::update(double dt) {
             }
             actor.source_rect = actor.animator->sourceRect();
         }
+        if (actor.interaction_jump_elapsed_seconds >= 0.0) {
+            actor.interaction_jump_elapsed_seconds += std::max(0.0, dt);
+            if (actor.interaction_jump_elapsed_seconds >= 0.35) {
+                actor.interaction_jump_elapsed_seconds = -1.0;
+                actor.interaction_jump_height_pixels = 0;
+            }
+        }
 
         if (interaction_locked) {
             actor.moving = false;
@@ -413,6 +420,8 @@ std::optional<NpcInteractionActorInfo> NpcActorDriver::interactionActorInfo(cons
     info.pokemon_size = actor.character.pokemon_size;
     info.pokemon_types = actor.character.pokemon_types;
     info.dialogue_lines = actor.dialogue_lines;
+    info.npc_interaction_mode = actor.npc_interaction_mode;
+    info.runtime_interaction_script_id = actor.runtime_interaction_script_id;
     return info;
 }
 
@@ -481,6 +490,19 @@ bool NpcActorDriver::lockedActorInteractionSessionFinished() const {
     return !actor.animator || actor.animator->activityFinished();
 }
 
+bool NpcActorDriver::triggerInteractionJump(int height_pixels) {
+    if (!interaction_locked_actor_ || *interaction_locked_actor_ >= actors_.size()) {
+        return false;
+    }
+    Actor& actor = actors_[*interaction_locked_actor_];
+    if (actor.definition.kind != NpcActorKind::Pokemon) {
+        return false;
+    }
+    actor.interaction_jump_elapsed_seconds = 0.0;
+    actor.interaction_jump_height_pixels = std::max(1, height_pixels);
+    return true;
+}
+
 void NpcActorDriver::clearInteractionLockedActor() {
     interaction_locked_actor_.reset();
 }
@@ -497,6 +519,12 @@ void NpcActorDriver::collectBillboardDraws(
         draw.activity_id = actor.animator ? actor.animator->activeActivityId() : std::string{};
         draw.draw_shadow = true;
         draw.use_run_texture = actor.running;
+        int jump_offset_y_px = 0;
+        if (actor.interaction_jump_elapsed_seconds >= 0.0) {
+            const double phase = std::clamp(actor.interaction_jump_elapsed_seconds / 0.35, 0.0, 1.0);
+            jump_offset_y_px = -static_cast<int>(std::lround(
+                4.0 * phase * (1.0 - phase) * static_cast<double>(actor.interaction_jump_height_pixels)));
+        }
         draw.placement = rendering::buildCharacterBillboardPlacement(
             *scene_,
             camera,
@@ -505,7 +533,9 @@ void NpcActorDriver::collectBillboardDraws(
             actor.position,
             actor.source_rect,
             viewport_w,
-            viewport_h);
+            viewport_h,
+            1.0f,
+            jump_offset_y_px);
         out.push_back(draw);
     }
 }
@@ -532,6 +562,7 @@ std::optional<std::size_t> NpcActorDriver::addActor(const NpcActorDefinition& de
     try {
         Actor actor{};
         actor.definition = definition;
+        actor.runtime_interaction_script_id = definition.runtime_interaction_script_id;
         actor.character = data::loadCharacterDefinition(
             project_root_,
             definition.character_package_path,
@@ -547,6 +578,7 @@ std::optional<std::size_t> NpcActorDriver::addActor(const NpcActorDefinition& de
             }
             actor.display_name = metadata.display_name;
             actor.dialogue_lines = metadata.dialogue_lines;
+            actor.npc_interaction_mode = metadata.npc_interaction_mode;
         } catch (const std::exception&) {
             // Character loading already validates the package; metadata is optional for movement.
         }
@@ -567,7 +599,9 @@ std::optional<std::size_t> NpcActorDriver::addActor(const NpcActorDefinition& de
         const float tile_size = std::max(1.0f, scene_->grid.tile_size);
         const float wx = (static_cast<float>(actor.tile_x) + 0.5f) * tile_size;
         const float wz = (static_cast<float>(actor.tile_y) + 0.5f) * tile_size;
-        actor.terrain_binding = terrain::bindActorStanding(*scene_, actor.tile_x, actor.tile_y, wx, wz);
+        actor.terrain_binding = terrain_query_
+            ? terrain_query_->bindActorStanding(actor.tile_x, actor.tile_y, wx, wz)
+            : terrain::bindActorStanding(*scene_, actor.tile_x, actor.tile_y, wx, wz);
         actor.position = camera::Vec3{wx, actor.terrain_binding.simulation_y, wz};
         actor.motor.setTerrainQuery(terrain_query_);
         actor.motor.setMoveSpeedUnitsPerSecond(actor.move_speed_units_per_second);

@@ -75,6 +75,7 @@ struct AttendPokemonMaterial {
     bool has_alpha_mode = false;
     bool has_rae_policy = false;
     AttendRenderClass render_class = AttendRenderClass::Opaque;
+    std::string nitro_texture_alpha;
     AttendMaterialRole material_role = AttendMaterialRole::None;
     int shiny_material_index = -1;
     std::vector<std::pair<std::string, int>> form_material_indices;

@@ -10,6 +10,10 @@ Scripts live under `config/gameplay/world3d/scripts/`. `script_catalog.json` lis
 
 Scripts are selected by highest priority, then weighted random selection among tied candidates. A selected script observes its own runtime cooldown.
 
+Pokemon interactions always enter this selection path. If selection yields no eligible valid interaction script, the interaction controller supplies the established face/session/free-text fallback. NPCs only enter catalog selection when their charbin has `metadata.npcInteractionMode: "scripted"`; legacy and `direct_dialogue` NPCs read their own charbin dialogue directly. Scripted NPC selection safely falls back to direct dialogue. The source boundary reserves this future precedence without requiring a charbin script id: runtime-assigned interaction script > NPC scripted-mode source > direct-dialogue fallback.
+
+Returning from Pokemon Attend supplies the one-shot `AFTER_POKEMON_ATTEND` interaction context tag to the preserved Pokemon target. Scripts can gate on that tag to author return reactions. The default return script performs two shared `JUMP` actions separated by `WAIT`, then shows `{NAME} is really happy!`; literal `TEXT` actions use the same interaction template variables as free text.
+
 ## Supported Actions
 
 `WAIT`, `FACE`, `MOVE`, `WANDER`, `JUMP`, `TEXT`, `TEXT_FREE`, and `POKEMON_INTERACTION_SESSION` are part of the v1 vocabulary. `CRY` and `EMOTICON` are recognized but rejected by validation until their presentation adapters exist.

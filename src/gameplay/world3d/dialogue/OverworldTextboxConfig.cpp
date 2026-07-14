@@ -17,6 +17,10 @@ int intOr(const JsonValue* value, int fallback) {
     return value && value->isNumber() ? static_cast<int>(value->asNumber()) : fallback;
 }
 
+bool boolOr(const JsonValue* value, bool fallback) {
+    return value && value->isBool() ? value->asBool() : fallback;
+}
+
 std::string stringOr(const JsonValue* value, const std::string& fallback) {
     return value && value->isString() ? value->asString() : fallback;
 }
@@ -61,9 +65,22 @@ OverworldTextboxConfig loadOverworldTextboxConfig(const std::string& project_roo
             out.stretch_strip_width_px = intOr(stretch->get("stripWidthPx"), out.stretch_strip_width_px);
             out.stretch_strip_center_x_px = intOr(stretch->get("sourceCenterXPx"), out.stretch_strip_center_x_px);
         }
-        if (const JsonValue* future = textbox->get("futureText"); future && future->isObject()) {
-            out.future_text_font_path = stringOr(future->get("fontPath"), out.future_text_font_path);
-            out.future_text_font_size_px = intOr(future->get("fontSizePx"), out.future_text_font_size_px);
+        const JsonValue* text = textbox->get("text");
+        if (!text || !text->isObject()) text = textbox->get("futureText");
+        if (text && text->isObject()) {
+            out.text_font_path = stringOr(text->get("fontPath"), out.text_font_path);
+            out.text_font_size_px = intOr(text->get("fontSizePx"), out.text_font_size_px);
+            out.text_left_inset_px = intOr(text->get("leftInsetPx"), out.text_left_inset_px);
+            out.text_right_inset_px = intOr(text->get("rightInsetPx"), out.text_right_inset_px);
+            out.text_top_inset_px = intOr(text->get("topInsetPx"), out.text_top_inset_px);
+        }
+        if (const JsonValue* button = root.get("attendButton"); button && button->isObject()) {
+            out.attend_button_enabled = boolOr(button->get("enabled"), out.attend_button_enabled);
+            out.attend_button_icon_path = stringOr(button->get("iconPath"), out.attend_button_icon_path);
+            out.attend_button_top_px = intOr(button->get("topPx"), out.attend_button_top_px);
+            out.attend_button_right_px = intOr(button->get("rightPx"), out.attend_button_right_px);
+            out.attend_button_width_px = intOr(button->get("widthPx"), out.attend_button_width_px);
+            out.attend_button_height_px = intOr(button->get("heightPx"), out.attend_button_height_px);
         }
     } catch (const std::exception& ex) {
         std::cerr << "[Overworld3D][Textbox] Could not load " << path << ": " << ex.what() << '\n';
@@ -78,7 +95,14 @@ OverworldTextboxConfig loadOverworldTextboxConfig(const std::string& project_roo
     out.sheet_columns = std::max(1, out.sheet_columns);
     out.stretch_strip_width_px = std::clamp(out.stretch_strip_width_px, 1, out.source_cell_width_px);
     out.stretch_strip_center_x_px = std::clamp(out.stretch_strip_center_x_px, 0, out.source_cell_width_px);
-    out.future_text_font_size_px = std::max(1, out.future_text_font_size_px);
+    out.text_font_size_px = std::max(1, out.text_font_size_px);
+    out.text_left_inset_px = std::max(0, out.text_left_inset_px);
+    out.text_right_inset_px = std::max(0, out.text_right_inset_px);
+    out.text_top_inset_px = std::max(0, out.text_top_inset_px);
+    out.attend_button_top_px = std::max(0, out.attend_button_top_px);
+    out.attend_button_right_px = std::max(0, out.attend_button_right_px);
+    out.attend_button_width_px = std::max(1, out.attend_button_width_px);
+    out.attend_button_height_px = std::max(1, out.attend_button_height_px);
     return out;
 }
 

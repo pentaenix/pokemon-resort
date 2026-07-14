@@ -365,6 +365,7 @@ AttendTestScreen::AttendTestScreen(std::string project_root, AppConfig app_confi
     : project_root_(std::move(project_root)),
       app_config_(std::move(app_config)),
       scene_config_(gameplay::attend::loadAttendSceneConfig(project_root_)),
+      transition_config_(transitions::loadOverworldTransitionConfig(project_root_)),
       pointer_space_w_(std::max(1, app_config_.window.virtual_width)),
       pointer_space_h_(std::max(1, app_config_.window.virtual_height)),
       overlay_(pointer_space_w_, pointer_space_h_) {
@@ -379,6 +380,11 @@ AttendTestScreen::~AttendTestScreen() {
 }
 
 void AttendTestScreen::update(double dt) {
+    transition_.update(dt);
+    if (returning_to_overworld_ && transition_.consumeClosed()) {
+        returning_to_overworld_ = false;
+        return_requested_ = true;
+    }
     scene_time_seconds_ += dt;
     if (!hand_cursor_) {
         hand_cursor_ = std::make_unique<HandCursor>();
@@ -731,6 +737,9 @@ bool AttendTestScreen::renderBgfx(
         profile_plate.sprite_path = currentPokemonSpritePath();
     }
     bgfx_renderer_->setProfilePlate(std::move(profile_plate), pointer_space_w_, pointer_space_h_);
+    bgfx_renderer_->setBlackIrisTransition(pointer_space_w_ * 0.5f, pointer_space_h_ * 0.5f,
+        static_cast<float>(transition_.closedAmount()), transition_.active(),
+        transition_.style().circle_segments, static_cast<float>(transition_.style().max_radius_scale));
     bgfx_renderer_->render(scene_time_seconds_, framebuffer_w, framebuffer_h);
     return true;
 }
@@ -838,7 +847,15 @@ void AttendTestScreen::onBackPressed() {
         freecam_mouse_dragging_ = false;
     }
     restoreSystemCursor();
-    return_requested_ = true;
+    if (!returning_to_overworld_) {
+        returning_to_overworld_ = true;
+        transition_.startClosing(transition_config_.attend);
+    }
+}
+
+void AttendTestScreen::beginFromOverworld() {
+    returning_to_overworld_ = false;
+    transition_.startOpening(transition_config_.attend);
 }
 
 void AttendTestScreen::handlePointerMoved(int logical_x, int logical_y) {
@@ -888,6 +905,12 @@ bool AttendTestScreen::handlePointerPressed(int logical_x, int logical_y) {
     }
     updatePointerFaceTarget(logical_x, logical_y);
     updatePointerEdgeLook(logical_x, logical_y);
+    const SDL_Point pointer{logical_x, logical_y};
+    const SDL_Rect return_rect = returnButtonRect();
+    if (scene_config_.ui.return_button.enabled && SDL_PointInRect(&pointer, &return_rect)) {
+        onBackPressed();
+        return true;
+    }
     if (pointerOverWeatherButton(logical_x, logical_y)) {
         cycleWeatherMode();
         pointer_pet_active_ = false;
@@ -1112,27 +1135,11 @@ std::vector<std::string> AttendTestScreen::consumeOneShotSfxRequests() {
 
 void AttendTestScreen::mapPointerToLogical(int& x, int& y) const {
     if (!bgfx_renderer_) return;
-    const int logical_w = std::max(1, app_config_.window.virtual_width);
-    const int logical_h = std::max(1, app_config_.window.virtual_height);
-    const int window_w = std::max(1, bgfx_window_w_);
-    const int window_h = std::max(1, bgfx_window_h_);
-    const float scale = std::max(
-        0.01f,
-        std::min(
-            static_cast<float>(window_w) / static_cast<float>(logical_w),
-            static_cast<float>(window_h) / static_cast<float>(logical_h)));
-    const float view_w = static_cast<float>(logical_w) * scale;
-    const float view_h = static_cast<float>(logical_h) * scale;
-    const float view_x = (static_cast<float>(window_w) - view_w) * 0.5f;
-    const float view_y = (static_cast<float>(window_h) - view_h) * 0.5f;
-    x = std::clamp(
-        static_cast<int>(std::round((static_cast<float>(x) - view_x) / scale)),
-        0,
-        logical_w - 1);
-    y = std::clamp(
-        static_cast<int>(std::round((static_cast<float>(y) - view_y) / scale)),
-        0,
-        logical_h - 1);
+    const SDL_Point mapped = mapOverlayPointerToLogical(
+        x, y, bgfx_window_w_, bgfx_window_h_,
+        app_config_.window.virtual_width, app_config_.window.virtual_height);
+    x = mapped.x;
+    y = mapped.y;
 }
 
 bool AttendTestScreen::pointerOverPokemon(int logical_x, int logical_y) const {
@@ -1271,6 +1278,24 @@ bool AttendTestScreen::pointerOverOverlayButton(int logical_x, int logical_y) co
            pointerOverEmoteButton(logical_x, logical_y) ||
            pointerOverSleepButton(logical_x, logical_y) ||
            pointerOverCryButton(logical_x, logical_y);
+}
+
+SDL_Rect AttendTestScreen::returnButtonRect() const {
+    const auto& style = scene_config_.ui.return_button;
+    constexpr float kBaseButtonHeight = 112.0f;
+    const float responsive_scale = screenRelativeScale(
+        pointer_space_w_, pointer_space_h_,
+        app_config_.window.virtual_width, app_config_.window.virtual_height);
+    const int height = std::max(1, static_cast<int>(std::round(
+        kBaseButtonHeight * style.scale * responsive_scale)));
+    const int width = std::max(height, static_cast<int>(std::round(
+        static_cast<float>(height) * (1.0f + style.side_extension_ratio))));
+    const float hidden = 1.0f - std::clamp(corner_buttons_visibility_, 0.0f, 1.0f);
+    return SDL_Rect{
+        static_cast<int>(std::round(-static_cast<float>(width) * hidden)),
+        static_cast<int>(std::round(-static_cast<float>(height) * hidden)),
+        width,
+        height};
 }
 
 std::string AttendTestScreen::currentWeatherLabel() const {
@@ -1673,7 +1698,8 @@ void AttendTestScreen::refreshAvailablePokemonModels() {
     if (!std::filesystem::exists(dir, ec)) return;
     for (const std::filesystem::directory_entry& entry : std::filesystem::directory_iterator(dir, ec)) {
         if (ec || !entry.is_regular_file()) continue;
-        if (entry.path().extension() != ".glb") continue;
+        const std::filesystem::path extension = entry.path().extension();
+        if (extension != ".glb" && extension != ".glbz") continue;
         available_pokemon_.push_back(PokemonModelOption{
             pokemonIdFromModelStem(entry.path().stem().string()),
             entry.path().string()});

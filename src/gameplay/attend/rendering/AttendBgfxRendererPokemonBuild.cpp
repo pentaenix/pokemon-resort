@@ -1,5 +1,7 @@
 #include "AttendBgfxRendererInternal.hpp"
 
+#include "gameplay/attend/rendering/AttendPokemonMaterialPolicy.hpp"
+
 namespace pr::gameplay::attend::rendering {
 
 bool AttendBgfxRenderer::Impl::buildPokemon() {
@@ -59,6 +61,15 @@ bool AttendBgfxRenderer::Impl::buildPokemon() {
         }
     }
 
+    std::vector<bool> authored_visible_materials(pokemon_model_.materials.size(), false);
+    for (const AttendPokemonPrimitive& primitive : pokemon_model_.primitives) {
+        if (!primitive.default_visible && primitive.visible_for_forms.empty()) continue;
+        if (primitive.material >= 0 &&
+            primitive.material < static_cast<int>(authored_visible_materials.size())) {
+            authored_visible_materials[static_cast<std::size_t>(primitive.material)] = true;
+        }
+    }
+
     pokemon_mesh_.materials.resize(pokemon_model_.materials.size());
     for (std::size_t i = 0; i < pokemon_model_.materials.size(); ++i) {
         const AttendPokemonMaterial& src = pokemon_model_.materials[i];
@@ -103,6 +114,13 @@ bool AttendBgfxRenderer::Impl::buildPokemon() {
                     src.render_class == AttendRenderClass::UniformDecal ||
                     dst.base_color[3] < 0.999f;
         dst.mask_cutout = src.render_class == AttendRenderClass::Mask;
+        dst.blend = dst.blend ||
+            (authored_visible_materials[i] &&
+             shouldPromoteAttendTextureToBlend(
+                 src,
+                 AttendTextureAlphaSummary{
+                     dst.texture.minimum_alpha,
+                     dst.texture.partial_alpha_fraction}));
         if (!src.has_rae_policy && !src.has_alpha_mode) {
             dst.blend = dst.blend || dst.texture.has_partial_alpha;
             dst.mask_cutout = dst.texture.has_zero_alpha && !dst.blend && dst.base_color[3] >= 0.999f;
@@ -145,15 +163,12 @@ bool AttendBgfxRenderer::Impl::buildPokemon() {
             pokemon_draw_order_.push_back(primitive_index);
         }
     }
-    std::stable_sort(
-        pokemon_draw_order_.begin(),
-        pokemon_draw_order_.end(),
-        [this](std::size_t a, std::size_t b) {
-            const AttendPokemonPrimitive& lhs = pokemon_model_.primitives[a];
-            const AttendPokemonPrimitive& rhs = pokemon_model_.primitives[b];
-            if (lhs.render_order != rhs.render_order) return lhs.render_order < rhs.render_order;
-            return lhs.scene_order < rhs.scene_order;
-        });
+    std::vector<bool> material_blends;
+    material_blends.reserve(pokemon_mesh_.materials.size());
+    for (const MaterialResource& material : pokemon_mesh_.materials) {
+        material_blends.push_back(material.blend);
+    }
+    sortAttendPokemonDrawOrder(pokemon_model_, material_blends, pokemon_draw_order_);
     for (std::size_t ordered_index = 0; ordered_index < pokemon_draw_order_.size(); ++ordered_index) {
         const std::size_t primitive_index = pokemon_draw_order_[ordered_index];
         const AttendPokemonPrimitive& primitive = pokemon_model_.primitives[primitive_index];

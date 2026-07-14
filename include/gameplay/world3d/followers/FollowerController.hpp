@@ -76,6 +76,7 @@ public:
     bool interactionSessionReady() const;
     bool interactionSessionFinished() const;
     bool triggerDebugJump();
+    bool triggerInteractionJump(int height_pixels);
     bool triggerDebugPoke();
     std::string debugActivityLabel() const;
     std::optional<effects::LandingDustSpawnRequest> consumeLandingDustSpawn();
@@ -159,7 +160,9 @@ private:
     bool cancel_return_active_ = false;
     bool sleep_action_active_ = false;
     ManualDebugActionType manual_debug_action_ = ManualDebugActionType::None;
+    bool interaction_action_active_ = false;
     double manual_debug_elapsed_seconds_ = 0.0;
+    int manual_debug_jump_height_pixels_ = 0;
     std::string active_behavior_label_ = "none";
     int action_jump_landings_emitted_ = 0;
     std::optional<effects::LandingDustSpawnRequest> pending_landing_dust_spawn_;

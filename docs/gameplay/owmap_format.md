@@ -50,6 +50,25 @@ Mesh corners, movement height (`TerrainSurface`), and the map editor preview all
 Grid axes in the game: `tile_x` → world +X (east), `tile_y` → world +Z (south), north is `tile_y - 1`.
 - `collision` on disk: 1 bit per cell (`1` blocked, `0` walkable)
   - unpacked at runtime to `terrain.collision[y][x]` as `uint8` `0/1`
+  - the Map Editor can set these bits automatically when painting an RTPKS tile
+    whose definition uses `collision.mode: footprint` or `collision.mode: mask`
+  - automatic clearing on tile erase is opt-in (`clearOnErase`) so an artist's
+    manually authored collision is not removed accidentally
+
+## RTPKS decoration layers
+
+`metaJson.tilePackage` binds the RTPKS package. `metaJson.tileLayers.layers[]`
+stores visible decoration layers whose `cells[y][x]` values are stable
+`resortTileId` numbers or `null`. Tile definitions in the package may include:
+
+- palette tab membership and smart-path grids for editor organization
+- namespaced gameplay tags and typed properties
+- footprint or mask-based automatic collision authoring rules
+- frame animation metadata and runtime texture frames
+
+The map does not duplicate these definitions. Renaming tabs, changing tags, or
+adding animation therefore updates the package without rewriting every `.owmap`
+that uses the same stable IDs.
 
 ## Loader architecture in this repo
 

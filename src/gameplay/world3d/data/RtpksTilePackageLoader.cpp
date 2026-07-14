@@ -40,6 +40,19 @@ std::vector<float> floatArray(const JsonValue* value) {
     return out;
 }
 
+std::vector<std::string> stringArray(const JsonValue* value) {
+    std::vector<std::string> out;
+    if (!value || !value->isArray()) return out;
+    for (const JsonValue& item : value->asArray()) {
+        if (item.isString() && !item.asString().empty()) out.push_back(item.asString());
+    }
+    return out;
+}
+
+bool boolOr(const JsonValue* value, bool fallback) {
+    return value && value->isBool() ? value->asBool() : fallback;
+}
+
 std::vector<std::uint8_t> extractZipEntry(mz_zip_archive& zip, const std::string& path) {
     std::size_t size = 0;
     void* data = mz_zip_reader_extract_file_to_heap(&zip, path.c_str(), &size, 0);
@@ -57,7 +70,7 @@ JsonValue extractJson(mz_zip_archive& zip, const std::string& path) {
     return parseJsonText(std::string(reinterpret_cast<const char*>(bytes.data()), bytes.size()));
 }
 
-RtpksTileMesh parseTileMesh(int resort_tile_id, const JsonValue& root) {
+RtpksTileMesh parseTileMesh(int resort_tile_id, const JsonValue& root, const JsonValue* definition) {
     RtpksTileMesh out;
     out.resort_tile_id = resort_tile_id;
     out.width = std::max(1, intOr(root.get("width"), 1));
@@ -70,6 +83,24 @@ RtpksTileMesh parseTileMesh(int resort_tile_id, const JsonValue& root) {
     out.tex_coords_quad = floatArray(root.get("texCoordsQuad"));
     out.colors_tri = floatArray(root.get("colorsTri"));
     out.colors_quad = floatArray(root.get("colorsQuad"));
+    if (definition && definition->isObject()) {
+        out.name = strOr(definition->get("name"), "");
+        out.tags = stringArray(definition->get("tags"));
+        if (const JsonValue* collision = definition->get("collision"); collision && collision->isObject()) {
+            out.collision_mode = strOr(collision->get("mode"), "none");
+            out.collision_auto_apply = boolOr(collision->get("autoApply"), false);
+            out.collision_clear_on_erase = boolOr(collision->get("clearOnErase"), false);
+            if (const JsonValue* rows = collision->get("mask"); rows && rows->isArray()) {
+                for (const JsonValue& row_value : rows->asArray()) {
+                    std::vector<bool> row;
+                    if (row_value.isArray()) {
+                        for (const JsonValue& cell : row_value.asArray()) row.push_back(cell.isBool() && cell.asBool());
+                    }
+                    out.collision_mask.push_back(std::move(row));
+                }
+            }
+        }
+    }
 
     if (const JsonValue* ranges = root.get("materialRanges"); ranges && ranges->isArray()) {
         for (const JsonValue& range_value : ranges->asArray()) {
@@ -144,6 +175,14 @@ RtpksTilePackage loadRtpksTilePackage(const std::string& path, std::string* erro
                 if (!material.texture_name.empty()) {
                     material.image_bytes = extractZipEntry(zip, "runtime/textures/" + material.texture_name);
                 }
+                if (const JsonValue* animation = material_value.get("animation"); animation && animation->isObject() &&
+                    strOr(animation->get("type"), "") == "frames") {
+                    material.animation_frame_time_ms = std::max(16, intOr(animation->get("frameDurationMs"), 180));
+                    for (const std::string& frame_name : stringArray(animation->get("frames"))) {
+                        std::vector<std::uint8_t> frame = extractZipEntry(zip, "runtime/textures/" + frame_name);
+                        if (!frame.empty()) material.animation_frame_bytes.push_back(std::move(frame));
+                    }
+                }
                 out.materials.push_back(std::move(material));
             }
         }
@@ -158,7 +197,7 @@ RtpksTilePackage loadRtpksTilePackage(const std::string& path, std::string* erro
                 if (mesh_bytes.empty()) continue;
                 const JsonValue mesh_root = parseJsonText(
                     std::string(reinterpret_cast<const char*>(mesh_bytes.data()), mesh_bytes.size()));
-                out.tiles.push_back(parseTileMesh(resort_tile_id, mesh_root));
+                out.tiles.push_back(parseTileMesh(resort_tile_id, mesh_root, &tile_value));
             }
         }
         mz_zip_reader_end(&zip);

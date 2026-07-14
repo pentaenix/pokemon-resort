@@ -31,6 +31,8 @@ find_package(SDL2 REQUIRED)
 find_package(SDL2_image REQUIRED)
 find_package(SDL2_ttf REQUIRED)
 find_package(SQLite3)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(ZSTD REQUIRED IMPORTED_TARGET libzstd)
 
 set(WORLD3D_BGFX_SHADER_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/gameplay/world3d/rendering/bgfx/shaders)
 set(WORLD3D_BGFX_SHADER_OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated/world3d-shaders)
@@ -88,6 +90,7 @@ set(RESORT_STORAGE_SOURCES
 )
 
 add_library(world3d_bgfx_renderer STATIC
+    src/core/crypto/Sha256.cpp
     src/gameplay/attend/rendering/AttendBgfxRenderer.cpp
     src/gameplay/attend/rendering/AttendBgfxRendererAnimation.cpp
     src/gameplay/attend/rendering/AttendBgfxRendererCamera.cpp
@@ -100,6 +103,8 @@ add_library(world3d_bgfx_renderer STATIC
     src/gameplay/attend/rendering/AttendBgfxRendererCornerButton.cpp
     src/gameplay/attend/rendering/AttendBgfxRendererProfilePlate.cpp
     src/gameplay/attend/rendering/AttendBgfxRendererUi.cpp
+    src/gameplay/attend/rendering/AttendPokemonAsset.cpp
+    src/gameplay/attend/rendering/AttendPokemonMaterialPolicy.cpp
     src/gameplay/attend/rendering/AttendPokemonModel.cpp
     src/gameplay/world3d/rendering/bgfx/BgfxBackend.cpp
     src/gameplay/world3d/rendering/bgfx/BillboardBgfxDrawer.cpp
@@ -117,7 +122,7 @@ add_library(world3d_bgfx_renderer STATIC
 target_include_directories(world3d_bgfx_renderer PUBLIC include)
 target_include_directories(world3d_bgfx_renderer PRIVATE ${bgfx_cmake_SOURCE_DIR}/bimg/3rdparty/tinyexr/deps/miniz)
 target_compile_features(world3d_bgfx_renderer PRIVATE cxx_std_20)
-target_link_libraries(world3d_bgfx_renderer PUBLIC bgfx bx bimg SDL2::SDL2 SDL2_image::SDL2_image SDL2_ttf::SDL2_ttf)
+target_link_libraries(world3d_bgfx_renderer PUBLIC bgfx bx bimg SDL2::SDL2 SDL2_image::SDL2_image SDL2_ttf::SDL2_ttf PkgConfig::ZSTD)
 
 add_executable(title_screen_demo
     src/main.cpp
@@ -198,6 +203,7 @@ add_executable(title_screen_demo
     src/ui/AttendTestScreen.cpp
     src/ui/attend/AttendOverlay.cpp
     src/ui/overlay/OverlayCanvas.cpp
+    src/ui/transitions/ScreenTransition.cpp
     src/ui/Overworld3DTestScreen.cpp
     src/ui/TransferFlowCoordinator.cpp
     src/ui/title_screen/MainMenuController.cpp
@@ -430,12 +436,26 @@ add_test(NAME attend_scene_config_tests COMMAND attend_scene_config_tests)
 
 add_executable(attend_pokemon_model_tests
     tests/native/attend/attend_pokemon_model_tests.cpp
+    src/core/crypto/Sha256.cpp
+    src/gameplay/attend/rendering/AttendPokemonAsset.cpp
+    src/gameplay/attend/rendering/AttendPokemonMaterialPolicy.cpp
     src/gameplay/attend/rendering/AttendPokemonModel.cpp
     src/core/config/Json.cpp
 )
 target_include_directories(attend_pokemon_model_tests PRIVATE include)
-target_link_libraries(attend_pokemon_model_tests PRIVATE SDL2::SDL2 SDL2_image::SDL2_image)
+target_link_libraries(attend_pokemon_model_tests PRIVATE SDL2::SDL2 SDL2_image::SDL2_image PkgConfig::ZSTD)
 add_test(NAME attend_pokemon_model_tests COMMAND attend_pokemon_model_tests)
+
+add_executable(attend_pokemon_glbz_tests
+    tests/native/attend/attend_pokemon_glbz_tests.cpp
+    src/core/crypto/Sha256.cpp
+    src/gameplay/attend/rendering/AttendPokemonAsset.cpp
+    src/gameplay/attend/rendering/AttendPokemonModel.cpp
+    src/core/config/Json.cpp
+)
+target_include_directories(attend_pokemon_glbz_tests PRIVATE include)
+target_link_libraries(attend_pokemon_glbz_tests PRIVATE SDL2::SDL2 SDL2_image::SDL2_image PkgConfig::ZSTD)
+add_test(NAME attend_pokemon_glbz_tests COMMAND attend_pokemon_glbz_tests)
 
 add_executable(overlay_canvas_tests
     tests/native/ui/overlay_canvas_tests.cpp
@@ -593,13 +613,14 @@ add_test(NAME owmap_overworld_loader_tests COMMAND owmap_overworld_loader_tests)
 add_executable(overworld_textbox_tests
     tests/native/world3d/overworld_textbox_tests.cpp
     src/core/config/Json.cpp
+    src/core/assets/Font.cpp
     src/gameplay/world3d/dialogue/OverworldTextboxConfig.cpp
     src/gameplay/world3d/dialogue/OverworldTextboxController.cpp
     src/gameplay/world3d/dialogue/OverworldTextboxRenderer.cpp
     src/ui/overlay/OverlaySliceLayout.cpp
 )
 target_include_directories(overworld_textbox_tests PRIVATE include)
-target_link_libraries(overworld_textbox_tests PRIVATE SDL2::SDL2 SDL2_image::SDL2_image)
+target_link_libraries(overworld_textbox_tests PRIVATE SDL2::SDL2 SDL2_image::SDL2_image SDL2_ttf::SDL2_ttf)
 add_test(NAME overworld_textbox_tests COMMAND overworld_textbox_tests)
 
 add_executable(interaction_system_tests
@@ -610,6 +631,7 @@ add_executable(interaction_system_tests
     src/gameplay/world3d/interactions/InteractionText.cpp
     src/gameplay/world3d/npc/ResortPokemonSpawnConfig.cpp
     src/gameplay/world3d/scripts/OverworldScript.cpp
+    src/ui/transitions/ScreenTransition.cpp
 )
 target_include_directories(interaction_system_tests PRIVATE include)
 target_link_libraries(interaction_system_tests PRIVATE SDL2::SDL2)

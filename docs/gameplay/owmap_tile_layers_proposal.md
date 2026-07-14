@@ -1,9 +1,16 @@
-# OWMAP Tile Layer Proposal
+# OWMAP Tile Layer Architecture
 
-This is a proposal for extending `.owmap` with paintable tile-type layers.
-It is intended for the map editor/export pipeline before the C++ runtime format
-is changed. The current runtime `.owmap` format is documented in
-`docs/gameplay/owmap_format.md`.
+This document records the design behind the implemented `.owmap` RTPKS tile
+layers. The shipped representation differs from the original binary proposal:
+tile layer cells are stored in the metadata JSON as stable `resortTileId`
+values, while the bound RTPKS package owns meshes, materials, animations,
+gameplay tags, and collision authoring rules. The current on-disk format is
+documented in `docs/gameplay/owmap_format.md`.
+
+The Operations Desk Map Editor is the current RTPKS authoring surface. Its
+**Edit tile pack…** modal can rename and reorder palette tabs, create smart path
+sets, import textured GLB or image tiles, slice spritesheets into animation
+frames, edit tags/properties, and configure automatic collision painting.
 
 ## Goal
 
@@ -60,10 +67,12 @@ For a 256 by 256 map with 7 tile layers:
 256 * 256 * 7 * 2 bytes = 917,504 bytes
 ```
 
-## Global Tile Dictionary
+## Package Tile Dictionary
 
-The project should have one global tile dictionary. Map cells store only compact
-IDs. The dictionary stores render, editor, gameplay, and pathfinding metadata.
+Each map binds one RTPKS tile dictionary. Map cells store only stable IDs from
+that package. The package stores render, editor, gameplay, collision, and
+pathfinding metadata. Stable IDs are never renumbered when tabs are edited or
+new tiles are added.
 
 Runtime C++ shape:
 
@@ -187,7 +196,7 @@ The same tile type ID should mean the same thing on any layer.
 
 ## Animated Tiles
 
-Animated tiles should be represented in the tile dictionary, not in map cells.
+Animated tiles are represented in the RTPKS definition, not in map cells.
 
 The map cell remains:
 
@@ -210,8 +219,26 @@ The dictionary defines animation:
 }
 ```
 
-This allows water, grass, snow, and other animated surfaces to share the same map
-format. The renderer chooses the draw path from `renderKind`.
+The Tile Pack Editor accepts a spritesheet and slices it into individual PNG
+frames. The runtime material stores the frame paths and frame duration. The bgfx
+renderer selects the globally synchronized frame at draw time, so all uses of a
+water tile animate together without expanding `.owmap` cells.
+
+`uvScroll` and `sway` definitions are valid authored metadata for future shader
+paths. Frame animation is the currently rendered runtime animation mode.
+
+## Collision authoring
+
+Collision remains part of the `.owmap` terrain bit grid. A tile definition can
+carry an editor rule that paints those bits automatically:
+
+- `none`: never alter collision
+- `footprint`: block the complete tile footprint
+- `mask`: block only selected footprint cells
+
+`autoApply` controls painting. `clearOnErase` is opt-in because clearing a tile
+must not normally remove collision intentionally authored for another object.
+These are authoring rules, not a second runtime collision layer.
 
 ## Relationship To Existing Layers
 

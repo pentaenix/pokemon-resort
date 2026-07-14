@@ -3,6 +3,7 @@
 #include "gameplay/world3d/characters/SpriteSheetAnimator.hpp"
 #include "gameplay/world3d/npc/ResortPokemonSpawnConfig.hpp"
 #include "gameplay/world3d/scripts/OverworldScript.hpp"
+#include "ui/transitions/ScreenTransition.hpp"
 
 #include <cstdlib>
 #include <filesystem>
@@ -22,6 +23,20 @@ void expect(bool condition, const std::string& message) {
     if (!condition) {
         throw TestFailure(message);
     }
+}
+
+pr::gameplay::world3d::scripts::OverworldScript interactionScript(
+    std::string id, std::string gate, pr::gameplay::world3d::scripts::ScriptAction action,
+    int priority = 0) {
+    using namespace pr::gameplay::world3d::scripts;
+    OverworldScript script{};
+    script.id = std::move(id);
+    script.kind = ScriptKind::Interaction;
+    script.target_gates = {std::move(gate)};
+    script.trigger = "ACCEPT";
+    script.priority = priority;
+    script.actions = {std::move(action)};
+    return script;
 }
 
 void testTextSelectorPrefersMostSpecificAndCooldownIsGlobal() {
@@ -67,6 +82,29 @@ void testTextTemplatesSupportAuthoringVariables() {
         context.variables);
     expect(text == "Pikachu the Pikachu waits with Player on ground as a Pokemon. ",
         "template variables should render known values and clear unavailable future values");
+}
+
+void testPokemonTextStartsANewRandomCycleAfterExhaustion() {
+    using namespace pr::gameplay::world3d::interactions;
+    InteractionTextCatalog catalog{};
+    for (const char* id : {"A", "B", "C", "D"}) {
+        catalog.entries.push_back({id, id, {"POKEMON"}, 1, 999.0});
+    }
+    InteractionTextContext context{};
+    context.tags.insert("POKEMON");
+    InteractionTextCooldowns cooldowns;
+    std::mt19937 rng{19};
+    for (int cycle = 0; cycle < 2; ++cycle) {
+        std::unordered_set<std::string> ids;
+        for (int i = 0; i < 4; ++i) {
+            const auto selected = selectInteractionText(catalog, context, cooldowns, 0.0, rng);
+            expect(selected.found && !selected.body.empty(),
+                "exhausted Pokemon text should begin another cycle instead of returning empty text");
+            expect(ids.insert(selected.id).second,
+                "a Pokemon text cycle should use every eligible line before repeating");
+        }
+        expect(ids.size() == 4, "each randomized Pokemon text cycle should exhaust the eligible pool");
+    }
 }
 
 void testInteractionDefaultsAndSizeMapping() {
@@ -182,14 +220,128 @@ void testScriptCatalogLoadsIndividualJsonFiles() {
         std::ofstream index(scripts.parent_path() / "script_catalog.json");
         index << R"({"scripts":[{"path":"interactions/test.json"}]})";
         std::ofstream script(scripts / "test.json");
-        script << R"({"id":"test_interaction","kind":"interaction","targetGates":["POKEMON"],"priority":2,"weight":3,"cooldownSeconds":4,"when":{"allTags":["POKEMON"],"closeTo":{"tag":"PLAYER","maxTiles":2}},"actions":[{"action":"TEXT_FREE"}]})";
+        script << R"({"id":"test_interaction","kind":"interaction","targetGates":["POKEMON"],"priority":2,"weight":3,"cooldownSeconds":4,"when":{"allTags":["POKEMON"],"closeTo":{"tag":"PLAYER","maxTiles":2}},"actions":[{"action":"DISABLE_ATTEND"},{"action":"TEXT_FREE"},{"action":"EXIT_INTERACTION"}]})";
     }
     std::vector<ScriptValidationIssue> issues;
     const ScriptCatalog catalog = loadScriptCatalog(root.string(), &issues);
     expect(issues.empty(), "valid script catalog should load without validation issues");
     expect(catalog.scripts.size() == 1 && catalog.scripts.front().id == "test_interaction",
         "catalog should load its referenced script file");
+    expect(catalog.scripts.front().actions.size() == 3 &&
+            catalog.scripts.front().actions.front().kind == ScriptActionKind::DisableAttend &&
+            catalog.scripts.front().actions.back().kind == ScriptActionKind::ExitInteraction,
+        "catalog should parse authored Attend and interaction-exit steps");
     fs::remove_all(root);
+}
+
+void testInteractionSourceSplitAndFallbacks() {
+    using namespace pr::gameplay::world3d::interactions;
+    using namespace pr::gameplay::world3d::scripts;
+    ScriptCatalog catalog{};
+    catalog.scripts.push_back(interactionScript("pokemon_authored", "POKEMON", {ScriptActionKind::TextLiteral, {}, "Pokemon script"}));
+    catalog.scripts.push_back(interactionScript("npc_authored", "CHARACTER", {ScriptActionKind::TextLiteral, {}, "NPC script"}));
+    ScriptCooldowns cooldowns;
+    std::mt19937 rng{11};
+
+    InteractionSourceRequest pokemon{};
+    pokemon.target_kind = InteractionTargetKind::Pokemon;
+    pokemon.npc_mode = NpcInteractionMode::DirectDialogue; // Must be ignored for Pokemon.
+    pokemon.script_context.tags.insert("POKEMON");
+    auto resolved = resolveInteractionSource(catalog, pokemon, cooldowns, 0.0, rng);
+    expect(resolved.entered_script_path && resolved.script_id == "pokemon_authored",
+        "Pokemon interactions should always enter the script interaction path");
+
+    OverworldScript after_attend{};
+    after_attend.id = "pokemon_after_attend";
+    after_attend.kind = ScriptKind::Interaction;
+    after_attend.target_gates = {"POKEMON"};
+    after_attend.trigger = "ACCEPT";
+    after_attend.priority = 100;
+    after_attend.when.all_tags = {"POKEMON", "AFTER_POKEMON_ATTEND"};
+    ScriptAction jump{};
+    jump.kind = ScriptActionKind::Jump;
+    jump.height_pixels = 12;
+    ScriptAction wait{};
+    wait.kind = ScriptActionKind::Wait;
+    wait.duration_seconds = 0.5;
+    ScriptAction disable_attend{};
+    disable_attend.kind = ScriptActionKind::DisableAttend;
+    ScriptAction exit_interaction{};
+    exit_interaction.kind = ScriptActionKind::ExitInteraction;
+    after_attend.actions = {disable_attend, jump, wait, exit_interaction};
+    catalog.scripts.push_back(after_attend);
+    pokemon.script_context.tags.insert("AFTER_POKEMON_ATTEND");
+    resolved = resolveInteractionSource(catalog, pokemon, cooldowns, 0.5, rng);
+    expect(resolved.script_id == "pokemon_after_attend" && resolved.behavior.actions.size() == 4 &&
+            resolved.behavior.actions[0].kind == InteractionActionKind::DisableAttend &&
+            resolved.behavior.actions[1].kind == InteractionActionKind::Jump &&
+            resolved.behavior.actions[1].height_pixels == 12 &&
+            resolved.behavior.actions[2].kind == InteractionActionKind::Wait &&
+            resolved.behavior.actions[2].duration_seconds == 0.5 &&
+            resolved.behavior.actions[3].kind == InteractionActionKind::ExitInteraction,
+        "post-attend scripts should preserve Attend, JUMP, WAIT, and exit steps");
+
+    ScriptCatalog empty{};
+    resolved = resolveInteractionSource(empty, pokemon, cooldowns, 1.0, rng);
+    expect(resolved.entered_script_path && resolved.used_fallback,
+        "Pokemon without an eligible script should stay in the interaction runtime and use fallback");
+    expect(resolved.behavior.actions.size() == 3 &&
+        resolved.behavior.actions[1].kind == InteractionActionKind::PokemonInteractionSession,
+        "Pokemon fallback should preserve face, session animation, and free-text behavior");
+
+    InteractionSourceRequest npc{};
+    npc.target_kind = InteractionTargetKind::Character;
+    npc.script_context.tags.insert("CHARACTER");
+    resolved = resolveInteractionSource(catalog, npc, cooldowns, 2.0, rng);
+    expect(!resolved.entered_script_path && resolved.behavior.actions.back().kind == InteractionActionKind::TextFree,
+        "NPC direct_dialogue should use character dialogue through TEXT_FREE");
+
+    npc.npc_mode = NpcInteractionMode::Scripted;
+    resolved = resolveInteractionSource(catalog, npc, cooldowns, 3.0, rng);
+    expect(resolved.entered_script_path && resolved.script_id == "npc_authored" &&
+        resolved.behavior.actions.front().kind == InteractionActionKind::TextLiteral,
+        "NPC scripted mode should run an eligible interaction script");
+
+    resolved = resolveInteractionSource(empty, npc, cooldowns, 4.0, rng);
+    expect(resolved.used_fallback && resolved.behavior.actions.back().kind == InteractionActionKind::TextFree,
+        "NPC scripted mode without a script should fall back to direct character dialogue");
+    expect(npcInteractionModeFromMetadata("") == NpcInteractionMode::DirectDialogue &&
+        npcInteractionModeFromMetadata("unknown") == NpcInteractionMode::DirectDialogue,
+        "legacy and invalid NPC interaction modes should default to direct_dialogue");
+}
+
+void testRuntimeScriptPrecedenceAndCharbinCompatibility() {
+    using namespace pr::gameplay::world3d::interactions;
+    using namespace pr::gameplay::world3d::scripts;
+    ScriptCatalog catalog{};
+    catalog.scripts.push_back(interactionScript("npc_selected", "CHARACTER", {ScriptActionKind::TextLiteral, {}, "selected"}, 10));
+    catalog.scripts.push_back(interactionScript("runtime_assigned", "CHARACTER", {ScriptActionKind::TextLiteral, {}, "runtime"}, 0));
+    InteractionSourceRequest npc{};
+    npc.target_kind = InteractionTargetKind::Character;
+    npc.npc_mode = NpcInteractionMode::Scripted;
+    npc.runtime_script_id = "runtime_assigned";
+    npc.script_context.tags.insert("CHARACTER");
+    ScriptCooldowns cooldowns;
+    std::mt19937 rng{3};
+    const auto resolved = resolveInteractionSource(catalog, npc, cooldowns, 0.0, rng);
+    expect(resolved.script_id == "runtime_assigned", "runtime-assigned interaction script should have future precedence");
+
+}
+
+void testReusableBlackIrisTransitionLifecycle() {
+    pr::transitions::TransitionStyle style{};
+    style.duration_seconds = 0.2;
+    pr::transitions::ScreenTransition transition;
+    transition.startClosing(style);
+    transition.update(0.1);
+    expect(transition.closedAmount() > 0.4 && transition.closedAmount() < 0.6,
+        "black iris should close according to configured duration");
+    transition.update(0.1);
+    expect(transition.consumeClosed(), "transition should emit one closed event before scene switching");
+    transition.startOpening(style);
+    transition.update(0.2);
+    expect(!transition.active() && transition.closedAmount() == 0.0,
+        "return transition should reopen at the same configured speed");
 }
 
 } // namespace
@@ -198,11 +350,15 @@ int main() {
     try {
         testTextSelectorPrefersMostSpecificAndCooldownIsGlobal();
         testTextTemplatesSupportAuthoringVariables();
+        testPokemonTextStartsANewRandomCycleAfterExhaustion();
         testInteractionDefaultsAndSizeMapping();
         testActivitySessionAnimatorLifecycle();
         testResortPokemonSpawnConfigCapsTheWholeRoster();
         testScriptSelectionUsesTagsPriorityWeightAndCooldown();
         testScriptCatalogLoadsIndividualJsonFiles();
+        testInteractionSourceSplitAndFallbacks();
+        testRuntimeScriptPrecedenceAndCharbinCompatibility();
+        testReusableBlackIrisTransitionLifecycle();
     } catch (const TestFailure& failure) {
         std::cerr << "[FAIL] " << failure.what() << '\n';
         return EXIT_FAILURE;

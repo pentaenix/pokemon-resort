@@ -125,6 +125,11 @@ void AttendBgfxRenderer::setProfilePlate(
     impl_->setProfilePlate(std::move(plate), logical_w, logical_h);
 }
 
+void AttendBgfxRenderer::setBlackIrisTransition(float x, float y, float amount,
+    bool visible, int segments, float radius_scale) {
+    impl_->setBlackIrisTransition(x, y, amount, visible, segments, radius_scale);
+}
+
 void AttendBgfxRenderer::setFaceView(bool face_view) {
     impl_->setFaceView(face_view);
 }

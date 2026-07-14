@@ -3,11 +3,22 @@
   "pokemonCollisionMode": "swap",
   "characters": [
     {
-      "id": "npc_watanave",
-      "characterPath": "assets/characters/npc/watanave.charbin",
+      "id": "npc_watanabe",
+      "characterPath": "assets/characters/npc/watanabe.charbin",
       "kind": "human",
       "scriptId": "npc_idle_rotate",
-      "spawn": [15, 12],
+      "spawn": [-8, 8],
+      "facing": "south",
+      "behaviorProfile": "idle",
+      "movementSpeedProfile": "walk",
+      "followerPokemonFreedom": false
+    },
+    {
+      "id": "npc_cynthia",
+      "characterPath": "assets/characters/npc/cynthia.charbin",
+      "kind": "human",
+      "scriptId": "npc_idle_rotate",
+      "spawn": [-24, 8],
       "facing": "south",
       "behaviorProfile": "idle",
       "movementSpeedProfile": "walk",

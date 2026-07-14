@@ -47,8 +47,18 @@ void testConfigLoadsDedicatedTextboxJson() {
     expect(config.side_padding_px == 5, "side padding should load");
     expect(config.stretch_strip_width_px == 5, "stretch strip width should load");
     expect(config.stretch_strip_center_x_px == 128, "stretch strip source center should load");
-    expect(!config.future_text_font_path.empty(), "future text font path should stay in config");
-    expect(config.future_text_font_size_px > 0, "future text font size should stay in config");
+    expect(config.text_font_path == "assets/fonts/power clear.ttf", "regular Power font path should load");
+    expect(config.text_font_size_px == 14, "textbox font size should load");
+    expect(config.text_left_inset_px == 16, "textbox left inset should be data-driven");
+    expect(config.text_right_inset_px == 12, "textbox right inset should be data-driven");
+    expect(config.text_top_inset_px == 7, "textbox top inset should be data-driven");
+    expect(config.attend_button_enabled, "overworld Attend button should load enabled");
+    expect(config.attend_button_icon_path == "assets/overworld/ui/attend_icon.png",
+        "overworld Attend button icon should be data-driven");
+    expect(config.attend_button_top_px == 16 && config.attend_button_right_px == 16,
+        "overworld Attend button position should be data-driven");
+    expect(config.attend_button_width_px == 48 && config.attend_button_height_px == 48,
+        "overworld Attend button size should be data-driven");
 }
 
 void testSkinIndexUsesColumnFirstVisualOrder() {

@@ -108,6 +108,7 @@ Unknown top-level keys on import are **preserved** (deep merge does not strip th
 |-------|------|----------|-------------|
 | `originGame` | `string` | no | Provenance label. |
 | `characterType` | `string` | no | `player`, `npc`, `pokemon`, or `object` (legacy `playable` → `player`). Default `npc`. |
+| `npcInteractionMode` | `string` | no | **NPC only.** `direct_dialogue` (default, including legacy packages) reads this character's `dialogue.lines`; `scripted` asks the runtime for an eligible interaction script and falls back to direct dialogue when none is available. Pokémon are always script-first and do not use this field. A future runtime-assigned interaction script takes precedence over NPC scripted mode, which takes precedence over the direct-dialogue fallback. |
 | `objectAnimated` | `boolean` | no | **Object only.** Hint for the game: use `animate` vs `static` when both actions exist. Default `false`. |
 | `pokemonId` | `number \| null` | no | National dex number (Pokémon only). |
 | `speciesName` | `string` | no | Species display name (Pokémon only). |

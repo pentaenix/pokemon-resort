@@ -21,6 +21,7 @@
 #include "core/assets/Font.hpp"
 #include "core/Types.hpp"
 #include "ui/Screen.hpp"
+#include "ui/transitions/ScreenTransition.hpp"
 
 #include <memory>
 #include <random>
@@ -57,8 +58,11 @@ public:
     void onNavigate2d(int dx, int dy) override;
     void onAdvancePressed() override;
     void onBackPressed() override;
+    void onAttendPressed() override;
 
     bool consumeReturnToTitleRequested();
+    bool consumeOpenAttendRequested();
+    void resumeFromAttend();
     void shutdownBgfx();
     void resetForNextLaunch();
 
@@ -73,7 +77,9 @@ private:
     gameplay::world3d::dialogue::OverworldTextboxController::Target findInteractionTarget() const;
     bool lockInteractionTarget(const gameplay::world3d::dialogue::OverworldTextboxController::Target& target);
     bool interactionActive() const;
-    void beginInteraction(const gameplay::world3d::dialogue::OverworldTextboxController::Target& target);
+    void beginInteraction(
+        const gameplay::world3d::dialogue::OverworldTextboxController::Target& target,
+        bool preserve_player_interaction_session = false);
     void updateInteractionSequence();
     void closeInteractionText();
     void requestInteractionExit();
@@ -86,6 +92,9 @@ private:
         const gameplay::world3d::dialogue::OverworldTextboxController::Target& target);
     void clearInteractionTextBox();
     SDL_Rect visibleWorldViewportRect(int logical_w, int logical_h) const;
+    SDL_Rect attendButtonRect() const;
+    bool attendAvailable() const;
+    SDL_Point mapPointerToLogical(int x, int y) const;
 
     std::string project_root_;
     gameplay::world3d::SceneConfig scene_;
@@ -110,6 +119,13 @@ private:
     float freecam_yaw_deg_ = 0.0f;
     float freecam_pitch_deg_ = 0.0f;
     bool return_to_title_requested_ = false;
+    bool open_attend_requested_ = false;
+    bool attend_enabled_for_interaction_ = false;
+    bool attend_button_pressed_ = false;
+    transitions::OverworldTransitionConfig transition_config_{};
+    transitions::ScreenTransition transition_{};
+    int pointer_window_w_ = 800;
+    int pointer_window_h_ = 500;
     std::unique_ptr<gameplay::world3d::rendering::BillboardSpriteRenderer> sprite_renderer_;
     gameplay::world3d::followers::FollowerSummonConfig follower_summon_config_{};
     gameplay::world3d::followers::FollowerSessionConfig follower_session_config_{};
@@ -120,7 +136,8 @@ private:
     gameplay::world3d::dialogue::OverworldTextboxController textbox_controller_{};
     std::unique_ptr<gameplay::world3d::dialogue::OverworldTextboxRenderer> textbox_renderer_;
     gameplay::world3d::dialogue::OverworldTextboxController::Target active_interaction_target_{};
-    gameplay::world3d::interactions::InteractionBehaviorCatalog interaction_behaviors_{};
+    gameplay::world3d::scripts::ScriptCatalog interaction_script_catalog_{};
+    gameplay::world3d::scripts::ScriptCooldowns interaction_script_cooldowns_{};
     gameplay::world3d::interactions::InteractionSequenceController interaction_sequence_{};
     gameplay::world3d::interactions::InteractionTextCatalog interaction_text_catalog_{};
     gameplay::world3d::interactions::InteractionTextCooldowns interaction_text_cooldowns_{};
@@ -128,6 +145,8 @@ private:
     double interaction_time_seconds_ = 0.0;
     bool interaction_exit_requested_ = false;
     bool interaction_pokemon_session_started_ = false;
+    bool after_pokemon_attend_context_ = false;
+    double interaction_wait_remaining_ = 0.0;
 
     bool map_loaded_ = false;
     bool initialized_renderer_ = false;

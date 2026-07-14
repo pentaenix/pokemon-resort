@@ -1,6 +1,7 @@
 #include "core/app/screen/AppScreenCoordinator.hpp"
 
 #include "ui/AttendTestScreen.hpp"
+#include "ui/Overworld3DTestScreen.hpp"
 #include "ui/TitleScreen.hpp"
 
 namespace pr {
@@ -19,6 +20,7 @@ void AppScreenCoordinator::updateTestAttend(double dt) {
             break;
         case AttendReturnTarget::Overworld3D:
             attend_test_.shutdownBgfx();
+            overworld3d_test_.resumeFromAttend();
             active_screen_ = ActiveScreen::Overworld3DTest;
             break;
     }

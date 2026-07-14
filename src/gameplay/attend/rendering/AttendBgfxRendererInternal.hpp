@@ -155,6 +155,7 @@ public:
     void setOverlayButtons(std::vector<AttendBgfxOverlayButton> buttons, int logical_w, int logical_h);
     void setCornerButtons(std::vector<AttendBgfxCornerButton> buttons, int logical_w, int logical_h);
     void setProfilePlate(AttendBgfxProfilePlate plate, int logical_w, int logical_h);
+    void setBlackIrisTransition(float x, float y, float amount, bool visible, int segments, float radius_scale);
     int weatherModeCount() const;
     int textureVariantIndex() const;
     int textureVariantCount() const;
@@ -173,6 +174,8 @@ private:
         int height = 0;
         bool has_zero_alpha = false;
         bool has_partial_alpha = false;
+        std::uint8_t minimum_alpha = 255;
+        float partial_alpha_fraction = 0.0f;
         bool valid() const { return bgfx::isValid(handle); }
         void destroy() {
             if (bgfx::isValid(handle)) bgfx::destroy(handle);
@@ -181,6 +184,8 @@ private:
             height = 0;
             has_zero_alpha = false;
             has_partial_alpha = false;
+            minimum_alpha = 255;
+            partial_alpha_fraction = 0.0f;
         }
     };
 
@@ -265,6 +270,9 @@ private:
     pr::gameplay::world3d::WorldViewportConfig world_viewport_;
     bgfx_backend::BgfxBackend backend_;
     bool initialized_ = false;
+    float iris_x_ = 0.0f, iris_y_ = 0.0f, iris_amount_ = 0.0f, iris_radius_scale_ = 1.15f;
+    int iris_segments_ = 64;
+    bool iris_visible_ = false;
     std::string last_error_;
     bgfx::VertexLayout layout_{};
     bgfx::ProgramHandle program_ = BGFX_INVALID_HANDLE;

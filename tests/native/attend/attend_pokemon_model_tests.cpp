@@ -1,4 +1,5 @@
 #include "gameplay/attend/rendering/AttendPokemonModel.hpp"
+#include "gameplay/attend/rendering/AttendPokemonMaterialPolicy.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -25,7 +26,7 @@ fs::path repositoryRoot() {
     fs::path current = fs::current_path();
     while (!current.empty()) {
         if (fs::exists(current / "CMakeLists.txt") &&
-            fs::exists(current / "assets" / "pokemon_attend" / "pokemon_models" / "pm0487_00_Giratina.glb")) {
+            fs::exists(current / "assets" / "pokemon_attend" / "pokemon_models" / "pm0487_00_Giratina.glbz")) {
             return current;
         }
         const fs::path parent = current.parent_path();
@@ -110,6 +111,23 @@ bool skinnedPrimitiveMoves(
     return false;
 }
 
+bool hasIncludedHiddenVcoLayer(
+    const pr::gameplay::attend::rendering::AttendPokemonModel& model) {
+    for (const auto& primitive : model.primitives) {
+        if (primitive.default_visible || primitive.material < 0 ||
+            primitive.material >= static_cast<int>(model.materials.size())) {
+            continue;
+        }
+        if (nameContainsAscii(
+                model.materials[static_cast<std::size_t>(primitive.material)].name,
+                "vco") &&
+            pr::gameplay::attend::rendering::shouldRenderAttendPokemonPrimitive(model, primitive)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 } // namespace
 
 int main() {
@@ -120,7 +138,7 @@ int main() {
     std::string error;
     const pr::gameplay::attend::rendering::AttendPokemonModel charmander =
         pr::gameplay::attend::rendering::loadAttendPokemonModel(
-            (root / "assets" / "pokemon_attend" / "pokemon_models" / "pm0004_00_Charmander.glb").string(),
+            (root / "assets" / "pokemon_attend" / "pokemon_models" / "pm0004_00_Charmander.glbz").string(),
             &error);
     const auto* charmander_wait = expectUsableModel(charmander, "Charmander", 20);
     expect(skinnedPrimitiveMoves(charmander, charmander_wait, 0.0f),
@@ -128,7 +146,7 @@ int main() {
 
     const pr::gameplay::attend::rendering::AttendPokemonModel burmy =
         pr::gameplay::attend::rendering::loadAttendPokemonModel(
-            (root / "assets" / "pokemon_attend" / "pokemon_models" / "pm0412_00_Burmy.glb").string(),
+            (root / "assets" / "pokemon_attend" / "pokemon_models" / "pm0412_00_Burmy.glbz").string(),
             &error);
     const auto* burmy_wait = expectUsableModel(burmy, "Burmy", 20);
     expect(burmy.form_variants.size() >= 3,
@@ -157,7 +175,7 @@ int main() {
 
     const pr::gameplay::attend::rendering::AttendPokemonModel giratina =
         pr::gameplay::attend::rendering::loadAttendPokemonModel(
-            (root / "assets" / "pokemon_attend" / "pokemon_models" / "pm0487_00_Giratina.glb").string(),
+            (root / "assets" / "pokemon_attend" / "pokemon_models" / "pm0487_00_Giratina.glbz").string(),
             &error);
     const auto* giratina_wait = expectUsableModel(giratina, "Giratina", 50);
     int giratina_default_form = -1;
@@ -184,6 +202,105 @@ int main() {
         expect(std::abs(origin_loop - 2.333333f) < 0.01f,
                "Giratina Origin form loop duration should match the Origin rig channel length");
     }
+
+    const pr::gameplay::attend::rendering::AttendPokemonModel dewpider =
+        pr::gameplay::attend::rendering::loadAttendPokemonModel(
+            (root / "assets" / "pokemon_attend" / "pokemon_models" / "pm0751_00_Dewpider.glbz").string(),
+            &error);
+    expect(dewpider.valid, "Dewpider GLBZ should load for translucent-material policy coverage");
+    const auto translucent_body = std::find_if(
+        dewpider.materials.begin(),
+        dewpider.materials.end(),
+        [](const auto& material) {
+            return material.render_class == pr::gameplay::attend::rendering::AttendRenderClass::Opaque &&
+                material.nitro_texture_alpha == "translucent";
+        });
+    expect(translucent_body != dewpider.materials.end(),
+           "Dewpider should preserve the 3DS translucent texture signal on its opaque-classified body");
+    if (translucent_body != dewpider.materials.end()) {
+        expect(
+            pr::gameplay::attend::rendering::shouldPromoteAttendTextureToBlend(
+                *translucent_body,
+                pr::gameplay::attend::rendering::AttendTextureAlphaSummary{45, 0.25f}),
+            "Dewpider's strongly translucent body texture should be promoted to alpha blending");
+        expect(
+            !pr::gameplay::attend::rendering::shouldPromoteAttendTextureToBlend(
+                *translucent_body,
+                pr::gameplay::attend::rendering::AttendTextureAlphaSummary{240, 0.25f}),
+            "weak ETC alpha variation should remain opaque");
+    }
+
+    std::vector<bool> dewpider_authored_visible(dewpider.materials.size(), false);
+    for (const auto& primitive : dewpider.primitives) {
+        if (!primitive.default_visible && primitive.visible_for_forms.empty()) continue;
+        if (primitive.material >= 0 && primitive.material < static_cast<int>(dewpider.materials.size())) {
+            dewpider_authored_visible[static_cast<std::size_t>(primitive.material)] = true;
+        }
+    }
+    std::vector<bool> dewpider_blends(dewpider.materials.size(), false);
+    for (std::size_t i = 0; i < dewpider.materials.size(); ++i) {
+        dewpider_blends[i] = dewpider_authored_visible[i] &&
+            dewpider.materials[i].nitro_texture_alpha == "translucent" &&
+            dewpider.materials[i].material_role ==
+                pr::gameplay::attend::rendering::AttendMaterialRole::None;
+    }
+    std::vector<std::size_t> dewpider_order;
+    int included_vco_layers = 0;
+    for (std::size_t i = 0; i < dewpider.primitives.size(); ++i) {
+        const auto& primitive = dewpider.primitives[i];
+        if (pr::gameplay::attend::rendering::shouldRenderAttendPokemonPrimitive(dewpider, primitive)) {
+            dewpider_order.push_back(i);
+            if (!primitive.default_visible &&
+                primitive.material >= 0 &&
+                primitive.material < static_cast<int>(dewpider.materials.size()) &&
+                nameContainsAscii(
+                    dewpider.materials[static_cast<std::size_t>(primitive.material)].name,
+                    "vco")) {
+                ++included_vco_layers;
+            }
+        }
+    }
+    expect(included_vco_layers >= 4,
+           "Dewpider's required VCO feature layers should remain in the draw list");
+    pr::gameplay::attend::rendering::sortAttendPokemonDrawOrder(
+        dewpider,
+        dewpider_blends,
+        dewpider_order);
+    bool saw_blended_body = false;
+    bool opaque_face_after_blended_body = false;
+    for (std::size_t primitive_index : dewpider_order) {
+        const int material_index = dewpider.primitives[primitive_index].material;
+        if (material_index < 0 || material_index >= static_cast<int>(dewpider.materials.size())) continue;
+        const std::size_t material = static_cast<std::size_t>(material_index);
+        if (dewpider_blends[material]) {
+            saw_blended_body = true;
+        } else if (saw_blended_body &&
+                   (dewpider.materials[material].material_role ==
+                        pr::gameplay::attend::rendering::AttendMaterialRole::EyeSclera ||
+                    dewpider.materials[material].material_role ==
+                        pr::gameplay::attend::rendering::AttendMaterialRole::EyeIris)) {
+            opaque_face_after_blended_body = true;
+        }
+    }
+    expect(saw_blended_body, "Dewpider should have a final translucent body pass");
+    expect(!opaque_face_after_blended_body,
+           "Dewpider's sclera and iris should render before its translucent bubble");
+
+    const pr::gameplay::attend::rendering::AttendPokemonModel dialga =
+        pr::gameplay::attend::rendering::loadAttendPokemonModel(
+            (root / "assets" / "pokemon_attend" / "pokemon_models" / "pm0483_00_Dialga.glbz").string(),
+            &error);
+    expect(dialga.valid, "Dialga GLBZ should load for VCO feature-layer coverage");
+    expect(hasIncludedHiddenVcoLayer(dialga),
+           "Dialga's VCO spike layers should remain renderable");
+
+    const pr::gameplay::attend::rendering::AttendPokemonModel bunnelby =
+        pr::gameplay::attend::rendering::loadAttendPokemonModel(
+            (root / "assets" / "pokemon_attend" / "pokemon_models" / "pm0659_00_Bunnelby.glbz").string(),
+            &error);
+    expect(bunnelby.valid, "Bunnelby GLBZ should load for VCO feature-layer coverage");
+    expect(hasIncludedHiddenVcoLayer(bunnelby),
+           "Bunnelby's VCO stomach layer should remain renderable");
 
     return failures == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }

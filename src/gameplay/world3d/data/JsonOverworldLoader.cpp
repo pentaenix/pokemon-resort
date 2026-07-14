@@ -575,6 +575,10 @@ CharacterPackageMetadata loadCharacterPackageMetadata(const std::string& charact
     const JsonValue* metadata = root.get("metadata");
     if (metadata && metadata->isObject()) {
         out.character_type = strOr(metadata->get("characterType"), "npc");
+        if (out.character_type == "npc") {
+            const std::string mode = lowerAscii(strOr(metadata->get("npcInteractionMode"), "direct_dialogue"));
+            out.npc_interaction_mode = mode == "scripted" ? "scripted" : "direct_dialogue";
+        }
         out.pokemon_size = lowerAscii(strOr(metadata->get("pokemonSize"), "small"));
         if (out.pokemon_size != "medium" && out.pokemon_size != "large" && out.pokemon_size != "human") {
             out.pokemon_size = "small";

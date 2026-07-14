@@ -16,8 +16,17 @@ struct OverworldTextboxConfig {
     int sheet_columns = 2;
     int stretch_strip_width_px = 5;
     int stretch_strip_center_x_px = 128;
-    std::string future_text_font_path = "assets/fonts/Power.ttf";
-    int future_text_font_size_px = 16;
+    std::string text_font_path = "assets/fonts/power clear.ttf";
+    int text_font_size_px = 14;
+    int text_left_inset_px = 16;
+    int text_right_inset_px = 12;
+    int text_top_inset_px = 7;
+    bool attend_button_enabled = true;
+    std::string attend_button_icon_path = "assets/overworld/ui/attend_icon.png";
+    int attend_button_top_px = 16;
+    int attend_button_right_px = 16;
+    int attend_button_width_px = 48;
+    int attend_button_height_px = 48;
 };
 
 OverworldTextboxConfig loadOverworldTextboxConfig(const std::string& project_root);
