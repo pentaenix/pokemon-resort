@@ -1,6 +1,7 @@
 #include "gameplay/world3d/data/OwmapOverworldLoader.hpp"
 
 #include "core/config/Json.hpp"
+#include "gameplay/world3d/data/RtpksTilePackageLoader.hpp"
 #include "gameplay/world3d/data/SceneMetadataParser.hpp"
 
 #include <algorithm>
@@ -8,6 +9,8 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <cmath>
+#include <limits>
 #include <sstream>
 #include <stdexcept>
 #include <iostream>
@@ -91,6 +94,110 @@ void unpackCollisionBits(
     }
 }
 
+bool hasTag(const RtpksTileMesh& tile, const char* tag) {
+    return std::find(tile.tags.begin(), tile.tags.end(), tag) != tile.tags.end();
+}
+
+float distanceToCellRect(float x, float y, int cell_x, int cell_y) {
+    const float dx = std::max({static_cast<float>(cell_x) - x, 0.0f, x - static_cast<float>(cell_x + 1)});
+    const float dy = std::max({static_cast<float>(cell_y) - y, 0.0f, y - static_cast<float>(cell_y + 1)});
+    return std::sqrt((dx * dx) + (dy * dy));
+}
+
+void buildWaterTerrainSemantics(SceneConfig& scene) {
+    const int width = std::max(0, scene.grid.width);
+    const int height = std::max(0, scene.grid.height);
+    scene.water_terrain.actual_water_cells.assign(
+        static_cast<std::size_t>(height),
+        std::vector<std::uint8_t>(static_cast<std::size_t>(width), 0));
+    scene.water_terrain.shoreline_cells.assign(
+        static_cast<std::size_t>(height),
+        std::vector<std::uint8_t>(static_cast<std::size_t>(width), 0));
+    scene.water_terrain.shoreline_corner_progress.assign(
+        static_cast<std::size_t>(height + 1),
+        std::vector<float>(static_cast<std::size_t>(width + 1), 0.0f));
+    if (!scene.water_terrain.enabled || scene.tile_package.path.empty() || scene.tile_layers.layers.empty()) {
+        return;
+    }
+
+    std::string error;
+    const RtpksTilePackage package = loadRtpksTileSemantics(scene.tile_package.path, &error);
+    if (package.tiles.empty()) {
+        std::cerr << "[OWMAP] Water semantics unavailable: "
+                  << (error.empty() ? scene.tile_package.path : error) << '\n';
+        return;
+    }
+
+    const auto markFootprint = [width, height](
+        std::vector<std::vector<std::uint8_t>>& cells,
+        int origin_x,
+        int origin_y,
+        const RtpksTileMesh& tile) {
+        for (int local_y = 0; local_y < tile.height; ++local_y) {
+            const int y = origin_y + local_y;
+            if (y < 0 || y >= height) continue;
+            for (int local_x = 0; local_x < tile.width; ++local_x) {
+                const int x = origin_x + local_x;
+                if (x < 0 || x >= width) continue;
+                cells[static_cast<std::size_t>(y)][static_cast<std::size_t>(x)] = 1;
+            }
+        }
+    };
+
+    for (const TileLayerConfig& layer : scene.tile_layers.layers) {
+        if (!layer.visible) continue;
+        for (int y = 0; y < static_cast<int>(layer.cells.size()); ++y) {
+            const auto& row = layer.cells[static_cast<std::size_t>(y)];
+            for (int x = 0; x < static_cast<int>(row.size()); ++x) {
+                const RtpksTileMesh* tile = package.tileById(row[static_cast<std::size_t>(x)]);
+                if (!tile) continue;
+                if (hasTag(*tile, "traversal.swim") || hasTag(*tile, "traversal.surf")) {
+                    markFootprint(scene.water_terrain.actual_water_cells, x, y, *tile);
+                }
+                if (hasTag(*tile, "terrain.beach")) {
+                    markFootprint(scene.water_terrain.shoreline_cells, x, y, *tile);
+                }
+            }
+        }
+    }
+
+    // A coast tile can intentionally sit over the open-water body layer. Coast
+    // always wins: it is the walkable ramp, never a swimming cell.
+    std::vector<std::pair<int, int>> water_cells;
+    std::vector<std::pair<int, int>> land_cells;
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            const bool shoreline = scene.water_terrain.shoreline_cells[static_cast<std::size_t>(y)][static_cast<std::size_t>(x)] != 0;
+            if (shoreline) {
+                scene.water_terrain.actual_water_cells[static_cast<std::size_t>(y)][static_cast<std::size_t>(x)] = 0;
+            } else if (scene.water_terrain.actual_water_cells[static_cast<std::size_t>(y)][static_cast<std::size_t>(x)] != 0) {
+                water_cells.emplace_back(x, y);
+            } else {
+                land_cells.emplace_back(x, y);
+            }
+        }
+    }
+
+    if (water_cells.empty() || land_cells.empty()) return;
+    for (int vy = 0; vy <= height; ++vy) {
+        for (int vx = 0; vx <= width; ++vx) {
+            float distance_water = std::numeric_limits<float>::max();
+            float distance_land = std::numeric_limits<float>::max();
+            for (const auto& [x, y] : water_cells) {
+                distance_water = std::min(distance_water, distanceToCellRect(
+                    static_cast<float>(vx), static_cast<float>(vy), x, y));
+            }
+            for (const auto& [x, y] : land_cells) {
+                distance_land = std::min(distance_land, distanceToCellRect(
+                    static_cast<float>(vx), static_cast<float>(vy), x, y));
+            }
+            const float sum = distance_land + distance_water;
+            scene.water_terrain.shoreline_corner_progress[static_cast<std::size_t>(vy)][static_cast<std::size_t>(vx)] =
+                sum <= 0.00001f ? 0.5f : std::clamp(distance_land / sum, 0.0f, 1.0f);
+        }
+    }
+}
+
 } // namespace
 
 bool isOwmapFile(const std::string& path) {
@@ -153,6 +260,7 @@ SceneConfig loadOwmapScene(const std::string& project_root, const std::string& o
     unpackByteGrid(file.data() + heights_start, scene.grid.width, scene.grid.height, scene.terrain.heights);
     unpackByteGrid(file.data() + specials_start, scene.grid.width, scene.grid.height, scene.terrain.specials);
     unpackCollisionBits(file.data() + collision_start, scene.grid.width, scene.grid.height, scene.terrain.collision);
+    buildWaterTerrainSemantics(scene);
 
     for (int y = 0; y < scene.grid.height; ++y) {
         for (int x = 0; x < scene.grid.width; ++x) {

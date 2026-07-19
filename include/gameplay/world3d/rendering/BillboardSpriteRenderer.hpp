@@ -30,6 +30,7 @@ public:
         float tint_g,
         float tint_b,
         float brightness,
+        bool draw_shadow = true,
         float sprite_scale_multiplier = 1.0f,
         float alpha_multiplier = 1.0f,
         float white_overlay_alpha = 0.0f,

@@ -53,6 +53,7 @@ struct CharacterSpriteDefinition {
     CharacterAnimationDef idle;
     CharacterAnimationDef walk;
     CharacterAnimationDef run;
+    CharacterAnimationDef swim;
     CharacterAnimationDef pause;
     CharacterAnimationDef play;
     std::unordered_map<std::string, CharacterActivitySessionDef> activity_sessions;
@@ -61,6 +62,7 @@ struct CharacterSpriteDefinition {
     std::string species_name;
     std::vector<std::string> pokemon_types;
     bool has_run = false;
+    bool has_swim = false;
 };
 
 struct MapVisualConfig {
@@ -189,6 +191,23 @@ struct TerrainConfig {
     TerrainColor wire_color{102, 138, 170, 120};
 };
 
+struct WaterTerrainConfig {
+    bool enabled = true;
+    // Absolute simulation height, in world units, used once an actor is on an
+    // actual water tile. The current Gen 5 ocean surface sits 11 units below the
+    // authored sand surface when tileSize is 16.
+    float surface_height_world = -11.0f;
+    // Shoreline/coast tiles remain land for gameplay, but actor feet blend from
+    // the regular terrain height to surface_height_world while crossing them.
+    bool shoreline_ramp_enabled = true;
+    bool pokemon_swim_animation_enabled = true;
+
+    // Runtime-derived from RTPKS tags and expanded tile footprints.
+    std::vector<std::vector<std::uint8_t>> actual_water_cells;
+    std::vector<std::vector<std::uint8_t>> shoreline_cells;
+    std::vector<std::vector<float>> shoreline_corner_progress;
+};
+
 struct ModelPlacementConfig {
     std::string id;
     std::string glb_path; // resolved path to the placed GLB asset
@@ -287,6 +306,7 @@ struct SceneConfig {
     MapVisualConfig visual;
     GridConfig grid;
     TerrainConfig terrain;
+    WaterTerrainConfig water_terrain;
     std::vector<ModelPlacementConfig> models;
     TilePackageConfig tile_package;
     TileLayersConfig tile_layers;

@@ -595,6 +595,20 @@ bool isSmoothRampHeightStep(
     int to_ty,
     int step_dx,
     int step_dy) {
+    const bool water_transition =
+        isActualWaterTile(scene, from_tx, from_ty) ||
+        isActualWaterTile(scene, to_tx, to_ty) ||
+        (from_ty >= 0 && from_ty < static_cast<int>(scene.water_terrain.shoreline_cells.size()) &&
+         from_tx >= 0 && from_tx < static_cast<int>(scene.water_terrain.shoreline_cells[static_cast<std::size_t>(from_ty)].size()) &&
+         scene.water_terrain.shoreline_cells[static_cast<std::size_t>(from_ty)][static_cast<std::size_t>(from_tx)] != 0) ||
+        (to_ty >= 0 && to_ty < static_cast<int>(scene.water_terrain.shoreline_cells.size()) &&
+         to_tx >= 0 && to_tx < static_cast<int>(scene.water_terrain.shoreline_cells[static_cast<std::size_t>(to_ty)].size()) &&
+         scene.water_terrain.shoreline_cells[static_cast<std::size_t>(to_ty)][static_cast<std::size_t>(to_tx)] != 0);
+    if (water_transition) {
+        const float from_y = heightAtTileCenter(scene, from_tx, from_ty);
+        const float to_y = heightAtTileCenter(scene, to_tx, to_ty);
+        if (std::abs(from_y - to_y) > 0.001f) return true;
+    }
     const int from_h = tileHeightUnits(scene, from_tx, from_ty);
     const int to_h = tileHeightUnits(scene, to_tx, to_ty);
     const int dh = to_h - from_h;
@@ -676,7 +690,48 @@ float heightAtActorFeet(
     float foot_z,
     int logical_tx,
     int logical_ty) {
-    return heightAtWorldPositionStitched(scene, foot_x, foot_z, logical_tx, logical_ty);
+    const float terrain_height = heightAtWorldPositionStitched(scene, foot_x, foot_z, logical_tx, logical_ty);
+    if (!scene.water_terrain.enabled) return terrain_height;
+    if (isActualWaterTile(scene, logical_tx, logical_ty)) {
+        return scene.water_terrain.surface_height_world;
+    }
+    if (!scene.water_terrain.shoreline_ramp_enabled || logical_ty < 0 ||
+        logical_ty >= static_cast<int>(scene.water_terrain.shoreline_cells.size())) {
+        return terrain_height;
+    }
+    const auto& shoreline_row = scene.water_terrain.shoreline_cells[static_cast<std::size_t>(logical_ty)];
+    if (logical_tx < 0 || logical_tx >= static_cast<int>(shoreline_row.size()) ||
+        shoreline_row[static_cast<std::size_t>(logical_tx)] == 0) {
+        return terrain_height;
+    }
+    if (logical_ty + 1 >= static_cast<int>(scene.water_terrain.shoreline_corner_progress.size())) {
+        return terrain_height;
+    }
+    const auto& top = scene.water_terrain.shoreline_corner_progress[static_cast<std::size_t>(logical_ty)];
+    const auto& bottom = scene.water_terrain.shoreline_corner_progress[static_cast<std::size_t>(logical_ty + 1)];
+    if (logical_tx + 1 >= static_cast<int>(top.size()) || logical_tx + 1 >= static_cast<int>(bottom.size())) {
+        return terrain_height;
+    }
+    const float tile_size = std::max(1.0f, scene.grid.tile_size);
+    const float u = std::clamp(
+        (foot_x / tile_size) - static_cast<float>(logical_tx), 0.0f, 1.0f);
+    const float v = std::clamp(
+        (foot_z / tile_size) - static_cast<float>(logical_ty), 0.0f, 1.0f);
+    const float north = top[static_cast<std::size_t>(logical_tx)] +
+        ((top[static_cast<std::size_t>(logical_tx + 1)] - top[static_cast<std::size_t>(logical_tx)]) * u);
+    const float south = bottom[static_cast<std::size_t>(logical_tx)] +
+        ((bottom[static_cast<std::size_t>(logical_tx + 1)] - bottom[static_cast<std::size_t>(logical_tx)]) * u);
+    const float progress = std::clamp(north + ((south - north) * v), 0.0f, 1.0f);
+    return terrain_height + ((scene.water_terrain.surface_height_world - terrain_height) * progress);
+}
+
+bool isActualWaterTile(const SceneConfig& scene, int tx, int ty) {
+    if (!scene.water_terrain.enabled || ty < 0 ||
+        ty >= static_cast<int>(scene.water_terrain.actual_water_cells.size())) {
+        return false;
+    }
+    const auto& row = scene.water_terrain.actual_water_cells[static_cast<std::size_t>(ty)];
+    return tx >= 0 && tx < static_cast<int>(row.size()) && row[static_cast<std::size_t>(tx)] != 0;
 }
 
 } // namespace pr::gameplay::world3d::terrain

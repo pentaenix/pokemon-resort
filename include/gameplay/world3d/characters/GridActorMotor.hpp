@@ -29,6 +29,7 @@ public:
     void stop();
 
     terrain::ActorTerrainBinding terrainBinding() const;
+    bool onActualWater() const;
 
     bool moving() const { return moving_; }
     const camera::Vec3& position() const { return pos_; }

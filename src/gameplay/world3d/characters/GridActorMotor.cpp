@@ -162,6 +162,14 @@ terrain::ActorTerrainBinding GridActorMotor::terrainBinding() const {
         : terrain::ActorTerrainBinding{};
 }
 
+bool GridActorMotor::onActualWater() const {
+    if (!terrain_query_) return false;
+    const float tile_size = std::max(1.0f, terrain_query_->tileSize());
+    const int tx = static_cast<int>(std::floor(pos_.x / tile_size));
+    const int ty = static_cast<int>(std::floor(pos_.z / tile_size));
+    return terrain_query_->tileIsActualWater(tx, ty);
+}
+
 bool GridActorMotor::canTraverseHeightDelta(
     int from_x,
     int from_y,

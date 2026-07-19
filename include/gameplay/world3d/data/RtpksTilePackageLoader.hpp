@@ -78,5 +78,8 @@ struct RtpksTilePackage {
 };
 
 RtpksTilePackage loadRtpksTilePackage(const std::string& path, std::string* error = nullptr);
+// Reads only runtime/manifest.json. Intended for gameplay tag/footprint queries;
+// it deliberately avoids decoding mesh JSON and texture/image payloads.
+RtpksTilePackage loadRtpksTileSemantics(const std::string& path, std::string* error = nullptr);
 
 } // namespace pr::gameplay::world3d::data

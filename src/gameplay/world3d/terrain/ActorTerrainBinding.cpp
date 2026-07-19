@@ -1,6 +1,7 @@
 #include "gameplay/world3d/terrain/ActorTerrainBinding.hpp"
 
 #include <algorithm>
+#include <cmath>
 
 namespace pr::gameplay::world3d::terrain {
 
@@ -26,7 +27,15 @@ float actorHeightDuringStep(
     const GridStepMotor& motor,
     float move_t) {
     if (motor.surface_follow) {
-        return heightAtWorldPosition(scene, world_x, world_z, motor.sample_x, motor.sample_y);
+        const float tile_size = std::max(1.0f, scene.grid.tile_size);
+        const int physical_tx = static_cast<int>(std::floor(world_x / tile_size));
+        const int physical_ty = static_cast<int>(std::floor(world_z / tile_size));
+        const bool physical_in_bounds = physical_tx >= 0 && physical_ty >= 0 &&
+            physical_tx < std::max(1, scene.grid.width) && physical_ty < std::max(1, scene.grid.height);
+        const TileCoord sample = physical_in_bounds
+            ? TileCoord{physical_tx, physical_ty}
+            : motor.activeSampleTile(move_t);
+        return heightAtActorFeet(scene, world_x, world_z, sample.x, sample.y);
     }
     if (motor.center_lerp_y) {
         return motor.lerp_start_y + ((motor.lerp_end_y - motor.lerp_start_y) * move_t);

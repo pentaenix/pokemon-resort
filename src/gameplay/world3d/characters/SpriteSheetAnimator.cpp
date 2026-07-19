@@ -30,6 +30,12 @@ void SpriteSheetAnimator::resetFrameClock() {
 }
 
 const CharacterAnimationDef& SpriteSheetAnimator::activeAnimation() const {
+    // Water locomotion is a strict visual state. Activity sessions may continue
+    // running for interaction sequencing, but they must never replace the swim
+    // sheet/pose while the actor is in actual water.
+    if (swimming_ && def_.has_swim) {
+        return def_.swim;
+    }
     if (activity_phase_ != ActivityPhase::None && activity_phase_ != ActivityPhase::Finished) {
         const auto it = def_.activity_sessions.find(activity_id_);
         if (it != def_.activity_sessions.end() && it->second.valid) {
@@ -69,11 +75,24 @@ void SpriteSheetAnimator::setMoving(bool moving) {
 }
 
 void SpriteSheetAnimator::setRunning(bool running) {
-    running = running && def_.has_run;
+    running = running && def_.has_run && !swimming_;
     if (running_ == running) {
         return;
     }
     running_ = running;
+    resetFrameClock();
+}
+
+void SpriteSheetAnimator::setSwimming(bool swimming, bool animate_while_idle) {
+    swimming = swimming && def_.has_swim;
+    if (swimming_ == swimming && swim_animates_while_idle_ == animate_while_idle) {
+        return;
+    }
+    swimming_ = swimming;
+    swim_animates_while_idle_ = animate_while_idle;
+    if (swimming_) {
+        running_ = false;
+    }
     resetFrameClock();
 }
 
@@ -112,7 +131,12 @@ void SpriteSheetAnimator::update(double dt) {
 
 SDL_Rect SpriteSheetAnimator::sourceRect() const {
     const CharacterAnimationDef& anim = activeAnimation();
-    const int frame = anim.frames.empty() ? 0 : anim.frames[frame_index_ % anim.frames.size()];
+    const bool stationary_player_swim = swimming() && !swim_animates_while_idle_ && !moving_;
+    const int frame = anim.frames.empty()
+        ? 0
+        : stationary_player_swim
+            ? anim.frames.front()
+            : anim.frames[frame_index_ % anim.frames.size()];
     const int col = std::clamp(frame, 0, std::max(0, def_.columns - 1));
     const int row = std::clamp(rowForFacing(def_, facing_), 0, std::max(0, def_.rows - 1));
     return SDL_Rect{col * def_.frame_width, row * def_.frame_height, def_.frame_width, def_.frame_height};
@@ -158,6 +182,16 @@ bool SpriteSheetAnimator::activityFinished() const {
 
 std::string SpriteSheetAnimator::activeActivityId() const {
     return activitySessionActive() ? activity_id_ : std::string{};
+}
+
+std::string SpriteSheetAnimator::textureSheetId() const {
+    if (swimming()) {
+        return "__locomotion_swim";
+    }
+    if (activitySessionActive()) {
+        return activity_id_;
+    }
+    return {};
 }
 
 } // namespace pr::gameplay::world3d::characters

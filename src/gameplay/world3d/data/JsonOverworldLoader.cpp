@@ -406,6 +406,10 @@ CharacterSpriteDefinition loadCharacterDefinition(
     const JsonValue* selected_walk = selectAppearanceAction(action_array, "walk", appearance);
     const JsonValue* selected_idle = selectAppearanceAction(action_array, "idle", appearance);
     const JsonValue* selected_run = selectAppearanceAction(action_array, "run", appearance);
+    // Never substitute a different form or a non-shiny sheet for swimming. If
+    // an exact swim asset is absent, retaining the selected land sheet is less
+    // visually wrong than changing the Pokemon's appearance in the water.
+    const JsonValue* selected_swim = findAppearanceAction(action_array, "swim", appearance);
     struct ActivityActionBinding {
         std::string id;
         std::string sheet_id;
@@ -493,6 +497,35 @@ CharacterSpriteDefinition loadCharacterDefinition(
     if (!out.has_run) {
         out.run = out.walk;
         out.run_texture_png_bytes.clear();
+    }
+    if (selected_swim) {
+        const std::string swim_sheet_id = strOr(selected_swim->get("sheetId"), "");
+        const std::string swim_anim_name = strOr(selected_swim->get("animationName"), "swim");
+        const JsonValue* swim_sheet = findSheetById(swim_sheet_id);
+        if (swim_sheet && swim_sheet->isObject()) {
+            const std::string swim_profile_id = strOr(swim_sheet->get("profile"), profile_id);
+            const JsonValue* swim_profile =
+                profileObjectById(project_root, swim_profile_id, profile_cache_root, profile_cache_loaded);
+            const JsonValue* swim_profile_anims = swim_profile ? swim_profile->get("animations") : profile_anims;
+            // Charbins distinguish idle_swim from the movement-driven swim
+            // action, but most shared Pokemon profiles only name the four-frame
+            // sequence "walk". Keep the selected swim sheet and inherit that
+            // movement cadence when a sheet-specific "swim" sequence is absent.
+            const CharacterAnimationDef swim_movement_fallback = parseAnimationByName(
+                swim_sheet->get("animations"),
+                swim_profile_anims,
+                "walk",
+                out.walk);
+            out.swim = parseAnimationByName(
+                swim_sheet->get("animations"),
+                swim_profile_anims,
+                swim_anim_name,
+                swim_movement_fallback);
+            out.has_swim = !out.swim.frames.empty();
+            if (out.has_swim && swim_sheet_id != selected_sheet_id) {
+                out.activity_texture_png_bytes["__locomotion_swim"] = findSheetAsset(*swim_sheet)->second;
+            }
+        }
     }
     out.pause = parseAnimationByName(sheet_anims, anim_root, "pause", out.pause);
     out.play = parseAnimationByName(sheet_anims, anim_root, "play", out.play);

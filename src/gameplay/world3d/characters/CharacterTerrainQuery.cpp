@@ -36,6 +36,10 @@ public:
         return row[static_cast<std::size_t>(world_tx)] != 0;
     }
 
+    bool tileIsActualWater(int world_tx, int world_ty) const override {
+        return terrain::isActualWaterTile(scene_, world_tx, world_ty);
+    }
+
     int tileBaseHeightUnits(int world_tx, int world_ty) const override {
         if (scene_.terrain.heights.empty()) {
             return static_cast<int>(std::round(scene_.player.spawn_height / std::max(0.001f, tileSize())));
@@ -136,6 +140,12 @@ public:
         const auto& row = scene.terrain.collision[static_cast<std::size_t>(resolved->local_y)];
         if (resolved->local_x < 0 || resolved->local_x >= static_cast<int>(row.size())) return false;
         return row[static_cast<std::size_t>(resolved->local_x)] != 0;
+    }
+
+    bool tileIsActualWater(int world_tx, int world_ty) const override {
+        const auto resolved = resolve(world_tx, world_ty);
+        return resolved && terrain::isActualWaterTile(
+            resolved->chunk->scene, resolved->local_x, resolved->local_y);
     }
 
     int tileBaseHeightUnits(int world_tx, int world_ty) const override {

@@ -558,7 +558,9 @@ void Overworld3DTestScreen::update(double dt) {
 
         const bool player_run_animation_active =
             player_running && player_.moving() && !blocked_movement_attempt;
+        const bool player_swimming = scene_.water_terrain.enabled && player_.onActualWater();
         animator_.setFacing(player_.facing());
+        animator_.setSwimming(player_swimming, false);
         animator_.setRunning(player_run_animation_active);
         if (blocked_movement_attempt && blocked_movement_repeat_seconds_ <= 0.0) {
             blocked_movement_sfx_requested_ = true;
@@ -567,7 +569,7 @@ void Overworld3DTestScreen::update(double dt) {
             blocked_movement_repeat_seconds_ = 0.0;
         }
 
-        animator_.setMoving(player_.moving() || blocked_movement_attempt);
+        animator_.setMoving(player_.moving() || (blocked_movement_attempt && !player_swimming));
         animator_.update(dt);
 
         camera_.setTarget(player_.position());
@@ -708,7 +710,8 @@ void Overworld3DTestScreen::render(SDL_Renderer* renderer) {
                 scene_.lighting_tint_r,
                 scene_.lighting_tint_g,
                 scene_.lighting_tint_b,
-                scene_.lighting_brightness);
+                scene_.lighting_brightness,
+                !animator_.swimming());
         }
     };
     const auto draw_follower = [&]() {
@@ -872,8 +875,9 @@ bool Overworld3DTestScreen::renderBgfx(
         camera_,
         player_.position(),
         animator_.sourceRect(),
-        animator_.activeActivityId(),
+        animator_.textureSheetId(),
         animator_.running(),
+        !animator_.swimming(),
         player_.terrainBinding(),
         logical_w,
         logical_h,

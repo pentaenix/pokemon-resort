@@ -18,6 +18,7 @@ public:
     virtual float tileSize() const = 0;
     virtual bool containsTile(int world_tx, int world_ty) const = 0;
     virtual bool tileBlocked(int world_tx, int world_ty) const = 0;
+    virtual bool tileIsActualWater(int world_tx, int world_ty) const = 0;
     virtual int tileBaseHeightUnits(int world_tx, int world_ty) const = 0;
     virtual int tileSpecial(int world_tx, int world_ty) const = 0;
     virtual float tileWorldHeight(int world_tx, int world_ty) const = 0;

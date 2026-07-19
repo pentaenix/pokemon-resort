@@ -49,6 +49,7 @@ public:
     int tileY() const { return motor_.tileY(); }
     MovementSegment movementSegment() const;
     terrain::ActorTerrainBinding terrainBinding() const;
+    bool onActualWater() const { return motor_.onActualWater(); }
 
 private:
     float move_speed_units_per_second_ = 64.0f;

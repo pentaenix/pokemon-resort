@@ -270,6 +270,17 @@ void applyTerrainRenderConfig(TerrainConfig& out, const JsonValue* terrain) {
     applyColor(out.wire_color, terrain->get("wireColor"));
 }
 
+void applyWaterTerrainConfig(WaterTerrainConfig& out, const JsonValue* water) {
+    if (!water || !water->isObject()) return;
+    out.enabled = boolOr(water->get("enabled"), out.enabled);
+    out.surface_height_world = static_cast<float>(numOr(
+        water->get("surfaceHeightWorld"), out.surface_height_world));
+    out.shoreline_ramp_enabled = boolOr(
+        water->get("shorelineRampEnabled"), out.shoreline_ramp_enabled);
+    out.pokemon_swim_animation_enabled = boolOr(
+        water->get("pokemonSwimAnimationEnabled"), out.pokemon_swim_animation_enabled);
+}
+
 void applyTerrainVisualConfig(TerrainConfig& out, const JsonValue* visual) {
     if (!visual || !visual->isObject()) return;
     if (const JsonValue* readability = visual->get("rampReadability"); readability && readability->isObject()) {
@@ -482,6 +493,7 @@ SceneConfig parseSceneMetadata(
     const JsonValue render_root = parseJsonFile(render_cfg_path);
     if (render_root.isObject()) {
         applyTerrainRenderConfig(out.terrain, render_root.get("terrain"));
+        applyWaterTerrainConfig(out.water_terrain, render_root.get("waterTraversal"));
         if (const JsonValue* animation = render_root.get("environmentAnimation");
             animation && animation->isObject()) {
             out.environment_animation_speed = std::clamp(

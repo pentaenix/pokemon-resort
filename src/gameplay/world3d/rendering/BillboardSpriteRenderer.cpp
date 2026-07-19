@@ -210,6 +210,7 @@ void BillboardSpriteRenderer::render(
     float tint_g,
     float tint_b,
     float brightness,
+    bool draw_shadow,
     float sprite_scale_multiplier,
     float alpha_multiplier,
     float white_overlay_alpha,
@@ -245,7 +246,7 @@ void BillboardSpriteRenderer::render(
     sprite_x += def_.screen_offset_x_px + extra_screen_offset_x_px;
     sprite_y += def_.screen_offset_y_px + extra_screen_offset_y_px;
 
-    if (shadow_texture_) {
+    if (draw_shadow && shadow_texture_) {
         const camera::Vec3 shadow_world =
             shadow_world_override ? *shadow_world_override : placement.shadow_ground;
         float shx = 0.0f;

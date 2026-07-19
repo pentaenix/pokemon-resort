@@ -605,6 +605,7 @@ add_executable(owmap_overworld_loader_tests
     src/gameplay/world3d/data/SceneMetadataParser.cpp
     src/gameplay/world3d/data/JsonOverworldLoader.cpp
     src/gameplay/world3d/data/OwmapOverworldLoader.cpp
+    src/gameplay/world3d/data/RtpksTilePackageLoader.cpp
     src/gameplay/world3d/characters/CharacterController.cpp
     src/gameplay/world3d/characters/CharacterTerrainQuery.cpp
     src/gameplay/world3d/characters/GridActorMotor.cpp
@@ -618,8 +619,10 @@ add_executable(owmap_overworld_loader_tests
     src/gameplay/world3d/camera/Gen4CameraPreset.cpp
     src/gameplay/world3d/camera/Gen4FollowCamera.cpp
 )
-target_include_directories(owmap_overworld_loader_tests PRIVATE include)
-target_link_libraries(owmap_overworld_loader_tests PRIVATE SDL2::SDL2)
+target_include_directories(owmap_overworld_loader_tests PRIVATE
+    include
+    ${bgfx_cmake_SOURCE_DIR}/bimg/3rdparty/tinyexr/deps/miniz)
+target_link_libraries(owmap_overworld_loader_tests PRIVATE SDL2::SDL2 bimg)
 add_test(NAME owmap_overworld_loader_tests COMMAND owmap_overworld_loader_tests)
 
 add_executable(glb_model_animation_tests

@@ -269,6 +269,15 @@ void NpcActorDriver::update(double dt) {
         Actor& actor = actors_[i];
         const bool interaction_locked = interaction_locked_actor_ && *interaction_locked_actor_ == i;
         if (actor.animator) {
+            bool swimming = false;
+            if (actor.definition.kind == NpcActorKind::Pokemon &&
+                scene_->water_terrain.pokemon_swim_animation_enabled && terrain_query_) {
+                const float tile_size = terrain_query_->tileSize();
+                const int water_tx = static_cast<int>(std::floor(actor.position.x / tile_size));
+                const int water_ty = static_cast<int>(std::floor(actor.position.z / tile_size));
+                swimming = terrain_query_->tileIsActualWater(water_tx, water_ty);
+            }
+            actor.animator->setSwimming(swimming);
             actor.animator->setMoving(interaction_locked ? false : actor.moving);
             actor.animator->setRunning(actor.running);
             actor.animator->setPlaybackSpeedMultiplier(
@@ -516,9 +525,9 @@ void NpcActorDriver::collectBillboardDraws(
         rendering::CharacterBillboardDraw draw{};
         draw.character = &actor.character;
         draw.source_rect = actor.source_rect;
-        draw.activity_id = actor.animator ? actor.animator->activeActivityId() : std::string{};
-        draw.draw_shadow = true;
-        draw.use_run_texture = actor.running;
+        draw.activity_id = actor.animator ? actor.animator->textureSheetId() : std::string{};
+        draw.draw_shadow = !actor.animator || !actor.animator->swimming();
+        draw.use_run_texture = actor.animator ? actor.animator->running() : actor.running;
         int jump_offset_y_px = 0;
         if (actor.interaction_jump_elapsed_seconds >= 0.0) {
             const double phase = std::clamp(actor.interaction_jump_elapsed_seconds / 0.35, 0.0, 1.0);

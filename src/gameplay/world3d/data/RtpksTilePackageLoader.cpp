@@ -278,4 +278,41 @@ RtpksTilePackage loadRtpksTilePackage(const std::string& path, std::string* erro
     }
 }
 
+RtpksTilePackage loadRtpksTileSemantics(const std::string& path, std::string* error) {
+    RtpksTilePackage out;
+    out.path = path;
+    mz_zip_archive zip{};
+    if (!mz_zip_reader_init_file(&zip, path.c_str(), 0)) {
+        fail(error, "Could not open RTPKS package: " + path);
+        return out;
+    }
+    try {
+        const JsonValue runtime = extractJson(zip, "runtime/manifest.json");
+        if (strOr(runtime.get("format"), "") != "pokemon_resort.rpak") {
+            throw std::runtime_error("RTPKS missing runtime manifest: " + path);
+        }
+        out.pack_id = strOr(runtime.get("packId"), "");
+        if (const JsonValue* tiles = runtime.get("tiles"); tiles && tiles->isArray()) {
+            out.tiles.reserve(tiles->asArray().size());
+            for (const JsonValue& tile_value : tiles->asArray()) {
+                if (!tile_value.isObject()) continue;
+                RtpksTileMesh tile;
+                tile.resort_tile_id = intOr(tile_value.get("resortTileId"), -1);
+                if (tile.resort_tile_id < 0) continue;
+                tile.width = std::max(1, intOr(tile_value.get("width"), 1));
+                tile.height = std::max(1, intOr(tile_value.get("height"), 1));
+                tile.name = strOr(tile_value.get("name"), "");
+                tile.tags = stringArray(tile_value.get("tags"));
+                out.tiles.push_back(std::move(tile));
+            }
+        }
+        mz_zip_reader_end(&zip);
+        return out;
+    } catch (const std::exception& e) {
+        mz_zip_reader_end(&zip);
+        fail(error, e.what());
+        return {};
+    }
+}
+
 } // namespace pr::gameplay::world3d::data

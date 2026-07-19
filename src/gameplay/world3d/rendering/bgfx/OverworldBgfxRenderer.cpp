@@ -292,6 +292,7 @@ public:
         const SDL_Rect& player_source_rect,
         const std::string& player_activity_id,
         bool player_use_run_texture,
+        bool player_draw_shadow,
         const terrain::ActorTerrainBinding& player_binding,
         int logical_w,
         int logical_h,
@@ -673,6 +674,7 @@ void OverworldBgfxRenderer::render(
     const SDL_Rect& player_source_rect,
     const std::string& player_activity_id,
     bool player_use_run_texture,
+    bool player_draw_shadow,
     const terrain::ActorTerrainBinding& player_binding,
     int logical_w,
     int logical_h,
@@ -688,6 +690,7 @@ void OverworldBgfxRenderer::render(
             player_source_rect,
             player_activity_id,
             player_use_run_texture,
+            player_draw_shadow,
             player_binding,
             logical_w,
             logical_h,
@@ -2832,6 +2835,7 @@ void OverworldBgfxRenderer::Impl::render(
     const SDL_Rect& player_source_rect,
     const std::string& player_activity_id,
     bool player_use_run_texture,
+    bool player_draw_shadow,
     const terrain::ActorTerrainBinding& player_binding,
     int logical_w,
     int logical_h,
@@ -2962,7 +2966,7 @@ void OverworldBgfxRenderer::Impl::render(
     player_draw.source_rect = player_source_rect;
     player_draw.activity_id = player_activity_id;
     player_draw.use_run_texture = player_use_run_texture;
-    player_draw.draw_shadow = true;
+    player_draw.draw_shadow = player_draw_shadow;
     player_draw.depth_priority_bias = kPlayerBillboardDepthPriorityBias;
     player_draw.placement = rendering::buildCharacterBillboardPlacement(
         scene_,

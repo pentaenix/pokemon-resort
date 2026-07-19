@@ -33,6 +33,13 @@
     },
     "wireColor": [102, 138, 170, 120]
   },
+  "waterTraversal": {
+    "_comment": "Gameplay-side water surface. Beach/coast RTPKS tiles are invisible actor ramps but remain land; only traversal.swim/traversal.surf tiles put Pokemon into their form/shiny-aware swim locomotion. The player also follows the height but keeps the normal sprite until a player swim sheet exists.",
+    "enabled": true,
+    "surfaceHeightWorld": -11.0,
+    "shorelineRampEnabled": true,
+    "pokemonSwimAnimationEnabled": true
+  },
   "pixelScale": {
     "_comment": "Authoring ruler only. worldUnitsPerPixel <= 0 derives tileSize / mapPixelsPerTile. zoom/worldRender* are legacy compatibility inputs; prefer sceneCamera/worldViewport below.",
     "mapPixelsPerTile": 16,

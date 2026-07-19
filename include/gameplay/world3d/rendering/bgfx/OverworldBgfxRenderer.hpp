@@ -57,6 +57,7 @@ public:
         const SDL_Rect& player_source_rect,
         const std::string& player_activity_id,
         bool player_use_run_texture,
+        bool player_draw_shadow,
         const terrain::ActorTerrainBinding& player_binding,
         int logical_w,
         int logical_h,

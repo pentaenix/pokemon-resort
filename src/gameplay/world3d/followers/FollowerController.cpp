@@ -643,8 +643,16 @@ void FollowerController::update(
         const double playback_speed = player_running_ && (follower_moving_ || !path_.empty())
             ? static_cast<double>(movement_config_.runSpeed() / std::max(1.0f, movement_config_.walkSpeed()))
             : 1.0;
+        bool swimming = false;
+        if (scene_.water_terrain.pokemon_swim_animation_enabled && terrain_query_) {
+            const float tile_size = terrain_query_->tileSize();
+            const int water_tx = static_cast<int>(std::floor(follower_pos_.x / tile_size));
+            const int water_ty = static_cast<int>(std::floor(follower_pos_.z / tile_size));
+            swimming = terrain_query_->tileIsActualWater(water_tx, water_ty);
+        }
         follower_animator_->setFacing(follower_facing_);
         follower_animator_->setPlaybackSpeedMultiplier(playback_speed);
+        follower_animator_->setSwimming(swimming);
         follower_animator_->setRunning(player_running_ && (follower_moving_ || !path_.empty()));
         follower_animator_->setMoving(interaction_locked_ ? false : follower_moving_);
         if ((!interaction_locked_ || follower_animator_->activitySessionActive()) &&
@@ -1012,8 +1020,8 @@ void FollowerController::collectBillboardDraws(
     rendering::CharacterBillboardDraw draw{};
     draw.character = &follower_def_;
     draw.source_rect = follower_animator_->sourceRect();
-    draw.activity_id = follower_animator_->activeActivityId();
-    draw.draw_shadow = true;
+    draw.activity_id = follower_animator_->textureSheetId();
+    draw.draw_shadow = !follower_animator_->swimming();
     draw.use_run_texture = follower_animator_->running();
     if (state_ == State::EntryFlash) {
         const float t = std::clamp(

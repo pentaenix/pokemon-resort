@@ -96,4 +96,6 @@ float heightAtActorFeet(
     int logical_tx,
     int logical_ty);
 
+bool isActualWaterTile(const SceneConfig& scene, int tx, int ty);
+
 } // namespace pr::gameplay::world3d::terrain
