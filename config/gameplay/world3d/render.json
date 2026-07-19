@@ -71,11 +71,11 @@
   },
   "environmentAnimation": {
     "_comment": "Global renderer-only multiplier for animated RTPKS materials and overworld GLB props. Actor movement and UI timing are unaffected.",
-    "speedMultiplier": 0.9,
+    "speedMultiplier": 0.7,
     "water": {
       "_comment": "Water-only controls. Scroll affects horizontal UV flow; wave affects vertical advance/retreat and wet-sand phase; wait adds a rest after each wave cycle. Smooth interpolation removes visible 15 Hz sample stepping without smoothing texture-pattern swaps.",
-      "scrollSpeedMultiplier": 0.75,
-      "waveSpeedMultiplier": 1.25,
+      "scrollSpeedMultiplier": 0.7,
+      "waveSpeedMultiplier": 1.6,
       "waitBetweenWavesSeconds": 0.0,
       "smoothUvMotion": true,
       "shorelineSeamOverlapPixels": 0.5
