@@ -1,5 +1,7 @@
 #include "AttendBgfxRendererInternal.hpp"
 
+#include "gameplay/attend/rendering/AttendPokemonMaterialPolicy.hpp"
+
 namespace pr::gameplay::attend::rendering {
 
 void AttendBgfxRenderer::Impl::updateFloorAnimation(double scene_time_seconds) {
@@ -416,7 +418,10 @@ bool AttendBgfxRenderer::Impl::pokemonPrimitiveVisibleForHit(std::size_t primiti
     if (primitive.material >= 0 && primitive.material < static_cast<int>(pokemon_mesh_.materials.size())) {
         const MaterialResource& material = pokemon_mesh_.materials[static_cast<std::size_t>(primitive.material)];
         if (!material.visible) return false;
-        if (material.separate_eye_iris && current_eye_expression_frame_ == closed_eye_expression_frame_) {
+        if (material.separate_eye_iris &&
+            !shouldRenderAttendSeparateEyeIris(
+                current_eye_expression_frame_,
+                normal_eye_expression_frame_)) {
             return false;
         }
     }

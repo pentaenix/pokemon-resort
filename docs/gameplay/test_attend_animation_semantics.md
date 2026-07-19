@@ -19,7 +19,7 @@ RAE Gen 1-7/3DS eye sheets use a shared 8-frame expression layout for eye-named 
 | `6` | `hit` | Impact frame when taking damage. |
 | `7` | `padding_red_stain` | Padding/unused; do not intentionally use. |
 
-Separate iris/pupil meshes are composited through the eye-white mask in the attend bgfx renderer, so eye frame changes also control whether detached pupils remain visible.
+Separate iris/pupil meshes are composited through the eye-white mask in the attend bgfx renderer. They render only for `normal_open`; every other authored eye-sheet frame replaces them so expressions such as `happy` do not overlap the normal pupils.
 
 ## Mouth Frames
 

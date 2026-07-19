@@ -338,6 +338,12 @@ struct AttendUiConfig {
     AttendOverlayButtonConfig weather_button{};
     AttendOverlayButtonConfig view_button{};
     AttendOverlayButtonConfig pokemon_button{};
+    AttendOverlayButtonConfig previous_pokemon_button = [] {
+        AttendOverlayButtonConfig button;
+        button.enabled = false;
+        button.label_prefix = "PREVIOUS POKEMON";
+        return button;
+    }();
     AttendOverlayButtonConfig texture_variant_button{};
     AttendOverlayButtonConfig form_variant_button{};
     AttendOverlayButtonConfig sky_button{};

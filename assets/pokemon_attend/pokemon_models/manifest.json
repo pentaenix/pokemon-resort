@@ -6794,12 +6794,12 @@
     },
     "pm0755_00_Morelull": {
       "compiled": "pm0755_00_Morelull.glbz",
-      "compiledBytes": 563634,
-      "compiledSha256": "9bd39b9c4a5acdfde60d68cfa5ab0e85c806fb0c27893aa30b4945431f6c6675",
-      "originalBytes": 1098908,
+      "compiledBytes": 565422,
+      "compiledSha256": "0f04d062a5435ffea927b669dd7f7f243123c585d1254fe37caaa5be7856e7c1",
+      "originalBytes": 1143740,
       "roundTripVerified": true,
       "source": "pm0755_00_Morelull.glb",
-      "sourceSha256": "aeede8b9e6b36d430fd913a01373364c459e39bbc3682d298e4a880f1d27d436"
+      "sourceSha256": "c20d42bee9ef1e0fb4b92d50b6fe4b0b809dba9e3efd1b0b7edf700fb0289d29"
     },
     "pm0756_00_Shiinotic": {
       "compiled": "pm0756_00_Shiinotic.glbz",
@@ -6929,12 +6929,12 @@
     },
     "pm0770_00_Palossand": {
       "compiled": "pm0770_00_Palossand.glbz",
-      "compiledBytes": 964919,
-      "compiledSha256": "5bf8d9d35d31ee5bf0a6a5bf676d47f8361d6c002b9e20cb9c0d6936ba889ec3",
-      "originalBytes": 2343352,
+      "compiledBytes": 964825,
+      "compiledSha256": "76620c0538e3df1d3ba6c327ea76ae8eca25075dde19c41fb119899248517c75",
+      "originalBytes": 2437984,
       "roundTripVerified": true,
       "source": "pm0770_00_Palossand.glb",
-      "sourceSha256": "76408d741b0c869e81948c430d6ae2a7f6de77e52510120b8fb7b7c4775a14ef"
+      "sourceSha256": "39ab454090fa06d4fe3df5122aa2f393b5b7b0562b3091404b117f298bb74d91"
     },
     "pm0771_00_Pyukumuku": {
       "compiled": "pm0771_00_Pyukumuku.glbz",

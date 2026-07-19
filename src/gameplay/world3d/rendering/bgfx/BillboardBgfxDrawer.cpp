@@ -237,6 +237,7 @@ void BillboardBgfxDrawer::submitBillboardQuad(
     bgfx::setUniform(deps_.tint_cutoff_uniform, tint_uniform);
     bgfx::setUniform(deps_.color_adjust_uniform, adjust);
     bgfx::setUniform(deps_.texture_blur_uniform, texture_blur);
+    bgfx::setUniform(deps_.uv_offset_uniform, texture_blur);
     bgfx::setUniform(deps_.light_dir_uniform, light_dir);
     bgfx::setUniform(deps_.light_params_uniform, light_params);
     bgfx::setState(state);
@@ -353,6 +354,7 @@ void BillboardBgfxDrawer::submitDepthCharacterQuad(
     bgfx::setUniform(deps_.tint_cutoff_uniform, tint_uniform);
     bgfx::setUniform(deps_.color_adjust_uniform, adjust);
     bgfx::setUniform(deps_.texture_blur_uniform, texture_blur);
+    bgfx::setUniform(deps_.uv_offset_uniform, texture_blur);
     bgfx::setUniform(deps_.light_dir_uniform, light_dir);
     bgfx::setUniform(deps_.light_params_uniform, light_params);
     bgfx::setState(state);

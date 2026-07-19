@@ -69,6 +69,17 @@
     "scaleMode": "integerFit",
     "zoom": 1.0
   },
+  "environmentAnimation": {
+    "_comment": "Global renderer-only multiplier for animated RTPKS materials and overworld GLB props. Actor movement and UI timing are unaffected.",
+    "speedMultiplier": 1.0,
+    "water": {
+      "_comment": "Water-only controls. Scroll affects horizontal UV flow; wave affects vertical advance/retreat and wet-sand phase; wait adds a rest after each wave cycle. Smooth interpolation removes visible 15 Hz sample stepping without smoothing texture-pattern swaps.",
+      "scrollSpeedMultiplier": 0.75,
+      "waveSpeedMultiplier": 1.25,
+      "waitBetweenWavesSeconds": 0.0,
+      "smoothUvMotion": true
+    }
+  },
   "occlusion": {
     "_comment": "How far (in tiles) toward the camera a placed model's occlusion anchor is biased when depth-sorting it against the player/follower. Larger = the building starts hiding the character sooner (further forward). Tune so a character entering a doorway is hidden by the building rather than drawing over its roof.",
     "modelBehindBiasTiles": 1.0

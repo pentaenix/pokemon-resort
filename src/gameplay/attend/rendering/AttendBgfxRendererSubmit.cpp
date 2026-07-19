@@ -1,5 +1,7 @@
 #include "AttendBgfxRendererInternal.hpp"
 
+#include "gameplay/attend/rendering/AttendPokemonMaterialPolicy.hpp"
+
 namespace pr::gameplay::attend::rendering {
 
 void AttendBgfxRenderer::Impl::submitMesh(
@@ -7,7 +9,8 @@ void AttendBgfxRenderer::Impl::submitMesh(
     const float* matrix,
     bool force_blend,
     bool backdrop,
-    bool floor) {
+    bool floor,
+    MeshSubmitPass pass) {
     if (!mesh.valid()) return;
     const bool focus_backdrop = backdrop || floor;
     float adjust[4] = {
@@ -60,9 +63,15 @@ void AttendBgfxRenderer::Impl::submitMesh(
             }
         }
         if (floor ? !floorMaterialVisible(material) : (material && !material->visible)) continue;
-        if (material && material->separate_eye_iris && current_eye_expression_frame_ == closed_eye_expression_frame_) {
+        if (material && material->separate_eye_iris &&
+            !shouldRenderAttendSeparateEyeIris(
+                current_eye_expression_frame_,
+                normal_eye_expression_frame_)) {
             continue;
         }
+        const bool blended = force_blend || (material && material->blend);
+        if (pass == MeshSubmitPass::DepthWriting && blended) continue;
+        if (pass == MeshSubmitPass::Blended && !blended) continue;
         const TextureResource& texture = (material && material->texture.valid()) ? material->texture : white_texture_;
         const TextureResource& eye_mask = (material && material->eye_mask_texture.valid()) ? material->eye_mask_texture : white_texture_;
         const float blur_radius = (focus_backdrop && config_.depth_of_field.enabled && texture.valid())
@@ -100,8 +109,13 @@ void AttendBgfxRenderer::Impl::submitMesh(
         bgfx::setUniform(texture_blur_uniform_, texture_blur);
         bgfx::setUniform(light_dir_uniform_, light_dir);
         bgfx::setUniform(light_params_uniform_, light_params);
-        const bool blended = force_blend || (material && material->blend);
-        if (material && material->separate_eye_iris && !backdrop && !floor) {
+        // Attend's glTF projection presents authored CCW front faces as clockwise
+        // raster faces to bgfx. Cull the opposite winding so PICA/glTF backface
+        // culling preserves the visible exterior rather than the gray interior.
+        const std::uint64_t cull_state =
+            material && material->cull_backface ? BGFX_STATE_CULL_CCW : 0;
+        if (material && material->separate_eye_iris && pokemon_eye_stencil_enabled_ &&
+            !backdrop && !floor) {
             bgfx::setStencil(
                 BGFX_STENCIL_TEST_EQUAL |
                 BGFX_STENCIL_FUNC_REF(1) |
@@ -111,11 +125,22 @@ void AttendBgfxRenderer::Impl::submitMesh(
                 BGFX_STENCIL_OP_PASS_Z_KEEP);
         }
         if (material && material->separate_eye_iris && !backdrop && !floor) {
-            bgfx::setState(overlayState());
+            bgfx::setState(overlayState() | cull_state);
         } else {
-            bgfx::setState(backdrop ? backdropState(blended) : (blended ? blendState() : opaqueState()));
+            const std::uint64_t material_state = material && material->additive
+                ? additiveState()
+                : (backdrop ? backdropState(blended) : (blended ? blendState() : opaqueState()));
+            bgfx::setState(material_state | cull_state);
         }
-        bgfx::submit(0, (material && material->pokemon_eye && bgfx::isValid(eye_program_)) ? eye_program_ : program_);
+        const bgfx::ProgramHandle material_program =
+            material && material->pokemon_eye && bgfx::isValid(eye_program_)
+                ? eye_program_
+                : (material &&
+                   material->texture_mapping == AttendTextureMapping::CameraSphereEnvironment &&
+                   bgfx::isValid(camera_sphere_program_)
+                    ? camera_sphere_program_
+                    : program_);
+        bgfx::submit(0, material_program);
         if (material && material->eye_sclera_mask && !backdrop && !floor &&
             bgfx::isValid(eye_sclera_mask_program_)) {
             bgfx::setTransform(matrix);
@@ -125,7 +150,10 @@ void AttendBgfxRenderer::Impl::submitMesh(
                 bgfx::setVertexBuffer(0, mesh.vbh);
             }
             bgfx::setIndexBuffer(mesh.ibh, range.start, range.count);
-            bgfx::setTexture(0, tex_uniform_, texture.handle, material->sampler_flags);
+            const TextureResource& socket_mask = material->eye_mask_texture.valid()
+                ? material->eye_mask_texture
+                : texture;
+            bgfx::setTexture(0, tex_uniform_, socket_mask.handle, material->sampler_flags);
             bgfx::setUniform(tint_cutoff_uniform_, tint);
             bgfx::setUniform(color_adjust_uniform_, adjust);
             bgfx::setUniform(texture_blur_uniform_, texture_blur);
@@ -138,7 +166,7 @@ void AttendBgfxRenderer::Impl::submitMesh(
                 BGFX_STENCIL_OP_FAIL_S_KEEP |
                 BGFX_STENCIL_OP_FAIL_Z_KEEP |
                 BGFX_STENCIL_OP_PASS_Z_REPLACE);
-            bgfx::setState(eyeScleraStencilState());
+            bgfx::setState(eyeScleraStencilState() | cull_state);
             bgfx::submit(0, eye_sclera_mask_program_);
         }
     }

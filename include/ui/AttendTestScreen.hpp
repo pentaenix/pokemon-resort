@@ -121,6 +121,7 @@ private:
     bool pointerOverWeatherButton(int logical_x, int logical_y) const;
     bool pointerOverViewButton(int logical_x, int logical_y) const;
     bool pointerOverPokemonButton(int logical_x, int logical_y) const;
+    bool pointerOverPreviousPokemonButton(int logical_x, int logical_y) const;
     bool pointerOverTextureVariantButton(int logical_x, int logical_y) const;
     bool pointerOverFormVariantButton(int logical_x, int logical_y) const;
     bool pointerOverSkyButton(int logical_x, int logical_y) const;
@@ -155,7 +156,7 @@ private:
     void updateCornerButtonVisibility(double dt);
     void revealCornerButtons();
     void toggleViewMode();
-    void cyclePokemonModel();
+    void cyclePokemonModel(int offset = 1);
     void applyViewportLook();
     void applyWeatherMode();
     void applyTextureVariant();

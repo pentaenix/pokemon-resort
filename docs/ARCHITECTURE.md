@@ -76,10 +76,24 @@ Detailed authoring and extension guidance lives in [`docs/gameplay/overworld_int
 
 `.owmap` metadata binds one RTPKS package and stores stable `resortTileId`
 placements in decoration layers. [`RtpksTilePackageLoader.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/gameplay/world3d/data/RtpksTilePackageLoader.cpp)
-loads meshes, materials, frame animation assets, gameplay tags, and collision
-authoring metadata. [`OverworldBgfxRenderer.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/gameplay/world3d/rendering/bgfx/OverworldBgfxRenderer.cpp)
-keeps static geometry batched by material and selects globally synchronized
-texture-animation frames during submission.
+loads meshes, materials, frame animation assets, exact material-motion timelines,
+per-axis texture samplers, gameplay tags, and collision authoring metadata.
+[`OverworldBgfxRenderer.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/gameplay/world3d/rendering/bgfx/OverworldBgfxRenderer.cpp)
+keeps static geometry batched by material, selects globally synchronized pattern
+keyframes, and smoothly interpolates UV offsets during submission. Materials may
+also carry a source-derived world-UV basis (`uPerTile` / `vPerTile`), so repeating
+1x1 placements continue one texture field instead of restarting their UV domain.
+Layered water therefore remains layered geometry: each plane keeps its own
+uniform/texture alpha, height, sampler, and UV motion rather than becoming a
+baked flipbook. Tile geometry is emitted only for authored `.owmap` placements;
+the renderer never extends an ocean plane beyond its placed footprint.
+
+World model placements also accept self-contained GLBs with morph-target `weights`
+animation channels. [`GlbModelLoader.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/gameplay/world3d/data/GlbModelLoader.cpp)
+retains morph deltas and clip data, while [`GlbModelAnimation.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/gameplay/world3d/data/GlbModelAnimation.cpp)
+samples the first authored clip as a synchronized loop. Both the bgfx renderer and SDL
+fallback consume that contract, so animated props referenced by map/tile placements do not
+need scene-specific playback code.
 
 The Operations Desk Map Editor owns RTPKS authoring. Its Tile Pack Editor may
 reorganize tabs and smart paths or append assets, but must never renumber an
@@ -111,7 +125,7 @@ Title-side effects should flow through typed `TitleScreenEvent` values. Avoid ad
 
 [`AttendTestScreen.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/AttendTestScreen.cpp) is a standalone `Screen` reached from `RESORT -> TEST ATTEND`. It renders a data-driven Pokemon interaction debug scene through [`AttendBgfxRenderer.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/gameplay/attend/rendering/AttendBgfxRenderer.cpp). [`config/gameplay/pokemon_attend.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/gameplay/pokemon_attend.json) is a small manifest that points to concern-specific files under `config/gameplay/pokemon_attend/`: debug scene files own temporary selections and TEST ATTEND-only overlay buttons, interaction files own shared camera/pointer/hand defaults, provider files own reusable Pokemon/model defaults and interaction adapters, and environment files own floor/extension catalogs plus edge-proof sky/light/presentation presets. Per-Pokemon entries should stay sparse: model paths are inferred from `activePokemon` plus the provider file pattern, while common placement, animation naming, idle behavior, interaction adapter defaults, and eye-close naming are inferred from defaults or provider rules. The current scene uses one world-placed environment GLB floor, weather material groups, mouse-edge look-target nudging, a simple data-driven contact shadow, and an initial auto-focus camera calculation that frames the active Pokemon from its setup pose without following animation. It is intentionally independent from transfer, Resort storage, and the Gen 4 overworld proof of concept.
 
-TEST ATTEND uses a Pokemon-specific GLB path under `gameplay/attend/rendering`: it preserves skinning, animation channels, material sampler wrap, RAE material policy extras, and Pokemon eye metadata that the static overworld prop loader intentionally does not model. RAE Gen 1-7/3DS exports must be rendered from `extras.rae.renderClass`, mesh `renderOrder`/`defaultVisible`, `eyeSheet`/`eyeExpression` UV metadata, and appearance variant metadata. Combined normal/shiny/form/pattern GLBs should expose root `extras.rae.appearanceVariants`; the renderer resolves form visibility/material swaps first and texture/color swaps second. Base-color eye sheets must not be routed through the older Violet-style `emissiveTexture`/`.lym` eye compositor unless the material actually exports that emissive-mask pattern.
+TEST ATTEND uses a Pokemon-specific GLB path under `gameplay/attend/rendering`: it preserves skeletal skinning, transform animation channels, material sampler wrap, RAE material policy extras, and Pokemon eye metadata beyond the overworld prop contract. The overworld loader separately supports looping morph-target weight animation for environmental props. RAE Gen 1-7/3DS exports must be rendered from `extras.rae.renderClass`, mesh `renderOrder`/`defaultVisible`, `eyeSheet`/`eyeExpression` UV metadata, and appearance variant metadata. Combined normal/shiny/form/pattern GLBs should expose root `extras.rae.appearanceVariants`; the renderer resolves form visibility/material swaps first and texture/color swaps second. Base-color eye sheets must not be routed through the older Violet-style `emissiveTexture`/`.lym` eye compositor unless the material actually exports that emissive-mask pattern.
 
 The TEST ATTEND weather button is laid out and hit-tested by [`AttendOverlay.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/attend/AttendOverlay.cpp), a scene-specific adapter over the shared overlay canvas. Its bgfx-visible button surface is drawn by [`AttendBgfxRenderer.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/gameplay/attend/rendering/AttendBgfxRenderer.cpp) from the same rect and scene `ui.weatherButton` style data. Keep new shared overlay layout, anchoring, and hit-test rules in `ui/overlay`; keep scene meanings such as weather, feed, or tutorial actions in the consuming screen/module.
 

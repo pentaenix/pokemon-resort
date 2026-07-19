@@ -862,6 +862,12 @@ int runApplication(const char* argv0, const char* config_path_override) {
         }
     }
 
+    // bgfx owns command buffers targeting the Metal layer. Tear down both possible
+    // 3D presenters before releasing that layer, including when the window closes
+    // while one of the presenters is active.
+    overworld3d_test.shutdownBgfx();
+    attend_test.shutdownBgfx();
+
 #if defined(__APPLE__)
     if (sdl_metal_view) {
         SDL_Metal_DestroyView(sdl_metal_view);

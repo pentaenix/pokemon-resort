@@ -1,5 +1,7 @@
 #include "AttendBgfxRendererInternal.hpp"
 
+#include "gameplay/attend/rendering/AttendPokemonMaterialPolicy.hpp"
+
 namespace pr::gameplay::attend::rendering {
 
 bool AttendBgfxRenderer::Impl::buildStaticGlbMesh(
@@ -31,10 +33,18 @@ bool AttendBgfxRenderer::Impl::buildStaticGlbMesh(
         if (in.has_texture) {
             out.texture = decodeTexture(in.image_bytes, in.name.empty() ? "attend_static_glb" : in.name.c_str());
         }
-        out.blend = in.alpha_mode == pr::gameplay::world3d::data::GlbMaterial::AlphaMode::Blend ||
-                    out.base_color[3] < 0.999f;
-        out.mask_cutout = in.alpha_mode == pr::gameplay::world3d::data::GlbMaterial::AlphaMode::Mask ||
-                          (out.texture.has_zero_alpha && out.base_color[3] >= 0.999f);
+        const bool declared_blend =
+            in.alpha_mode == pr::gameplay::world3d::data::GlbMaterial::AlphaMode::Blend;
+        const bool legacy_binary_cutout = shouldTreatLegacyBinaryAlphaBlendAsMask(
+            declared_blend,
+            out.texture.has_zero_alpha,
+            out.texture.has_partial_alpha,
+            out.base_color[3]);
+        out.mask_cutout =
+            in.alpha_mode == pr::gameplay::world3d::data::GlbMaterial::AlphaMode::Mask ||
+            legacy_binary_cutout ||
+            (out.texture.has_zero_alpha && !declared_blend && out.base_color[3] >= 0.999f);
+        out.blend = !out.mask_cutout && (declared_blend || out.base_color[3] < 0.999f);
         if (out.mask_cutout) {
             out.alpha_cutoff = std::max(out.alpha_cutoff, 0.5f);
         }
@@ -91,13 +101,16 @@ bool AttendBgfxRenderer::Impl::buildAnimatedFloor() {
         std::copy(std::begin(src.base_color), std::end(src.base_color), std::begin(dst.base_color));
         dst.alpha_cutoff = src.alpha_cutoff;
         dst.pokemon_eye = false;
+        dst.texture_mapping = src.texture_mapping;
         dst.sampler_flags = smoothSamplerFlags(src.base_color_sampler.wrap_s, src.base_color_sampler.wrap_t);
         if (src.has_base_color_texture) {
             dst.texture = decodeTexture(
                 src.base_color_bytes,
                 src.name.empty() ? config_.floor.id.c_str() : src.name.c_str());
         }
+        dst.additive = src.render_class == AttendRenderClass::Additive;
         dst.blend = src.render_class == AttendRenderClass::Blend ||
+                    dst.additive ||
                     src.render_class == AttendRenderClass::UniformDecal ||
                     dst.base_color[3] < 0.999f;
         dst.mask_cutout = src.render_class == AttendRenderClass::Mask;

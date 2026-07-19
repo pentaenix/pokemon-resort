@@ -2,6 +2,7 @@
 
 #include "core/app/audio/PokemonCryPlayer.hpp"
 #include "core/config/Json.hpp"
+#include "gameplay/attend/PokemonModelCatalog.hpp"
 
 #include <SDL.h>
 #include <SDL_image.h>
@@ -45,27 +46,6 @@ std::string titleCasePokemonId(std::string value) {
         }
     }
     return value;
-}
-
-std::string pokemonIdFromModelStem(std::string stem) {
-    const std::string lowered = lower(stem);
-    if (lowered.size() > 10 &&
-        lowered.rfind("pm", 0) == 0 &&
-        std::isdigit(static_cast<unsigned char>(lowered[2])) &&
-        std::isdigit(static_cast<unsigned char>(lowered[3])) &&
-        std::isdigit(static_cast<unsigned char>(lowered[4])) &&
-        std::isdigit(static_cast<unsigned char>(lowered[5])) &&
-        lowered[6] == '_') {
-        const std::size_t species_name_sep = lowered.find('_', 7);
-        if (species_name_sep != std::string::npos && species_name_sep + 1 < stem.size()) {
-            stem = stem.substr(species_name_sep + 1);
-        }
-    }
-    stem = lower(stem);
-    for (char& c : stem) {
-        if (c == ' ' || c == '-') c = '_';
-    }
-    return stem;
 }
 
 std::string spriteSlugFromPokemonId(std::string value) {
@@ -425,6 +405,7 @@ void AttendTestScreen::renderPresentationOverlay(SDL_Renderer* renderer) {
         (!scene_config_.ui.weather_button.enabled &&
          !scene_config_.ui.view_button.enabled &&
          !scene_config_.ui.pokemon_button.enabled &&
+         !scene_config_.ui.previous_pokemon_button.enabled &&
          !scene_config_.ui.texture_variant_button.enabled &&
          !scene_config_.ui.form_variant_button.enabled &&
          !scene_config_.ui.sky_button.enabled &&
@@ -550,6 +531,16 @@ bool AttendTestScreen::renderBgfx(
                 overlay_.pokemonButtonLabel(currentPokemonLabel()),
                 scene_config_.ui.pokemon_button});
         }
+        if (scene_config_.ui.previous_pokemon_button.enabled) {
+            const SDL_Rect previous_pokemon = overlay_.previousPokemonButtonRect();
+            buttons.push_back(gameplay::attend::rendering::AttendBgfxOverlayButton{
+                previous_pokemon.x,
+                previous_pokemon.y,
+                previous_pokemon.w,
+                previous_pokemon.h,
+                overlay_.previousPokemonButtonLabel(),
+                scene_config_.ui.previous_pokemon_button});
+        }
         if (scene_config_.ui.texture_variant_button.enabled && bgfx_renderer_->textureVariantCount() > 1) {
             const SDL_Rect variant = overlay_.textureVariantButtonRect();
             buttons.push_back(gameplay::attend::rendering::AttendBgfxOverlayButton{
@@ -623,6 +614,9 @@ bool AttendTestScreen::renderBgfx(
                 : 0,
             scene_config_.ui.pokemon_button.enabled
                 ? overlay_.pokemonButtonRect().y + overlay_.pokemonButtonRect().h
+                : 0,
+            scene_config_.ui.previous_pokemon_button.enabled
+                ? overlay_.previousPokemonButtonRect().y + overlay_.previousPokemonButtonRect().h
                 : 0,
             scene_config_.ui.texture_variant_button.enabled && bgfx_renderer_->textureVariantCount() > 1
                 ? overlay_.textureVariantButtonRect().y + overlay_.textureVariantButtonRect().h
@@ -947,6 +941,18 @@ bool AttendTestScreen::handlePointerPressed(int logical_x, int logical_y) {
         }
         return true;
     }
+    if (pointerOverPreviousPokemonButton(logical_x, logical_y)) {
+        cyclePokemonModel(-1);
+        pointer_pet_active_ = false;
+        pointer_pet_contact_bias_ = 0.0f;
+        pointer_pet_started_seconds_ = -1.0;
+        pointer_over_pokemon_ = false;
+        if (bgfx_renderer_) {
+            bgfx_renderer_->setPetting(false);
+            bgfx_renderer_->setPetContact(0.0f);
+        }
+        return true;
+    }
     if (pointerOverTextureVariantButton(logical_x, logical_y)) {
         cycleTextureVariant();
         pointer_pet_active_ = false;
@@ -1231,6 +1237,14 @@ bool AttendTestScreen::pointerOverPokemonButton(int logical_x, int logical_y) co
     return overlay_.hitPokemonButton(logical_x, logical_y);
 }
 
+bool AttendTestScreen::pointerOverPreviousPokemonButton(int logical_x, int logical_y) const {
+    if (!debug_ui_visible_ || !environmentControlsEnabled() ||
+        !scene_config_.ui.previous_pokemon_button.enabled) {
+        return false;
+    }
+    return overlay_.hitPreviousPokemonButton(logical_x, logical_y);
+}
+
 bool AttendTestScreen::pointerOverTextureVariantButton(int logical_x, int logical_y) const {
     if (!debug_ui_visible_ || !environmentControlsEnabled() || !scene_config_.ui.texture_variant_button.enabled || !bgfx_renderer_) {
         return false;
@@ -1272,6 +1286,7 @@ bool AttendTestScreen::pointerOverOverlayButton(int logical_x, int logical_y) co
     return pointerOverWeatherButton(logical_x, logical_y) ||
            pointerOverViewButton(logical_x, logical_y) ||
            pointerOverPokemonButton(logical_x, logical_y) ||
+           pointerOverPreviousPokemonButton(logical_x, logical_y) ||
            pointerOverTextureVariantButton(logical_x, logical_y) ||
            pointerOverFormVariantButton(logical_x, logical_y) ||
            pointerOverSkyButton(logical_x, logical_y) ||
@@ -1646,12 +1661,15 @@ void AttendTestScreen::toggleViewMode() {
     applyViewMode();
 }
 
-void AttendTestScreen::cyclePokemonModel() {
+void AttendTestScreen::cyclePokemonModel(int offset) {
     if (available_pokemon_.empty()) {
         refreshAvailablePokemonModels();
     }
     if (available_pokemon_.empty()) return;
-    pokemon_index_ = (pokemon_index_ + 1) % static_cast<int>(available_pokemon_.size());
+    pokemon_index_ = gameplay::attend::wrappedPokemonModelCatalogIndex(
+        pokemon_index_,
+        offset,
+        static_cast<int>(available_pokemon_.size()));
     applyPokemonModelByIndex();
     shutdownBgfx();
     bgfx_init_failed_ = false;
@@ -1694,31 +1712,12 @@ void AttendTestScreen::refreshAvailablePokemonModels() {
     available_pokemon_.clear();
     const std::filesystem::path dir =
         std::filesystem::path(project_root_) / "assets" / "pokemon_attend" / "pokemon_models";
-    std::error_code ec;
-    if (!std::filesystem::exists(dir, ec)) return;
-    for (const std::filesystem::directory_entry& entry : std::filesystem::directory_iterator(dir, ec)) {
-        if (ec || !entry.is_regular_file()) continue;
-        const std::filesystem::path extension = entry.path().extension();
-        if (extension != ".glb" && extension != ".glbz") continue;
+    for (const gameplay::attend::PokemonModelCatalogEntry& entry :
+        gameplay::attend::discoverPokemonModels(dir)) {
         available_pokemon_.push_back(PokemonModelOption{
-            pokemonIdFromModelStem(entry.path().stem().string()),
-            entry.path().string()});
+            entry.id,
+            entry.path});
     }
-    std::sort(
-        available_pokemon_.begin(),
-        available_pokemon_.end(),
-        [](const PokemonModelOption& lhs, const PokemonModelOption& rhs) {
-            if (lhs.id != rhs.id) return lhs.id < rhs.id;
-            return lhs.path < rhs.path;
-        });
-    available_pokemon_.erase(
-        std::unique(
-            available_pokemon_.begin(),
-            available_pokemon_.end(),
-            [](const PokemonModelOption& lhs, const PokemonModelOption& rhs) {
-                return lhs.id == rhs.id;
-            }),
-        available_pokemon_.end());
     pokemon_index_ = 0;
     for (std::size_t i = 0; i < available_pokemon_.size(); ++i) {
         if (available_pokemon_[i].id == lower(scene_config_.pokemon.id)) {

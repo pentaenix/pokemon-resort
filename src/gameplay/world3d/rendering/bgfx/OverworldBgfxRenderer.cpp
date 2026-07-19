@@ -20,6 +20,8 @@
 #include <bx/math.h>
 
 #include <algorithm>
+#include <array>
+#include <cctype>
 #include <chrono>
 #include <cmath>
 #include <cstring>
@@ -30,6 +32,7 @@
 #include <optional>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace pr::gameplay::world3d::rendering::bgfx_backend {
 
@@ -147,8 +150,86 @@ MaterialClass materialClassFor(const data::GlbMaterial& material) {
     return MaterialClass::Opaque;
 }
 
-std::uint64_t samplerFlags() {
-    return BGFX_SAMPLER_MIN_POINT | BGFX_SAMPLER_MAG_POINT | BGFX_SAMPLER_MIP_POINT;
+std::uint64_t samplerFlags(
+    const std::string& wrap_s = "repeat",
+    const std::string& wrap_t = "repeat",
+    const std::string& min_filter = "nearest",
+    const std::string& mag_filter = "nearest") {
+    std::uint64_t flags = BGFX_SAMPLER_MIP_POINT;
+    if (min_filter != "linear") flags |= BGFX_SAMPLER_MIN_POINT;
+    if (mag_filter != "linear") flags |= BGFX_SAMPLER_MAG_POINT;
+    if (wrap_s == "clamp") flags |= BGFX_SAMPLER_U_CLAMP;
+    else if (wrap_s == "mirror") flags |= BGFX_SAMPLER_U_MIRROR;
+    if (wrap_t == "clamp") flags |= BGFX_SAMPLER_V_CLAMP;
+    else if (wrap_t == "mirror") flags |= BGFX_SAMPLER_V_MIRROR;
+    return flags;
+}
+
+float wrappedUvLerp(float a, float b, float amount, float period) {
+    float delta = b - a;
+    if (period > 0.0f) delta -= std::round(delta / period) * period;
+    return a + delta * amount;
+}
+
+struct AnimationCursor {
+    int frame = 0;
+    int next_frame = 0;
+    float fraction = 0.0f;
+};
+
+AnimationCursor animationCursor(double raw_sample, int frame_count, bool loop) {
+    frame_count = std::max(1, frame_count);
+    raw_sample = std::max(0.0, raw_sample);
+    const std::int64_t raw_frame = static_cast<std::int64_t>(std::floor(raw_sample));
+    AnimationCursor cursor;
+    cursor.frame = loop
+        ? static_cast<int>(raw_frame % frame_count)
+        : std::min(frame_count - 1, static_cast<int>(raw_frame));
+    cursor.next_frame = loop
+        ? (cursor.frame + 1) % frame_count
+        : std::min(frame_count - 1, cursor.frame + 1);
+    cursor.fraction = static_cast<float>(raw_sample - std::floor(raw_sample));
+    return cursor;
+}
+
+double waveSampleWithWait(
+    double animation_time_ms,
+    double timebase_hz,
+    int frame_count,
+    bool loop,
+    double speed,
+    double wait_seconds) {
+    speed = std::max(0.0, speed);
+    if (speed <= 0.0 || timebase_hz <= 0.0) return 0.0;
+    if (!loop || wait_seconds <= 0.0) {
+        return animation_time_ms * timebase_hz * speed / 1000.0;
+    }
+    const double motion_seconds = static_cast<double>(std::max(1, frame_count)) /
+        (timebase_hz * speed);
+    const double cycle_seconds = motion_seconds + wait_seconds;
+    const double phase_seconds = std::fmod(animation_time_ms / 1000.0, cycle_seconds);
+    if (phase_seconds >= motion_seconds) {
+        return static_cast<double>(std::max(1, frame_count) - 1);
+    }
+    return phase_seconds * timebase_hz * speed;
+}
+
+bool isWaterMaterial(const std::string& name, const std::string& layer_role) {
+    std::string key = name + " " + layer_role;
+    std::transform(key.begin(), key.end(), key.begin(), [](unsigned char ch) {
+        return static_cast<char>(std::tolower(ch));
+    });
+    return key.find("water") != std::string::npos ||
+           key.find("shoreline") != std::string::npos ||
+           key.find("shore") != std::string::npos ||
+           key.find("sea_") != std::string::npos ||
+           key.find("mizu") != std::string::npos ||
+           key.find("kawa") != std::string::npos ||
+           key.find("zanami") != std::string::npos ||
+           key.find("simi") != std::string::npos ||
+           key.find("puddle") != std::string::npos ||
+           key.find("numa") != std::string::npos ||
+           key.find("ike") != std::string::npos;
 }
 
 std::uint64_t stateFor(MaterialClass pass) {
@@ -254,13 +335,34 @@ private:
     };
 
     struct MaterialGpuResource {
+        struct ImageKeyframe {
+            int frame = 0;
+            TextureGpuResource texture;
+        };
+
         TextureGpuResource texture;
         std::vector<TextureGpuResource> animation_frames;
         int animation_frame_time_ms = 0;
+        float animation_timebase_hz = 0.0f;
+        bool animation_step = false;
+        int animation_frame_count = 0;
+        int animation_image_frame_count = 0;
+        bool animation_loop = true;
+        bool water_animation = false;
+        bool shoreline_animation = false;
+        int shoreline_cycle_frame_count = 1;
+        std::vector<std::array<float, 2>> animation_uv_offsets;
+        std::vector<ImageKeyframe> animation_image_keyframes;
+        std::uint64_t sampler_flags = samplerFlags();
+        float uv_wrap_period[2] = {1.0f, 1.0f};
+        bool world_uv = false;
+        float u_per_tile[2] = {0.0f, 0.0f};
+        float v_per_tile[2] = {0.0f, 0.0f};
         MaterialClass material_class = MaterialClass::Opaque;
         float base_color[4] = {1.0f, 1.0f, 1.0f, 1.0f};
         float alpha_cutoff = 0.5f;
         bool depth_prepass = false;
+        int render_order = 0;
     };
 
     struct MaterialRange {
@@ -269,21 +371,26 @@ private:
         int material = -1;
         MaterialClass material_class = MaterialClass::Opaque;
         bool depth_prepass = false;
+        int render_order = 0;
     };
 
     struct MeshGpuResource {
         bgfx::VertexBufferHandle vbh = BGFX_INVALID_HANDLE;
+        bgfx::DynamicVertexBufferHandle dynamic_vbh = BGFX_INVALID_HANDLE;
         bgfx::IndexBufferHandle ibh = BGFX_INVALID_HANDLE;
         std::vector<MaterialRange> ranges;
         std::vector<MaterialGpuResource> materials;
         bool owns_material_textures = true;
         bool destroy();
-        bool valid() const { return bgfx::isValid(vbh) && bgfx::isValid(ibh); }
+        bool valid() const { return (bgfx::isValid(vbh) || bgfx::isValid(dynamic_vbh)) && bgfx::isValid(ibh); }
     };
 
     struct ModelGpuResource {
         MeshGpuResource mesh;
         float model_matrix[16]{};
+        data::GlbMesh animation_mesh;
+        std::vector<data::GlbVertex> source_vertices;
+        std::vector<Vertex> animated_vertices;
     };
 
     struct StaticChunkGpuResource {
@@ -332,6 +439,7 @@ private:
     bgfx::UniformHandle tint_cutoff_uniform_ = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle color_adjust_uniform_ = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle texture_blur_uniform_ = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle uv_offset_uniform_ = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle light_dir_uniform_ = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle light_params_uniform_ = BGFX_INVALID_HANDLE;
     TextureGpuResource white_texture_;
@@ -373,6 +481,7 @@ private:
     bool buildTerrain();
     bool buildTileLayers();
     bool buildModels();
+    void updateModelAnimation(ModelGpuResource& model) const;
     bool buildStaticMapChunks();
     bool buildPlayerTexture();
     bool buildShadowTexture();
@@ -393,7 +502,8 @@ private:
     TextureGpuResource decodeImageBytes(
         const std::vector<std::uint8_t>& bytes,
         const std::string& fallback_path,
-        const char* debug_name) const;
+        const char* debug_name,
+        bool flip_vertically = false) const;
     bool ensurePixelWorldTarget(int width, int height);
     bool ensureTextboxTexture();
     bool ensureTextboxTextTexture(int wrap_width);
@@ -406,7 +516,8 @@ private:
         MaterialClass pass,
         float alpha_cutoff,
         std::uint64_t state,
-        bgfx::ViewId view_id = 0) const;
+        bgfx::ViewId view_id = 0,
+        bool ordered_materials = false) const;
     void submitAlphaDepthPrepass(
         const MeshGpuResource& mesh,
         const float* model_matrix,
@@ -466,6 +577,10 @@ bool OverworldBgfxRenderer::Impl::MeshGpuResource::destroy() {
         bgfx::destroy(vbh);
         vbh = BGFX_INVALID_HANDLE;
     }
+    if (bgfx::isValid(dynamic_vbh)) {
+        bgfx::destroy(dynamic_vbh);
+        dynamic_vbh = BGFX_INVALID_HANDLE;
+    }
     if (bgfx::isValid(ibh)) {
         bgfx::destroy(ibh);
         ibh = BGFX_INVALID_HANDLE;
@@ -475,6 +590,10 @@ bool OverworldBgfxRenderer::Impl::MeshGpuResource::destroy() {
             material.texture.destroy();
             for (TextureGpuResource& frame : material.animation_frames) frame.destroy();
             material.animation_frames.clear();
+            for (MaterialGpuResource::ImageKeyframe& keyframe : material.animation_image_keyframes) {
+                keyframe.texture.destroy();
+            }
+            material.animation_image_keyframes.clear();
         }
     }
     ranges.clear();
@@ -659,6 +778,7 @@ bool OverworldBgfxRenderer::Impl::initialize(
     tint_cutoff_uniform_ = bgfx::createUniform("u_tintCutoff", bgfx::UniformType::Vec4);
     color_adjust_uniform_ = bgfx::createUniform("u_colorAdjust", bgfx::UniformType::Vec4);
     texture_blur_uniform_ = bgfx::createUniform("u_textureBlur", bgfx::UniformType::Vec4);
+    uv_offset_uniform_ = bgfx::createUniform("u_uvOffset", bgfx::UniformType::Vec4);
     light_dir_uniform_ = bgfx::createUniform("u_lightDir", bgfx::UniformType::Vec4);
     light_params_uniform_ = bgfx::createUniform("u_lightParams", bgfx::UniformType::Vec4);
 
@@ -748,6 +868,10 @@ void OverworldBgfxRenderer::Impl::shutdown() {
         bgfx::destroy(texture_blur_uniform_);
         texture_blur_uniform_ = BGFX_INVALID_HANDLE;
     }
+    if (bgfx::isValid(uv_offset_uniform_)) {
+        bgfx::destroy(uv_offset_uniform_);
+        uv_offset_uniform_ = BGFX_INVALID_HANDLE;
+    }
     if (bgfx::isValid(light_dir_uniform_)) {
         bgfx::destroy(light_dir_uniform_);
         light_dir_uniform_ = BGFX_INVALID_HANDLE;
@@ -828,7 +952,8 @@ OverworldBgfxRenderer::Impl::TextureGpuResource OverworldBgfxRenderer::Impl::cre
 OverworldBgfxRenderer::Impl::TextureGpuResource OverworldBgfxRenderer::Impl::decodeImageBytes(
     const std::vector<std::uint8_t>& bytes,
     const std::string& fallback_path,
-    const char* debug_name) const {
+    const char* debug_name,
+    bool flip_vertically) const {
     SDL_Surface* surface = nullptr;
     if (!bytes.empty()) {
         SDL_RWops* rw = SDL_RWFromConstMem(bytes.data(), static_cast<int>(bytes.size()));
@@ -842,11 +967,22 @@ OverworldBgfxRenderer::Impl::TextureGpuResource OverworldBgfxRenderer::Impl::dec
     SDL_Surface* converted = SDL_ConvertSurfaceFormat(surface, SDL_PIXELFORMAT_RGBA32, 0);
     SDL_FreeSurface(surface);
     if (!converted) return {};
-    TextureGpuResource out = createTextureFromRgba(
-        static_cast<const std::uint8_t*>(converted->pixels),
-        converted->w,
-        converted->h,
-        debug_name);
+    const auto* source = static_cast<const std::uint8_t*>(converted->pixels);
+    const std::size_t row_bytes = static_cast<std::size_t>(converted->w) * 4U;
+    std::vector<std::uint8_t> packed;
+    const bool needs_repack = converted->pitch != static_cast<int>(row_bytes) || flip_vertically;
+    if (needs_repack) {
+        packed.resize(row_bytes * static_cast<std::size_t>(converted->h));
+        for (int y = 0; y < converted->h; ++y) {
+            const int source_y = flip_vertically ? converted->h - 1 - y : y;
+            std::memcpy(
+                packed.data() + static_cast<std::size_t>(y) * row_bytes,
+                source + static_cast<std::size_t>(source_y) * static_cast<std::size_t>(converted->pitch),
+                row_bytes);
+        }
+        source = packed.data();
+    }
+    TextureGpuResource out = createTextureFromRgba(source, converted->w, converted->h, debug_name);
     SDL_FreeSurface(converted);
     return out;
 }
@@ -1001,18 +1137,89 @@ bool OverworldBgfxRenderer::Impl::buildTileLayers() {
         MaterialClass material_class = MaterialClass::MaskCutout;
     };
 
+    // A pack can contain thousands of authored materials while a map only uses a
+    // handful of tiles. Uploading the entire pack exhausts bgfx's texture handles
+    // before player/model textures are created, especially when animated materials
+    // contribute several frames each. Resolve the material closure of visible,
+    // placed tiles first and only upload those resources.
+    std::unordered_set<int> used_material_ids;
+    for (const TileLayerConfig& layer : scene_.tile_layers.layers) {
+        if (!layer.visible) continue;
+        for (const auto& row : layer.cells) {
+            for (const int tile_id : row) {
+                if (tile_id < 0) continue;
+                const data::RtpksTileMesh* tile = tile_package_->tileById(tile_id);
+                if (!tile) continue;
+                for (const data::RtpksMaterialRange& range : tile->material_ranges) {
+                    used_material_ids.insert(range.material_id);
+                }
+            }
+        }
+    }
+
     std::unordered_map<int, int> material_slot_by_id;
-    tile_layer_mesh_.materials.reserve(tile_package_->materials.size());
+    tile_layer_mesh_.materials.reserve(used_material_ids.size());
+    int shoreline_cycle_frame_count = 1;
     for (const data::RtpksMaterial& src : tile_package_->materials) {
+        if (used_material_ids.contains(src.material_id) && src.layer_role.rfind("shoreline", 0) == 0) {
+            shoreline_cycle_frame_count = std::max(
+                shoreline_cycle_frame_count,
+                src.animation_frame_count);
+        }
+    }
+    for (const data::RtpksMaterial& src : tile_package_->materials) {
+        if (!used_material_ids.contains(src.material_id)) continue;
         MaterialGpuResource material;
         material.base_color[3] = std::clamp(static_cast<float>(src.alpha) / 31.0f, 0.0f, 1.0f);
         if (!src.image_bytes.empty()) {
-            material.texture = decodeImageBytes(src.image_bytes, "", src.name.empty() ? "rtpks-tile" : src.name.c_str());
+            // Admin's THREE.TextureLoader presents RTPKS PNGs with a vertical
+            // upload flip. Match that texture origin here; flipping UVs instead
+            // would also reverse signed Gen 5 material-motion offsets.
+            material.texture = decodeImageBytes(
+                src.image_bytes,
+                "",
+                src.name.empty() ? "rtpks-tile" : src.name.c_str(),
+                true);
         }
         material.animation_frame_time_ms = src.animation_frame_time_ms;
+        material.animation_timebase_hz = src.animation_timebase_hz;
+        material.animation_step = src.animation_step;
+        material.animation_frame_count = src.animation_frame_count;
+        material.animation_image_frame_count = src.animation_image_frame_count;
+        material.animation_loop = src.animation_loop;
+        material.water_animation = isWaterMaterial(src.name, src.layer_role);
+        material.shoreline_animation = src.layer_role.rfind("shoreline", 0) == 0;
+        material.shoreline_cycle_frame_count = shoreline_cycle_frame_count;
+        material.animation_uv_offsets = src.animation_uv_offsets;
+        material.sampler_flags = samplerFlags(src.wrap_s, src.wrap_t, src.min_filter, src.mag_filter);
+        material.uv_wrap_period[0] = src.wrap_s == "clamp" ? 0.0f : src.wrap_s == "mirror" ? 2.0f : 1.0f;
+        material.uv_wrap_period[1] = src.wrap_t == "clamp" ? 0.0f : src.wrap_t == "mirror" ? 2.0f : 1.0f;
+        material.world_uv = src.world_uv;
+        material.u_per_tile[0] = src.u_per_tile[0];
+        material.u_per_tile[1] = src.u_per_tile[1];
+        material.v_per_tile[0] = src.v_per_tile[0];
+        material.v_per_tile[1] = src.v_per_tile[1];
+        material.render_order = src.render_order;
         for (const std::vector<std::uint8_t>& frame_bytes : src.animation_frame_bytes) {
-            TextureGpuResource frame = decodeImageBytes(frame_bytes, "", src.name.empty() ? "rtpks-animation" : src.name.c_str());
+            TextureGpuResource frame = decodeImageBytes(
+                frame_bytes,
+                "",
+                src.name.empty() ? "rtpks-animation" : src.name.c_str(),
+                true);
             if (frame.valid()) material.animation_frames.push_back(std::move(frame));
+        }
+        for (const data::RtpksMaterialImageKeyframe& src_keyframe : src.animation_image_keyframes) {
+            TextureGpuResource texture = decodeImageBytes(
+                src_keyframe.image_bytes,
+                "",
+                src.name.empty() ? "rtpks-motion-keyframe" : src.name.c_str(),
+                true);
+            if (texture.valid()) {
+                MaterialGpuResource::ImageKeyframe keyframe;
+                keyframe.frame = src_keyframe.frame;
+                keyframe.texture = std::move(texture);
+                material.animation_image_keyframes.push_back(std::move(keyframe));
+            }
         }
         if (material.base_color[3] < 0.999f || material.texture.has_partial_alpha) {
             material.material_class = MaterialClass::TrueBlend;
@@ -1135,7 +1342,7 @@ bool OverworldBgfxRenderer::Impl::buildTileLayers() {
                                    float base_y,
                                    float layer_lift,
                                    bool conform_to_terrain,
-                                   float material_alpha) {
+                                   const MaterialGpuResource& material) {
         const std::size_t pi = vertex_index * 3U;
         const std::size_t ui = vertex_index * 2U;
         const float local_x = read_float(positions, pi + 0U, 0.0f) + mesh.x_offset;
@@ -1154,7 +1361,7 @@ bool OverworldBgfxRenderer::Impl::buildTileLayers() {
         const float y = conform_to_terrain
             ? terrain::heightAtWorldPositionOnTile(scene_, world_x, world_z, sample_tx, sample_ty, true) + local_z * tile_size + layer_lift
             : base_y + local_z * tile_size + layer_lift;
-        std::uint32_t color = vertex_color(colors, pi, material_alpha);
+        std::uint32_t color = vertex_color(colors, pi, material.base_color[3]);
         if (conform_to_terrain) {
             const float u = std::clamp((world_x - static_cast<float>(sample_tx) * tile_size) / tile_size, 0.0f, 1.0f);
             const float v = std::clamp((world_z - static_cast<float>(sample_ty) * tile_size) / tile_size, 0.0f, 1.0f);
@@ -1171,13 +1378,19 @@ bool OverworldBgfxRenderer::Impl::buildTileLayers() {
                 }
             }
         }
+        const float source_u = read_float(uvs, ui + 0U, 0.0f) + (material.world_uv
+            ? static_cast<float>(tile_x) * material.u_per_tile[0] + static_cast<float>(tile_y) * material.u_per_tile[1]
+            : 0.0f);
+        const float source_v = read_float(uvs, ui + 1U, 0.0f) + (material.world_uv
+            ? static_cast<float>(tile_x) * material.v_per_tile[0] + static_cast<float>(tile_y) * material.v_per_tile[1]
+            : 0.0f);
         bucket.vertices.push_back(Vertex{
             world_x,
             y,
             world_z,
             color,
-            read_float(uvs, ui + 0U, 0.0f),
-            1.0f - read_float(uvs, ui + 1U, 0.0f)});
+            source_u,
+            source_v});
     };
     const auto append_tri = [&](Bucket& bucket,
                                 const data::RtpksTileMesh& mesh,
@@ -1187,12 +1400,12 @@ bool OverworldBgfxRenderer::Impl::buildTileLayers() {
                                 float base_y,
                                 float layer_lift,
                                 bool conform_to_terrain,
-                                float material_alpha) {
+                                const MaterialGpuResource& material) {
         const std::uint32_t base = static_cast<std::uint32_t>(bucket.vertices.size());
         const std::size_t first = static_cast<std::size_t>(std::max(0, tri_index)) * 3U;
-        append_vertex(bucket, mesh, mesh.triangles, mesh.tex_coords_tri, mesh.colors_tri, first + 0U, tile_x, tile_y, base_y, layer_lift, conform_to_terrain, material_alpha);
-        append_vertex(bucket, mesh, mesh.triangles, mesh.tex_coords_tri, mesh.colors_tri, first + 1U, tile_x, tile_y, base_y, layer_lift, conform_to_terrain, material_alpha);
-        append_vertex(bucket, mesh, mesh.triangles, mesh.tex_coords_tri, mesh.colors_tri, first + 2U, tile_x, tile_y, base_y, layer_lift, conform_to_terrain, material_alpha);
+        append_vertex(bucket, mesh, mesh.triangles, mesh.tex_coords_tri, mesh.colors_tri, first + 0U, tile_x, tile_y, base_y, layer_lift, conform_to_terrain, material);
+        append_vertex(bucket, mesh, mesh.triangles, mesh.tex_coords_tri, mesh.colors_tri, first + 1U, tile_x, tile_y, base_y, layer_lift, conform_to_terrain, material);
+        append_vertex(bucket, mesh, mesh.triangles, mesh.tex_coords_tri, mesh.colors_tri, first + 2U, tile_x, tile_y, base_y, layer_lift, conform_to_terrain, material);
         bucket.indices.insert(bucket.indices.end(), {base, base + 1U, base + 2U});
     };
     const auto append_quad = [&](Bucket& bucket,
@@ -1203,15 +1416,41 @@ bool OverworldBgfxRenderer::Impl::buildTileLayers() {
                                  float base_y,
                                  float layer_lift,
                                  bool conform_to_terrain,
-                                 float material_alpha) {
+                                 const MaterialGpuResource& material) {
         const std::uint32_t base = static_cast<std::uint32_t>(bucket.vertices.size());
         const std::size_t first = static_cast<std::size_t>(std::max(0, quad_index)) * 4U;
-        append_vertex(bucket, mesh, mesh.quads, mesh.tex_coords_quad, mesh.colors_quad, first + 0U, tile_x, tile_y, base_y, layer_lift, conform_to_terrain, material_alpha);
-        append_vertex(bucket, mesh, mesh.quads, mesh.tex_coords_quad, mesh.colors_quad, first + 1U, tile_x, tile_y, base_y, layer_lift, conform_to_terrain, material_alpha);
-        append_vertex(bucket, mesh, mesh.quads, mesh.tex_coords_quad, mesh.colors_quad, first + 2U, tile_x, tile_y, base_y, layer_lift, conform_to_terrain, material_alpha);
-        append_vertex(bucket, mesh, mesh.quads, mesh.tex_coords_quad, mesh.colors_quad, first + 3U, tile_x, tile_y, base_y, layer_lift, conform_to_terrain, material_alpha);
+        append_vertex(bucket, mesh, mesh.quads, mesh.tex_coords_quad, mesh.colors_quad, first + 0U, tile_x, tile_y, base_y, layer_lift, conform_to_terrain, material);
+        append_vertex(bucket, mesh, mesh.quads, mesh.tex_coords_quad, mesh.colors_quad, first + 1U, tile_x, tile_y, base_y, layer_lift, conform_to_terrain, material);
+        append_vertex(bucket, mesh, mesh.quads, mesh.tex_coords_quad, mesh.colors_quad, first + 2U, tile_x, tile_y, base_y, layer_lift, conform_to_terrain, material);
+        append_vertex(bucket, mesh, mesh.quads, mesh.tex_coords_quad, mesh.colors_quad, first + 3U, tile_x, tile_y, base_y, layer_lift, conform_to_terrain, material);
         bucket.indices.insert(bucket.indices.end(), {base, base + 1U, base + 2U, base, base + 2U, base + 3U});
     };
+    const auto append_tile = [&](int tile_id, int x, int y, std::size_t layer_index) -> bool {
+        if (tile_id < 0) return false;
+        const data::RtpksTileMesh* mesh = tile_package_->tileById(tile_id);
+        if (!mesh) return false;
+        float corners[4]{};
+        terrain::fillTileCornerHeights(scene_, x, y, corners);
+        const float floor_base_y = std::min(std::min(corners[0], corners[1]), std::min(corners[2], corners[3]));
+        const bool conform_to_terrain = mesh_vertical_range(*mesh) <= 0.02f;
+        const float base_y = conform_to_terrain ? 0.0f : floor_base_y;
+        const float layer_lift = static_cast<float>(layer_index) * kLayerLift;
+        for (const data::RtpksMaterialRange& range : mesh->material_ranges) {
+            const auto slot_it = material_slot_by_id.find(range.material_id);
+            const int slot = slot_it == material_slot_by_id.end() ? 0 : slot_it->second;
+            Bucket& bucket = buckets[static_cast<std::size_t>(std::clamp(slot, 0, static_cast<int>(buckets.size()) - 1))];
+            const std::size_t material_index = static_cast<std::size_t>(std::clamp(slot, 0, static_cast<int>(tile_layer_mesh_.materials.size()) - 1));
+            const MaterialGpuResource& material = tile_layer_mesh_.materials[material_index];
+            for (int i = 0; i < range.tri_count; ++i) {
+                append_tri(bucket, *mesh, range.tri_start + i, x, y, base_y, layer_lift, conform_to_terrain, material);
+            }
+            for (int i = 0; i < range.quad_count; ++i) {
+                append_quad(bucket, *mesh, range.quad_start + i, x, y, base_y, layer_lift, conform_to_terrain, material);
+            }
+        }
+        return true;
+    };
+
     int placed_tiles = 0;
     for (std::size_t layer_index = 0; layer_index < scene_.tile_layers.layers.size(); ++layer_index) {
         const TileLayerConfig& layer = scene_.tile_layers.layers[layer_index];
@@ -1219,32 +1458,7 @@ bool OverworldBgfxRenderer::Impl::buildTileLayers() {
         for (int y = 0; y < static_cast<int>(layer.cells.size()); ++y) {
             const auto& row = layer.cells[static_cast<std::size_t>(y)];
             for (int x = 0; x < static_cast<int>(row.size()); ++x) {
-                const int tile_id = row[static_cast<std::size_t>(x)];
-                if (tile_id < 0) continue;
-                const data::RtpksTileMesh* mesh = tile_package_->tileById(tile_id);
-                if (!mesh) continue;
-                float corners[4]{};
-                terrain::fillTileCornerHeights(scene_, x, y, corners);
-                const float floor_base_y = std::min(std::min(corners[0], corners[1]), std::min(corners[2], corners[3]));
-                const bool conform_to_terrain = mesh_vertical_range(*mesh) <= 0.02f;
-                const float base_y = conform_to_terrain ? 0.0f : floor_base_y;
-                const float layer_lift = static_cast<float>(layer_index) * kLayerLift;
-                for (const data::RtpksMaterialRange& range : mesh->material_ranges) {
-                    const auto slot_it = material_slot_by_id.find(range.material_id);
-                    const int slot = slot_it == material_slot_by_id.end() ? 0 : slot_it->second;
-                    Bucket& bucket = buckets[static_cast<std::size_t>(std::clamp(slot, 0, static_cast<int>(buckets.size()) - 1))];
-                    const std::size_t material_index = static_cast<std::size_t>(std::clamp(slot, 0, static_cast<int>(tile_layer_mesh_.materials.size()) - 1));
-                    const MaterialGpuResource& material = tile_layer_mesh_.materials[material_index];
-                    for (int i = 0; i < range.tri_count; ++i) {
-                        const int tri_index = range.tri_start + i;
-                        append_tri(bucket, *mesh, tri_index, x, y, base_y, layer_lift, conform_to_terrain, material.base_color[3]);
-                    }
-                    for (int i = 0; i < range.quad_count; ++i) {
-                        const int quad_index = range.quad_start + i;
-                        append_quad(bucket, *mesh, quad_index, x, y, base_y, layer_lift, conform_to_terrain, material.base_color[3]);
-                    }
-                }
-                ++placed_tiles;
+                if (append_tile(row[static_cast<std::size_t>(x)], x, y, layer_index)) ++placed_tiles;
             }
         }
     }
@@ -1265,8 +1479,15 @@ bool OverworldBgfxRenderer::Impl::buildTileLayers() {
             static_cast<std::uint32_t>(bucket.indices.size()),
             static_cast<int>(material_index),
             bucket.material_class,
-            tile_layer_mesh_.materials[material_index].depth_prepass});
+            tile_layer_mesh_.materials[material_index].depth_prepass,
+            tile_layer_mesh_.materials[material_index].render_order});
     }
+    std::stable_sort(
+        tile_layer_mesh_.ranges.begin(),
+        tile_layer_mesh_.ranges.end(),
+        [](const MaterialRange& lhs, const MaterialRange& rhs) {
+            return lhs.render_order < rhs.render_order;
+        });
 
     if (!vertices.empty() && !indices.empty()) {
         const bgfx::Memory* vb_mem = bgfx::copy(vertices.data(), static_cast<std::uint32_t>(vertices.size() * sizeof(Vertex)));
@@ -1482,8 +1703,10 @@ bool OverworldBgfxRenderer::Impl::buildModels() {
 
         std::vector<Vertex> vertices;
         std::vector<std::uint32_t> indices;
+        std::vector<data::GlbVertex> source_vertices;
         vertices.reserve(glb.triangles.size() * 3);
         indices.reserve(glb.triangles.size() * 3);
+        if (!glb.animations.empty()) source_vertices.reserve(glb.triangles.size() * 3);
 
         for (std::size_t mat_index = 0; mat_index < glb.materials.size(); ++mat_index) {
             const std::uint32_t vertex_color = packAbgr(1.0f, 1.0f, 1.0f, glb.materials[mat_index].base_color[3]);
@@ -1494,6 +1717,9 @@ bool OverworldBgfxRenderer::Impl::buildModels() {
                 vertices.push_back(Vertex{tri.a.x, tri.a.y, tri.a.z, vertex_color, tri.a.u, tri.a.v});
                 vertices.push_back(Vertex{tri.b.x, tri.b.y, tri.b.z, vertex_color, tri.b.u, tri.b.v});
                 vertices.push_back(Vertex{tri.c.x, tri.c.y, tri.c.z, vertex_color, tri.c.u, tri.c.v});
+                if (!glb.animations.empty()) {
+                    source_vertices.insert(source_vertices.end(), {tri.a, tri.b, tri.c});
+                }
                 indices.insert(indices.end(), {base, base + 1, base + 2});
             }
             const std::uint32_t count = static_cast<std::uint32_t>(indices.size()) - range_start;
@@ -1508,9 +1734,23 @@ bool OverworldBgfxRenderer::Impl::buildModels() {
 
         if (vertices.empty() || indices.empty()) continue;
 
-        const bgfx::Memory* vb_mem = bgfx::copy(vertices.data(), static_cast<std::uint32_t>(vertices.size() * sizeof(Vertex)));
         const bgfx::Memory* ib_mem = bgfx::copy(indices.data(), static_cast<std::uint32_t>(indices.size() * sizeof(std::uint32_t)));
-        model.mesh.vbh = bgfx::createVertexBuffer(vb_mem, layout_);
+        if (glb.animations.empty()) {
+            const bgfx::Memory* vb_mem = bgfx::copy(vertices.data(), static_cast<std::uint32_t>(vertices.size() * sizeof(Vertex)));
+            model.mesh.vbh = bgfx::createVertexBuffer(vb_mem, layout_);
+        } else {
+            model.mesh.dynamic_vbh = bgfx::createDynamicVertexBuffer(
+                static_cast<std::uint32_t>(vertices.size()), layout_);
+            if (bgfx::isValid(model.mesh.dynamic_vbh)) {
+                bgfx::update(model.mesh.dynamic_vbh, 0, bgfx::copy(
+                    vertices.data(), static_cast<std::uint32_t>(vertices.size() * sizeof(Vertex))));
+            }
+            glb.triangles.clear();
+            glb.materials.clear();
+            model.animation_mesh = std::move(glb);
+            model.source_vertices = std::move(source_vertices);
+            model.animated_vertices = std::move(vertices);
+        }
         model.mesh.ibh = bgfx::createIndexBuffer(ib_mem, BGFX_BUFFER_INDEX32);
 
         if (model.mesh.valid()) {
@@ -1522,6 +1762,25 @@ bool OverworldBgfxRenderer::Impl::buildModels() {
         }
     }
     return true;
+}
+
+void OverworldBgfxRenderer::Impl::updateModelAnimation(ModelGpuResource& model) const {
+    if (!bgfx::isValid(model.mesh.dynamic_vbh) || model.source_vertices.empty()) return;
+    const double time_seconds = std::chrono::duration<double>(
+        std::chrono::steady_clock::now().time_since_epoch()).count() *
+        static_cast<double>(scene_.environment_animation_speed);
+    const std::vector<std::vector<float>> weights =
+        data::sampleGlbMorphWeights(model.animation_mesh, time_seconds);
+    if (weights.empty()) return;
+    for (std::size_t i = 0; i < model.source_vertices.size(); ++i) {
+        const std::array<float, 3> position = data::sampleGlbMorphPosition(model.source_vertices[i], weights);
+        model.animated_vertices[i].x = position[0];
+        model.animated_vertices[i].y = position[1];
+        model.animated_vertices[i].z = position[2];
+    }
+    bgfx::update(model.mesh.dynamic_vbh, 0, bgfx::copy(
+        model.animated_vertices.data(),
+        static_cast<std::uint32_t>(model.animated_vertices.size() * sizeof(Vertex))));
 }
 
 bool OverworldBgfxRenderer::Impl::buildStaticMapChunks() {
@@ -1717,20 +1976,87 @@ void OverworldBgfxRenderer::Impl::submitMesh(
     MaterialClass pass,
     float,
     std::uint64_t state,
-    bgfx::ViewId view_id) const {
+    bgfx::ViewId view_id,
+    bool ordered_materials) const {
     if (!mesh.valid()) return;
     for (const MaterialRange& range : mesh.ranges) {
-        if (range.material_class != pass || range.index_count == 0) continue;
+        if (range.index_count == 0) continue;
+        if (ordered_materials) {
+            if (range.render_order <= 0) continue;
+        } else if (range.render_order > 0 || range.material_class != pass) {
+            continue;
+        }
+        const MaterialClass effective_pass = ordered_materials ? range.material_class : pass;
         const MaterialGpuResource* material = nullptr;
         if (range.material >= 0 && range.material < static_cast<int>(mesh.materials.size())) {
             material = &mesh.materials[static_cast<std::size_t>(range.material)];
         }
         const TextureGpuResource* selected_texture = material && material->texture.valid() ? &material->texture : &white_texture_;
+        float uv_offset[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+        const auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()).count();
+        const double animation_time_ms = static_cast<double>(now_ms) *
+            static_cast<double>(scene_.environment_animation_speed);
         if (material && !material->animation_frames.empty() && material->animation_frame_time_ms > 0) {
-            const auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-                std::chrono::steady_clock::now().time_since_epoch()).count();
-            const std::size_t frame_index = static_cast<std::size_t>(now_ms / material->animation_frame_time_ms) % material->animation_frames.size();
+            const std::size_t frame_index = static_cast<std::size_t>(
+                animation_time_ms / static_cast<double>(material->animation_frame_time_ms)) %
+                material->animation_frames.size();
             if (material->animation_frames[frame_index].valid()) selected_texture = &material->animation_frames[frame_index];
+        }
+        if (material && material->animation_frame_time_ms > 0 && material->animation_frame_count > 0) {
+            const double timebase_hz = material->animation_timebase_hz > 0.0f
+                ? static_cast<double>(material->animation_timebase_hz)
+                : 1000.0 / static_cast<double>(material->animation_frame_time_ms);
+            const double scroll_speed = material->water_animation
+                ? static_cast<double>(scene_.water_scroll_speed)
+                : 1.0;
+            const double scroll_raw_sample = animation_time_ms * timebase_hz * scroll_speed / 1000.0;
+            const double wave_raw_sample = material->shoreline_animation
+                ? waveSampleWithWait(
+                    animation_time_ms,
+                    timebase_hz,
+                    material->shoreline_cycle_frame_count,
+                    material->animation_loop,
+                    static_cast<double>(scene_.water_wave_speed),
+                    static_cast<double>(scene_.water_wave_wait_seconds))
+                : scroll_raw_sample;
+            const AnimationCursor scroll_cursor = animationCursor(
+                scroll_raw_sample, material->animation_frame_count, material->animation_loop);
+            const AnimationCursor wave_cursor = animationCursor(
+                wave_raw_sample, material->animation_frame_count, material->animation_loop);
+            if (!material->animation_uv_offsets.empty()) {
+                const auto& scroll_offset = material->animation_uv_offsets[
+                    static_cast<std::size_t>(scroll_cursor.frame) % material->animation_uv_offsets.size()];
+                const auto& next_scroll_offset = material->animation_uv_offsets[
+                    static_cast<std::size_t>(scroll_cursor.next_frame) % material->animation_uv_offsets.size()];
+                const auto& wave_offset = material->animation_uv_offsets[
+                    static_cast<std::size_t>(wave_cursor.frame) % material->animation_uv_offsets.size()];
+                const auto& next_wave_offset = material->animation_uv_offsets[
+                    static_cast<std::size_t>(wave_cursor.next_frame) % material->animation_uv_offsets.size()];
+                const bool smooth_uv = !material->animation_step ||
+                    (material->water_animation && scene_.water_smooth_uv_motion);
+                const float scroll_amount = smooth_uv ? scroll_cursor.fraction : 0.0f;
+                const float wave_amount = smooth_uv ? wave_cursor.fraction : 0.0f;
+                // Nitro material motion translates the texture matrix; the
+                // resulting visual scroll samples in the opposite direction.
+                // Apply the inverse on both axes instead of treating the
+                // exported matrix translation as a direct shader UV offset.
+                uv_offset[0] = -wrappedUvLerp(
+                    scroll_offset[0], next_scroll_offset[0], scroll_amount, material->uv_wrap_period[0]);
+                uv_offset[1] = -wrappedUvLerp(
+                    wave_offset[1], next_wave_offset[1], wave_amount, material->uv_wrap_period[1]);
+            }
+            if (!material->animation_image_keyframes.empty()) {
+                const int image_frame_count = std::max(1, material->animation_image_frame_count);
+                const int image_frame = wave_cursor.frame % image_frame_count;
+                const MaterialGpuResource::ImageKeyframe* selected_keyframe =
+                    &material->animation_image_keyframes.front();
+                for (const MaterialGpuResource::ImageKeyframe& keyframe : material->animation_image_keyframes) {
+                    if (keyframe.frame > image_frame) break;
+                    selected_keyframe = &keyframe;
+                }
+                if (selected_keyframe->texture.valid()) selected_texture = &selected_keyframe->texture;
+            }
         }
         const TextureGpuResource& texture = *selected_texture;
         const float br = std::max(0.0f, scene_.lighting_brightness);
@@ -1738,28 +2064,30 @@ void OverworldBgfxRenderer::Impl::submitMesh(
             scene_.lighting_tint_r * br,
             scene_.lighting_tint_g * br,
             scene_.lighting_tint_b * br,
-            pass == MaterialClass::Opaque ? 0.0f : 0.5f,
+            effective_pass == MaterialClass::Opaque ? 0.0f : 0.5f,
         };
         if (material) {
             tint[0] *= material->base_color[0];
             tint[1] *= material->base_color[1];
             tint[2] *= material->base_color[2];
-            tint[3] = pass == MaterialClass::Opaque ? 0.0f : material->alpha_cutoff;
+            tint[3] = effective_pass == MaterialClass::Opaque ? 0.0f : material->alpha_cutoff;
         }
         const float adjust[4] = {1.0f, 1.0f, 1.0f, 0.0f};
         const float texture_blur[4] = {0.0f, 0.0f, 0.0f, 0.0f};
         const float light_dir[4] = {0.0f, 1.0f, 0.0f, 0.0f};
         const float light_params[4] = {1.0f, 0.0f, 0.0f, 0.0f};
         bgfx::setTransform(model_matrix);
-        bgfx::setVertexBuffer(0, mesh.vbh);
+        if (bgfx::isValid(mesh.dynamic_vbh)) bgfx::setVertexBuffer(0, mesh.dynamic_vbh);
+        else bgfx::setVertexBuffer(0, mesh.vbh);
         bgfx::setIndexBuffer(mesh.ibh, range.start_index, range.index_count);
-        bgfx::setTexture(0, tex_uniform_, texture.handle, samplerFlags());
+        bgfx::setTexture(0, tex_uniform_, texture.handle, material ? material->sampler_flags : samplerFlags());
         bgfx::setUniform(tint_cutoff_uniform_, tint);
         bgfx::setUniform(color_adjust_uniform_, adjust);
         bgfx::setUniform(texture_blur_uniform_, texture_blur);
+        bgfx::setUniform(uv_offset_uniform_, uv_offset);
         bgfx::setUniform(light_dir_uniform_, light_dir);
         bgfx::setUniform(light_params_uniform_, light_params);
-        bgfx::setState(state);
+        bgfx::setState(ordered_materials ? stateFor(effective_pass) : state);
         bgfx::submit(view_id, program);
     }
 }
@@ -1778,11 +2106,67 @@ void OverworldBgfxRenderer::Impl::submitAlphaDepthPrepass(
             material = &mesh.materials[static_cast<std::size_t>(range.material)];
         }
         const TextureGpuResource* selected_texture = material && material->texture.valid() ? &material->texture : &white_texture_;
+        float uv_offset[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+        const auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()).count();
+        const double animation_time_ms = static_cast<double>(now_ms) *
+            static_cast<double>(scene_.environment_animation_speed);
         if (material && !material->animation_frames.empty() && material->animation_frame_time_ms > 0) {
-            const auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-                std::chrono::steady_clock::now().time_since_epoch()).count();
-            const std::size_t frame_index = static_cast<std::size_t>(now_ms / material->animation_frame_time_ms) % material->animation_frames.size();
+            const std::size_t frame_index = static_cast<std::size_t>(
+                animation_time_ms / static_cast<double>(material->animation_frame_time_ms)) %
+                material->animation_frames.size();
             if (material->animation_frames[frame_index].valid()) selected_texture = &material->animation_frames[frame_index];
+        }
+        if (material && material->animation_frame_time_ms > 0 && material->animation_frame_count > 0) {
+            const double timebase_hz = material->animation_timebase_hz > 0.0f
+                ? static_cast<double>(material->animation_timebase_hz)
+                : 1000.0 / static_cast<double>(material->animation_frame_time_ms);
+            const double scroll_speed = material->water_animation
+                ? static_cast<double>(scene_.water_scroll_speed)
+                : 1.0;
+            const double scroll_raw_sample = animation_time_ms * timebase_hz * scroll_speed / 1000.0;
+            const double wave_raw_sample = material->shoreline_animation
+                ? waveSampleWithWait(
+                    animation_time_ms,
+                    timebase_hz,
+                    material->shoreline_cycle_frame_count,
+                    material->animation_loop,
+                    static_cast<double>(scene_.water_wave_speed),
+                    static_cast<double>(scene_.water_wave_wait_seconds))
+                : scroll_raw_sample;
+            const AnimationCursor scroll_cursor = animationCursor(
+                scroll_raw_sample, material->animation_frame_count, material->animation_loop);
+            const AnimationCursor wave_cursor = animationCursor(
+                wave_raw_sample, material->animation_frame_count, material->animation_loop);
+            if (!material->animation_uv_offsets.empty()) {
+                const auto& scroll_offset = material->animation_uv_offsets[
+                    static_cast<std::size_t>(scroll_cursor.frame) % material->animation_uv_offsets.size()];
+                const auto& next_scroll_offset = material->animation_uv_offsets[
+                    static_cast<std::size_t>(scroll_cursor.next_frame) % material->animation_uv_offsets.size()];
+                const auto& wave_offset = material->animation_uv_offsets[
+                    static_cast<std::size_t>(wave_cursor.frame) % material->animation_uv_offsets.size()];
+                const auto& next_wave_offset = material->animation_uv_offsets[
+                    static_cast<std::size_t>(wave_cursor.next_frame) % material->animation_uv_offsets.size()];
+                const bool smooth_uv = !material->animation_step ||
+                    (material->water_animation && scene_.water_smooth_uv_motion);
+                const float scroll_amount = smooth_uv ? scroll_cursor.fraction : 0.0f;
+                const float wave_amount = smooth_uv ? wave_cursor.fraction : 0.0f;
+                uv_offset[0] = -wrappedUvLerp(
+                    scroll_offset[0], next_scroll_offset[0], scroll_amount, material->uv_wrap_period[0]);
+                uv_offset[1] = -wrappedUvLerp(
+                    wave_offset[1], next_wave_offset[1], wave_amount, material->uv_wrap_period[1]);
+            }
+            if (!material->animation_image_keyframes.empty()) {
+                const int image_frame_count = std::max(1, material->animation_image_frame_count);
+                const int image_frame = wave_cursor.frame % image_frame_count;
+                const MaterialGpuResource::ImageKeyframe* selected_keyframe =
+                    &material->animation_image_keyframes.front();
+                for (const MaterialGpuResource::ImageKeyframe& keyframe : material->animation_image_keyframes) {
+                    if (keyframe.frame > image_frame) break;
+                    selected_keyframe = &keyframe;
+                }
+                if (selected_keyframe->texture.valid()) selected_texture = &selected_keyframe->texture;
+            }
         }
         const TextureGpuResource& texture = *selected_texture;
         const float cutoff = material
@@ -1794,12 +2178,14 @@ void OverworldBgfxRenderer::Impl::submitAlphaDepthPrepass(
         const float light_dir[4] = {0.0f, 1.0f, 0.0f, 0.0f};
         const float light_params[4] = {1.0f, 0.0f, 0.0f, 0.0f};
         bgfx::setTransform(model_matrix);
-        bgfx::setVertexBuffer(0, mesh.vbh);
+        if (bgfx::isValid(mesh.dynamic_vbh)) bgfx::setVertexBuffer(0, mesh.dynamic_vbh);
+        else bgfx::setVertexBuffer(0, mesh.vbh);
         bgfx::setIndexBuffer(mesh.ibh, range.start_index, range.index_count);
-        bgfx::setTexture(0, tex_uniform_, texture.handle, samplerFlags());
+        bgfx::setTexture(0, tex_uniform_, texture.handle, material ? material->sampler_flags : samplerFlags());
         bgfx::setUniform(tint_cutoff_uniform_, tint);
         bgfx::setUniform(color_adjust_uniform_, adjust);
         bgfx::setUniform(texture_blur_uniform_, texture_blur);
+        bgfx::setUniform(uv_offset_uniform_, uv_offset);
         bgfx::setUniform(light_dir_uniform_, light_dir);
         bgfx::setUniform(light_params_uniform_, light_params);
         bgfx::setState(stateForDepthOnly());
@@ -1889,6 +2275,7 @@ void OverworldBgfxRenderer::Impl::submitPixelWorldToBackbuffer(
     bgfx::setUniform(tint_cutoff_uniform_, tint);
     bgfx::setUniform(color_adjust_uniform_, adjust);
     bgfx::setUniform(texture_blur_uniform_, texture_blur);
+    bgfx::setUniform(uv_offset_uniform_, texture_blur);
     bgfx::setUniform(light_dir_uniform_, light_dir);
     bgfx::setUniform(light_params_uniform_, light_params);
     bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A);
@@ -1947,6 +2334,7 @@ void OverworldBgfxRenderer::Impl::submitOverlaySlice(
     bgfx::setUniform(tint_cutoff_uniform_, tint);
     bgfx::setUniform(color_adjust_uniform_, adjust);
     bgfx::setUniform(texture_blur_uniform_, texture_blur);
+    bgfx::setUniform(uv_offset_uniform_, texture_blur);
     bgfx::setUniform(light_dir_uniform_, light_dir);
     bgfx::setUniform(light_params_uniform_, light_params);
     bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_BLEND_ALPHA);
@@ -2108,7 +2496,8 @@ void OverworldBgfxRenderer::Impl::submitBlackIrisTransition(
     bgfx::setTexture(0, tex_uniform_, white_texture_.handle, samplerFlags());
     const float tint[4]={1,1,1,0}, adjust[4]={1,1,1,0}, zero[4]={0,0,0,0}, light[4]={0,1,0,0}, params[4]={1,0,0,0};
     bgfx::setUniform(tint_cutoff_uniform_, tint); bgfx::setUniform(color_adjust_uniform_, adjust);
-    bgfx::setUniform(texture_blur_uniform_, zero); bgfx::setUniform(light_dir_uniform_, light); bgfx::setUniform(light_params_uniform_, params);
+    bgfx::setUniform(texture_blur_uniform_, zero); bgfx::setUniform(uv_offset_uniform_, zero);
+    bgfx::setUniform(light_dir_uniform_, light); bgfx::setUniform(light_params_uniform_, params);
     bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A); bgfx::submit(view_id, world_program_);
 }
 
@@ -2311,6 +2700,7 @@ void OverworldBgfxRenderer::Impl::submitProjectedCharacterShadows(
         bgfx::setUniform(tint_cutoff_uniform_, tint);
         bgfx::setUniform(color_adjust_uniform_, adjust);
         bgfx::setUniform(texture_blur_uniform_, texture_blur);
+        bgfx::setUniform(uv_offset_uniform_, texture_blur);
         bgfx::setUniform(light_dir_uniform_, light_dir);
         bgfx::setUniform(light_params_uniform_, light_params);
         bgfx::setStencil(shadowStencilTestOnly());
@@ -2324,6 +2714,7 @@ void OverworldBgfxRenderer::Impl::submitProjectedCharacterShadows(
         bgfx::setUniform(tint_cutoff_uniform_, tint);
         bgfx::setUniform(color_adjust_uniform_, adjust);
         bgfx::setUniform(texture_blur_uniform_, texture_blur);
+        bgfx::setUniform(uv_offset_uniform_, texture_blur);
         bgfx::setUniform(light_dir_uniform_, light_dir);
         bgfx::setUniform(light_params_uniform_, light_params);
         bgfx::setStencil(shadowStencilMark());
@@ -2348,6 +2739,7 @@ void OverworldBgfxRenderer::Impl::refreshBillboardDrawer() {
     deps.tint_cutoff_uniform = tint_cutoff_uniform_;
     deps.color_adjust_uniform = color_adjust_uniform_;
     deps.texture_blur_uniform = texture_blur_uniform_;
+    deps.uv_offset_uniform = uv_offset_uniform_;
     deps.light_dir_uniform = light_dir_uniform_;
     deps.light_params_uniform = light_params_uniform_;
     deps.view_id = 1;
@@ -2453,6 +2845,10 @@ void OverworldBgfxRenderer::Impl::render(
 
     float ident[16];
     identity(ident);
+    for (ModelGpuResource& model : models_) updateModelAnimation(model);
+    for (StaticChunkGpuResource& chunk : static_chunks_) {
+        for (ModelGpuResource& model : chunk.models) updateModelAnimation(model);
+    }
     submitMesh(terrain_flat_top_mesh_, ident, world_program_, MaterialClass::Opaque, 0.0f, stateFor(MaterialClass::Opaque));
     submitMesh(terrain_slope_top_mesh_, ident, world_program_, MaterialClass::Opaque, 0.0f, stateFor(MaterialClass::Opaque));
     submitMesh(terrain_wall_mesh_, ident, world_program_, MaterialClass::Opaque, 0.0f, stateFor(MaterialClass::Opaque));
@@ -2478,6 +2874,19 @@ void OverworldBgfxRenderer::Impl::render(
         for (const ModelGpuResource& model : chunk.models) {
             submitMesh(model.mesh, model.model_matrix, world_program_, MaterialClass::MaskCutout, 0.5f, stateFor(MaterialClass::MaskCutout));
         }
+    }
+
+    // RAE material-motion tiles may carry a source display-list order that
+    // crosses opaque/cutout/blend classes (notably Gen 5 shoreline layers).
+    // Submit those ranges once, in their stable renderOrder, on the sequential
+    // overlay view instead of regrouping them by alpha class.
+    submitMesh(
+        tile_layer_mesh_, ident, world_program_, MaterialClass::Opaque, 0.0f,
+        stateFor(MaterialClass::Opaque), 1, true);
+    for (const StaticChunkGpuResource& chunk : static_chunks_) {
+        submitMesh(
+            chunk.tile_layer_mesh, chunk.world_matrix, world_program_, MaterialClass::Opaque, 0.0f,
+            stateFor(MaterialClass::Opaque), 1, true);
     }
 
     // Ground overlays must be part of the floor before character shadows are composited.

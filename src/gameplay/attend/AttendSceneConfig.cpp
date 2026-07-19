@@ -1,6 +1,7 @@
 #include "gameplay/attend/AttendSceneConfig.hpp"
 
 #include "core/config/Json.hpp"
+#include "gameplay/attend/PokemonModelCatalog.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -73,38 +74,14 @@ std::string normalizeSpeciesId(std::string text) {
     return text;
 }
 
-std::string pokemonIdFromModelStem(std::string stem) {
-    const std::string lowered = normalizeSpeciesId(stem);
-    if (lowered.size() > 10 &&
-        lowered.rfind("pm", 0) == 0 &&
-        std::isdigit(static_cast<unsigned char>(lowered[2])) &&
-        std::isdigit(static_cast<unsigned char>(lowered[3])) &&
-        std::isdigit(static_cast<unsigned char>(lowered[4])) &&
-        std::isdigit(static_cast<unsigned char>(lowered[5])) &&
-        lowered[6] == '_') {
-        const std::size_t species_name_sep = lowered.find('_', 7);
-        if (species_name_sep != std::string::npos && species_name_sep + 1 < stem.size()) {
-            stem = stem.substr(species_name_sep + 1);
-        }
-    }
-    return normalizeSpeciesId(stem);
-}
-
 std::string findModelFileForSpecies(
     const std::string& project_root,
     const std::string& model_dir,
     const std::string& species_id) {
     if (model_dir.empty() || species_id.empty()) return {};
     const fs::path dir = fs::path(resolvePath(project_root, model_dir));
-    std::error_code ec;
-    if (!fs::exists(dir, ec)) return {};
-    for (const fs::directory_entry& entry : fs::directory_iterator(dir, ec)) {
-        if (ec || !entry.is_regular_file()) continue;
-        const fs::path extension = entry.path().extension();
-        if (extension != ".glb" && extension != ".glbz") continue;
-        if (pokemonIdFromModelStem(entry.path().stem().string()) == species_id) {
-            return entry.path().string();
-        }
+    for (const PokemonModelCatalogEntry& entry : discoverPokemonModels(dir)) {
+        if (entry.id == species_id) return entry.path;
     }
     return {};
 }
@@ -681,6 +658,7 @@ void parseUi(const JsonValue* value, const std::string& project_root, AttendUiCo
     parseOverlayButton(child(value, "weatherButton"), out.weather_button);
     parseOverlayButton(child(value, "viewButton"), out.view_button);
     parseOverlayButton(child(value, "pokemonButton"), out.pokemon_button);
+    parseOverlayButton(child(value, "previousPokemonButton"), out.previous_pokemon_button);
     parseOverlayButton(child(value, "textureVariantButton"), out.texture_variant_button);
     parseOverlayButton(child(value, "formVariantButton"), out.form_variant_button);
     parseOverlayButton(child(value, "skyButton"), out.sky_button);

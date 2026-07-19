@@ -29,6 +29,7 @@ enum class AttendRenderClass {
     Opaque,
     Mask,
     Blend,
+    Additive,
     UniformDecal
 };
 
@@ -37,6 +38,16 @@ enum class AttendMaterialRole {
     EyeSclera,
     EyeIris,
     Mouth
+};
+
+enum class AttendTextureMapping {
+    Uv,
+    CameraCubeEnvironment,
+    CameraSphereEnvironment,
+    Projection,
+    Shadow,
+    ShadowBox,
+    Unknown
 };
 
 struct AttendTextureSampler {
@@ -74,9 +85,12 @@ struct AttendPokemonMaterial {
     std::string alpha_mode = "OPAQUE";
     bool has_alpha_mode = false;
     bool has_rae_policy = false;
+    bool has_authoritative_pica = false;
+    bool double_sided = false;
     AttendRenderClass render_class = AttendRenderClass::Opaque;
     std::string nitro_texture_alpha;
     AttendMaterialRole material_role = AttendMaterialRole::None;
+    AttendTextureMapping texture_mapping = AttendTextureMapping::Uv;
     int shiny_material_index = -1;
     std::vector<std::pair<std::string, int>> form_material_indices;
     AttendTextureSampler base_color_sampler;

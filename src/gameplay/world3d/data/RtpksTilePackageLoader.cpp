@@ -40,6 +40,20 @@ std::vector<float> floatArray(const JsonValue* value) {
     return out;
 }
 
+std::vector<std::array<float, 2>> vec2Array(const JsonValue* value) {
+    std::vector<std::array<float, 2>> out;
+    if (!value || !value->isArray()) return out;
+    for (const JsonValue& item : value->asArray()) {
+        if (!item.isArray() || item.asArray().size() < 2U) continue;
+        const auto& values = item.asArray();
+        out.push_back({
+            values[0].isNumber() ? static_cast<float>(values[0].asNumber()) : 0.0f,
+            values[1].isNumber() ? static_cast<float>(values[1].asNumber()) : 0.0f,
+        });
+    }
+    return out;
+}
+
 std::vector<std::string> stringArray(const JsonValue* value) {
     std::vector<std::string> out;
     if (!value || !value->isArray()) return out;
@@ -171,6 +185,30 @@ RtpksTilePackage loadRtpksTilePackage(const std::string& path, std::string* erro
                 material.name = strOr(material_value.get("name"), "");
                 material.texture_name = strOr(material_value.get("textureName"), "");
                 material.alpha = intOr(material_value.get("alpha"), 31);
+                material.render_order = intOr(material_value.get("renderOrder"), 0);
+                material.layer_role = strOr(material_value.get("layerRole"), "surface");
+                if (const JsonValue* sampler = material_value.get("sampler"); sampler && sampler->isObject()) {
+                    material.wrap_s = strOr(sampler->get("wrapS"), "repeat");
+                    material.wrap_t = strOr(sampler->get("wrapT"), "repeat");
+                    material.mag_filter = strOr(sampler->get("magFilter"), "nearest");
+                    material.min_filter = strOr(sampler->get("minFilter"), "nearest");
+                }
+                if (const JsonValue* mapping = material_value.get("uvMapping"); mapping && mapping->isObject()) {
+                    material.world_uv = strOr(mapping->get("mode"), "local") == "world";
+                    // uPerTile/vPerTile are a single JSON vec2, not an array of vec2.
+                    if (const JsonValue* value = mapping->get("uPerTile"); value && value->isArray() && value->asArray().size() >= 2U) {
+                        material.u_per_tile = {
+                            floatOr(&value->asArray()[0], 0.0f),
+                            floatOr(&value->asArray()[1], 0.0f),
+                        };
+                    }
+                    if (const JsonValue* value = mapping->get("vPerTile"); value && value->isArray() && value->asArray().size() >= 2U) {
+                        material.v_per_tile = {
+                            floatOr(&value->asArray()[0], 0.0f),
+                            floatOr(&value->asArray()[1], 0.0f),
+                        };
+                    }
+                }
                 if (material.material_id < 0) continue;
                 if (!material.texture_name.empty()) {
                     material.image_bytes = extractZipEntry(zip, "runtime/textures/" + material.texture_name);
@@ -181,6 +219,37 @@ RtpksTilePackage loadRtpksTilePackage(const std::string& path, std::string* erro
                     for (const std::string& frame_name : stringArray(animation->get("frames"))) {
                         std::vector<std::uint8_t> frame = extractZipEntry(zip, "runtime/textures/" + frame_name);
                         if (!frame.empty()) material.animation_frame_bytes.push_back(std::move(frame));
+                    }
+                } else if (animation && animation->isObject() &&
+                    strOr(animation->get("type"), "") == "materialMotion") {
+                    material.animation_frame_time_ms = std::max(16, intOr(animation->get("frameDurationMs"), 100));
+                    material.animation_timebase_hz = std::max(
+                        0.001f,
+                        floatOr(
+                            animation->get("timebaseHz"),
+                            1000.0f / static_cast<float>(material.animation_frame_time_ms)));
+                    material.animation_step = strOr(animation->get("interpolation"), "step") != "linear";
+                    material.animation_frame_count = std::max(1, intOr(animation->get("frameCount"), 1));
+                    material.animation_image_frame_count = std::max(
+                        1, intOr(animation->get("imageFrameCount"), material.animation_frame_count));
+                    material.animation_loop = boolOr(animation->get("loop"), true);
+                    material.animation_uv_offsets = vec2Array(animation->get("offsets"));
+                    if (const JsonValue* keyframes = animation->get("imageKeyframes"); keyframes && keyframes->isArray()) {
+                        for (const JsonValue& keyframe_value : keyframes->asArray()) {
+                            if (!keyframe_value.isObject()) continue;
+                            const std::string texture_name = strOr(keyframe_value.get("textureName"), "");
+                            if (texture_name.empty()) continue;
+                            RtpksMaterialImageKeyframe keyframe;
+                            keyframe.frame = std::max(0, intOr(keyframe_value.get("frame"), 0));
+                            keyframe.image_bytes = extractZipEntry(zip, "runtime/textures/" + texture_name);
+                            if (!keyframe.image_bytes.empty()) material.animation_image_keyframes.push_back(std::move(keyframe));
+                        }
+                        std::sort(
+                            material.animation_image_keyframes.begin(),
+                            material.animation_image_keyframes.end(),
+                            [](const RtpksMaterialImageKeyframe& a, const RtpksMaterialImageKeyframe& b) {
+                                return a.frame < b.frame;
+                            });
                     }
                 }
                 out.materials.push_back(std::move(material));

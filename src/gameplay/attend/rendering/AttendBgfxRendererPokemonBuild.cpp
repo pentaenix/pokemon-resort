@@ -70,6 +70,9 @@ bool AttendBgfxRenderer::Impl::buildPokemon() {
         }
     }
 
+    const bool model_has_separate_eye_iris = attendModelUsesSeparateEyeIris(pokemon_model_);
+    int eye_sclera_material_count = 0;
+    int eye_socket_mask_count = 0;
     pokemon_mesh_.materials.resize(pokemon_model_.materials.size());
     for (std::size_t i = 0; i < pokemon_model_.materials.size(); ++i) {
         const AttendPokemonMaterial& src = pokemon_model_.materials[i];
@@ -86,8 +89,10 @@ bool AttendBgfxRenderer::Impl::buildPokemon() {
             dst.sampler_flags = samplerFlagsFromGfWrap(src.eye_sheet.wrap_s, src.eye_sheet.wrap_t);
         }
         dst.pokemon_eye = src.pokemon_eye;
-        dst.eye_sclera_mask = materialIsEyeScleraMask(&src);
+        dst.eye_sclera_mask = model_has_separate_eye_iris && materialIsEyeScleraMask(&src);
         dst.separate_eye_iris = materialIsSeparateEyeIris(&src);
+        dst.cull_backface = shouldCullAttendPokemonMaterial(src);
+        dst.texture_mapping = src.texture_mapping;
         dst.form_variant_materials = src.form_material_indices;
         dst.texture_variant_materials.assign(pokemon_model_.texture_variants.size(), static_cast<int>(i));
         for (std::size_t variant_index = 0; variant_index < pokemon_model_.texture_variants.size(); ++variant_index) {
@@ -110,7 +115,26 @@ bool AttendBgfxRenderer::Impl::buildPokemon() {
             const std::string mask_name = src.name.empty() ? config_.pokemon.id + "_eye_mask" : src.name + "_eye_mask";
             dst.eye_mask_texture = decodeTexture(src.emissive_bytes, mask_name.c_str());
         }
+        if (dst.eye_sclera_mask) {
+            ++eye_sclera_material_count;
+            const std::string socket_name = src.name.empty()
+                ? config_.pokemon.id + "_eye_socket_mask"
+                : src.name + "_eye_socket_mask";
+            TextureResource socket_mask = buildEyeSocketMaskTexture(
+                src.base_color_bytes,
+                src.eye_sheet,
+                socket_name.c_str());
+            if (socket_mask.valid()) {
+                dst.eye_mask_texture.destroy();
+                dst.eye_mask_texture = socket_mask;
+                ++eye_socket_mask_count;
+            } else {
+                dst.eye_sclera_mask = false;
+            }
+        }
+        dst.additive = src.render_class == AttendRenderClass::Additive;
         dst.blend = src.render_class == AttendRenderClass::Blend ||
+                    dst.additive ||
                     src.render_class == AttendRenderClass::UniformDecal ||
                     dst.base_color[3] < 0.999f;
         dst.mask_cutout = src.render_class == AttendRenderClass::Mask;
@@ -133,6 +157,8 @@ bool AttendBgfxRenderer::Impl::buildPokemon() {
             dst.alpha_cutoff = std::max(dst.alpha_cutoff, 0.5f);
         }
     }
+    pokemon_eye_stencil_enabled_ = eye_sclera_material_count > 0 &&
+        eye_socket_mask_count == eye_sclera_material_count;
 
     std::vector<Vertex> vertices;
     std::vector<std::uint32_t> indices;

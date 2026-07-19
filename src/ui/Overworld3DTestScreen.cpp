@@ -34,7 +34,7 @@ namespace pr {
 
 namespace {
 
-constexpr const char* kDefaultScenePath = "assets/overworld/maps/testing.owmap";
+constexpr const char* kDefaultScenePath = "assets/overworld/maps/0.owmap";
 namespace fs = std::filesystem;
 
 gameplay::world3d::camera::Vec3 initialFreecamPosition(const gameplay::world3d::SceneConfig& scene,

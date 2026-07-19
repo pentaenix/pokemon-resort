@@ -38,7 +38,7 @@ set(WORLD3D_BGFX_SHADER_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/gameplay/worl
 set(WORLD3D_BGFX_SHADER_OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated/world3d-shaders)
 bgfx_compile_shaders(
     TYPE VERTEX
-    SHADERS ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/vs_world.sc ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/vs_billboard.sc
+    SHADERS ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/vs_world.sc ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/vs_world_camera_sphere.sc ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/vs_billboard.sc
     VARYING_DEF ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/varying.def.sc
     OUTPUT_DIR ${WORLD3D_BGFX_SHADER_OUTPUT_DIR}
     INCLUDE_DIRS ${bgfx_cmake_SOURCE_DIR}/bgfx/src
@@ -96,6 +96,7 @@ add_library(world3d_bgfx_renderer STATIC
     src/gameplay/attend/rendering/AttendBgfxRendererCamera.cpp
     src/gameplay/attend/rendering/AttendBgfxRendererCommon.cpp
     src/gameplay/attend/rendering/AttendBgfxRendererCore.cpp
+    src/gameplay/attend/rendering/AttendBgfxRendererEye.cpp
     src/gameplay/attend/rendering/AttendBgfxRendererPokemonBuild.cpp
     src/gameplay/attend/rendering/AttendBgfxRendererRender.cpp
     src/gameplay/attend/rendering/AttendBgfxRendererScene.cpp
@@ -104,6 +105,7 @@ add_library(world3d_bgfx_renderer STATIC
     src/gameplay/attend/rendering/AttendBgfxRendererProfilePlate.cpp
     src/gameplay/attend/rendering/AttendBgfxRendererUi.cpp
     src/gameplay/attend/rendering/AttendPokemonAsset.cpp
+    src/gameplay/attend/rendering/AttendEyeSocketMask.cpp
     src/gameplay/attend/rendering/AttendPokemonMaterialPolicy.cpp
     src/gameplay/attend/rendering/AttendPokemonModel.cpp
     src/gameplay/world3d/rendering/bgfx/BgfxBackend.cpp
@@ -167,6 +169,7 @@ add_executable(title_screen_demo
     src/gameplay/world3d/data/JsonOverworldLoader.cpp
     src/gameplay/world3d/data/OwmapOverworldLoader.cpp
     src/gameplay/world3d/data/GlbModelLoader.cpp
+    src/gameplay/world3d/data/GlbModelAnimation.cpp
     src/gameplay/world3d/characters/CharacterMovementConfig.cpp
     src/gameplay/world3d/rendering/GlbModelRenderer.cpp
     src/gameplay/world3d/effects/LandingDustSystem.cpp
@@ -187,6 +190,7 @@ add_executable(title_screen_demo
     src/gameplay/world3d/rendering/FallbackTerrainRenderer.cpp
     src/gameplay/world3d/rendering/OverworldMapRenderer.cpp
     src/gameplay/attend/AttendSceneConfig.cpp
+    src/gameplay/attend/PokemonModelCatalog.cpp
     src/core/save/SaveLibrary.cpp
     src/core/save/SaveDataStore.cpp
     src/core/app/persistence/UserSettingsPersistence.cpp
@@ -429,6 +433,7 @@ add_test(NAME resort_menu_controller_tests COMMAND resort_menu_controller_tests)
 add_executable(attend_scene_config_tests
     tests/native/attend/attend_scene_config_tests.cpp
     src/gameplay/attend/AttendSceneConfig.cpp
+    src/gameplay/attend/PokemonModelCatalog.cpp
     src/core/config/Json.cpp
 )
 target_include_directories(attend_scene_config_tests PRIVATE include)
@@ -445,6 +450,13 @@ add_executable(attend_pokemon_model_tests
 target_include_directories(attend_pokemon_model_tests PRIVATE include)
 target_link_libraries(attend_pokemon_model_tests PRIVATE SDL2::SDL2 SDL2_image::SDL2_image PkgConfig::ZSTD)
 add_test(NAME attend_pokemon_model_tests COMMAND attend_pokemon_model_tests)
+
+add_executable(attend_eye_socket_mask_tests
+    tests/native/attend/attend_eye_socket_mask_tests.cpp
+    src/gameplay/attend/rendering/AttendEyeSocketMask.cpp
+)
+target_include_directories(attend_eye_socket_mask_tests PRIVATE include)
+add_test(NAME attend_eye_socket_mask_tests COMMAND attend_eye_socket_mask_tests)
 
 add_executable(attend_pokemon_glbz_tests
     tests/native/attend/attend_pokemon_glbz_tests.cpp
@@ -609,6 +621,24 @@ add_executable(owmap_overworld_loader_tests
 target_include_directories(owmap_overworld_loader_tests PRIVATE include)
 target_link_libraries(owmap_overworld_loader_tests PRIVATE SDL2::SDL2)
 add_test(NAME owmap_overworld_loader_tests COMMAND owmap_overworld_loader_tests)
+
+add_executable(glb_model_animation_tests
+    tests/native/world3d/glb_model_animation_tests.cpp
+    src/core/config/Json.cpp
+    src/gameplay/world3d/data/GlbModelLoader.cpp
+    src/gameplay/world3d/data/GlbModelAnimation.cpp
+)
+target_include_directories(glb_model_animation_tests PRIVATE include)
+add_test(NAME glb_model_animation_tests COMMAND glb_model_animation_tests)
+
+add_executable(rtpks_ocean_tile_tests
+    tests/native/world3d/rtpks_ocean_tile_tests.cpp
+    src/core/config/Json.cpp
+)
+target_include_directories(rtpks_ocean_tile_tests PRIVATE include)
+target_compile_definitions(rtpks_ocean_tile_tests PRIVATE PR_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(rtpks_ocean_tile_tests PRIVATE world3d_bgfx_renderer)
+add_test(NAME rtpks_ocean_tile_tests COMMAND rtpks_ocean_tile_tests)
 
 add_executable(overworld_textbox_tests
     tests/native/world3d/overworld_textbox_tests.cpp

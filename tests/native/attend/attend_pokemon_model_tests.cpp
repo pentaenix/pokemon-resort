@@ -144,6 +144,13 @@ int main() {
     expect(skinnedPrimitiveMoves(charmander, charmander_wait, 0.0f),
            "Charmander fallback animation should move skinned vertices");
 
+    const auto bulbasaur = pr::gameplay::attend::rendering::loadAttendPokemonModel(
+        (root / "assets" / "pokemon_attend" / "pokemon_models" / "pm0001_00_Bulbasaur.glbz").string(),
+        &error);
+    expect(bulbasaur.valid, "Bulbasaur GLBZ should load for separate-pupil coverage");
+    expect(pr::gameplay::attend::rendering::attendModelUsesSeparateEyeIris(bulbasaur),
+           "Bulbasaur should retain its separate iris meshes and use the socket stencil");
+
     const pr::gameplay::attend::rendering::AttendPokemonModel burmy =
         pr::gameplay::attend::rendering::loadAttendPokemonModel(
             (root / "assets" / "pokemon_attend" / "pokemon_models" / "pm0412_00_Burmy.glbz").string(),
@@ -208,26 +215,67 @@ int main() {
             (root / "assets" / "pokemon_attend" / "pokemon_models" / "pm0751_00_Dewpider.glbz").string(),
             &error);
     expect(dewpider.valid, "Dewpider GLBZ should load for translucent-material policy coverage");
+    const auto eye_sclera = std::find_if(
+        dewpider.materials.begin(),
+        dewpider.materials.end(),
+        [](const auto& material) {
+            return material.name == "Eye" &&
+                material.material_role ==
+                    pr::gameplay::attend::rendering::AttendMaterialRole::EyeSclera;
+        });
+    const auto left_iris = std::find_if(
+        dewpider.materials.begin(),
+        dewpider.materials.end(),
+        [](const auto& material) {
+            return material.name == "LIris" &&
+                material.material_role ==
+                    pr::gameplay::attend::rendering::AttendMaterialRole::EyeIris;
+        });
+    expect(eye_sclera != dewpider.materials.end() && eye_sclera->eye_sheet.enabled &&
+               eye_sclera->eye_sheet.frame_offsets.size() == 8,
+           "Dewpider should expose its eight authored eye-expression frames");
+    expect(left_iris != dewpider.materials.end() &&
+               left_iris->render_class ==
+                   pr::gameplay::attend::rendering::AttendRenderClass::Blend,
+           "Dewpider's separate iris should preserve its authored blend class");
+    expect(
+        pr::gameplay::attend::rendering::shouldRenderAttendSeparateEyeIris(0, 0),
+        "Dewpider's separate irises should complete the normal-open eye frame");
+    expect(
+        !pr::gameplay::attend::rendering::shouldRenderAttendSeparateEyeIris(3, 0),
+        "Dewpider's happy eye frame should replace, not overlap, its normal irises");
+    expect(
+        !pr::gameplay::attend::rendering::shouldRenderAttendSeparateEyeIris(4, 0),
+        "Dewpider's closed eye frame should keep separate irises hidden");
+    expect(
+        pr::gameplay::attend::rendering::attendModelUsesSeparateEyeIris(dewpider),
+        "Dewpider should enable socket stenciling because it has separate iris meshes");
+    if (eye_sclera != dewpider.materials.end()) {
+        expect(
+            !pr::gameplay::attend::rendering::shouldCullAttendPokemonMaterial(*eye_sclera),
+            "thin eye overlays should render double-sided even when PICA marks their back faces culled");
+    }
     const auto translucent_body = std::find_if(
         dewpider.materials.begin(),
         dewpider.materials.end(),
         [](const auto& material) {
-            return material.render_class == pr::gameplay::attend::rendering::AttendRenderClass::Opaque &&
+            return material.name == "BodyUniranNone" &&
+                material.render_class == pr::gameplay::attend::rendering::AttendRenderClass::Blend &&
                 material.nitro_texture_alpha == "translucent";
         });
     expect(translucent_body != dewpider.materials.end(),
-           "Dewpider should preserve the 3DS translucent texture signal on its opaque-classified body");
+           "Dewpider should consume RAE's authored PICA blend classification for its bubble");
     if (translucent_body != dewpider.materials.end()) {
+        expect(!translucent_body->double_sided,
+               "Dewpider's translucent bubble should preserve PICA backface culling");
         expect(
-            pr::gameplay::attend::rendering::shouldPromoteAttendTextureToBlend(
-                *translucent_body,
-                pr::gameplay::attend::rendering::AttendTextureAlphaSummary{45, 0.25f}),
-            "Dewpider's strongly translucent body texture should be promoted to alpha blending");
+            translucent_body->has_authoritative_pica,
+            "Dewpider's bubble should expose authoritative PICA state");
         expect(
             !pr::gameplay::attend::rendering::shouldPromoteAttendTextureToBlend(
                 *translucent_body,
-                pr::gameplay::attend::rendering::AttendTextureAlphaSummary{240, 0.25f}),
-            "weak ETC alpha variation should remain opaque");
+                pr::gameplay::attend::rendering::AttendTextureAlphaSummary{45, 0.25f}),
+            "authoritative PICA blend materials should not need Resort alpha promotion");
     }
 
     std::vector<bool> dewpider_authored_visible(dewpider.materials.size(), false);
@@ -246,22 +294,156 @@ int main() {
     }
     std::vector<std::size_t> dewpider_order;
     int included_vco_layers = 0;
+    bool hidden_vco_shell_rendered = false;
     for (std::size_t i = 0; i < dewpider.primitives.size(); ++i) {
         const auto& primitive = dewpider.primitives[i];
         if (pr::gameplay::attend::rendering::shouldRenderAttendPokemonPrimitive(dewpider, primitive)) {
             dewpider_order.push_back(i);
-            if (!primitive.default_visible &&
-                primitive.material >= 0 &&
+            if (primitive.material >= 0 &&
                 primitive.material < static_cast<int>(dewpider.materials.size()) &&
                 nameContainsAscii(
                     dewpider.materials[static_cast<std::size_t>(primitive.material)].name,
                     "vco")) {
                 ++included_vco_layers;
             }
+            if (primitive.material >= 0 &&
+                primitive.material < static_cast<int>(dewpider.materials.size()) &&
+                dewpider.materials[static_cast<std::size_t>(primitive.material)].name ==
+                    "BodyUniranVco") {
+                hidden_vco_shell_rendered = true;
+            }
         }
     }
-    expect(included_vco_layers >= 4,
-           "Dewpider's required VCO feature layers should remain in the draw list");
+    expect(included_vco_layers >= 3,
+           "Dewpider's authored-visible VCO feature layers should remain in the draw list");
+    expect(!hidden_vco_shell_rendered,
+           "Dewpider's authoritative hidden duplicate bubble shell should stay out of the draw list");
+
+    const auto opaque_leg = std::find_if(
+        dewpider.materials.begin(),
+        dewpider.materials.end(),
+        [](const auto& material) {
+            return material.name == "BodyVco00" &&
+                material.render_class ==
+                    pr::gameplay::attend::rendering::AttendRenderClass::Opaque;
+        });
+    expect(opaque_leg != dewpider.materials.end() && opaque_leg->has_authoritative_pica,
+           "Dewpider's leg material should expose authoritative opaque PICA state");
+    if (opaque_leg != dewpider.materials.end()) {
+        expect(
+            !pr::gameplay::attend::rendering::shouldPromoteAttendTextureToBlend(
+                *opaque_leg,
+                pr::gameplay::attend::rendering::AttendTextureAlphaSummary{45, 0.25f}),
+            "authoritative opaque legs should keep depth writes despite unused texture alpha");
+    }
+
+    pr::gameplay::attend::rendering::AttendPokemonMaterial legacy_translucent;
+    legacy_translucent.render_class =
+        pr::gameplay::attend::rendering::AttendRenderClass::Opaque;
+    legacy_translucent.nitro_texture_alpha = "translucent";
+    expect(
+        pr::gameplay::attend::rendering::shouldPromoteAttendTextureToBlend(
+            legacy_translucent,
+            pr::gameplay::attend::rendering::AttendTextureAlphaSummary{45, 0.25f}),
+        "legacy GLBs without PICA metadata should retain strong-alpha compatibility promotion");
+    expect(
+        pr::gameplay::attend::rendering::shouldTreatLegacyBinaryAlphaBlendAsMask(
+            true, true, false, 1.0f),
+        "legacy binary-alpha floor props should become depth-writing cutouts");
+    expect(
+        !pr::gameplay::attend::rendering::shouldTreatLegacyBinaryAlphaBlendAsMask(
+            true, true, true, 1.0f),
+        "partially translucent weather textures should remain blended");
+
+    const auto elekid = pr::gameplay::attend::rendering::loadAttendPokemonModel(
+        (root / "assets" / "pokemon_attend" / "pokemon_models" / "pm0239_00_Elekid.glbz").string(),
+        &error);
+    expect(elekid.valid, "Elekid GLBZ should load for mouth-expression material coverage");
+    const auto elekid_mouth = std::find_if(
+        elekid.materials.begin(),
+        elekid.materials.end(),
+        [](const auto& material) {
+            return material.name == "Mouth" &&
+                material.material_role ==
+                    pr::gameplay::attend::rendering::AttendMaterialRole::Mouth;
+        });
+    expect(elekid_mouth != elekid.materials.end() && elekid_mouth->eye_sheet.enabled &&
+               elekid_mouth->eye_sheet.frame_offsets.size() == 8,
+           "Elekid's mouth should expose its authored eight-frame expression sheet");
+
+    const auto araquanid = pr::gameplay::attend::rendering::loadAttendPokemonModel(
+        (root / "assets" / "pokemon_attend" / "pokemon_models" / "pm0752_00_Araquanid.glbz").string(),
+        &error);
+    expect(araquanid.valid,
+           "Araquanid GLBZ should remain loadable after authoritative GF UV baking");
+
+    const auto morelull = pr::gameplay::attend::rendering::loadAttendPokemonModel(
+        (root / "assets" / "pokemon_attend" / "pokemon_models" / "pm0755_00_Morelull.glbz").string(),
+        &error);
+    expect(morelull.valid, "Morelull GLBZ should load for additive-glow material coverage");
+    const auto morelull_glow = std::find_if(
+        morelull.materials.begin(),
+        morelull.materials.end(),
+        [](const auto& material) {
+            return material.name == "GlowInc" &&
+                material.render_class ==
+                    pr::gameplay::attend::rendering::AttendRenderClass::Additive;
+        });
+    expect(morelull_glow != morelull.materials.end(),
+           "Morelull's GlowInc layer should preserve RAE's additive PICA blend state");
+    if (morelull_glow != morelull.materials.end()) {
+        expect(
+            morelull_glow->texture_mapping ==
+                pr::gameplay::attend::rendering::AttendTextureMapping::CameraSphereEnvironment,
+            "Morelull's GlowInc layer should preserve its authored camera-sphere mapping");
+        expect(!morelull_glow->double_sided,
+               "Morelull's GlowInc shell should preserve authored backface culling");
+    }
+    for (const char* material_name : {"BodyBInc1", "BodyBInc2"}) {
+        const auto cap = std::find_if(
+            morelull.materials.begin(),
+            morelull.materials.end(),
+            [material_name](const auto& material) {
+                return material.name == material_name &&
+                    material.render_class ==
+                        pr::gameplay::attend::rendering::AttendRenderClass::Opaque;
+            });
+        expect(cap != morelull.materials.end(),
+               std::string("Morelull's ") + material_name + " cap should remain opaque");
+    }
+
+    const auto palossand = pr::gameplay::attend::rendering::loadAttendPokemonModel(
+        (root / "assets" / "pokemon_attend" / "pokemon_models" / "pm0770_00_Palossand.glbz").string(),
+        &error);
+    expect(palossand.valid, "Palossand's regenerated GLBZ should load");
+    const auto palossand_eye = std::find_if(
+        palossand.materials.begin(),
+        palossand.materials.end(),
+        [](const auto& material) {
+            return material.name == "Eye";
+        });
+    expect(
+        palossand_eye != palossand.materials.end() &&
+            palossand_eye->render_class ==
+                pr::gameplay::attend::rendering::AttendRenderClass::Opaque &&
+            palossand_eye->texture_mapping ==
+                pr::gameplay::attend::rendering::AttendTextureMapping::Uv &&
+            !palossand_eye->double_sided,
+        "Palossand's eye shell should preserve opaque UV mapping and authored backface culling");
+    expect(!pr::gameplay::attend::rendering::attendModelUsesSeparateEyeIris(palossand),
+           "Palossand's embedded pupils should bypass the separate-iris stencil path");
+    if (palossand_eye != palossand.materials.end()) {
+        expect(
+            !pr::gameplay::attend::rendering::shouldCullAttendPokemonMaterial(*palossand_eye),
+            "Palossand's thin eye shell should not develop holes from runtime backface culling");
+    }
+
+    pr::gameplay::attend::rendering::AttendPokemonMaterial body_material;
+    body_material.material_role = pr::gameplay::attend::rendering::AttendMaterialRole::None;
+    body_material.double_sided = false;
+    expect(pr::gameplay::attend::rendering::shouldCullAttendPokemonMaterial(body_material),
+           "body geometry should retain authored backface culling");
+
     pr::gameplay::attend::rendering::sortAttendPokemonDrawOrder(
         dewpider,
         dewpider_blends,

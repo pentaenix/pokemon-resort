@@ -31,6 +31,7 @@ assets/overworld/models/<modelId>/
 ## Preview (browser)
 
 - Loads the on-disk GLB with `GLTFLoader`.
+- Clones cached scenes with Three's `SkeletonUtils.clone` through `model-scene-clone.js`, so skinned RAE/apicula props are rebound to their cloned bones and obey each map placement instead of rendering at the cached scene origin.
 - Tunes existing materials: nearest + repeat on maps, double-sided faces. Alpha is taken verbatim from the GLB material (`alphaMode`); the preview does **not** re-derive transparency from the texture's alpha channel.
 - Renders with neutral image-based lighting (`RoomEnvironment` IBL + ambient/directional, sRGB output, no tone mapping) so PBR materials read like online glTF viewers. Without lights/environment, `MeshStandardMaterial` renders black.
 

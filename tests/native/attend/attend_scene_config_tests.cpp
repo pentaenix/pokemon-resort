@@ -1,5 +1,7 @@
 #include "gameplay/attend/AttendSceneConfig.hpp"
+#include "gameplay/attend/PokemonModelCatalog.hpp"
 
+#include <algorithm>
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
@@ -46,12 +48,29 @@ int main() {
 
     expect(config.id == "alola_battle_map_debug",
            "TEST ATTEND should resolve the Alola battle map debug scene");
-    expect(config.pokemon.id == "dewgong", "active Pokemon should resolve directly from species name");
+    expect(config.pokemon.id == "dewpider", "active Pokemon should resolve directly from species name");
     expect(fs::exists(config.pokemon.model_path), "active Pokemon GLB path should resolve to an existing asset");
-    expect(config.pokemon.model_path.find("pm0087_00_Dewgong.glbz") != std::string::npos,
+    expect(config.pokemon.model_path.find("pm0751_00_Dewpider.glbz") != std::string::npos,
            "active Pokemon should infer its compiled RAE pm#### form GLBZ from assets by species name without a per-Pokemon config entry");
+    const auto model_catalog = pr::gameplay::attend::discoverPokemonModels(
+        root / "assets" / "pokemon_attend" / "pokemon_models");
+    expect(!model_catalog.empty(), "Attend Pokemon model catalog should discover compiled assets");
+    expect(std::is_sorted(
+               model_catalog.begin(),
+               model_catalog.end(),
+               [](const auto& lhs, const auto& rhs) { return lhs.dex_number < rhs.dex_number; }),
+           "Attend Pokemon model catalog should cycle in Pokedex-number order");
+    const auto dewpider = std::find_if(model_catalog.begin(), model_catalog.end(), [](const auto& entry) {
+        return entry.id == "dewpider";
+    });
+    expect(dewpider != model_catalog.end() && dewpider->dex_number == 751,
+           "Dewpider should retain National Pokedex number 751 in the debug model catalog");
+    expect(pr::gameplay::attend::wrappedPokemonModelCatalogIndex(0, -1, 4) == 3,
+           "previous Pokemon should wrap from the first Pokedex entry to the last");
+    expect(pr::gameplay::attend::wrappedPokemonModelCatalogIndex(2, -1, 4) == 1,
+           "previous Pokemon should move backward by one Pokedex entry");
     expect(config.pokemon.animation_name.empty(),
-           "profile-less Dewgong should allow renderer animation fallback instead of requiring per-Pokemon animation config");
+           "profile-less Dewpider should allow renderer animation fallback instead of requiring per-Pokemon animation config");
     expect(config.pokemon.scale > 0.0f, "active Pokemon scale should be positive");
     expect(config.pokemon.z >= -2.0f && config.pokemon.z <= 2.0f,
            "active Pokemon start depth should stay in the authored attend setup range");
@@ -67,7 +86,7 @@ int main() {
                config.interaction_adapter.eyelid_node_substrings.front() == "eyelid",
            "interaction adapter should define semantic eyelid node matching");
     expect(config.interaction_adapter.eye_close_animation.empty(),
-           "profile-less Dewgong should allow renderer eye animation fallback instead of requiring per-Pokemon eye config");
+           "profile-less Dewpider should allow renderer eye animation fallback instead of requiring per-Pokemon eye config");
     expect(config.interaction_adapter.eye_expression_frames.at("normal_open") == 0,
            "eye expression frame dictionary should map frame 0 to normal open eyes");
     expect(config.interaction_adapter.eye_expression_frames.at("closed") == 4,
@@ -91,7 +110,7 @@ int main() {
            "mouth expression frame dictionary should preserve the known Gen 1-7/3DS sheet frame order");
     expect(!config.interaction_adapter.semantic_animation_slots.at("idle_default").empty() &&
                config.interaction_adapter.semantic_animation_slots.at("idle_default").front() == "slot4_00",
-           "profile-less Dewgong should use the provider default idle semantic");
+           "profile-less Dewpider should use the provider default idle semantic");
     expect(config.interaction_adapter.semantic_animation_slots.at("emote_happy").front() == "slot5_21",
            "happy pet emote should prefer slot5_21 before older fallback emotes");
     expect(config.interaction_adapter.semantic_animation_slots.at("eat_start").front() == "slot5_22" &&
@@ -163,9 +182,9 @@ int main() {
                config.camera.face_target_y_ratio <= 0.88f,
            "face view should target the upper head instead of large Pokemon necks");
     expect(config.camera.form_framing_adjustments.empty(),
-           "Dewgong should not inherit Giratina-only form framing overrides");
+           "Dewpider should not inherit Giratina-only form framing overrides");
     expect(config.pokemon.sprite_form_keys.empty(),
-           "Dewgong should not inherit Giratina-only PokeSprite form suffixes");
+           "Dewpider should not inherit Giratina-only PokeSprite form suffixes");
     expect(config.camera.face_height_offset <= 0.10f,
            "face view camera should use a low angle instead of looking down from above");
     expect(config.camera.face_view_min_model_height > 1.0f,
@@ -277,10 +296,16 @@ int main() {
            "Pokemon overlay button should stack below the view button");
     expect(config.ui.pokemon_button.label_prefix == "POKEMON: ",
            "Pokemon overlay button should clearly label the active model");
+    expect(config.ui.previous_pokemon_button.enabled,
+           "environment attend scene should show the previous-Pokemon overlay button");
+    expect(config.ui.previous_pokemon_button.margin_y > config.ui.pokemon_button.margin_y,
+           "previous-Pokemon overlay button should stack below the Pokemon button");
+    expect(config.ui.previous_pokemon_button.label_prefix == "PREVIOUS POKEMON",
+           "previous-Pokemon overlay button should clearly describe its reverse-cycle action");
     expect(config.ui.texture_variant_button.enabled,
            "environment attend scene should show the texture variant overlay button");
-    expect(config.ui.texture_variant_button.margin_y > config.ui.pokemon_button.margin_y,
-           "texture variant overlay button should stack below the Pokemon button");
+    expect(config.ui.texture_variant_button.margin_y > config.ui.previous_pokemon_button.margin_y,
+           "texture variant overlay button should stack below the previous-Pokemon button");
     expect(config.ui.texture_variant_button.label_prefix == "COLOR: ",
            "texture variant overlay button should clearly label normal/shiny model color");
     expect(config.ui.form_variant_button.enabled,

@@ -262,6 +262,13 @@ struct SceneConfig {
     float lighting_tint_r = 1.0f;
     float lighting_tint_g = 1.0f;
     float lighting_tint_b = 1.0f;
+    // Renderer-only speed for ambient tile material motion and animated map
+    // props. This deliberately does not alter simulation or actor animation.
+    float environment_animation_speed = 1.0f;
+    float water_scroll_speed = 0.75f;
+    float water_wave_speed = 1.25f;
+    float water_wave_wait_seconds = 0.0f;
+    bool water_smooth_uv_motion = true;
     // How far (in tiles) toward the camera a placed model's occlusion anchor is biased when
     // depth-sorting it against characters. Larger = the model starts hiding the character
     // sooner (further forward), so a character stepping into a doorway is occluded by the

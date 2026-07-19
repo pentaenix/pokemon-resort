@@ -1,19 +1,41 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <string>
 #include <vector>
 
 namespace pr::gameplay::world3d::data {
 
+struct RtpksMaterialImageKeyframe {
+    int frame = 0;
+    std::vector<std::uint8_t> image_bytes;
+};
+
 struct RtpksMaterial {
     int material_id = -1;
     std::string name;
     std::string texture_name;
     int alpha = 31;
+    std::string wrap_s = "repeat";
+    std::string wrap_t = "repeat";
+    std::string mag_filter = "nearest";
+    std::string min_filter = "nearest";
+    bool world_uv = false;
+    std::array<float, 2> u_per_tile{0.0f, 0.0f};
+    std::array<float, 2> v_per_tile{0.0f, 0.0f};
     std::vector<std::uint8_t> image_bytes;
     int animation_frame_time_ms = 0;
+    float animation_timebase_hz = 0.0f;
+    bool animation_step = false;
     std::vector<std::vector<std::uint8_t>> animation_frame_bytes;
+    int animation_frame_count = 0;
+    int animation_image_frame_count = 0;
+    bool animation_loop = true;
+    std::vector<std::array<float, 2>> animation_uv_offsets;
+    std::vector<RtpksMaterialImageKeyframe> animation_image_keyframes;
+    int render_order = 0;
+    std::string layer_role = "surface";
 };
 
 struct RtpksMaterialRange {

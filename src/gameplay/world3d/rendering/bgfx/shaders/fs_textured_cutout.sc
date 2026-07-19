@@ -6,12 +6,14 @@ SAMPLER2D(s_texColor, 0);
 uniform vec4 u_tintCutoff;
 uniform vec4 u_colorAdjust;
 uniform vec4 u_textureBlur;
+uniform vec4 u_uvOffset;
 uniform vec4 u_lightDir;
 uniform vec4 u_lightParams;
 
 void main()
 {
-    vec4 texel = texture2D(s_texColor, v_texcoord0);
+    vec2 animatedUv = v_texcoord0 + u_uvOffset.xy;
+    vec4 texel = texture2D(s_texColor, animatedUv);
     float blurAmount = 0.0;
     if (u_textureBlur.z > 0.001)
     {
@@ -24,18 +26,18 @@ void main()
         vec2 stepUv = u_textureBlur.xy * blurAmount;
         vec2 halfUv = stepUv * 0.45;
         vec4 blurred = texel * 0.20;
-        blurred += texture2D(s_texColor, v_texcoord0 + vec2(halfUv.x, 0.0)) * 0.10;
-        blurred += texture2D(s_texColor, v_texcoord0 - vec2(halfUv.x, 0.0)) * 0.10;
-        blurred += texture2D(s_texColor, v_texcoord0 + vec2(0.0, halfUv.y)) * 0.10;
-        blurred += texture2D(s_texColor, v_texcoord0 - vec2(0.0, halfUv.y)) * 0.10;
-        blurred += texture2D(s_texColor, v_texcoord0 + vec2(stepUv.x, stepUv.y * 0.35)) * 0.07;
-        blurred += texture2D(s_texColor, v_texcoord0 - vec2(stepUv.x, stepUv.y * 0.35)) * 0.07;
-        blurred += texture2D(s_texColor, v_texcoord0 + vec2(stepUv.x * 0.35, stepUv.y)) * 0.07;
-        blurred += texture2D(s_texColor, v_texcoord0 - vec2(stepUv.x * 0.35, stepUv.y)) * 0.07;
-        blurred += texture2D(s_texColor, v_texcoord0 + vec2(stepUv.x * 0.75, -stepUv.y * 0.75)) * 0.04;
-        blurred += texture2D(s_texColor, v_texcoord0 + vec2(-stepUv.x * 0.75, stepUv.y * 0.75)) * 0.04;
-        blurred += texture2D(s_texColor, v_texcoord0 + vec2(stepUv.x * 0.75, stepUv.y * 0.75)) * 0.04;
-        blurred += texture2D(s_texColor, v_texcoord0 - vec2(stepUv.x * 0.75, stepUv.y * 0.75)) * 0.04;
+        blurred += texture2D(s_texColor, animatedUv + vec2(halfUv.x, 0.0)) * 0.10;
+        blurred += texture2D(s_texColor, animatedUv - vec2(halfUv.x, 0.0)) * 0.10;
+        blurred += texture2D(s_texColor, animatedUv + vec2(0.0, halfUv.y)) * 0.10;
+        blurred += texture2D(s_texColor, animatedUv - vec2(0.0, halfUv.y)) * 0.10;
+        blurred += texture2D(s_texColor, animatedUv + vec2(stepUv.x, stepUv.y * 0.35)) * 0.07;
+        blurred += texture2D(s_texColor, animatedUv - vec2(stepUv.x, stepUv.y * 0.35)) * 0.07;
+        blurred += texture2D(s_texColor, animatedUv + vec2(stepUv.x * 0.35, stepUv.y)) * 0.07;
+        blurred += texture2D(s_texColor, animatedUv - vec2(stepUv.x * 0.35, stepUv.y)) * 0.07;
+        blurred += texture2D(s_texColor, animatedUv + vec2(stepUv.x * 0.75, -stepUv.y * 0.75)) * 0.04;
+        blurred += texture2D(s_texColor, animatedUv + vec2(-stepUv.x * 0.75, stepUv.y * 0.75)) * 0.04;
+        blurred += texture2D(s_texColor, animatedUv + vec2(stepUv.x * 0.75, stepUv.y * 0.75)) * 0.04;
+        blurred += texture2D(s_texColor, animatedUv - vec2(stepUv.x * 0.75, stepUv.y * 0.75)) * 0.04;
         texel = blurred;
     }
     if (texel.a < u_tintCutoff.a)

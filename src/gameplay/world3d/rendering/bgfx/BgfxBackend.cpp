@@ -142,6 +142,15 @@ bool BgfxBackend::initialize(
 
 void BgfxBackend::shutdown() {
     if (!initialized_) return;
+
+    // Resource creation can fail before the first application frame is submitted
+    // (for example after a Metal device/layer wake transition). The Metal backend
+    // may already have opened a blit encoder for bgfx's internal uploads at that
+    // point. Give it one ordinary frame to finish that encoder before entering
+    // bgfx's renderer-shutdown sequence; otherwise Metal aborts while releasing an
+    // encoder that never received endEncoding(). This is also safe for the normal
+    // shutdown path and drains resource-destroy commands queued by the owner.
+    bgfx::frame();
     bgfx::shutdown();
     initialized_ = false;
     renderer_type_ = static_cast<int>(bgfx::RendererType::Noop);

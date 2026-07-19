@@ -623,6 +623,7 @@ void readMaterials(const JsonValue& root, const std::uint8_t* bin, std::size_t b
     for (const JsonValue& mat : materials->asArray()) {
         AttendPokemonMaterial material;
         material.name = stringMember(&mat, "name");
+        material.double_sided = boolMember(&mat, "doubleSided", false);
         if (const JsonValue* pbr = mat.get("pbrMetallicRoughness"); pbr && pbr->isObject()) {
             if (const JsonValue* bcf = pbr->get("baseColorFactor"); bcf && bcf->isArray()) {
                 const auto& arr = bcf->asArray();
@@ -660,6 +661,9 @@ void readMaterials(const JsonValue& root, const std::uint8_t* bin, std::size_t b
             if (const JsonValue* nitro = rae->get("nitro"); nitro && nitro->isObject()) {
                 material.nitro_texture_alpha = stringMember(nitro, "textureAlpha");
             }
+            if (const JsonValue* pica = rae->get("pica"); pica && pica->isObject()) {
+                material.has_authoritative_pica = boolMember(pica, "authoritative", true);
+            }
             material.shiny_material_index = intMember(rae, "shinyMaterialIndex", material.shiny_material_index);
             if (const JsonValue* forms = rae->get("formMaterialIndices"); forms && forms->isObject()) {
                 for (const auto& [form_id, value] : forms->asObject()) {
@@ -674,12 +678,32 @@ void readMaterials(const JsonValue& root, const std::uint8_t* bin, std::size_t b
             } else if (render_class == "blend") {
                 material.has_rae_policy = true;
                 material.render_class = AttendRenderClass::Blend;
+            } else if (render_class == "additive") {
+                material.has_rae_policy = true;
+                material.render_class = AttendRenderClass::Additive;
             } else if (render_class == "uniform_decal") {
                 material.has_rae_policy = true;
                 material.render_class = AttendRenderClass::UniformDecal;
             } else if (render_class == "opaque") {
                 material.has_rae_policy = true;
                 material.render_class = AttendRenderClass::Opaque;
+            }
+            if (const JsonValue* mapping = rae->get("textureMapping");
+                mapping && mapping->isObject()) {
+                const std::string type = stringMember(mapping, "type");
+                if (type == "camera_cube_environment") {
+                    material.texture_mapping = AttendTextureMapping::CameraCubeEnvironment;
+                } else if (type == "camera_sphere_environment") {
+                    material.texture_mapping = AttendTextureMapping::CameraSphereEnvironment;
+                } else if (type == "projection") {
+                    material.texture_mapping = AttendTextureMapping::Projection;
+                } else if (type == "shadow") {
+                    material.texture_mapping = AttendTextureMapping::Shadow;
+                } else if (type == "shadow_box") {
+                    material.texture_mapping = AttendTextureMapping::ShadowBox;
+                } else if (type != "uv" && !type.empty()) {
+                    material.texture_mapping = AttendTextureMapping::Unknown;
+                }
             }
             readEyeSheet(rae, material);
         }

@@ -32,6 +32,12 @@ namespace fs = std::filesystem;
 
 constexpr float kPi = 3.1415926535f;
 
+enum class MeshSubmitPass {
+    All,
+    DepthWriting,
+    Blended
+};
+
 struct Vertex {
     float x = 0.0f;
     float y = 0.0f;
@@ -78,6 +84,7 @@ std::uint64_t smoothSamplerFlags(int wrap_s = 10497, int wrap_t = 10497);
 std::uint64_t samplerFlagsFromGfWrap(int wrap_s, int wrap_t);
 std::uint64_t opaqueState();
 std::uint64_t blendState();
+std::uint64_t additiveState();
 std::uint64_t overlayState();
 std::uint64_t eyeScleraStencilState();
 std::uint64_t backdropState(bool blend);
@@ -196,10 +203,13 @@ private:
         float base_color[4] = {1.0f, 1.0f, 1.0f, 1.0f};
         bool visible = true;
         bool blend = false;
+        bool additive = false;
         bool mask_cutout = false;
         bool pokemon_eye = false;
         bool eye_sclera_mask = false;
         bool separate_eye_iris = false;
+        bool cull_backface = false;
+        AttendTextureMapping texture_mapping = AttendTextureMapping::Uv;
         float alpha_cutoff = 0.5f;
         std::uint64_t sampler_flags = samplerFlags();
         std::vector<int> texture_variant_materials;
@@ -276,6 +286,7 @@ private:
     std::string last_error_;
     bgfx::VertexLayout layout_{};
     bgfx::ProgramHandle program_ = BGFX_INVALID_HANDLE;
+    bgfx::ProgramHandle camera_sphere_program_ = BGFX_INVALID_HANDLE;
     bgfx::ProgramHandle eye_program_ = BGFX_INVALID_HANDLE;
     bgfx::ProgramHandle eye_sclera_mask_program_ = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle tex_uniform_ = BGFX_INVALID_HANDLE;
@@ -341,6 +352,7 @@ private:
     int current_mouth_expression_frame_ = 0;
     bool has_eye_expression_frames_ = false;
     bool has_mouth_expression_frames_ = false;
+    bool pokemon_eye_stencil_enabled_ = false;
     std::string pending_reaction_id_;
     double pending_reaction_interaction_seconds_ = 0.0;
     std::string pending_semantic_animation_;
@@ -425,6 +437,10 @@ private:
         const std::vector<std::uint8_t>& base_bytes,
         const std::vector<std::uint8_t>& lym_bytes,
         const char* debug_name);
+    TextureResource buildEyeSocketMaskTexture(
+        const std::vector<std::uint8_t>& bytes,
+        const AttendEyeSheet& sheet,
+        const char* debug_name);
     bool ensureOverlayButtonTexture(std::size_t index);
     bool ensureCornerButtonTexture(std::size_t index);
     bool ensureProfilePlateTexture(float texture_scale, bool text_only, bool include_text);
@@ -452,7 +468,13 @@ private:
     void captureCameraBoundsFromCurrentPose();
     void cameraForFrame(float look_x, float look_y, bx::Vec3& eye, bx::Vec3& at) const;
     void updatePokemonPointerRect(const float* pokemon_matrix, const float* view, const float* proj, int width, int height);
-    void submitMesh(const MeshResource& mesh, const float* matrix, bool force_blend = false, bool backdrop = false, bool floor = false);
+    void submitMesh(
+        const MeshResource& mesh,
+        const float* matrix,
+        bool force_blend = false,
+        bool backdrop = false,
+        bool floor = false,
+        MeshSubmitPass pass = MeshSubmitPass::All);
     void submitPokemonShadow();
     void submitPixelSceneToBackbuffer(
         int framebuffer_w,

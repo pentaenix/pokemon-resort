@@ -70,6 +70,12 @@ The map does not duplicate these definitions. Renaming tabs, changing tags, or
 adding animation therefore updates the package without rewriting every `.owmap`
 that uses the same stable IDs.
 
+Only the anchor cell stores a multi-cell tile ID. Editor hit testing resolves
+every covered cell back to that anchor: erasing or eyedropping any part affects
+the whole tile. Painting a new footprint first removes every same-layer tile
+whose footprint intersects it, including tiles anchored outside the newly
+clicked cell, so 1x3 and 3x3 pieces cannot silently overlap.
+
 ## Loader architecture in this repo
 
 - Shared metadata parser:

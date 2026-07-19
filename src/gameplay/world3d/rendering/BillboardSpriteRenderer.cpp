@@ -106,21 +106,27 @@ BillboardSpriteRenderer::BillboardSpriteRenderer(
 
     const RgbaImage white_rgba = buildWhiteSilhouetteFromPngBytes(def.texture_png_bytes);
     if (white_rgba.valid()) {
-        SDL_Surface* white_surface = SDL_CreateRGBSurfaceFrom(
+        SDL_Surface* white_surface = SDL_CreateRGBSurfaceWithFormat(
             0,
             white_rgba.width,
             white_rgba.height,
             32,
-            white_rgba.width * 4,
-            0x000000ff,
-            0x0000ff00,
-            0x00ff0000,
-            0xff000000);
+            SDL_PIXELFORMAT_RGBA32);
         if (white_surface) {
-            std::memcpy(
-                white_surface->pixels,
-                white_rgba.pixels.data(),
-                white_rgba.pixels.size());
+            if (SDL_MUSTLOCK(white_surface)) {
+                SDL_LockSurface(white_surface);
+            }
+            const std::size_t source_pitch = static_cast<std::size_t>(white_rgba.width) * 4U;
+            auto* destination = static_cast<std::uint8_t*>(white_surface->pixels);
+            for (int y = 0; y < white_rgba.height; ++y) {
+                std::memcpy(
+                    destination + (static_cast<std::size_t>(y) * static_cast<std::size_t>(white_surface->pitch)),
+                    white_rgba.pixels.data() + (static_cast<std::size_t>(y) * source_pitch),
+                    source_pitch);
+            }
+            if (SDL_MUSTLOCK(white_surface)) {
+                SDL_UnlockSurface(white_surface);
+            }
             uploadWhiteSurface(white_surface);
         }
     } else {

@@ -10,10 +10,22 @@ bool shouldPromoteAttendTextureToBlend(
     const AttendTextureAlphaSummary& alpha) {
     constexpr std::uint8_t kStrongTranslucencyMaximumAlpha = 127;
     constexpr float kMinimumPartialAlphaFraction = 0.05f;
-    return material.render_class == AttendRenderClass::Opaque &&
+    return !material.has_authoritative_pica &&
+        material.render_class == AttendRenderClass::Opaque &&
         material.nitro_texture_alpha == "translucent" &&
         alpha.minimum_alpha <= kStrongTranslucencyMaximumAlpha &&
         alpha.partial_alpha_fraction >= kMinimumPartialAlphaFraction;
+}
+
+bool shouldTreatLegacyBinaryAlphaBlendAsMask(
+    bool declared_blend,
+    bool has_zero_alpha,
+    bool has_partial_alpha,
+    float base_alpha) {
+    return declared_blend &&
+        has_zero_alpha &&
+        !has_partial_alpha &&
+        base_alpha >= 0.999f;
 }
 
 namespace {
@@ -31,13 +43,37 @@ bool shouldRenderAttendPokemonPrimitive(
     const AttendPokemonModel& model,
     const AttendPokemonPrimitive& primitive) {
     if (primitive.default_visible || !primitive.visible_for_forms.empty()) return true;
-    if (primitive.mesh_node >= 0 && primitive.mesh_node < static_cast<int>(model.nodes.size()) &&
-        containsVco(model.nodes[static_cast<std::size_t>(primitive.mesh_node)].name)) {
-        return true;
+    if (primitive.material >= 0 && primitive.material < static_cast<int>(model.materials.size())) {
+        const AttendPokemonMaterial& material =
+            model.materials[static_cast<std::size_t>(primitive.material)];
+        if (material.has_authoritative_pica) return false;
+        if (containsVco(material.name)) return true;
     }
-    return primitive.material >= 0 &&
-        primitive.material < static_cast<int>(model.materials.size()) &&
-        containsVco(model.materials[static_cast<std::size_t>(primitive.material)].name);
+    return primitive.mesh_node >= 0 &&
+        primitive.mesh_node < static_cast<int>(model.nodes.size()) &&
+        containsVco(model.nodes[static_cast<std::size_t>(primitive.mesh_node)].name);
+}
+
+bool shouldRenderAttendSeparateEyeIris(
+    int current_eye_expression_frame,
+    int normal_eye_expression_frame) {
+    return current_eye_expression_frame == normal_eye_expression_frame;
+}
+
+bool shouldCullAttendPokemonMaterial(const AttendPokemonMaterial& material) {
+    if (material.double_sided) return false;
+    return material.material_role != AttendMaterialRole::EyeSclera &&
+        material.material_role != AttendMaterialRole::EyeIris &&
+        material.material_role != AttendMaterialRole::Mouth;
+}
+
+bool attendModelUsesSeparateEyeIris(const AttendPokemonModel& model) {
+    return std::any_of(
+        model.materials.begin(),
+        model.materials.end(),
+        [](const AttendPokemonMaterial& material) {
+            return material.material_role == AttendMaterialRole::EyeIris;
+        });
 }
 
 void sortAttendPokemonDrawOrder(

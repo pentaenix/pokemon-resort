@@ -3,6 +3,7 @@
 #include <SDL_image.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <limits>
 
@@ -344,12 +345,19 @@ void GlbModelRenderer::render(
 
     std::vector<DrawTri> draw;
     draw.reserve(mesh_.triangles.size());
+    const double animation_time = std::chrono::duration<double>(
+        std::chrono::steady_clock::now().time_since_epoch()).count();
+    const std::vector<std::vector<float>> morph_weights =
+        data::sampleGlbMorphWeights(mesh_, animation_time);
 
     const auto project = [&](const data::GlbVertex& vtx, float& sx, float& sy, float& depth) -> bool {
         // model space -> scale -> yaw(+Y) -> translate(placement)
-        const float lx = vtx.x * scale_;
-        const float ly = vtx.y * scale_;
-        const float lz = vtx.z * scale_;
+        const std::array<float, 3> position = morph_weights.empty()
+            ? std::array<float, 3>{vtx.x, vtx.y, vtx.z}
+            : data::sampleGlbMorphPosition(vtx, morph_weights);
+        const float lx = position[0] * scale_;
+        const float ly = position[1] * scale_;
+        const float lz = position[2] * scale_;
         const float rx = lx * cos_yaw_ + lz * sin_yaw_;
         const float rz = -lx * sin_yaw_ + lz * cos_yaw_;
         const camera::Vec3 world{x_ + rx, y_ + ly, z_ + rz};

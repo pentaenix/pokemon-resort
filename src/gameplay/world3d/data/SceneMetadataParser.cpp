@@ -482,6 +482,38 @@ SceneConfig parseSceneMetadata(
     const JsonValue render_root = parseJsonFile(render_cfg_path);
     if (render_root.isObject()) {
         applyTerrainRenderConfig(out.terrain, render_root.get("terrain"));
+        if (const JsonValue* animation = render_root.get("environmentAnimation");
+            animation && animation->isObject()) {
+            out.environment_animation_speed = std::clamp(
+                static_cast<float>(numOr(
+                    animation->get("speedMultiplier"),
+                    out.environment_animation_speed)),
+                0.0f,
+                8.0f);
+            if (const JsonValue* water = animation->get("water"); water && water->isObject()) {
+                out.water_scroll_speed = std::clamp(
+                    static_cast<float>(numOr(
+                        water->get("scrollSpeedMultiplier"),
+                        out.water_scroll_speed)),
+                    0.0f,
+                    8.0f);
+                out.water_wave_speed = std::clamp(
+                    static_cast<float>(numOr(
+                        water->get("waveSpeedMultiplier"),
+                        out.water_wave_speed)),
+                    0.0f,
+                    8.0f);
+                out.water_wave_wait_seconds = std::clamp(
+                    static_cast<float>(numOr(
+                        water->get("waitBetweenWavesSeconds"),
+                        out.water_wave_wait_seconds)),
+                    0.0f,
+                    60.0f);
+                out.water_smooth_uv_motion = boolOr(
+                    water->get("smoothUvMotion"),
+                    out.water_smooth_uv_motion);
+            }
+        }
         if (const JsonValue* occ = render_root.get("occlusion"); occ && occ->isObject()) {
             out.model_behind_bias_tiles =
                 static_cast<float>(numOr(occ->get("modelBehindBiasTiles"), out.model_behind_bias_tiles));

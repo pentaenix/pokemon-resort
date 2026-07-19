@@ -94,6 +94,26 @@ OverlayButton AttendOverlay::pokemonButton(const std::string& pokemon_label) con
     return button;
 }
 
+OverlayButton AttendOverlay::previousPokemonButton() const {
+    const auto& style_config = config_.previous_pokemon_button;
+    OverlayButton button;
+    button.id = "previous_pokemon";
+    button.label = previousPokemonButtonLabel();
+    button.anchor = parseAnchor(style_config.anchor);
+    button.style.fill = toUiColor(style_config.fill);
+    button.style.stroke = toUiColor(style_config.stroke);
+    button.style.text = toUiColor(style_config.text);
+    button.style.width = style_config.width;
+    button.style.height = style_config.height;
+    button.style.margin_x = style_config.margin_x;
+    button.style.margin_y = style_config.margin_y;
+    button.style.padding_x = style_config.padding_x;
+    button.style.corner_radius = style_config.corner_radius;
+    button.style.stroke_width = style_config.stroke_width;
+    button.style.font_size = style_config.font_size;
+    return button;
+}
+
 OverlayButton AttendOverlay::textureVariantButton(const std::string& texture_variant_label) const {
     const auto& style_config = config_.texture_variant_button;
     OverlayButton button;
@@ -226,6 +246,10 @@ std::string AttendOverlay::pokemonButtonLabel(const std::string& pokemon_label) 
     return config_.pokemon_button.label_prefix + pokemon_label;
 }
 
+std::string AttendOverlay::previousPokemonButtonLabel() const {
+    return config_.previous_pokemon_button.label_prefix;
+}
+
 std::string AttendOverlay::textureVariantButtonLabel(const std::string& texture_variant_label) const {
     return config_.texture_variant_button.label_prefix + texture_variant_label;
 }
@@ -268,6 +292,9 @@ void AttendOverlay::render(
     if (config_.pokemon_button.enabled) {
         canvas_.renderButton(renderer, project_root, pokemonButton(pokemon_label));
     }
+    if (config_.previous_pokemon_button.enabled) {
+        canvas_.renderButton(renderer, project_root, previousPokemonButton());
+    }
     if (config_.texture_variant_button.enabled) {
         canvas_.renderButton(renderer, project_root, textureVariantButton(texture_variant_label));
     }
@@ -298,6 +325,10 @@ SDL_Rect AttendOverlay::viewButtonRect() const {
 
 SDL_Rect AttendOverlay::pokemonButtonRect() const {
     return canvas_.buttonRect(pokemonButton({}));
+}
+
+SDL_Rect AttendOverlay::previousPokemonButtonRect() const {
+    return canvas_.buttonRect(previousPokemonButton());
 }
 
 SDL_Rect AttendOverlay::textureVariantButtonRect() const {
@@ -339,6 +370,12 @@ bool AttendOverlay::hitViewButton(int logical_x, int logical_y) const {
 bool AttendOverlay::hitPokemonButton(int logical_x, int logical_y) const {
     if (!config_.pokemon_button.enabled) return false;
     const SDL_Rect r = pokemonButtonRect();
+    return logical_x >= r.x && logical_x < r.x + r.w && logical_y >= r.y && logical_y < r.y + r.h;
+}
+
+bool AttendOverlay::hitPreviousPokemonButton(int logical_x, int logical_y) const {
+    if (!config_.previous_pokemon_button.enabled) return false;
+    const SDL_Rect r = previousPokemonButtonRect();
     return logical_x >= r.x && logical_x < r.x + r.w && logical_y >= r.y && logical_y < r.y + r.h;
 }
 

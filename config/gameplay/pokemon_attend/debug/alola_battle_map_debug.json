@@ -1,7 +1,7 @@
 {
   "_comment": "Temporary TEST ATTEND debug selection. Runtime behavior lives in interaction/provider/environment configs.",
   "id": "alola_battle_map_debug",
-  "activePokemon": "dewgong",
+  "activePokemon": "dewpider",
   "activeFloor": "alola_grass_battle_map",
   "activeSky": "clear",
   "pokemon": {
@@ -61,6 +61,22 @@
       "stroke": "#E6F8FFEE",
       "text": "#FFFFFFFF"
     },
+    "previousPokemonButton": {
+      "enabled": true,
+      "anchor": "top_right",
+      "labelPrefix": "PREVIOUS POKEMON",
+      "width": 232,
+      "height": 44,
+      "marginX": 24,
+      "marginY": 178,
+      "paddingX": 16,
+      "cornerRadius": 12,
+      "strokeWidth": 2,
+      "fontSize": 18,
+      "fill": "#123A56E8",
+      "stroke": "#E6F8FFEE",
+      "text": "#FFFFFFFF"
+    },
     "textureVariantButton": {
       "enabled": true,
       "anchor": "top_right",
@@ -68,7 +84,7 @@
       "width": 196,
       "height": 44,
       "marginX": 24,
-      "marginY": 178,
+      "marginY": 230,
       "paddingX": 16,
       "cornerRadius": 12,
       "strokeWidth": 2,
@@ -84,7 +100,7 @@
       "width": 196,
       "height": 44,
       "marginX": 24,
-      "marginY": 230,
+      "marginY": 282,
       "paddingX": 16,
       "cornerRadius": 12,
       "strokeWidth": 2,

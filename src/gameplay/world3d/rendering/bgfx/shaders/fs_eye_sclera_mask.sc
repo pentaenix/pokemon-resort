@@ -8,11 +8,9 @@ uniform vec4 u_tintCutoff;
 void main()
 {
     vec4 texel = texture2D(s_texColor, v_texcoord0);
-    float hi = max(texel.r, max(texel.g, texel.b));
-    float lo = min(texel.r, min(texel.g, texel.b));
-    float chroma = hi - lo;
-    float luminance = dot(texel.rgb, vec3(0.299, 0.587, 0.114));
-    if (texel.a < 0.01 || chroma > 0.18 || luminance < 0.42)
+    // Resort supplies a generated socket-aperture texture here. Socket colors
+    // vary by Pokemon, so its binary alpha is the complete stencil contract.
+    if (texel.a < 0.01)
     {
         discard;
     }

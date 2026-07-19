@@ -290,6 +290,7 @@ void AttendBgfxRenderer::Impl::shutdown() {
     profile_plate_texture_.destroy();
     profile_plate_text_texture_.destroy();
     if (bgfx::isValid(program_)) bgfx::destroy(program_);
+    if (bgfx::isValid(camera_sphere_program_)) bgfx::destroy(camera_sphere_program_);
     if (bgfx::isValid(eye_program_)) bgfx::destroy(eye_program_);
     if (bgfx::isValid(eye_sclera_mask_program_)) bgfx::destroy(eye_sclera_mask_program_);
     if (bgfx::isValid(tex_uniform_)) bgfx::destroy(tex_uniform_);
@@ -300,6 +301,7 @@ void AttendBgfxRenderer::Impl::shutdown() {
     if (bgfx::isValid(light_dir_uniform_)) bgfx::destroy(light_dir_uniform_);
     if (bgfx::isValid(light_params_uniform_)) bgfx::destroy(light_params_uniform_);
     program_ = BGFX_INVALID_HANDLE;
+    camera_sphere_program_ = BGFX_INVALID_HANDLE;
     eye_program_ = BGFX_INVALID_HANDLE;
     eye_sclera_mask_program_ = BGFX_INVALID_HANDLE;
     tex_uniform_ = BGFX_INVALID_HANDLE;
@@ -393,14 +395,22 @@ bool AttendBgfxRenderer::Impl::createPrograms() {
     const fs::path shader_root = backend_.shaderDirectory();
     bgfx::ShaderHandle vs = loadShader(shader_root, backend_.shaderSubdirectory(), "vs_world");
     bgfx::ShaderHandle fs = loadShader(shader_root, backend_.shaderSubdirectory(), "fs_textured_cutout");
+    bgfx::ShaderHandle vs_camera_sphere = loadShader(
+        shader_root, backend_.shaderSubdirectory(), "vs_world_camera_sphere");
+    bgfx::ShaderHandle fs_camera_sphere = loadShader(
+        shader_root, backend_.shaderSubdirectory(), "fs_textured_cutout");
     bgfx::ShaderHandle vs_eye = loadShader(shader_root, backend_.shaderSubdirectory(), "vs_world");
     bgfx::ShaderHandle fs_eye = loadShader(shader_root, backend_.shaderSubdirectory(), "fs_pokemon_eye");
     bgfx::ShaderHandle vs_eye_mask = loadShader(shader_root, backend_.shaderSubdirectory(), "vs_world");
     bgfx::ShaderHandle fs_eye_mask = loadShader(shader_root, backend_.shaderSubdirectory(), "fs_eye_sclera_mask");
-    if (!bgfx::isValid(vs) || !bgfx::isValid(fs) || !bgfx::isValid(vs_eye) || !bgfx::isValid(fs_eye) ||
+    if (!bgfx::isValid(vs) || !bgfx::isValid(fs) ||
+        !bgfx::isValid(vs_camera_sphere) || !bgfx::isValid(fs_camera_sphere) ||
+        !bgfx::isValid(vs_eye) || !bgfx::isValid(fs_eye) ||
         !bgfx::isValid(vs_eye_mask) || !bgfx::isValid(fs_eye_mask)) {
         if (bgfx::isValid(vs)) bgfx::destroy(vs);
         if (bgfx::isValid(fs)) bgfx::destroy(fs);
+        if (bgfx::isValid(vs_camera_sphere)) bgfx::destroy(vs_camera_sphere);
+        if (bgfx::isValid(fs_camera_sphere)) bgfx::destroy(fs_camera_sphere);
         if (bgfx::isValid(vs_eye)) bgfx::destroy(vs_eye);
         if (bgfx::isValid(fs_eye)) bgfx::destroy(fs_eye);
         if (bgfx::isValid(vs_eye_mask)) bgfx::destroy(vs_eye_mask);
@@ -409,9 +419,11 @@ bool AttendBgfxRenderer::Impl::createPrograms() {
         return false;
     }
     program_ = bgfx::createProgram(vs, fs, true);
+    camera_sphere_program_ = bgfx::createProgram(vs_camera_sphere, fs_camera_sphere, true);
     eye_program_ = bgfx::createProgram(vs_eye, fs_eye, true);
     eye_sclera_mask_program_ = bgfx::createProgram(vs_eye_mask, fs_eye_mask, true);
-    if (!bgfx::isValid(program_) || !bgfx::isValid(eye_program_) || !bgfx::isValid(eye_sclera_mask_program_)) {
+    if (!bgfx::isValid(program_) || !bgfx::isValid(camera_sphere_program_) ||
+        !bgfx::isValid(eye_program_) || !bgfx::isValid(eye_sclera_mask_program_)) {
         last_error_ = "Could not create attend shader program";
         return false;
     }

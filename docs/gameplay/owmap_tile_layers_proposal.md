@@ -224,8 +224,31 @@ frames. The runtime material stores the frame paths and frame duration. The bgfx
 renderer selects the globally synchronized frame at draw time, so all uses of a
 water tile animate together without expanding `.owmap` cells.
 
-`uvScroll` and `sway` definitions are valid authored metadata for future shader
-paths. Frame animation is the currently rendered runtime animation mode.
+RAE `.tile` imports may instead provide `materialMotion`: an exact sampled UV
+offset timeline plus optional sparse texture-pattern keyframes. RTPKS preserves
+that representation and the GLB sampler (`repeat`, `clamp`, or `mirror`) per
+axis. A material stores `uvMapping.mode: "world"` only when its complete mesh
+UV field passes an exact affine-fit check; shoreline UV islands remain in mesh
+space. Both the Admin
+3D viewport and bgfx runtime add the placement anchor through that basis before
+sampling, so adjacent water, cloud, and grass tiles remain one continuous UV
+field instead of visibly restarting at every cell. DS motion also carries an
+exact `timebaseHz`, `interpolation: "step"`, and material layer role/order.
+Both renderers therefore advance the original discrete samples on source ticks,
+independent of display frame rate or rounded millisecond durations, while
+keeping pattern swaps globally synchronized. This is the
+preferred representation for Generation V open-water, river, and reflection
+layers; it does not bake scrolling water into hundreds of PNG frames.
+
+Transparent shoreline and rock-transition pieces keep only their authored
+foam/sand/rock geometry and mesh-space motion. The repeatable open-ocean body
+keeps its lower and translucent upper planes as two ordered materials in one
+1x1 tile below the transition.
+This avoids duplicate coplanar water and keeps every plane constrained to the
+cells explicitly authored in the `.owmap`.
+
+`sway` remains valid authored metadata for a future shader path. Frame animation
+and `materialMotion` are the currently rendered runtime animation modes.
 
 ## Collision authoring
 

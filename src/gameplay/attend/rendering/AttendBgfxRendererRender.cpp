@@ -49,6 +49,9 @@ void AttendBgfxRenderer::Impl::render(double scene_time_seconds, int width, int 
         c(1.0f);
     bgfx::setViewClear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH | BGFX_CLEAR_STENCIL, clear_rgba, 1.0f, 0);
     bgfx::setViewFrameBuffer(0, scene_frame_buffer);
+    // Pokemon ranges are explicitly ordered opaque-first and translucent-last,
+    // and the sclera/iris compositor depends on stencil submission order.
+    bgfx::setViewMode(0, bgfx::ViewMode::Sequential);
 
     updateViewportLook(scene_time_seconds);
     updateFaceViewTransition(scene_time_seconds);
@@ -91,10 +94,16 @@ void AttendBgfxRenderer::Impl::render(double scene_time_seconds, int width, int 
     identity(ident);
     updateFloorAnimation(scene_time_seconds);
     submitMesh(wall_mesh_, ident, false, true);
-    submitMesh(floor_mesh_, ident, false, false, true);
-    for (const MeshResource& mesh : floor_extension_meshes_) {
-        submitMesh(mesh, ident, false, false, true);
-    }
+    const auto submit_floor_pass = [&](MeshSubmitPass pass) {
+        submitMesh(floor_mesh_, ident, false, false, true, pass);
+        for (const MeshResource& mesh : floor_extension_meshes_) {
+            submitMesh(mesh, ident, false, false, true, pass);
+        }
+    };
+    // Establish occlusion for the whole environment before weather and other
+    // genuinely translucent ranges. Floor pieces must not be isolated passes.
+    submit_floor_pass(MeshSubmitPass::DepthWriting);
+    submit_floor_pass(MeshSubmitPass::Blended);
     submitPokemonShadow();
     updatePetControls(scene_time_seconds);
     updateRandomBlink(scene_time_seconds);

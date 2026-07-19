@@ -26,6 +26,7 @@ public:
     std::string weatherButtonLabel(const std::string& weather_label) const;
     std::string viewButtonLabel(const std::string& view_label) const;
     std::string pokemonButtonLabel(const std::string& pokemon_label) const;
+    std::string previousPokemonButtonLabel() const;
     std::string textureVariantButtonLabel(const std::string& texture_variant_label) const;
     std::string formVariantButtonLabel(const std::string& form_variant_label) const;
     std::string skyButtonLabel(const std::string& sky_label) const;
@@ -35,6 +36,7 @@ public:
     SDL_Rect weatherButtonRect() const;
     SDL_Rect viewButtonRect() const;
     SDL_Rect pokemonButtonRect() const;
+    SDL_Rect previousPokemonButtonRect() const;
     SDL_Rect textureVariantButtonRect() const;
     SDL_Rect formVariantButtonRect() const;
     SDL_Rect skyButtonRect() const;
@@ -44,6 +46,7 @@ public:
     bool hitWeatherButton(int logical_x, int logical_y) const;
     bool hitViewButton(int logical_x, int logical_y) const;
     bool hitPokemonButton(int logical_x, int logical_y) const;
+    bool hitPreviousPokemonButton(int logical_x, int logical_y) const;
     bool hitTextureVariantButton(int logical_x, int logical_y) const;
     bool hitFormVariantButton(int logical_x, int logical_y) const;
     bool hitSkyButton(int logical_x, int logical_y) const;
@@ -56,6 +59,7 @@ private:
     OverlayButton weatherButton(const std::string& weather_label) const;
     OverlayButton viewButton(const std::string& view_label) const;
     OverlayButton pokemonButton(const std::string& pokemon_label) const;
+    OverlayButton previousPokemonButton() const;
     OverlayButton textureVariantButton(const std::string& texture_variant_label) const;
     OverlayButton formVariantButton(const std::string& form_variant_label) const;
     OverlayButton skyButton(const std::string& sky_label) const;

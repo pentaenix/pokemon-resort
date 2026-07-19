@@ -40,6 +40,7 @@ public:
         bgfx::UniformHandle tint_cutoff_uniform = BGFX_INVALID_HANDLE;
         bgfx::UniformHandle color_adjust_uniform = BGFX_INVALID_HANDLE;
         bgfx::UniformHandle texture_blur_uniform = BGFX_INVALID_HANDLE;
+        bgfx::UniformHandle uv_offset_uniform = BGFX_INVALID_HANDLE;
         bgfx::UniformHandle light_dir_uniform = BGFX_INVALID_HANDLE;
         bgfx::UniformHandle light_params_uniform = BGFX_INVALID_HANDLE;
         bgfx::ViewId view_id = 0;
