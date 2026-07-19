@@ -269,6 +269,7 @@ struct SceneConfig {
     float water_wave_speed = 1.25f;
     float water_wave_wait_seconds = 0.0f;
     bool water_smooth_uv_motion = true;
+    float water_shoreline_seam_overlap_pixels = 0.5f;
     // How far (in tiles) toward the camera a placed model's occlusion anchor is biased when
     // depth-sorting it against characters. Larger = the model starts hiding the character
     // sooner (further forward), so a character stepping into a doorway is occluded by the

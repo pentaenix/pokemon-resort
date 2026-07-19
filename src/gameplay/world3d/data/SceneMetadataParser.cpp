@@ -512,6 +512,12 @@ SceneConfig parseSceneMetadata(
                 out.water_smooth_uv_motion = boolOr(
                     water->get("smoothUvMotion"),
                     out.water_smooth_uv_motion);
+                out.water_shoreline_seam_overlap_pixels = std::clamp(
+                    static_cast<float>(numOr(
+                        water->get("shorelineSeamOverlapPixels"),
+                        out.water_shoreline_seam_overlap_pixels)),
+                    0.0f,
+                    2.0f);
             }
         }
         if (const JsonValue* occ = render_root.get("occlusion"); occ && occ->isObject()) {

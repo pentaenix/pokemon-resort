@@ -350,6 +350,7 @@ private:
         bool animation_loop = true;
         bool water_animation = false;
         bool shoreline_animation = false;
+        bool shoreline_seam_cover = false;
         int shoreline_cycle_frame_count = 1;
         std::vector<std::array<float, 2>> animation_uv_offsets;
         std::vector<ImageKeyframe> animation_image_keyframes;
@@ -1189,6 +1190,9 @@ bool OverworldBgfxRenderer::Impl::buildTileLayers() {
         material.animation_loop = src.animation_loop;
         material.water_animation = isWaterMaterial(src.name, src.layer_role);
         material.shoreline_animation = src.layer_role.rfind("shoreline", 0) == 0;
+        material.shoreline_seam_cover =
+            src.layer_role == "shoreline-crest" ||
+            src.layer_role == "shoreline-underlay";
         material.shoreline_cycle_frame_count = shoreline_cycle_frame_count;
         material.animation_uv_offsets = src.animation_uv_offsets;
         material.sampler_flags = samplerFlags(src.wrap_s, src.wrap_t, src.min_filter, src.mag_filter);
@@ -1342,11 +1346,21 @@ bool OverworldBgfxRenderer::Impl::buildTileLayers() {
                                    float base_y,
                                    float layer_lift,
                                    bool conform_to_terrain,
-                                   const MaterialGpuResource& material) {
+                                   const MaterialGpuResource& material,
+                                   float seam_center_x,
+                                   float seam_center_y,
+                                   float seam_overlap_tiles) {
         const std::size_t pi = vertex_index * 3U;
         const std::size_t ui = vertex_index * 2U;
-        const float local_x = read_float(positions, pi + 0U, 0.0f) + mesh.x_offset;
-        const float local_y = read_float(positions, pi + 1U, 0.0f) + mesh.y_offset;
+        float local_x = read_float(positions, pi + 0U, 0.0f) + mesh.x_offset;
+        float local_y = read_float(positions, pi + 1U, 0.0f) + mesh.y_offset;
+        if (seam_overlap_tiles > 0.0f) {
+            constexpr float kCenterEpsilon = 0.00001f;
+            if (local_x < seam_center_x - kCenterEpsilon) local_x -= seam_overlap_tiles;
+            else if (local_x > seam_center_x + kCenterEpsilon) local_x += seam_overlap_tiles;
+            if (local_y < seam_center_y - kCenterEpsilon) local_y -= seam_overlap_tiles;
+            else if (local_y > seam_center_y + kCenterEpsilon) local_y += seam_overlap_tiles;
+        }
         const float local_z = read_float(positions, pi + 2U, 0.0f);
         const float world_x = static_cast<float>(tile_x) * tile_size + local_x * tile_size;
         const float world_z = static_cast<float>(tile_y) * tile_size + (static_cast<float>(mesh.height) - local_y) * tile_size;
@@ -1400,12 +1414,15 @@ bool OverworldBgfxRenderer::Impl::buildTileLayers() {
                                 float base_y,
                                 float layer_lift,
                                 bool conform_to_terrain,
-                                const MaterialGpuResource& material) {
+                                const MaterialGpuResource& material,
+                                float seam_center_x,
+                                float seam_center_y,
+                                float seam_overlap_tiles) {
         const std::uint32_t base = static_cast<std::uint32_t>(bucket.vertices.size());
         const std::size_t first = static_cast<std::size_t>(std::max(0, tri_index)) * 3U;
-        append_vertex(bucket, mesh, mesh.triangles, mesh.tex_coords_tri, mesh.colors_tri, first + 0U, tile_x, tile_y, base_y, layer_lift, conform_to_terrain, material);
-        append_vertex(bucket, mesh, mesh.triangles, mesh.tex_coords_tri, mesh.colors_tri, first + 1U, tile_x, tile_y, base_y, layer_lift, conform_to_terrain, material);
-        append_vertex(bucket, mesh, mesh.triangles, mesh.tex_coords_tri, mesh.colors_tri, first + 2U, tile_x, tile_y, base_y, layer_lift, conform_to_terrain, material);
+        append_vertex(bucket, mesh, mesh.triangles, mesh.tex_coords_tri, mesh.colors_tri, first + 0U, tile_x, tile_y, base_y, layer_lift, conform_to_terrain, material, seam_center_x, seam_center_y, seam_overlap_tiles);
+        append_vertex(bucket, mesh, mesh.triangles, mesh.tex_coords_tri, mesh.colors_tri, first + 1U, tile_x, tile_y, base_y, layer_lift, conform_to_terrain, material, seam_center_x, seam_center_y, seam_overlap_tiles);
+        append_vertex(bucket, mesh, mesh.triangles, mesh.tex_coords_tri, mesh.colors_tri, first + 2U, tile_x, tile_y, base_y, layer_lift, conform_to_terrain, material, seam_center_x, seam_center_y, seam_overlap_tiles);
         bucket.indices.insert(bucket.indices.end(), {base, base + 1U, base + 2U});
     };
     const auto append_quad = [&](Bucket& bucket,
@@ -1416,13 +1433,16 @@ bool OverworldBgfxRenderer::Impl::buildTileLayers() {
                                  float base_y,
                                  float layer_lift,
                                  bool conform_to_terrain,
-                                 const MaterialGpuResource& material) {
+                                 const MaterialGpuResource& material,
+                                 float seam_center_x,
+                                 float seam_center_y,
+                                 float seam_overlap_tiles) {
         const std::uint32_t base = static_cast<std::uint32_t>(bucket.vertices.size());
         const std::size_t first = static_cast<std::size_t>(std::max(0, quad_index)) * 4U;
-        append_vertex(bucket, mesh, mesh.quads, mesh.tex_coords_quad, mesh.colors_quad, first + 0U, tile_x, tile_y, base_y, layer_lift, conform_to_terrain, material);
-        append_vertex(bucket, mesh, mesh.quads, mesh.tex_coords_quad, mesh.colors_quad, first + 1U, tile_x, tile_y, base_y, layer_lift, conform_to_terrain, material);
-        append_vertex(bucket, mesh, mesh.quads, mesh.tex_coords_quad, mesh.colors_quad, first + 2U, tile_x, tile_y, base_y, layer_lift, conform_to_terrain, material);
-        append_vertex(bucket, mesh, mesh.quads, mesh.tex_coords_quad, mesh.colors_quad, first + 3U, tile_x, tile_y, base_y, layer_lift, conform_to_terrain, material);
+        append_vertex(bucket, mesh, mesh.quads, mesh.tex_coords_quad, mesh.colors_quad, first + 0U, tile_x, tile_y, base_y, layer_lift, conform_to_terrain, material, seam_center_x, seam_center_y, seam_overlap_tiles);
+        append_vertex(bucket, mesh, mesh.quads, mesh.tex_coords_quad, mesh.colors_quad, first + 1U, tile_x, tile_y, base_y, layer_lift, conform_to_terrain, material, seam_center_x, seam_center_y, seam_overlap_tiles);
+        append_vertex(bucket, mesh, mesh.quads, mesh.tex_coords_quad, mesh.colors_quad, first + 2U, tile_x, tile_y, base_y, layer_lift, conform_to_terrain, material, seam_center_x, seam_center_y, seam_overlap_tiles);
+        append_vertex(bucket, mesh, mesh.quads, mesh.tex_coords_quad, mesh.colors_quad, first + 3U, tile_x, tile_y, base_y, layer_lift, conform_to_terrain, material, seam_center_x, seam_center_y, seam_overlap_tiles);
         bucket.indices.insert(bucket.indices.end(), {base, base + 1U, base + 2U, base, base + 2U, base + 3U});
     };
     const auto append_tile = [&](int tile_id, int x, int y, std::size_t layer_index) -> bool {
@@ -1441,11 +1461,48 @@ bool OverworldBgfxRenderer::Impl::buildTileLayers() {
             Bucket& bucket = buckets[static_cast<std::size_t>(std::clamp(slot, 0, static_cast<int>(buckets.size()) - 1))];
             const std::size_t material_index = static_cast<std::size_t>(std::clamp(slot, 0, static_cast<int>(tile_layer_mesh_.materials.size()) - 1));
             const MaterialGpuResource& material = tile_layer_mesh_.materials[material_index];
+            float seam_center_x = 0.0f;
+            float seam_center_y = 0.0f;
+            float seam_overlap_tiles = 0.0f;
+            if (material.shoreline_seam_cover && scene_.water_shoreline_seam_overlap_pixels > 0.0f) {
+                float min_x = std::numeric_limits<float>::max();
+                float min_y = std::numeric_limits<float>::max();
+                float max_x = std::numeric_limits<float>::lowest();
+                float max_y = std::numeric_limits<float>::lowest();
+                const auto include_vertex = [&](const std::vector<float>& positions, std::size_t vertex_index) {
+                    const std::size_t pi = vertex_index * 3U;
+                    const float local_x = read_float(positions, pi + 0U, 0.0f) + mesh->x_offset;
+                    const float local_y = read_float(positions, pi + 1U, 0.0f) + mesh->y_offset;
+                    min_x = std::min(min_x, local_x);
+                    min_y = std::min(min_y, local_y);
+                    max_x = std::max(max_x, local_x);
+                    max_y = std::max(max_y, local_y);
+                };
+                for (int i = 0; i < range.tri_count; ++i) {
+                    const std::size_t first = static_cast<std::size_t>(range.tri_start + i) * 3U;
+                    include_vertex(mesh->triangles, first + 0U);
+                    include_vertex(mesh->triangles, first + 1U);
+                    include_vertex(mesh->triangles, first + 2U);
+                }
+                for (int i = 0; i < range.quad_count; ++i) {
+                    const std::size_t first = static_cast<std::size_t>(range.quad_start + i) * 4U;
+                    include_vertex(mesh->quads, first + 0U);
+                    include_vertex(mesh->quads, first + 1U);
+                    include_vertex(mesh->quads, first + 2U);
+                    include_vertex(mesh->quads, first + 3U);
+                }
+                if (min_x <= max_x && min_y <= max_y) {
+                    seam_center_x = (min_x + max_x) * 0.5f;
+                    seam_center_y = (min_y + max_y) * 0.5f;
+                    seam_overlap_tiles = scene_.water_shoreline_seam_overlap_pixels /
+                        static_cast<float>(std::max(1, scene_.pixel_scale.map_pixels_per_tile));
+                }
+            }
             for (int i = 0; i < range.tri_count; ++i) {
-                append_tri(bucket, *mesh, range.tri_start + i, x, y, base_y, layer_lift, conform_to_terrain, material);
+                append_tri(bucket, *mesh, range.tri_start + i, x, y, base_y, layer_lift, conform_to_terrain, material, seam_center_x, seam_center_y, seam_overlap_tiles);
             }
             for (int i = 0; i < range.quad_count; ++i) {
-                append_quad(bucket, *mesh, range.quad_start + i, x, y, base_y, layer_lift, conform_to_terrain, material);
+                append_quad(bucket, *mesh, range.quad_start + i, x, y, base_y, layer_lift, conform_to_terrain, material, seam_center_x, seam_center_y, seam_overlap_tiles);
             }
         }
         return true;
