@@ -23,6 +23,7 @@ public:
     bool swimming() const { return swimming_ && def_.has_swim; }
     bool hasActivitySession(const std::string& action_id) const;
     bool startActivitySession(const std::string& action_id);
+    void cancelActivitySession();
     void requestActivityExit();
     bool activitySessionActive() const;
     bool activityStayActive() const;

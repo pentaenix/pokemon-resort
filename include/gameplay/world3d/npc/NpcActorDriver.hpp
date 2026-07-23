@@ -29,7 +29,9 @@ enum class NpcActorKind {
 enum class NpcBehaviorKind {
     Static,
     IdleRotate,
+    SlowRotate,
     Wander,
+    DestinationRoam,
     Path,
     FollowActor,
 };
@@ -52,16 +54,28 @@ struct NpcActorDefinition {
     std::string follow_target_id;
     std::string movement_speed_profile = "walk";
     std::string script_id;
+    std::string persistent_activity_id;
+    std::optional<FacingDirection> persistent_activity_facing;
+    double rotate_wait_min_seconds = 4.0;
+    double rotate_wait_max_seconds = 8.0;
+    int roam_min_distance_tiles = 8;
+    double roam_wait_min_seconds = 2.0;
+    double roam_wait_max_seconds = 5.0;
     bool use_random_spawn = true;
     int spawn_tile_x = 0;
     int spawn_tile_y = 0;
     FacingDirection facing = FacingDirection::South;
     bool follower_pokemon_freedom = false;
+    bool spawn_partner_pokemon = true;
     std::vector<NpcPathPoint> path_points;
     std::string pokemon_form_id = "default";
     bool pokemon_shiny = false;
     // Future spawners may set this transient reference; it is intentionally not charbin metadata.
     std::optional<std::string> runtime_interaction_script_id;
+    std::string pokemon_species_slug;
+    std::string pokemon_display_name;
+    int resort_box_id = -1;
+    int resort_slot_index = -1;
 };
 
 struct NpcInteractionActorInfo {
@@ -75,6 +89,11 @@ struct NpcInteractionActorInfo {
     std::vector<std::string> dialogue_lines;
     std::string npc_interaction_mode = "direct_dialogue";
     std::optional<std::string> runtime_interaction_script_id;
+    std::string species_slug;
+    std::string form_id = "default";
+    bool shiny = false;
+    int resort_box_id = -1;
+    int resort_slot_index = -1;
 };
 
 struct ResortPokemonSpawnInfo {
@@ -82,10 +101,18 @@ struct ResortPokemonSpawnInfo {
     std::string character_package_path;
     std::string species_slug;
     std::string species_name;
+    std::string display_name;
     int box_id = 0;
     int slot_index = 0;
     std::string form_id = "default";
     bool shiny = false;
+};
+
+struct NpcEffectActorSnapshot {
+    std::string id;
+    camera::Vec3 world_pos{};
+    bool actual_water = false;
+    bool moving = false;
 };
 
 class NpcActorDriver {
@@ -115,6 +142,7 @@ public:
         int viewport_w,
         int viewport_h,
         std::vector<rendering::CharacterBillboardDraw>& out) const;
+    std::vector<NpcEffectActorSnapshot> effectActorSnapshots() const;
 
     bool empty() const { return actors_.empty(); }
 
@@ -163,6 +191,8 @@ private:
     void startStepToTile(Actor& actor, int tx, int ty, bool allow_reserved_tile = false);
     void updateRandomWalk(Actor& actor, double dt);
     void updateIdleRotate(Actor& actor, double dt);
+    void updateSlowRotate(Actor& actor, double dt);
+    void updateDestinationRoam(Actor& actor, double dt);
     void updatePath(Actor& actor, double dt);
     void updateFollowActor(Actor& actor, const Actor& target, double dt);
     bool tryFollowerFreedomStep(Actor& actor, const Actor& target);

@@ -260,6 +260,8 @@ bool AttendBgfxRenderer::Impl::initialize(
         .add(bgfx::Attrib::Normal, 3, bgfx::AttribType::Float)
         .add(bgfx::Attrib::Color0, 4, bgfx::AttribType::Uint8, true)
         .add(bgfx::Attrib::TexCoord0, 2, bgfx::AttribType::Float)
+        .add(bgfx::Attrib::TexCoord1, 2, bgfx::AttribType::Float)
+        .add(bgfx::Attrib::TexCoord2, 2, bgfx::AttribType::Float)
         .end();
 
     if (!createPrograms() || !createWhiteTexture() || !buildFloor() || !buildWall() || !buildPokemon()) {
@@ -293,29 +295,61 @@ void AttendBgfxRenderer::Impl::shutdown() {
     if (bgfx::isValid(camera_sphere_program_)) bgfx::destroy(camera_sphere_program_);
     if (bgfx::isValid(eye_program_)) bgfx::destroy(eye_program_);
     if (bgfx::isValid(eye_sclera_mask_program_)) bgfx::destroy(eye_sclera_mask_program_);
+    if (bgfx::isValid(pica_tev_program_)) bgfx::destroy(pica_tev_program_);
     if (bgfx::isValid(tex_uniform_)) bgfx::destroy(tex_uniform_);
     if (bgfx::isValid(eye_mask_uniform_)) bgfx::destroy(eye_mask_uniform_);
     if (bgfx::isValid(tint_cutoff_uniform_)) bgfx::destroy(tint_cutoff_uniform_);
     if (bgfx::isValid(color_adjust_uniform_)) bgfx::destroy(color_adjust_uniform_);
     if (bgfx::isValid(texture_blur_uniform_)) bgfx::destroy(texture_blur_uniform_);
+    if (bgfx::isValid(uv_offset_uniform_)) bgfx::destroy(uv_offset_uniform_);
     if (bgfx::isValid(light_dir_uniform_)) bgfx::destroy(light_dir_uniform_);
     if (bgfx::isValid(light_params_uniform_)) bgfx::destroy(light_params_uniform_);
+    for (bgfx::UniformHandle uniform : pica_tex_uniforms_) if (bgfx::isValid(uniform)) bgfx::destroy(uniform);
+    if (bgfx::isValid(pica_uv_offsets_uniform_)) bgfx::destroy(pica_uv_offsets_uniform_);
+    if (bgfx::isValid(pica_coord_sets_uniform_)) bgfx::destroy(pica_coord_sets_uniform_);
+    if (bgfx::isValid(pica_stage_color_sources_uniform_)) bgfx::destroy(pica_stage_color_sources_uniform_);
+    if (bgfx::isValid(pica_stage_alpha_sources_uniform_)) bgfx::destroy(pica_stage_alpha_sources_uniform_);
+    if (bgfx::isValid(pica_stage_color_operands_uniform_)) bgfx::destroy(pica_stage_color_operands_uniform_);
+    if (bgfx::isValid(pica_stage_alpha_operands_uniform_)) bgfx::destroy(pica_stage_alpha_operands_uniform_);
+    if (bgfx::isValid(pica_stage_modes_uniform_)) bgfx::destroy(pica_stage_modes_uniform_);
+    if (bgfx::isValid(pica_stage_flags_uniform_)) bgfx::destroy(pica_stage_flags_uniform_);
+    if (bgfx::isValid(pica_constants_uniform_)) bgfx::destroy(pica_constants_uniform_);
+    if (bgfx::isValid(pica_buffer_uniform_)) bgfx::destroy(pica_buffer_uniform_);
+    if (bgfx::isValid(pica_special_uniform_)) bgfx::destroy(pica_special_uniform_);
     program_ = BGFX_INVALID_HANDLE;
     camera_sphere_program_ = BGFX_INVALID_HANDLE;
     eye_program_ = BGFX_INVALID_HANDLE;
     eye_sclera_mask_program_ = BGFX_INVALID_HANDLE;
+    pica_tev_program_ = BGFX_INVALID_HANDLE;
     tex_uniform_ = BGFX_INVALID_HANDLE;
     eye_mask_uniform_ = BGFX_INVALID_HANDLE;
     tint_cutoff_uniform_ = BGFX_INVALID_HANDLE;
     color_adjust_uniform_ = BGFX_INVALID_HANDLE;
     texture_blur_uniform_ = BGFX_INVALID_HANDLE;
+    uv_offset_uniform_ = BGFX_INVALID_HANDLE;
     light_dir_uniform_ = BGFX_INVALID_HANDLE;
     light_params_uniform_ = BGFX_INVALID_HANDLE;
+    pica_tex_uniforms_ = {
+        bgfx::UniformHandle{bgfx::kInvalidHandle},
+        bgfx::UniformHandle{bgfx::kInvalidHandle},
+        bgfx::UniformHandle{bgfx::kInvalidHandle}};
+    pica_uv_offsets_uniform_ = BGFX_INVALID_HANDLE;
+    pica_coord_sets_uniform_ = BGFX_INVALID_HANDLE;
+    pica_stage_color_sources_uniform_ = BGFX_INVALID_HANDLE;
+    pica_stage_alpha_sources_uniform_ = BGFX_INVALID_HANDLE;
+    pica_stage_color_operands_uniform_ = BGFX_INVALID_HANDLE;
+    pica_stage_alpha_operands_uniform_ = BGFX_INVALID_HANDLE;
+    pica_stage_modes_uniform_ = BGFX_INVALID_HANDLE;
+    pica_stage_flags_uniform_ = BGFX_INVALID_HANDLE;
+    pica_constants_uniform_ = BGFX_INVALID_HANDLE;
+    pica_buffer_uniform_ = BGFX_INVALID_HANDLE;
+    pica_special_uniform_ = BGFX_INVALID_HANDLE;
     floor_model_ = AttendPokemonModel{};
     floor_animation_ = nullptr;
     floor_skinned_primitives_.clear();
     floor_frame_vertices_.clear();
     floor_animated_ = false;
+    floor_environment_ = false;
     floor_extension_meshes_.clear();
     overlay_button_textures_.clear();
     overlay_buttons_.clear();
@@ -390,8 +424,23 @@ bool AttendBgfxRenderer::Impl::createPrograms() {
     tint_cutoff_uniform_ = bgfx::createUniform("u_tintCutoff", bgfx::UniformType::Vec4);
     color_adjust_uniform_ = bgfx::createUniform("u_colorAdjust", bgfx::UniformType::Vec4);
     texture_blur_uniform_ = bgfx::createUniform("u_textureBlur", bgfx::UniformType::Vec4);
+    uv_offset_uniform_ = bgfx::createUniform("u_uvOffset", bgfx::UniformType::Vec4);
     light_dir_uniform_ = bgfx::createUniform("u_lightDir", bgfx::UniformType::Vec4);
     light_params_uniform_ = bgfx::createUniform("u_lightParams", bgfx::UniformType::Vec4);
+    pica_tex_uniforms_[0] = bgfx::createUniform("s_picaTex0", bgfx::UniformType::Sampler);
+    pica_tex_uniforms_[1] = bgfx::createUniform("s_picaTex1", bgfx::UniformType::Sampler);
+    pica_tex_uniforms_[2] = bgfx::createUniform("s_picaTex2", bgfx::UniformType::Sampler);
+    pica_uv_offsets_uniform_ = bgfx::createUniform("u_picaUvOffsets", bgfx::UniformType::Vec4, 3);
+    pica_coord_sets_uniform_ = bgfx::createUniform("u_picaCoordSets", bgfx::UniformType::Vec4);
+    pica_stage_color_sources_uniform_ = bgfx::createUniform("u_picaColorSources", bgfx::UniformType::Vec4, 6);
+    pica_stage_alpha_sources_uniform_ = bgfx::createUniform("u_picaAlphaSources", bgfx::UniformType::Vec4, 6);
+    pica_stage_color_operands_uniform_ = bgfx::createUniform("u_picaColorOperands", bgfx::UniformType::Vec4, 6);
+    pica_stage_alpha_operands_uniform_ = bgfx::createUniform("u_picaAlphaOperands", bgfx::UniformType::Vec4, 6);
+    pica_stage_modes_uniform_ = bgfx::createUniform("u_picaModes", bgfx::UniformType::Vec4, 6);
+    pica_stage_flags_uniform_ = bgfx::createUniform("u_picaFlags", bgfx::UniformType::Vec4, 6);
+    pica_constants_uniform_ = bgfx::createUniform("u_picaConstants", bgfx::UniformType::Vec4, 6);
+    pica_buffer_uniform_ = bgfx::createUniform("u_picaBuffer", bgfx::UniformType::Vec4);
+    pica_special_uniform_ = bgfx::createUniform("u_picaSpecial", bgfx::UniformType::Vec4);
     const fs::path shader_root = backend_.shaderDirectory();
     bgfx::ShaderHandle vs = loadShader(shader_root, backend_.shaderSubdirectory(), "vs_world");
     bgfx::ShaderHandle fs = loadShader(shader_root, backend_.shaderSubdirectory(), "fs_textured_cutout");
@@ -403,10 +452,13 @@ bool AttendBgfxRenderer::Impl::createPrograms() {
     bgfx::ShaderHandle fs_eye = loadShader(shader_root, backend_.shaderSubdirectory(), "fs_pokemon_eye");
     bgfx::ShaderHandle vs_eye_mask = loadShader(shader_root, backend_.shaderSubdirectory(), "vs_world");
     bgfx::ShaderHandle fs_eye_mask = loadShader(shader_root, backend_.shaderSubdirectory(), "fs_eye_sclera_mask");
+    bgfx::ShaderHandle vs_pica = loadShader(shader_root, backend_.shaderSubdirectory(), "vs_world_pica");
+    bgfx::ShaderHandle fs_pica = loadShader(shader_root, backend_.shaderSubdirectory(), "fs_pica_tev");
     if (!bgfx::isValid(vs) || !bgfx::isValid(fs) ||
         !bgfx::isValid(vs_camera_sphere) || !bgfx::isValid(fs_camera_sphere) ||
         !bgfx::isValid(vs_eye) || !bgfx::isValid(fs_eye) ||
-        !bgfx::isValid(vs_eye_mask) || !bgfx::isValid(fs_eye_mask)) {
+        !bgfx::isValid(vs_eye_mask) || !bgfx::isValid(fs_eye_mask) ||
+        !bgfx::isValid(vs_pica) || !bgfx::isValid(fs_pica)) {
         if (bgfx::isValid(vs)) bgfx::destroy(vs);
         if (bgfx::isValid(fs)) bgfx::destroy(fs);
         if (bgfx::isValid(vs_camera_sphere)) bgfx::destroy(vs_camera_sphere);
@@ -415,6 +467,8 @@ bool AttendBgfxRenderer::Impl::createPrograms() {
         if (bgfx::isValid(fs_eye)) bgfx::destroy(fs_eye);
         if (bgfx::isValid(vs_eye_mask)) bgfx::destroy(vs_eye_mask);
         if (bgfx::isValid(fs_eye_mask)) bgfx::destroy(fs_eye_mask);
+        if (bgfx::isValid(vs_pica)) bgfx::destroy(vs_pica);
+        if (bgfx::isValid(fs_pica)) bgfx::destroy(fs_pica);
         last_error_ = "Could not load attend shaders";
         return false;
     }
@@ -422,8 +476,10 @@ bool AttendBgfxRenderer::Impl::createPrograms() {
     camera_sphere_program_ = bgfx::createProgram(vs_camera_sphere, fs_camera_sphere, true);
     eye_program_ = bgfx::createProgram(vs_eye, fs_eye, true);
     eye_sclera_mask_program_ = bgfx::createProgram(vs_eye_mask, fs_eye_mask, true);
+    pica_tev_program_ = bgfx::createProgram(vs_pica, fs_pica, true);
     if (!bgfx::isValid(program_) || !bgfx::isValid(camera_sphere_program_) ||
-        !bgfx::isValid(eye_program_) || !bgfx::isValid(eye_sclera_mask_program_)) {
+        !bgfx::isValid(eye_program_) || !bgfx::isValid(eye_sclera_mask_program_) ||
+        !bgfx::isValid(pica_tev_program_)) {
         last_error_ = "Could not create attend shader program";
         return false;
     }

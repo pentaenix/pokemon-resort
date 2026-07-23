@@ -418,14 +418,14 @@ void BillboardBgfxDrawer::submitCharacterDraw(
 void BillboardBgfxDrawer::submitTextureDraw(
     const camera::Gen4FollowCamera& camera,
     const TextureBillboardDraw& draw) const {
-    if (!draw.placement.visible || !deps_.textures_for_character) {
+    if (!draw.placement.visible || !deps_.texture_for_key) {
         return;
     }
-    CharacterSpriteDefinition effect_sprite{};
-    effect_sprite.texture_path = draw.texture_cache_key;
-    effect_sprite.texture_png_bytes = draw.png_bytes;
-    const CharacterGpuTextures textures = deps_.textures_for_character(effect_sprite);
-    const TextureGpuResource& texture = textures.color;
+    const TextureGpuResource texture = deps_.texture_for_key(
+        draw.texture_cache_key,
+        draw.png_bytes,
+        draw.fallback_path,
+        "effect-billboard");
     if (!texture.valid()) {
         return;
     }
@@ -436,10 +436,10 @@ void BillboardBgfxDrawer::submitTextureDraw(
             texture,
             draw.source_rect,
             0,
-            1.0f,
-            1.0f,
-            1.0f,
-            1.0f,
+            draw.tint_r,
+            draw.tint_g,
+            draw.tint_b,
+            draw.alpha_multiplier,
             0.5f,
             0.25f,
             transparentEffectState());
@@ -449,10 +449,10 @@ void BillboardBgfxDrawer::submitTextureDraw(
             draw.placement,
             texture,
             draw.source_rect,
-            1.0f,
-            1.0f,
-            1.0f,
-            1.0f,
+            draw.tint_r,
+            draw.tint_g,
+            draw.tint_b,
+            draw.alpha_multiplier,
             0.5f,
             transparentEffectState());
     }

@@ -2,6 +2,7 @@
 
 #include "core/Types.hpp"
 #include "gameplay/attend/AttendSceneConfig.hpp"
+#include "gameplay/attend/AttendLaunchContext.hpp"
 #include "gameplay/attend/rendering/AttendBgfxRenderer.hpp"
 #include "ui/Screen.hpp"
 #include "ui/attend/AttendOverlay.hpp"
@@ -9,6 +10,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <random>
 #include <string>
 #include <vector>
@@ -40,6 +42,7 @@ public:
     bool handlePointerReleased(int logical_x, int logical_y) override;
     bool consumeReturnRequested();
     void beginFromOverworld();
+    void beginFromOverworld(const gameplay::attend::AttendLaunchContext& context);
     std::vector<std::string> consumeOneShotSfxRequests();
 
 private:
@@ -110,6 +113,12 @@ private:
     int last_head_click_y_ = 0;
     AttendOverlay overlay_;
     std::vector<OneShotSfxRequest> pending_one_shot_sfx_requests_;
+    std::optional<gameplay::attend::AttendLaunchContext> launch_context_;
+    std::string launch_scene_id_;
+    std::string launch_route_reason_;
+    std::string launch_display_name_;
+    std::string requested_form_id_;
+    bool requested_shiny_ = false;
 
     bool pointerOverPokemon(int logical_x, int logical_y) const;
     void mapPointerToLogical(int& x, int& y) const;
@@ -125,6 +134,7 @@ private:
     bool pointerOverTextureVariantButton(int logical_x, int logical_y) const;
     bool pointerOverFormVariantButton(int logical_x, int logical_y) const;
     bool pointerOverSkyButton(int logical_x, int logical_y) const;
+    bool pointerOverMapButton(int logical_x, int logical_y) const;
     bool pointerOverEmoteButton(int logical_x, int logical_y) const;
     bool pointerOverSleepButton(int logical_x, int logical_y) const;
     bool pointerOverCryButton(int logical_x, int logical_y) const;
@@ -140,10 +150,12 @@ private:
     std::string currentTextureVariantLabel() const;
     std::string currentFormVariantLabel() const;
     std::string currentSkyLabel() const;
+    std::string currentMapLabel() const;
     void cycleWeatherMode();
     void cycleTextureVariant();
     void cycleFormVariant();
     void cycleSkyPreset();
+    void cycleEnvironmentMap(int offset = 1);
     void triggerIdleEmote();
     void triggerIdleSleep();
     void requestActivePokemonCry(double delay_seconds = 0.0);
@@ -170,6 +182,7 @@ private:
     void updatePointerSpace(int w, int h);
     void restoreSystemCursor();
     void reloadSceneConfig();
+    void applyLaunchContext(const gameplay::attend::AttendLaunchContext& context);
 };
 
 } // namespace pr

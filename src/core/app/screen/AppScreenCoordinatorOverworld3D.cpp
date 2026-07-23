@@ -9,9 +9,14 @@ namespace pr {
 void AppScreenCoordinator::updateOverworld3D(double dt) {
     overworld3d_test_.update(dt);
     if (overworld3d_test_.consumeOpenAttendRequested()) {
+        const auto launch_context = overworld3d_test_.consumeAttendLaunchContext();
         overworld3d_test_.shutdownBgfx();
         attend_return_target_ = AttendReturnTarget::Overworld3D;
-        attend_test_.beginFromOverworld();
+        if (launch_context) {
+            attend_test_.beginFromOverworld(*launch_context);
+        } else {
+            attend_test_.beginFromOverworld();
+        }
         active_screen_ = ActiveScreen::TestAttend;
         return;
     }

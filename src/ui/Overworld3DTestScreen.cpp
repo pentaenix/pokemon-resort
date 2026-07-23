@@ -221,6 +221,11 @@ void Overworld3DTestScreen::initializeSceneState() {
     if (landing_dust_system_) {
         landing_dust_system_->initializeResources();
     }
+    water_particle_system_ = std::make_unique<
+        gameplay::world3d::effects::ProceduralWaterParticleSystem>(
+            project_root_,
+            scene_,
+            gameplay::world3d::effects::loadProceduralWaterParticleConfig(project_root_));
     reloadWorldTerrainQueries();
     npc_actor_driver_->initializeDefaultSceneActors(player_.position());
     textbox_config_ = gameplay::world3d::dialogue::loadOverworldTextboxConfig(project_root_);
@@ -232,6 +237,7 @@ void Overworld3DTestScreen::initializeSceneState() {
     interaction_text_catalog_ =
         gameplay::world3d::interactions::loadInteractionTextCatalog(project_root_);
     active_interaction_target_ = {};
+    pending_attend_launch_context_.reset();
     interaction_sequence_.cancel();
     interaction_exit_requested_ = false;
     interaction_pokemon_session_started_ = false;
@@ -641,6 +647,26 @@ void Overworld3DTestScreen::update(double dt) {
         npc_actor_driver_->setReservedTiles(std::move(reserved_tiles), player_reserved_tile_count);
         npc_actor_driver_->update(dt);
     }
+    if (water_particle_system_ && !freecam_enabled_) {
+        using gameplay::world3d::effects::WaterParticleAgentObservation;
+        std::vector<WaterParticleAgentObservation> agents;
+        agents.push_back(WaterParticleAgentObservation{
+            "player", player_.position(), player_.onActualWater(), player_.moving()});
+        if (follower_controller_ && follower_controller_->visibleForSimulation()) {
+            agents.push_back(WaterParticleAgentObservation{
+                "follower",
+                follower_controller_->effectWorldPosition(),
+                follower_controller_->effectOnActualWater(),
+                follower_controller_->effectMoving()});
+        }
+        if (npc_actor_driver_) {
+            for (const auto& actor : npc_actor_driver_->effectActorSnapshots()) {
+                agents.push_back(WaterParticleAgentObservation{
+                    "npc:" + actor.id, actor.world_pos, actor.actual_water, actor.moving});
+            }
+        }
+        water_particle_system_->update(dt, agents);
+    }
     updateInteractionSequence();
 }
 
@@ -780,6 +806,9 @@ void Overworld3DTestScreen::render(SDL_Renderer* renderer) {
             scene_.lighting_tint_b,
             scene_.lighting_brightness);
     }
+    if (water_particle_system_) {
+        water_particle_system_->render(renderer, camera_, w, h);
+    }
 
 }
 
@@ -853,6 +882,10 @@ bool Overworld3DTestScreen::renderBgfx(
     if (landing_dust_system_) {
         landing_dust_system_->collectTextureBillboardDraws(
             scene_, camera_, world_view_w, world_view_h, texture_draws);
+    }
+    if (water_particle_system_) {
+        water_particle_system_->collectTextureBillboardDraws(
+            camera_, world_view_w, world_view_h, texture_draws);
     }
     bgfx_renderer_->setTextboxOverlay(
         textbox_config_, textbox_controller_.active(), textbox_controller_.text());
@@ -1000,6 +1033,7 @@ bool Overworld3DTestScreen::handlePointerReleased(int logical_x, int logical_y) 
 
 void Overworld3DTestScreen::onAttendPressed() {
     if (attendAvailable() && !transition_.active()) {
+        pending_attend_launch_context_ = buildAttendLaunchContext();
         transition_.startClosing(transition_config_.attend);
     }
 }
@@ -1030,6 +1064,62 @@ bool Overworld3DTestScreen::consumeOpenAttendRequested() {
     const bool value = open_attend_requested_;
     open_attend_requested_ = false;
     return value;
+}
+
+std::optional<gameplay::attend::AttendLaunchContext>
+Overworld3DTestScreen::consumeAttendLaunchContext() {
+    std::optional<gameplay::attend::AttendLaunchContext> context =
+        std::move(pending_attend_launch_context_);
+    pending_attend_launch_context_.reset();
+    return context;
+}
+
+std::optional<gameplay::attend::AttendLaunchContext>
+Overworld3DTestScreen::buildAttendLaunchContext() const {
+    using TargetKind = gameplay::world3d::dialogue::OverworldTextboxController::TargetKind;
+    if (interactionTargetKind(active_interaction_target_) !=
+        gameplay::world3d::interactions::InteractionTargetKind::Pokemon) {
+        return std::nullopt;
+    }
+    const auto slug = [](std::string value) {
+        std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
+            if (c == ' ' || c == '_') return '-';
+            return static_cast<char>(std::tolower(c));
+        });
+        return value;
+    };
+    gameplay::attend::AttendLaunchContext context;
+    context.actor_id = active_interaction_target_.id;
+    if (active_interaction_target_.kind == TargetKind::FollowerPokemon && follower_controller_) {
+        const auto info = follower_controller_->interactionInfo();
+        if (!info) return std::nullopt;
+        context.tile_x = info->tile_x;
+        context.tile_y = info->tile_y;
+        context.species_slug = slug(info->species_slug.empty() ? info->species_name : info->species_slug);
+        context.form_id = info->form_id;
+        context.shiny = info->shiny;
+        context.display_name = info->display_name;
+    } else if (active_interaction_target_.kind == TargetKind::NpcActor && npc_actor_driver_) {
+        const auto info = npc_actor_driver_->interactionActorInfo(active_interaction_target_.id);
+        if (!info || info->kind != gameplay::world3d::npc::NpcActorKind::Pokemon) return std::nullopt;
+        context.tile_x = info->tile_x;
+        context.tile_y = info->tile_y;
+        context.species_slug = slug(info->species_slug.empty() ? info->species_name : info->species_slug);
+        context.form_id = info->form_id;
+        context.shiny = info->shiny;
+        context.display_name = info->display_name;
+        if (info->resort_box_id >= 0) context.resort_box_id = info->resort_box_id;
+        if (info->resort_slot_index >= 0) context.resort_slot_index = info->resort_slot_index;
+    } else {
+        return std::nullopt;
+    }
+    if (context.display_name.empty()) context.display_name = context.species_slug;
+    if (const gameplay::world3d::TileSurfaceInfo* tile =
+            gameplay::world3d::tileSurfaceAt(scene_, context.tile_x, context.tile_y)) {
+        context.surface = tile->surface.empty() ? "ground" : tile->surface;
+        context.tile_tags = tile->tags;
+    }
+    return context;
 }
 
 void Overworld3DTestScreen::resumeFromAttend() {
@@ -1233,12 +1323,43 @@ Overworld3DTestScreen::buildInteractionTextContext(
     add_tag(interactionTargetKind(target) == interactions::InteractionTargetKind::Pokemon
         ? "POKEMON"
         : "CHARACTER");
-    add_tag("TILE_GROUND");
+    int target_tile_x = -1;
+    int target_tile_y = -1;
+    if (target.kind == TargetKind::FollowerPokemon && follower_controller_) {
+        if (const auto info = follower_controller_->interactionInfo()) {
+            target_tile_x = info->tile_x;
+            target_tile_y = info->tile_y;
+        }
+    } else if (target.kind == TargetKind::NpcActor && npc_actor_driver_) {
+        if (const auto info = npc_actor_driver_->interactionActorInfo(target.id)) {
+            target_tile_x = info->tile_x;
+            target_tile_y = info->tile_y;
+        }
+    }
+    const gameplay::world3d::TileSurfaceInfo* tile_surface =
+        gameplay::world3d::tileSurfaceAt(scene_, target_tile_x, target_tile_y);
+    const std::string surface = tile_surface ? tile_surface->surface : "ground";
+    add_tag("TILE_" + surface);
+    add_tag("SURFACE_" + surface);
+    if (tile_surface) {
+        for (const std::string& tag : tile_surface->tags) add_tag(tag);
+    }
     context.variables["PLAYER_NAME"] = "Player";
     context.variables["ROLE"] = interactionTargetKind(target) == interactions::InteractionTargetKind::Pokemon
         ? "Pokemon"
         : "Character";
-    context.variables["TILE"] = "ground";
+    context.variables["TILE"] = surface;
+    context.variables["TILE_ID"] = tile_surface && tile_surface->resort_tile_id >= 0
+        ? std::to_string(tile_surface->resort_tile_id)
+        : "";
+    context.variables["TILE_NAME"] = tile_surface ? tile_surface->tile_name : "";
+    context.variables["TILE_TAGS"] = "";
+    if (tile_surface) {
+        for (std::size_t i = 0; i < tile_surface->tags.size(); ++i) {
+            if (i > 0) context.variables["TILE_TAGS"] += ",";
+            context.variables["TILE_TAGS"] += tile_surface->tags[i];
+        }
+    }
     context.variables["TYPE_PRIMARY"] = "";
     context.variables["TYPE_SECONDARY"] = "";
     context.variables["NATURE"] = "";

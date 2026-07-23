@@ -3,6 +3,7 @@
 #include "core/app/audio/PokemonCryPlayer.hpp"
 #include "core/config/Json.hpp"
 #include "gameplay/attend/PokemonModelCatalog.hpp"
+#include "gameplay/attend/AttendSceneRouter.hpp"
 
 #include <SDL.h>
 #include <SDL_image.h>
@@ -409,6 +410,7 @@ void AttendTestScreen::renderPresentationOverlay(SDL_Renderer* renderer) {
          !scene_config_.ui.texture_variant_button.enabled &&
          !scene_config_.ui.form_variant_button.enabled &&
          !scene_config_.ui.sky_button.enabled &&
+         !scene_config_.ui.map_button.enabled &&
          !scene_config_.ui.emote_button.enabled &&
          !scene_config_.ui.sleep_button.enabled &&
          !scene_config_.ui.cry_button.enabled)) {
@@ -428,7 +430,8 @@ void AttendTestScreen::renderPresentationOverlay(SDL_Renderer* renderer) {
         currentPokemonLabel(),
         currentTextureVariantLabel(),
         currentFormVariantLabel(),
-        currentSkyLabel());
+        currentSkyLabel(),
+        currentMapLabel());
 }
 
 bool AttendTestScreen::renderBgfx(
@@ -467,6 +470,24 @@ bool AttendTestScreen::renderBgfx(
         }
         texture_variant_index_ = bgfx_renderer_->textureVariantIndex();
         form_variant_index_ = bgfx_renderer_->formVariantIndex();
+        if (!requested_form_id_.empty() && requested_form_id_ != "default") {
+            for (int i = 0; i < bgfx_renderer_->formVariantCount(); ++i) {
+                if (formKeyToken(bgfx_renderer_->formVariantId(i)) == formKeyToken(requested_form_id_)) {
+                    form_variant_index_ = i;
+                    bgfx_renderer_->setFormVariant(i);
+                    break;
+                }
+            }
+        }
+        if (requested_shiny_) {
+            for (int i = 0; i < bgfx_renderer_->textureVariantCount(); ++i) {
+                if (lower(bgfx_renderer_->textureVariantLabel(i)).find("shiny") != std::string::npos) {
+                    texture_variant_index_ = i;
+                    bgfx_renderer_->setTextureVariant(i);
+                    break;
+                }
+            }
+        }
     }
     if (!pending_bgfx_screenshot_.empty()) {
         bgfx_renderer_->queueScreenshot(pending_bgfx_screenshot_);
@@ -570,6 +591,16 @@ bool AttendTestScreen::renderBgfx(
                 sky.h,
                 overlay_.skyButtonLabel(currentSkyLabel()),
                 scene_config_.ui.sky_button});
+        }
+        if (scene_config_.ui.map_button.enabled && scene_config_.environment_options.size() > 1) {
+            const SDL_Rect map = overlay_.mapButtonRect();
+            buttons.push_back(gameplay::attend::rendering::AttendBgfxOverlayButton{
+                map.x,
+                map.y,
+                map.w,
+                map.h,
+                overlay_.mapButtonLabel(currentMapLabel()),
+                scene_config_.ui.map_button});
         }
         if (scene_config_.ui.emote_button.enabled) {
             const SDL_Rect emote = overlay_.emoteButtonRect();
@@ -795,6 +826,9 @@ bool AttendTestScreen::handleUnroutedSdlEvent(const SDL_Event& event) {
             case SDLK_7:
                 cycleSkyPreset();
                 return true;
+            case SDLK_m:
+                cycleEnvironmentMap();
+                return true;
             case SDLK_8:
                 triggerIdleEmote();
                 resetPokemonInactivity();
@@ -848,8 +882,50 @@ void AttendTestScreen::onBackPressed() {
 }
 
 void AttendTestScreen::beginFromOverworld() {
+    launch_context_.reset();
+    launch_scene_id_.clear();
+    launch_route_reason_.clear();
+    launch_display_name_.clear();
+    requested_form_id_.clear();
+    requested_shiny_ = false;
     returning_to_overworld_ = false;
     transition_.startOpening(transition_config_.attend);
+}
+
+void AttendTestScreen::beginFromOverworld(const gameplay::attend::AttendLaunchContext& context) {
+    applyLaunchContext(context);
+    returning_to_overworld_ = false;
+    transition_.startOpening(transition_config_.attend);
+}
+
+void AttendTestScreen::applyLaunchContext(const gameplay::attend::AttendLaunchContext& context) {
+    launch_context_ = context;
+    gameplay::attend::AttendSceneRouter router(project_root_);
+    const gameplay::attend::AttendSceneRouteResult route = router.resolve(context);
+    launch_scene_id_ = route.scene_id;
+    launch_route_reason_ = route.reason;
+    launch_display_name_ = context.display_name;
+    requested_form_id_ = context.form_id;
+    requested_shiny_ = context.shiny;
+    gameplay::attend::AttendSceneLoadOverrides overrides;
+    overrides.pokemon_id = context.species_slug;
+    overrides.environment_id = route.scene_id;
+    overrides.time_of_day = context.time_of_day.value_or("day");
+    overrides.weather = context.weather.value_or("clear");
+    shutdownBgfx();
+    scene_config_ = gameplay::attend::loadAttendSceneConfig(project_root_, overrides);
+    scene_time_seconds_ = 0.0;
+    weather_index_ = scene_config_.floor.active_weather;
+    texture_variant_index_ = -1;
+    form_variant_index_ = -1;
+    bgfx_init_failed_ = false;
+    overlay_.setConfig(scene_config_.ui);
+    refreshAvailablePokemonModels();
+    resetPokemonInactivity();
+    overlay_.invalidate();
+    std::cerr << "[AttendTest] Launch " << context.species_slug
+              << " in " << route.scene_id
+              << " via " << route.reason << '\n';
 }
 
 void AttendTestScreen::handlePointerMoved(int logical_x, int logical_y) {
@@ -907,6 +983,18 @@ bool AttendTestScreen::handlePointerPressed(int logical_x, int logical_y) {
     }
     if (pointerOverWeatherButton(logical_x, logical_y)) {
         cycleWeatherMode();
+        pointer_pet_active_ = false;
+        pointer_pet_contact_bias_ = 0.0f;
+        pointer_pet_started_seconds_ = -1.0;
+        pointer_over_pokemon_ = false;
+        if (bgfx_renderer_) {
+            bgfx_renderer_->setPetting(false);
+            bgfx_renderer_->setPetContact(0.0f);
+        }
+        return true;
+    }
+    if (pointerOverMapButton(logical_x, logical_y)) {
+        cycleEnvironmentMap();
         pointer_pet_active_ = false;
         pointer_pet_contact_bias_ = 0.0f;
         pointer_pet_started_seconds_ = -1.0;
@@ -1267,6 +1355,12 @@ bool AttendTestScreen::pointerOverSkyButton(int logical_x, int logical_y) const 
     return overlay_.hitSkyButton(logical_x, logical_y);
 }
 
+bool AttendTestScreen::pointerOverMapButton(int logical_x, int logical_y) const {
+    if (!debug_ui_visible_ || !environmentControlsEnabled() || !scene_config_.ui.map_button.enabled) return false;
+    if (scene_config_.environment_options.size() <= 1) return false;
+    return overlay_.hitMapButton(logical_x, logical_y);
+}
+
 bool AttendTestScreen::pointerOverEmoteButton(int logical_x, int logical_y) const {
     if (!debug_ui_visible_ || !environmentControlsEnabled() || !scene_config_.ui.emote_button.enabled) return false;
     return overlay_.hitEmoteButton(logical_x, logical_y);
@@ -1290,6 +1384,7 @@ bool AttendTestScreen::pointerOverOverlayButton(int logical_x, int logical_y) co
            pointerOverTextureVariantButton(logical_x, logical_y) ||
            pointerOverFormVariantButton(logical_x, logical_y) ||
            pointerOverSkyButton(logical_x, logical_y) ||
+           pointerOverMapButton(logical_x, logical_y) ||
            pointerOverEmoteButton(logical_x, logical_y) ||
            pointerOverSleepButton(logical_x, logical_y) ||
            pointerOverCryButton(logical_x, logical_y);
@@ -1326,7 +1421,9 @@ std::string AttendTestScreen::currentViewLabel() const {
 }
 
 std::string AttendTestScreen::currentPokemonLabel() const {
-    return titleCasePokemonId(scene_config_.pokemon.id);
+    return launch_display_name_.empty()
+        ? titleCasePokemonId(scene_config_.pokemon.id)
+        : launch_display_name_;
 }
 
 std::string AttendTestScreen::currentFormVariantId() const {
@@ -1408,6 +1505,15 @@ std::string AttendTestScreen::currentSkyLabel() const {
     return scene_config_.wall.id.empty() ? "Clear" : scene_config_.wall.id;
 }
 
+std::string AttendTestScreen::currentMapLabel() const {
+    for (const auto& option : scene_config_.environment_options) {
+        if (option.id == scene_config_.floor.id) {
+            return option.label.empty() ? option.id : option.label;
+        }
+    }
+    return scene_config_.floor.id.empty() ? "Environment" : scene_config_.floor.id;
+}
+
 void AttendTestScreen::cycleWeatherMode() {
     weather_index_ = scene_config_.floor.weather_modes.empty()
         ? 0
@@ -1428,6 +1534,59 @@ void AttendTestScreen::cycleSkyPreset() {
     pointer_pet_contact_bias_ = 0.0f;
     pointer_pet_started_seconds_ = -1.0;
     overlay_.invalidate();
+}
+
+void AttendTestScreen::cycleEnvironmentMap(int offset) {
+    const auto options = scene_config_.environment_options;
+    if (options.size() <= 1) return;
+
+    std::size_t current = 0;
+    for (std::size_t i = 0; i < options.size(); ++i) {
+        if (options[i].id == scene_config_.floor.id) {
+            current = i;
+            break;
+        }
+    }
+    const int count = static_cast<int>(options.size());
+    const int next_index = (static_cast<int>(current) + offset % count + count) % count;
+    const auto& next = options[static_cast<std::size_t>(next_index)];
+
+    try {
+        requested_form_id_ = currentFormVariantId();
+        requested_shiny_ = currentTextureVariantIsShiny();
+
+        gameplay::attend::AttendSceneLoadOverrides overrides;
+        overrides.pokemon_id = scene_config_.pokemon.id;
+        overrides.environment_id = next.id;
+        overrides.time_of_day = scene_config_.floor.time_of_day;
+        overrides.weather = scene_config_.floor.weather_id;
+        auto next_config = gameplay::attend::loadAttendSceneConfig(project_root_, overrides);
+
+        shutdownBgfx();
+        scene_config_ = std::move(next_config);
+        launch_scene_id_ = next.id;
+        overlay_.setConfig(scene_config_.ui);
+        bgfx_init_failed_ = false;
+        pending_bgfx_screenshot_.clear();
+        scene_time_seconds_ = 0.0;
+        weather_index_ = scene_config_.floor.active_weather;
+        texture_variant_index_ = -1;
+        form_variant_index_ = -1;
+        pointer_pet_active_ = false;
+        pointer_pet_contact_bias_ = 0.0f;
+        pointer_pet_started_seconds_ = -1.0;
+        pointer_over_pokemon_ = false;
+        viewport_look_x_ = 0.0f;
+        viewport_look_y_ = 0.0f;
+        freecam_enabled_ = false;
+        freecam_mouse_dragging_ = false;
+        face_view_ = false;
+        resetPokemonInactivity();
+        overlay_.invalidate();
+        std::cerr << "[AttendTest] Cycled environment to " << next.id << '\n';
+    } catch (const std::exception& ex) {
+        std::cerr << "[AttendTest] Could not cycle environment: " << ex.what() << '\n';
+    }
 }
 
 void AttendTestScreen::triggerIdleEmote() {
@@ -1806,8 +1965,22 @@ void AttendTestScreen::restoreSystemCursor() {
 
 void AttendTestScreen::reloadSceneConfig() {
     try {
-        gameplay::attend::AttendSceneConfig reloaded_config =
-            gameplay::attend::loadAttendSceneConfig(project_root_);
+        gameplay::attend::AttendSceneConfig reloaded_config;
+        if (launch_context_) {
+            gameplay::attend::AttendSceneLoadOverrides overrides;
+            overrides.pokemon_id = launch_context_->species_slug;
+            overrides.environment_id = launch_scene_id_;
+            overrides.time_of_day = launch_context_->time_of_day.value_or("day");
+            overrides.weather = launch_context_->weather.value_or("clear");
+            reloaded_config = gameplay::attend::loadAttendSceneConfig(project_root_, overrides);
+        } else {
+            gameplay::attend::AttendSceneLoadOverrides overrides;
+            overrides.pokemon_id = scene_config_.pokemon.id;
+            overrides.environment_id = launch_scene_id_.empty() ? scene_config_.floor.id : launch_scene_id_;
+            overrides.time_of_day = scene_config_.floor.time_of_day;
+            overrides.weather = scene_config_.floor.weather_id;
+            reloaded_config = gameplay::attend::loadAttendSceneConfig(project_root_, overrides);
+        }
         shutdownBgfx();
         scene_config_ = std::move(reloaded_config);
         overlay_.setConfig(scene_config_.ui);

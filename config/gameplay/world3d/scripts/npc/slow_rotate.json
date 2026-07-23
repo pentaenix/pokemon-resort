@@ -1,0 +1,11 @@
+{
+  "id": "npc_slow_rotate",
+  "kind": "npc",
+  "targetGates": [],
+  "trigger": "AUTONOMOUS",
+  "priority": 0,
+  "weight": 1,
+  "cooldownSeconds": 0,
+  "when": {},
+  "actions": [ { "action": "SLOW_ROTATE" } ]
+}

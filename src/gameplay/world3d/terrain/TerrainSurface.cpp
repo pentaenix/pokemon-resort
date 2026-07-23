@@ -695,33 +695,12 @@ float heightAtActorFeet(
     if (isActualWaterTile(scene, logical_tx, logical_ty)) {
         return scene.water_terrain.surface_height_world;
     }
-    if (!scene.water_terrain.shoreline_ramp_enabled || logical_ty < 0 ||
-        logical_ty >= static_cast<int>(scene.water_terrain.shoreline_cells.size())) {
+    if (!scene.water_terrain.shoreline_ramp_enabled) {
         return terrain_height;
     }
-    const auto& shoreline_row = scene.water_terrain.shoreline_cells[static_cast<std::size_t>(logical_ty)];
-    if (logical_tx < 0 || logical_tx >= static_cast<int>(shoreline_row.size()) ||
-        shoreline_row[static_cast<std::size_t>(logical_tx)] == 0) {
-        return terrain_height;
-    }
-    if (logical_ty + 1 >= static_cast<int>(scene.water_terrain.shoreline_corner_progress.size())) {
-        return terrain_height;
-    }
-    const auto& top = scene.water_terrain.shoreline_corner_progress[static_cast<std::size_t>(logical_ty)];
-    const auto& bottom = scene.water_terrain.shoreline_corner_progress[static_cast<std::size_t>(logical_ty + 1)];
-    if (logical_tx + 1 >= static_cast<int>(top.size()) || logical_tx + 1 >= static_cast<int>(bottom.size())) {
-        return terrain_height;
-    }
-    const float tile_size = std::max(1.0f, scene.grid.tile_size);
-    const float u = std::clamp(
-        (foot_x / tile_size) - static_cast<float>(logical_tx), 0.0f, 1.0f);
-    const float v = std::clamp(
-        (foot_z / tile_size) - static_cast<float>(logical_ty), 0.0f, 1.0f);
-    const float north = top[static_cast<std::size_t>(logical_tx)] +
-        ((top[static_cast<std::size_t>(logical_tx + 1)] - top[static_cast<std::size_t>(logical_tx)]) * u);
-    const float south = bottom[static_cast<std::size_t>(logical_tx)] +
-        ((bottom[static_cast<std::size_t>(logical_tx + 1)] - bottom[static_cast<std::size_t>(logical_tx)]) * u);
-    const float progress = std::clamp(north + ((south - north) * v), 0.0f, 1.0f);
+    const float progress = shorelineProgressAtWorldPosition(
+        scene, foot_x, foot_z, logical_tx, logical_ty);
+    if (progress < 0.0f) return terrain_height;
     return terrain_height + ((scene.water_terrain.surface_height_world - terrain_height) * progress);
 }
 
@@ -732,6 +711,37 @@ bool isActualWaterTile(const SceneConfig& scene, int tx, int ty) {
     }
     const auto& row = scene.water_terrain.actual_water_cells[static_cast<std::size_t>(ty)];
     return tx >= 0 && tx < static_cast<int>(row.size()) && row[static_cast<std::size_t>(tx)] != 0;
+}
+
+float shorelineProgressAtWorldPosition(
+    const SceneConfig& scene,
+    float world_x,
+    float world_z,
+    int logical_tx,
+    int logical_ty) {
+    if (!scene.water_terrain.enabled || logical_ty < 0 ||
+        logical_ty >= static_cast<int>(scene.water_terrain.shoreline_cells.size())) {
+        return -1.0f;
+    }
+    const auto& shoreline_row = scene.water_terrain.shoreline_cells[static_cast<std::size_t>(logical_ty)];
+    if (logical_tx < 0 || logical_tx >= static_cast<int>(shoreline_row.size()) ||
+        shoreline_row[static_cast<std::size_t>(logical_tx)] == 0 ||
+        logical_ty + 1 >= static_cast<int>(scene.water_terrain.shoreline_corner_progress.size())) {
+        return -1.0f;
+    }
+    const auto& top = scene.water_terrain.shoreline_corner_progress[static_cast<std::size_t>(logical_ty)];
+    const auto& bottom = scene.water_terrain.shoreline_corner_progress[static_cast<std::size_t>(logical_ty + 1)];
+    if (logical_tx + 1 >= static_cast<int>(top.size()) || logical_tx + 1 >= static_cast<int>(bottom.size())) {
+        return -1.0f;
+    }
+    const float tile_size = std::max(1.0f, scene.grid.tile_size);
+    const float u = std::clamp((world_x / tile_size) - static_cast<float>(logical_tx), 0.0f, 1.0f);
+    const float v = std::clamp((world_z / tile_size) - static_cast<float>(logical_ty), 0.0f, 1.0f);
+    const float north = top[static_cast<std::size_t>(logical_tx)] +
+        ((top[static_cast<std::size_t>(logical_tx + 1)] - top[static_cast<std::size_t>(logical_tx)]) * u);
+    const float south = bottom[static_cast<std::size_t>(logical_tx)] +
+        ((bottom[static_cast<std::size_t>(logical_tx + 1)] - bottom[static_cast<std::size_t>(logical_tx)]) * u);
+    return std::clamp(north + ((south - north) * v), 0.0f, 1.0f);
 }
 
 } // namespace pr::gameplay::world3d::terrain

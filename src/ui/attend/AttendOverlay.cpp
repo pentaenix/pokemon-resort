@@ -174,6 +174,26 @@ OverlayButton AttendOverlay::skyButton(const std::string& sky_label) const {
     return button;
 }
 
+OverlayButton AttendOverlay::mapButton(const std::string& map_label) const {
+    const auto& style_config = config_.map_button;
+    OverlayButton button;
+    button.id = "map";
+    button.label = mapButtonLabel(map_label);
+    button.anchor = parseAnchor(style_config.anchor);
+    button.style.fill = toUiColor(style_config.fill);
+    button.style.stroke = toUiColor(style_config.stroke);
+    button.style.text = toUiColor(style_config.text);
+    button.style.width = style_config.width;
+    button.style.height = style_config.height;
+    button.style.margin_x = style_config.margin_x;
+    button.style.margin_y = style_config.margin_y;
+    button.style.padding_x = style_config.padding_x;
+    button.style.corner_radius = style_config.corner_radius;
+    button.style.stroke_width = style_config.stroke_width;
+    button.style.font_size = style_config.font_size;
+    return button;
+}
+
 OverlayButton AttendOverlay::emoteButton() const {
     const auto& style_config = config_.emote_button;
     OverlayButton button;
@@ -262,6 +282,10 @@ std::string AttendOverlay::skyButtonLabel(const std::string& sky_label) const {
     return config_.sky_button.label_prefix + sky_label;
 }
 
+std::string AttendOverlay::mapButtonLabel(const std::string& map_label) const {
+    return config_.map_button.label_prefix + map_label;
+}
+
 std::string AttendOverlay::emoteButtonLabel() const {
     return config_.emote_button.label_prefix;
 }
@@ -282,7 +306,8 @@ void AttendOverlay::render(
     const std::string& pokemon_label,
     const std::string& texture_variant_label,
     const std::string& form_variant_label,
-    const std::string& sky_label) {
+    const std::string& sky_label,
+    const std::string& map_label) {
     if (config_.weather_button.enabled) {
         canvas_.renderButton(renderer, project_root, weatherButton(weather_label));
     }
@@ -303,6 +328,9 @@ void AttendOverlay::render(
     }
     if (config_.sky_button.enabled) {
         canvas_.renderButton(renderer, project_root, skyButton(sky_label));
+    }
+    if (config_.map_button.enabled) {
+        canvas_.renderButton(renderer, project_root, mapButton(map_label));
     }
     if (config_.emote_button.enabled) {
         canvas_.renderButton(renderer, project_root, emoteButton());
@@ -341,6 +369,10 @@ SDL_Rect AttendOverlay::formVariantButtonRect() const {
 
 SDL_Rect AttendOverlay::skyButtonRect() const {
     return canvas_.buttonRect(skyButton({}));
+}
+
+SDL_Rect AttendOverlay::mapButtonRect() const {
+    return canvas_.buttonRect(mapButton({}));
 }
 
 SDL_Rect AttendOverlay::emoteButtonRect() const {
@@ -394,6 +426,12 @@ bool AttendOverlay::hitFormVariantButton(int logical_x, int logical_y) const {
 bool AttendOverlay::hitSkyButton(int logical_x, int logical_y) const {
     if (!config_.sky_button.enabled) return false;
     const SDL_Rect r = skyButtonRect();
+    return logical_x >= r.x && logical_x < r.x + r.w && logical_y >= r.y && logical_y < r.y + r.h;
+}
+
+bool AttendOverlay::hitMapButton(int logical_x, int logical_y) const {
+    if (!config_.map_button.enabled) return false;
+    const SDL_Rect r = mapButtonRect();
     return logical_x >= r.x && logical_x < r.x + r.w && logical_y >= r.y && logical_y < r.y + r.h;
 }
 

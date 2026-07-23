@@ -48,6 +48,10 @@ struct Vertex {
     std::uint32_t abgr = 0xffffffffu;
     float u = 0.0f;
     float v = 0.0f;
+    float u1 = 0.0f;
+    float v1 = 0.0f;
+    float u2 = 0.0f;
+    float v2 = 0.0f;
 };
 
 std::uint32_t packAbgr(float r, float g, float b, float a = 1.0f);
@@ -85,6 +89,7 @@ std::uint64_t samplerFlagsFromGfWrap(int wrap_s, int wrap_t);
 std::uint64_t opaqueState();
 std::uint64_t blendState();
 std::uint64_t additiveState();
+std::uint64_t multiplicativeState();
 std::uint64_t overlayState();
 std::uint64_t eyeScleraStencilState();
 std::uint64_t backdropState(bool blend);
@@ -199,11 +204,13 @@ private:
     struct MaterialResource {
         std::string name;
         TextureResource texture;
+        std::array<TextureResource, 3> texture_units;
         TextureResource eye_mask_texture;
         float base_color[4] = {1.0f, 1.0f, 1.0f, 1.0f};
         bool visible = true;
         bool blend = false;
         bool additive = false;
+        bool multiplicative = false;
         bool mask_cutout = false;
         bool pokemon_eye = false;
         bool eye_sclera_mask = false;
@@ -212,6 +219,10 @@ private:
         AttendTextureMapping texture_mapping = AttendTextureMapping::Uv;
         float alpha_cutoff = 0.5f;
         std::uint64_t sampler_flags = samplerFlags();
+        std::array<std::uint64_t, 3> texture_unit_sampler_flags{samplerFlags(), samplerFlags(), samplerFlags()};
+        AttendPicaTev pica_tev;
+        int environment_pass_priority = 5;
+        std::array<std::array<float, 2>, 3> uv_offsets{};
         std::vector<int> texture_variant_materials;
         std::vector<std::pair<std::string, int>> form_variant_materials;
     };
@@ -233,6 +244,10 @@ private:
             std::uint32_t start = 0;
             std::uint32_t count = 0;
             int material = -1;
+            int node_index = -1;
+            int composition_priority = 0;
+            bool runtime_visible = true;
+            std::string node_name;
             std::vector<std::string> visible_for_forms;
         };
         std::vector<Range> ranges;
@@ -249,6 +264,7 @@ private:
             ibh = BGFX_INVALID_HANDLE;
             for (MaterialResource& material : materials) {
                 material.texture.destroy();
+                for (TextureResource& texture : material.texture_units) texture.destroy();
                 material.eye_mask_texture.destroy();
             }
             ranges.clear();
@@ -289,13 +305,30 @@ private:
     bgfx::ProgramHandle camera_sphere_program_ = BGFX_INVALID_HANDLE;
     bgfx::ProgramHandle eye_program_ = BGFX_INVALID_HANDLE;
     bgfx::ProgramHandle eye_sclera_mask_program_ = BGFX_INVALID_HANDLE;
+    bgfx::ProgramHandle pica_tev_program_ = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle tex_uniform_ = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle eye_mask_uniform_ = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle tint_cutoff_uniform_ = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle color_adjust_uniform_ = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle texture_blur_uniform_ = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle uv_offset_uniform_ = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle light_dir_uniform_ = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle light_params_uniform_ = BGFX_INVALID_HANDLE;
+    std::array<bgfx::UniformHandle, 3> pica_tex_uniforms_{
+        bgfx::UniformHandle{bgfx::kInvalidHandle},
+        bgfx::UniformHandle{bgfx::kInvalidHandle},
+        bgfx::UniformHandle{bgfx::kInvalidHandle}};
+    bgfx::UniformHandle pica_uv_offsets_uniform_ = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle pica_coord_sets_uniform_ = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle pica_stage_color_sources_uniform_ = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle pica_stage_alpha_sources_uniform_ = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle pica_stage_color_operands_uniform_ = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle pica_stage_alpha_operands_uniform_ = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle pica_stage_modes_uniform_ = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle pica_stage_flags_uniform_ = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle pica_constants_uniform_ = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle pica_buffer_uniform_ = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle pica_special_uniform_ = BGFX_INVALID_HANDLE;
     TextureResource white_texture_;
     std::vector<OverlayButtonTexture> overlay_button_textures_;
     std::vector<OverlayButtonTexture> corner_button_textures_;
@@ -310,6 +343,9 @@ private:
     std::vector<std::vector<AttendPokemonVertex>> floor_skinned_primitives_;
     std::vector<Vertex> floor_frame_vertices_;
     bool floor_animated_ = false;
+    bool floor_environment_ = false;
+    std::string environment_time_id_ = "day";
+    std::string environment_weather_id_ = "clear";
     bool pokemon_bounds_valid_ = false;
     bool camera_bounds_valid_ = false;
     float pokemon_world_height_ = 0.0f;
@@ -421,6 +457,7 @@ private:
     bool buildWall();
     bool buildPokemon();
     bool buildAnimatedFloor();
+    void updateFloorEnvironment(double scene_time_seconds);
     bool ensurePixelSceneTarget(int width, int height);
     bool buildStaticGlbMesh(
         MeshResource& mesh,

@@ -98,4 +98,13 @@ float heightAtActorFeet(
 
 bool isActualWaterTile(const SceneConfig& scene, int tx, int ty);
 
+// Normalized land (0) -> water (1) position inside an authored shoreline tile.
+// Returns -1 when the position is not on shoreline terrain.
+float shorelineProgressAtWorldPosition(
+    const SceneConfig& scene,
+    float world_x,
+    float world_z,
+    int logical_tx,
+    int logical_ty);
+
 } // namespace pr::gameplay::world3d::terrain

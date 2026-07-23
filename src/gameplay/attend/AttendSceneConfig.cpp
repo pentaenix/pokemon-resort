@@ -662,6 +662,7 @@ void parseUi(const JsonValue* value, const std::string& project_root, AttendUiCo
     parseOverlayButton(child(value, "textureVariantButton"), out.texture_variant_button);
     parseOverlayButton(child(value, "formVariantButton"), out.form_variant_button);
     parseOverlayButton(child(value, "skyButton"), out.sky_button);
+    parseOverlayButton(child(value, "mapButton"), out.map_button);
     parseOverlayButton(child(value, "emoteButton"), out.emote_button);
     parseOverlayButton(child(value, "sleepButton"), out.sleep_button);
     parseOverlayButton(child(value, "cryButton"), out.cry_button);
@@ -714,6 +715,8 @@ void parseFloor(const JsonValue* floor, const std::string& project_root, AttendF
     out.placement_anchor = strOr(child(floor, "placementAnchor"), out.placement_anchor);
     out.model_path = resolvePath(project_root, strOr(child(floor, "model"), out.model_path));
     out.animation_name = strOr(child(floor, "animation"), out.animation_name);
+    out.time_of_day = strOr(child(floor, "timeOfDay"), out.time_of_day);
+    out.weather_id = strOr(child(floor, "weather"), out.weather_id);
     out.hidden_material_substrings =
         stringArrayOr(child(floor, "hiddenMaterialSubstrings"), out.hidden_material_substrings);
     out.weather_material_substrings =
@@ -767,6 +770,37 @@ void parseFloor(const JsonValue* floor, const std::string& project_root, AttendF
                 out.extensions.push_back(std::move(extension));
             }
         }
+    }
+}
+
+void applyFloorPlacementOverride(const JsonValue* value, AttendFloorConfig& out) {
+    if (!value || !value->isObject()) return;
+
+    float x = 0.0f;
+    float y = 0.0f;
+    float z = 0.0f;
+    if (const JsonValue* position = child(value, "position")) {
+        x = numOr(child(position, "x"), 0.0f);
+        y = numOr(child(position, "y"), 0.0f);
+        z = numOr(child(position, "z"), 0.0f);
+    }
+    float yaw_degrees = 0.0f;
+    if (const JsonValue* rotation = child(value, "rotation")) {
+        yaw_degrees = numOr(child(rotation, "yawDegrees"), 0.0f);
+    }
+    const float scale = numOr(child(value, "scale"), 0.0f);
+
+    out.model_x += x;
+    out.model_y += y;
+    out.model_z += z;
+    out.model_yaw_degrees += yaw_degrees;
+    out.model_scale += scale;
+    for (AttendFloorExtensionConfig& extension : out.extensions) {
+        extension.model_x += x;
+        extension.model_y += y;
+        extension.model_z += z;
+        extension.model_yaw_degrees += yaw_degrees;
+        extension.model_scale += scale;
     }
 }
 
@@ -841,7 +875,9 @@ std::string skyLabelFromId(std::string id) {
 
 } // namespace
 
-AttendSceneConfig loadAttendSceneConfig(const std::string& project_root) {
+AttendSceneConfig loadAttendSceneConfig(
+    const std::string& project_root,
+    const AttendSceneLoadOverrides& overrides) {
     AttendSceneConfig out;
     out.wall.gradient_colors = {
         GradientStop{0.0f, Color3{0.28f, 0.49f, 0.71f}},
@@ -922,6 +958,16 @@ AttendSceneConfig loadAttendSceneConfig(const std::string& project_root) {
     parseAudio(audio_root, out.audio);
     parseShadow(child(environment_root, "shadow"), out.shadow);
     parseDepthOfField(child(environment_root, "depthOfField"), out.depth_of_field);
+    if (const JsonValue* floors = child(environment_root, "floors"); floors && floors->isObject()) {
+        out.environment_options.reserve(floors->asObject().size());
+        for (const auto& [floor_id, floor_value] : floors->asObject()) {
+            if (!floor_value.isObject()) continue;
+            out.environment_options.push_back(AttendEnvironmentOption{
+                floor_id,
+                strOr(child(&floor_value, "label"), skyLabelFromId(floor_id)),
+            });
+        }
+    }
     if (const JsonValue* background = child(environment_root, "background")) {
         out.clear_color = parseColor(child(background, "clearColor"), out.clear_color);
     }
@@ -930,7 +976,9 @@ AttendSceneConfig loadAttendSceneConfig(const std::string& project_root) {
     parsePokemon(child(selected, "pokemon"), project_root, out.pokemon);
     parseInteractionAdapter(child(selected, "interactionAdapter"), out.interaction_adapter);
 
-    const std::string active_pokemon = strOr(child(selected, "activePokemon"), strOr(child(&root, "activePokemon"), ""));
+    const std::string active_pokemon = !overrides.pokemon_id.empty()
+        ? overrides.pokemon_id
+        : strOr(child(selected, "activePokemon"), strOr(child(&root, "activePokemon"), ""));
     if (!active_pokemon.empty()) {
         const JsonValue* defaults = child(pokemon_root, "defaults");
         const JsonValue* profile = catalogEntry(child(pokemon_root, "pokemon"), active_pokemon);
@@ -1098,9 +1146,11 @@ AttendSceneConfig loadAttendSceneConfig(const std::string& project_root) {
         out.shadow.radius_z = std::max(0.01f, numOr(child(shadow, "radiusZ"), out.shadow.radius_z));
         out.shadow.y_offset = numOr(child(shadow, "yOffset"), out.shadow.y_offset);
     }
-    const std::string active_floor = strOr(
-        child(selected, "activeFloor"),
-        strOr(child(environment_root, "activeFloor"), strOr(child(&root, "activeFloor"), out.floor.id)));
+    const std::string active_floor = !overrides.environment_id.empty()
+        ? overrides.environment_id
+        : strOr(
+            child(selected, "activeFloor"),
+            strOr(child(environment_root, "activeFloor"), strOr(child(&root, "activeFloor"), out.floor.id)));
     if (!active_floor.empty()) {
         const JsonValue* floor_entry = catalogEntry(child(environment_root, "floors"), active_floor);
         const JsonValue* floor_defaults = child(environment_root, "floorDefaults");
@@ -1111,6 +1161,11 @@ AttendSceneConfig loadAttendSceneConfig(const std::string& project_root) {
     if (const JsonValue* floor = child(selected, "floor")) {
         parseFloor(floor, project_root, out.floor);
     }
+    applyFloorPlacementOverride(
+        catalogEntry(child(environment_root, "mapPlacementOverrides"), active_floor),
+        out.floor);
+    if (!overrides.time_of_day.empty()) out.floor.time_of_day = overrides.time_of_day;
+    if (!overrides.weather.empty()) out.floor.weather_id = overrides.weather;
     applyFloorAnchor(out.pokemon, out.floor);
     const std::string active_wall = strOr(
         child(selected, "activeSky"),
@@ -1172,6 +1227,10 @@ AttendSceneConfig loadAttendSceneConfig(const std::string& project_root) {
     }
     parseUi(child(selected, "ui"), project_root, out.ui);
     return out;
+}
+
+AttendSceneConfig loadAttendSceneConfig(const std::string& project_root) {
+    return loadAttendSceneConfig(project_root, AttendSceneLoadOverrides{});
 }
 
 } // namespace pr::gameplay::attend

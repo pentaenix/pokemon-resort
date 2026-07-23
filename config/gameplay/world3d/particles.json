@@ -1,0 +1,108 @@
+{
+  "waterInteraction": {
+    "_comment": "Procedural, sprite-free pixel particles. All dimensions and speeds are authored in source-art pixels and remain frame-rate independent.",
+    "enabled": true,
+    "maxParticles": 192,
+    "simulationTickHz": 60,
+    "waveContact": {
+      "_comment": "The runtime uses the RTPKS shoreline animation timebase when available. Progress is land=0 to water=1 along the invisible beach ramp.",
+      "minimumShorelineProgress": 0.42,
+      "maximumShorelineProgress": 0.92,
+      "advanceFraction": 0.42,
+      "crestHoldFraction": 0.08,
+      "fallbackCycleSeconds": 2.0,
+      "spawnNorthOffsetPixels": 2.0
+    },
+    "emitters": {
+      "waterEnter": {
+        "_comment": "Large burst when crossing from shore into actual swimming water.",
+        "enabled": true,
+        "count": [14, 22],
+        "lifetimeSeconds": [0.34, 0.62],
+        "sizePixels": [1, 3],
+        "spawnRadiusPixels": 9,
+        "spawnHeightPixels": 2,
+        "horizontalSpeedPixelsPerSecond": [10, 25],
+        "verticalSpeedPixelsPerSecond": [16, 31],
+        "gravityPixelsPerSecondSquared": 56,
+        "dragPerSecond": 0,
+        "cooldownSeconds": 0.25,
+        "palette": [[250, 255, 255, 255], [181, 237, 251, 255], [84, 188, 229, 255], [28, 133, 199, 255]]
+      },
+      "waterExit": {
+        "_comment": "Slightly stronger burst when leaving swimming water for the shore.",
+        "enabled": true,
+        "count": [16, 25],
+        "lifetimeSeconds": [0.36, 0.68],
+        "sizePixels": [1, 3],
+        "spawnRadiusPixels": 10,
+        "spawnHeightPixels": 2,
+        "horizontalSpeedPixelsPerSecond": [11, 27],
+        "verticalSpeedPixelsPerSecond": [18, 34],
+        "gravityPixelsPerSecondSquared": 58,
+        "dragPerSecond": 0,
+        "cooldownSeconds": 0.25,
+        "palette": [[252, 255, 255, 255], [194, 242, 252, 255], [95, 196, 233, 255], [31, 141, 204, 255]]
+      },
+      "waveEnter": {
+        "enabled": true,
+        "count": [4, 8],
+        "lifetimeSeconds": [0.2, 0.36],
+        "sizePixels": [1, 2],
+        "spawnRadiusPixels": 5,
+        "spawnHeightPixels": 0,
+        "horizontalSpeedPixelsPerSecond": [4, 11],
+        "verticalSpeedPixelsPerSecond": [4, 11],
+        "gravityPixelsPerSecondSquared": 35,
+        "dragPerSecond": 0,
+        "cooldownSeconds": 0.16,
+        "palette": [[241, 253, 255, 255], [153, 225, 246, 255], [64, 171, 220, 255]]
+      },
+      "waveCrash": {
+        "_comment": "Strong one-shot burst when the moving crest reaches an agent.",
+        "enabled": true,
+        "count": [9, 15],
+        "lifetimeSeconds": [0.3, 0.52],
+        "sizePixels": [1, 2],
+        "spawnRadiusPixels": 8,
+        "spawnHeightPixels": 1,
+        "horizontalSpeedPixelsPerSecond": [7, 19],
+        "verticalSpeedPixelsPerSecond": [11, 23],
+        "gravityPixelsPerSecondSquared": 50,
+        "dragPerSecond": 0,
+        "cooldownSeconds": 0.35,
+        "palette": [[247, 254, 255, 255], [169, 231, 248, 255], [75, 178, 224, 255]]
+      },
+      "waveIdle": {
+        "_comment": "Faint continuous foam while an agent stands anywhere in the shoreline wave zone.",
+        "enabled": true,
+        "count": [2, 4],
+        "lifetimeSeconds": [0.2, 0.34],
+        "sizePixels": [1, 2],
+        "spawnRadiusPixels": 5,
+        "spawnHeightPixels": 0,
+        "horizontalSpeedPixelsPerSecond": [3, 8],
+        "verticalSpeedPixelsPerSecond": [3, 8],
+        "gravityPixelsPerSecondSquared": 30,
+        "dragPerSecond": 0,
+        "cooldownSeconds": 0.32,
+        "palette": [[242, 253, 255, 170], [171, 229, 244, 155], [103, 195, 229, 145]]
+      },
+      "waveMoving": {
+        "_comment": "Brighter continuous splash while an agent takes a step through the shoreline wave zone.",
+        "enabled": true,
+        "count": [5, 8],
+        "lifetimeSeconds": [0.24, 0.42],
+        "sizePixels": [1, 2],
+        "spawnRadiusPixels": 6,
+        "spawnHeightPixels": 1,
+        "horizontalSpeedPixelsPerSecond": [6, 15],
+        "verticalSpeedPixelsPerSecond": [8, 17],
+        "gravityPixelsPerSecondSquared": 43,
+        "dragPerSecond": 0,
+        "cooldownSeconds": 0.14,
+        "palette": [[248, 255, 255, 255], [183, 237, 250, 245], [83, 185, 226, 235]]
+      }
+    }
+  }
+}

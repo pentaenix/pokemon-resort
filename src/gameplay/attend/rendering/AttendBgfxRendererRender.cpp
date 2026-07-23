@@ -93,6 +93,7 @@ void AttendBgfxRenderer::Impl::render(double scene_time_seconds, int width, int 
     float ident[16];
     identity(ident);
     updateFloorAnimation(scene_time_seconds);
+    updateFloorEnvironment(scene_time_seconds);
     submitMesh(wall_mesh_, ident, false, true);
     const auto submit_floor_pass = [&](MeshSubmitPass pass) {
         submitMesh(floor_mesh_, ident, false, false, true, pass);

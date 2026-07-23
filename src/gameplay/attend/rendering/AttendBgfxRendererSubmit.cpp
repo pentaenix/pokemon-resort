@@ -4,6 +4,14 @@
 
 namespace pr::gameplay::attend::rendering {
 
+namespace {
+
+float picaScale(std::uint32_t bits) {
+    return static_cast<float>(1u << (bits & 3u));
+}
+
+} // namespace
+
 void AttendBgfxRenderer::Impl::submitMesh(
     const MeshResource& mesh,
     const float* matrix,
@@ -13,10 +21,11 @@ void AttendBgfxRenderer::Impl::submitMesh(
     MeshSubmitPass pass) {
     if (!mesh.valid()) return;
     const bool focus_backdrop = backdrop || floor;
+    const bool authored_environment = floor && floor_environment_;
     float adjust[4] = {
-        config_.lighting.brightness * (focus_backdrop ? config_.lighting.backdrop_brightness : config_.lighting.pokemon_brightness),
-        focus_backdrop ? config_.lighting.backdrop_saturation : 1.0f,
-        focus_backdrop ? config_.lighting.backdrop_contrast : 1.0f,
+        authored_environment ? 1.0f : config_.lighting.brightness * (focus_backdrop ? config_.lighting.backdrop_brightness : config_.lighting.pokemon_brightness),
+        authored_environment ? 1.0f : (focus_backdrop ? config_.lighting.backdrop_saturation : 1.0f),
+        authored_environment ? 1.0f : (focus_backdrop ? config_.lighting.backdrop_contrast : 1.0f),
         focus_backdrop && config_.depth_of_field.enabled ? config_.depth_of_field.focus_depth : 0.0f};
     float lx = config_.lighting.light_direction[0];
     float ly = config_.lighting.light_direction[1];
@@ -29,6 +38,7 @@ void AttendBgfxRenderer::Impl::submitMesh(
         focus_backdrop ? 0.0f : config_.lighting.form_shadow,
         0.0f};
     for (const MeshResource::Range& range : mesh.ranges) {
+        if (floor && !range.runtime_visible) continue;
         if (!backdrop && !floor && !range.visible_for_forms.empty()) {
             const std::string form_id =
                 form_variant_index_ >= 0 && form_variant_index_ < static_cast<int>(pokemon_model_.form_variants.size())
@@ -83,9 +93,9 @@ void AttendBgfxRenderer::Impl::submitMesh(
             config_.depth_of_field.enabled ? config_.depth_of_field.falloff : 0.0f,
             config_.pokemon.z};
         float tint[4] = {
-            config_.lighting.tint.r,
-            config_.lighting.tint.g,
-            config_.lighting.tint.b,
+            authored_environment ? 1.0f : config_.lighting.tint.r,
+            authored_environment ? 1.0f : config_.lighting.tint.g,
+            authored_environment ? 1.0f : config_.lighting.tint.b,
             0.0f};
         if (material) {
             tint[0] *= material->base_color[0];
@@ -100,8 +110,98 @@ void AttendBgfxRenderer::Impl::submitMesh(
             bgfx::setVertexBuffer(0, mesh.vbh);
         }
         bgfx::setIndexBuffer(mesh.ibh, range.start, range.count);
-        bgfx::setTexture(0, tex_uniform_, texture.handle, material ? material->sampler_flags : samplerFlags());
-        if (material && material->pokemon_eye && bgfx::isValid(eye_mask_uniform_)) {
+        const bool pica_tev = floor && material && material->pica_tev.enabled && bgfx::isValid(pica_tev_program_);
+        if (pica_tev) {
+            const TextureResource* fallback = nullptr;
+            for (const TextureResource& candidate : material->texture_units) {
+                if (candidate.valid()) { fallback = &candidate; break; }
+            }
+            if (!fallback) fallback = &white_texture_;
+            for (int unit = 0; unit < 3; ++unit) {
+                const TextureResource& unit_texture = material->texture_units[static_cast<std::size_t>(unit)].valid()
+                    ? material->texture_units[static_cast<std::size_t>(unit)]
+                    : *fallback;
+                bgfx::setTexture(
+                    static_cast<std::uint8_t>(unit),
+                    pica_tex_uniforms_[static_cast<std::size_t>(unit)],
+                    unit_texture.handle,
+                    material->texture_unit_sampler_flags[static_cast<std::size_t>(unit)]);
+            }
+            std::array<std::array<float, 4>, 3> uv_offsets{};
+            for (int unit = 0; unit < 3; ++unit) {
+                uv_offsets[static_cast<std::size_t>(unit)] = {
+                    material->uv_offsets[static_cast<std::size_t>(unit)][0],
+                    material->uv_offsets[static_cast<std::size_t>(unit)][1],
+                    0.0f,
+                    0.0f};
+            }
+            const float coord_sets[4] = {
+                static_cast<float>(material->pica_tev.texture_coord_sets[0]),
+                static_cast<float>(material->pica_tev.texture_coord_sets[1]),
+                static_cast<float>(material->pica_tev.texture_coord_sets[2]),
+                0.0f};
+            std::array<std::array<float, 4>, 6> color_sources{};
+            std::array<std::array<float, 4>, 6> alpha_sources{};
+            std::array<std::array<float, 4>, 6> color_operands{};
+            std::array<std::array<float, 4>, 6> alpha_operands{};
+            std::array<std::array<float, 4>, 6> modes{};
+            std::array<std::array<float, 4>, 6> flags{};
+            std::array<std::array<float, 4>, 6> constants{};
+            for (std::size_t stage_index = 0; stage_index < 6; ++stage_index) {
+                const AttendPicaTevStage& stage = material->pica_tev.stages[stage_index];
+                for (int arg = 0; arg < 3; ++arg) {
+                    color_sources[stage_index][static_cast<std::size_t>(arg)] =
+                        static_cast<float>((stage.source >> (arg * 4)) & 15u);
+                    alpha_sources[stage_index][static_cast<std::size_t>(arg)] =
+                        static_cast<float>((stage.source >> (16 + arg * 4)) & 15u);
+                    color_operands[stage_index][static_cast<std::size_t>(arg)] =
+                        static_cast<float>((stage.operand >> (arg * 4)) & 15u);
+                    alpha_operands[stage_index][static_cast<std::size_t>(arg)] =
+                        static_cast<float>((stage.operand >> (12 + arg * 4)) & 7u);
+                }
+                modes[stage_index] = {
+                    static_cast<float>(stage.combiner & 15u),
+                    static_cast<float>((stage.combiner >> 16) & 15u),
+                    picaScale(stage.scale),
+                    picaScale(stage.scale >> 16)};
+                flags[stage_index] = {
+                    stage.update_color_buffer ? 1.0f : 0.0f,
+                    stage.update_alpha_buffer ? 1.0f : 0.0f,
+                    0.0f,
+                    0.0f};
+                const int constant_index = std::clamp(
+                    material->pica_tev.constant_assignments[stage_index], 0, 5);
+                constants[stage_index] = material->pica_tev.constant_colors[static_cast<std::size_t>(constant_index)];
+            }
+            const float encoded_output_mode = material->pica_tev.sea_color_buffer
+                ? 2.0f
+                : (material->pica_tev.display_encoded_output ? 1.0f : 0.0f);
+            const float special[4] = {
+                material->pica_tev.outer_water_base ? 1.0f : 0.0f,
+                material->pica_tev.standalone_black_key ? 1.0f : 0.0f,
+                material->pica_tev.effect_color_scale,
+                encoded_output_mode};
+            bgfx::setUniform(pica_uv_offsets_uniform_, uv_offsets.data(), 3);
+            bgfx::setUniform(pica_coord_sets_uniform_, coord_sets);
+            bgfx::setUniform(pica_stage_color_sources_uniform_, color_sources.data(), 6);
+            bgfx::setUniform(pica_stage_alpha_sources_uniform_, alpha_sources.data(), 6);
+            bgfx::setUniform(pica_stage_color_operands_uniform_, color_operands.data(), 6);
+            bgfx::setUniform(pica_stage_alpha_operands_uniform_, alpha_operands.data(), 6);
+            bgfx::setUniform(pica_stage_modes_uniform_, modes.data(), 6);
+            bgfx::setUniform(pica_stage_flags_uniform_, flags.data(), 6);
+            bgfx::setUniform(pica_constants_uniform_, constants.data(), 6);
+            bgfx::setUniform(pica_buffer_uniform_, material->pica_tev.buffer_color.data());
+            bgfx::setUniform(pica_special_uniform_, special);
+        } else {
+            bgfx::setTexture(0, tex_uniform_, texture.handle, material ? material->sampler_flags : samplerFlags());
+            const float uv_offset[4] = {
+                material ? material->uv_offsets[0][0] : 0.0f,
+                material ? material->uv_offsets[0][1] : 0.0f,
+                0.0f,
+                0.0f};
+            bgfx::setUniform(uv_offset_uniform_, uv_offset);
+        }
+        if (!pica_tev && material && material->pokemon_eye && bgfx::isValid(eye_mask_uniform_)) {
             bgfx::setTexture(1, eye_mask_uniform_, eye_mask.handle, samplerFlags());
         }
         bgfx::setUniform(tint_cutoff_uniform_, tint);
@@ -127,19 +227,22 @@ void AttendBgfxRenderer::Impl::submitMesh(
         if (material && material->separate_eye_iris && !backdrop && !floor) {
             bgfx::setState(overlayState() | cull_state);
         } else {
-            const std::uint64_t material_state = material && material->additive
-                ? additiveState()
-                : (backdrop ? backdropState(blended) : (blended ? blendState() : opaqueState()));
+            const std::uint64_t material_state = material && material->multiplicative
+                ? multiplicativeState()
+                : (material && material->additive
+                    ? additiveState()
+                    : (backdrop ? backdropState(blended) : (blended ? blendState() : opaqueState())));
             bgfx::setState(material_state | cull_state);
         }
-        const bgfx::ProgramHandle material_program =
-            material && material->pokemon_eye && bgfx::isValid(eye_program_)
+        const bgfx::ProgramHandle material_program = pica_tev
+            ? pica_tev_program_
+            : (material && material->pokemon_eye && bgfx::isValid(eye_program_)
                 ? eye_program_
                 : (material &&
                    material->texture_mapping == AttendTextureMapping::CameraSphereEnvironment &&
                    bgfx::isValid(camera_sphere_program_)
                     ? camera_sphere_program_
-                    : program_);
+                    : program_));
         bgfx::submit(0, material_program);
         if (material && material->eye_sclera_mask && !backdrop && !floor &&
             bgfx::isValid(eye_sclera_mask_program_)) {

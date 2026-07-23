@@ -211,6 +211,8 @@ struct AttendFloorConfig {
     std::string placement_anchor = "world";
     std::string model_path;
     std::string animation_name;
+    std::string time_of_day = "day";
+    std::string weather_id = "clear";
     float model_x = 0.0f;
     float model_y = 0.0f;
     float model_z = 0.0f;
@@ -226,6 +228,11 @@ struct AttendFloorConfig {
     float x = 0.0f;
     float y = 0.0f;
     float z = 0.0f;
+};
+
+struct AttendEnvironmentOption {
+    std::string id;
+    std::string label;
 };
 
 struct AttendWallConfig {
@@ -347,6 +354,13 @@ struct AttendUiConfig {
     AttendOverlayButtonConfig texture_variant_button{};
     AttendOverlayButtonConfig form_variant_button{};
     AttendOverlayButtonConfig sky_button{};
+    AttendOverlayButtonConfig map_button = [] {
+        AttendOverlayButtonConfig button;
+        button.enabled = false;
+        button.anchor = "top_left";
+        button.label_prefix = "MAP: ";
+        return button;
+    }();
     AttendOverlayButtonConfig emote_button = [] {
         AttendOverlayButtonConfig button;
         button.enabled = false;
@@ -424,6 +438,7 @@ struct AttendSceneConfig {
     AttendDepthOfFieldConfig depth_of_field{};
     AttendShadowConfig shadow{};
     AttendFloorConfig floor{};
+    std::vector<AttendEnvironmentOption> environment_options;
     AttendWallConfig wall{};
     std::vector<AttendSkyPresetConfig> sky_presets;
     int active_sky = 0;
@@ -432,6 +447,16 @@ struct AttendSceneConfig {
     Color3 clear_color{0.08f, 0.12f, 0.18f};
 };
 
+struct AttendSceneLoadOverrides {
+    std::string pokemon_id;
+    std::string environment_id;
+    std::string time_of_day;
+    std::string weather;
+};
+
 AttendSceneConfig loadAttendSceneConfig(const std::string& project_root);
+AttendSceneConfig loadAttendSceneConfig(
+    const std::string& project_root,
+    const AttendSceneLoadOverrides& overrides);
 
 } // namespace pr::gameplay::attend

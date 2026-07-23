@@ -2017,6 +2017,9 @@ const OverworldBgfxRenderer::Impl::TextureGpuResource& OverworldBgfxRenderer::Im
     const std::vector<std::uint8_t>& png_bytes,
     const std::string& fallback_path,
     const char* debug_name) const {
+    if (cache_key == "__procedural_white_pixel") {
+        return white_texture_;
+    }
     auto it = effect_textures_.find(cache_key);
     if (it != effect_textures_.end() && it->second.valid()) {
         return it->second;

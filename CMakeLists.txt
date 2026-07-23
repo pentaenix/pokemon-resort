@@ -38,7 +38,7 @@ set(WORLD3D_BGFX_SHADER_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/gameplay/worl
 set(WORLD3D_BGFX_SHADER_OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated/world3d-shaders)
 bgfx_compile_shaders(
     TYPE VERTEX
-    SHADERS ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/vs_world.sc ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/vs_world_camera_sphere.sc ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/vs_billboard.sc
+    SHADERS ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/vs_world.sc ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/vs_world_camera_sphere.sc ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/vs_world_pica.sc ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/vs_billboard.sc
     VARYING_DEF ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/varying.def.sc
     OUTPUT_DIR ${WORLD3D_BGFX_SHADER_OUTPUT_DIR}
     INCLUDE_DIRS ${bgfx_cmake_SOURCE_DIR}/bgfx/src
@@ -46,7 +46,7 @@ bgfx_compile_shaders(
 )
 bgfx_compile_shaders(
     TYPE FRAGMENT
-    SHADERS ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/fs_textured_cutout.sc ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/fs_pokemon_eye.sc ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/fs_eye_sclera_mask.sc
+    SHADERS ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/fs_textured_cutout.sc ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/fs_pokemon_eye.sc ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/fs_eye_sclera_mask.sc ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/fs_pica_tev.sc
     VARYING_DEF ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/varying.def.sc
     OUTPUT_DIR ${WORLD3D_BGFX_SHADER_OUTPUT_DIR}
     INCLUDE_DIRS ${bgfx_cmake_SOURCE_DIR}/bgfx/src
@@ -173,6 +173,7 @@ add_executable(title_screen_demo
     src/gameplay/world3d/characters/CharacterMovementConfig.cpp
     src/gameplay/world3d/rendering/GlbModelRenderer.cpp
     src/gameplay/world3d/effects/LandingDustSystem.cpp
+    src/gameplay/world3d/effects/ProceduralWaterParticleSystem.cpp
     src/gameplay/world3d/followers/FollowerConfig.cpp
     src/gameplay/world3d/followers/FollowerController.cpp
     src/gameplay/world3d/followers/FollowerIdleExitTarget.cpp
@@ -190,6 +191,7 @@ add_executable(title_screen_demo
     src/gameplay/world3d/rendering/FallbackTerrainRenderer.cpp
     src/gameplay/world3d/rendering/OverworldMapRenderer.cpp
     src/gameplay/attend/AttendSceneConfig.cpp
+    src/gameplay/attend/AttendSceneRouter.cpp
     src/gameplay/attend/PokemonModelCatalog.cpp
     src/core/save/SaveLibrary.cpp
     src/core/save/SaveDataStore.cpp

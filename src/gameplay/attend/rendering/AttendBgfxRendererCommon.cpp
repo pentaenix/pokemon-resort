@@ -260,6 +260,10 @@ Vertex transformStaticVertex(
         0.0f,
         packAbgr(src.r, src.g, src.b, src.a),
         src.u,
+        src.v,
+        src.u,
+        src.v,
+        src.u,
         src.v};
 }
 
@@ -289,7 +293,11 @@ Vertex transformAttendVertex(
         nz,
         packAbgr(src.r, src.g, src.b, src.a),
         src.u,
-        src.v};
+        src.v,
+        src.u1,
+        src.v1,
+        src.u2,
+        src.v2};
 }
 
 bgfx::ShaderHandle loadShader(const fs::path& shader_root, const std::string& shader_subdir, const char* name) {
@@ -361,6 +369,11 @@ std::uint64_t blendState() {
 std::uint64_t additiveState() {
     return BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_DEPTH_TEST_LESS |
         BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_SRC_ALPHA, BGFX_STATE_BLEND_ONE);
+}
+
+std::uint64_t multiplicativeState() {
+    return BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_DEPTH_TEST_LESS |
+        BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_DST_COLOR, BGFX_STATE_BLEND_ZERO);
 }
 
 std::uint64_t overlayState() {

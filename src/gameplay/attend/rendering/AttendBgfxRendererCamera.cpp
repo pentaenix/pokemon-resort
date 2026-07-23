@@ -4,6 +4,111 @@
 
 namespace pr::gameplay::attend::rendering {
 
+namespace {
+
+const AttendEnvironmentMotionClip* findEnvironmentClip(
+    const AttendEnvironmentScene& scene,
+    const std::string& id) {
+    for (const AttendEnvironmentMotionClip& clip : scene.motion_clips) {
+        if (clip.id == id) return &clip;
+    }
+    return nullptr;
+}
+
+std::array<float, 2> sampleEnvironmentOffsets(
+    const AttendEnvironmentMotionTrack& track,
+    double frame,
+    bool loop) {
+    if (track.frame_offsets.empty()) return {0.0f, 0.0f};
+    const double count = static_cast<double>(track.frame_offsets.size());
+    double sampled = std::max(0.0, frame);
+    if (loop && count > 0.0) sampled = std::fmod(sampled, count);
+    sampled = std::clamp(sampled, 0.0, count - 1.0);
+    const std::size_t a = static_cast<std::size_t>(std::floor(sampled));
+    const std::size_t b = loop
+        ? (a + 1) % track.frame_offsets.size()
+        : std::min(a + 1, track.frame_offsets.size() - 1);
+    const float t = static_cast<float>(sampled - std::floor(sampled));
+    return {
+        track.frame_offsets[a][0] + (track.frame_offsets[b][0] - track.frame_offsets[a][0]) * t,
+        track.frame_offsets[a][1] + (track.frame_offsets[b][1] - track.frame_offsets[a][1]) * t};
+}
+
+} // namespace
+
+void AttendBgfxRenderer::Impl::updateFloorEnvironment(double scene_time_seconds) {
+    if (!floor_environment_ || !floor_model_.environment_scene.enabled) return;
+    const AttendEnvironmentScene& environment = floor_model_.environment_scene;
+    for (std::size_t i = 0; i < floor_mesh_.materials.size() && i < floor_model_.materials.size(); ++i) {
+        floor_mesh_.materials[i].uv_offsets = floor_model_.materials[i].pica_tev.initial_offsets;
+    }
+    for (MeshResource::Range& range : floor_mesh_.ranges) {
+        range.runtime_visible = range.node_index < 0 ||
+            range.node_index >= static_cast<int>(floor_model_.nodes.size()) ||
+            floor_model_.nodes[static_cast<std::size_t>(range.node_index)].default_visible;
+    }
+    auto apply_clip = [&](const AttendEnvironmentMotionClip& clip, double frame, bool interpolate) {
+        for (const AttendEnvironmentMotionTrack& track : clip.tracks) {
+            if (interpolate && track.motion_kind == "palette") continue;
+            const auto material = std::find_if(
+                floor_mesh_.materials.begin(),
+                floor_mesh_.materials.end(),
+                [&](const MaterialResource& value) { return value.name == track.material; });
+            if (material == floor_mesh_.materials.end()) continue;
+            const std::array<float, 2> offsets = sampleEnvironmentOffsets(
+                track,
+                interpolate ? frame : std::floor(frame),
+                interpolate && clip.loop);
+            material->uv_offsets[static_cast<std::size_t>(std::clamp(track.texture_unit, 0, 2))] = offsets;
+        }
+        const int visibility_frame = clip.frame_count > 0
+            ? static_cast<int>(std::floor(clip.loop ? std::fmod(std::max(0.0, frame), clip.frame_count) : std::max(0.0, frame)))
+            : 0;
+        for (const auto& [node_name, frames] : clip.mesh_visibility) {
+            if (frames.empty()) continue;
+            const std::size_t frame_index = static_cast<std::size_t>(std::clamp(
+                visibility_frame,
+                0,
+                static_cast<int>(frames.size() - 1)));
+            for (MeshResource::Range& range : floor_mesh_.ranges) {
+                if (range.node_name == node_name) range.runtime_visible = frames[frame_index];
+            }
+        }
+    };
+    for (const AttendEnvironmentState& state : environment.time_states) {
+        if (state.id != environment_time_id_) continue;
+        for (const AttendEnvironmentFixedPose& pose : state.poses) {
+            if (const AttendEnvironmentMotionClip* clip = findEnvironmentClip(environment, pose.clip)) {
+                apply_clip(*clip, static_cast<double>(pose.frame), false);
+            }
+        }
+        break;
+    }
+    std::vector<std::string> active_clip_ids;
+    if (!environment.default_clip.empty()) active_clip_ids.push_back(environment.default_clip);
+    for (const std::string& id : environment.overlay_clips) {
+        if (std::find(active_clip_ids.begin(), active_clip_ids.end(), id) == active_clip_ids.end()) {
+            active_clip_ids.push_back(id);
+        }
+    }
+    for (const AttendEnvironmentState& state : environment.weather_states) {
+        if (state.id != environment_weather_id_ || !state.available) continue;
+        for (const std::string& id : state.active_clips) {
+            if (std::find(active_clip_ids.begin(), active_clip_ids.end(), id) == active_clip_ids.end()) {
+                active_clip_ids.push_back(id);
+            }
+        }
+        break;
+    }
+    const double source_frame = std::max(0.0, scene_time_seconds) *
+        static_cast<double>(std::max(1.0f, environment.source_frame_rate));
+    for (const std::string& id : active_clip_ids) {
+        if (const AttendEnvironmentMotionClip* clip = findEnvironmentClip(environment, id)) {
+            apply_clip(*clip, source_frame, true);
+        }
+    }
+}
+
 void AttendBgfxRenderer::Impl::updateFloorAnimation(double scene_time_seconds) {
     if (!floor_animated_ || !floor_mesh_.dynamic || !bgfx::isValid(floor_mesh_.dvbh) ||
         floor_model_.primitives.empty() || !floor_animation_) {

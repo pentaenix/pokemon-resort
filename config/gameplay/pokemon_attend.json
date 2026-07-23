@@ -8,6 +8,7 @@
     "ui": "gameplay/pokemon_attend/ui/defaults.json",
     "audio": "gameplay/pokemon_attend/audio/defaults.json",
     "pokemonProvider": "gameplay/pokemon_attend/providers/gen1_7.json",
-    "environment": "gameplay/pokemon_attend/environments/alola_battle_maps.json"
+    "environment": "gameplay/pokemon_attend/environments/alola_battle_maps.json",
+    "routing": "gameplay/pokemon_attend/routing/alola_scene_routes.json"
   }
 }

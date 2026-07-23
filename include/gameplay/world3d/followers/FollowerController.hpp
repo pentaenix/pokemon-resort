@@ -32,6 +32,9 @@ struct FollowerInteractionInfo {
     std::string species_name;
     std::string pokemon_size = "small";
     std::vector<std::string> pokemon_types;
+    std::string species_slug;
+    std::string form_id = "default";
+    bool shiny = false;
 };
 
 class FollowerController {
@@ -61,6 +64,9 @@ public:
         bool player_activity,
         bool player_running);
     bool visibleForSimulation() const;
+    camera::Vec3 effectWorldPosition() const { return follower_pos_; }
+    bool effectMoving() const { return motor_.moving(); }
+    bool effectOnActualWater() const;
     std::optional<float> renderDepth(
         const camera::Gen4FollowCamera& camera,
         int viewport_w,

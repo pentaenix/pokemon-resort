@@ -1,0 +1,606 @@
+{
+  "format": "rae.pokemon_attend_environment_catalog",
+  "version": 1,
+  "environments": [
+    {
+      "id": "alola_open_sea",
+      "label": "Alola Open Sea",
+      "file": "alola_open_sea.glbz",
+      "sha256": "36d059299f4f88d3f34d9b9b787bba87a16c334733b07fc578f2ab9d0d4724fd",
+      "bytes": 170353,
+      "sourceSlots": [
+        103,
+        9
+      ],
+      "compositionId": "battle_0009_0103",
+      "route": "surface:sea",
+      "timeStates": [
+        "dawn",
+        "day",
+        "sunset",
+        "night"
+      ],
+      "weatherStates": [
+        "clear"
+      ],
+      "animationClipCount": 16,
+      "waterBaseMaterials": [
+        "btl_A_sea_iro047",
+        "btl_A_sea_iro045"
+      ],
+      "waterOverlayMaterials": [
+        "btl_G_sea_nami04",
+        "btl_G_sea_nami01",
+        "btl_G_sea_nami03"
+      ],
+      "warnings": []
+    },
+    {
+      "id": "alola_coastal_ocean",
+      "label": "Alola Coastal Ocean",
+      "file": "alola_coastal_ocean.glbz",
+      "sha256": "2eff12cb65b3e6bc3cba2ee2b8ea4898f97136763c523d105089b68775b5f794",
+      "bytes": 213175,
+      "sourceSlots": [
+        118,
+        9
+      ],
+      "compositionId": "battle_0009_0118",
+      "route": "surface:sea",
+      "timeStates": [
+        "dawn",
+        "day",
+        "sunset",
+        "night"
+      ],
+      "weatherStates": [
+        "clear"
+      ],
+      "animationClipCount": 16,
+      "waterBaseMaterials": [
+        "btl_A_sea_iro047",
+        "btl_A_sea_iro045"
+      ],
+      "waterOverlayMaterials": [
+        "btl_N_hama_senami03",
+        "btl_N_hama_Unami06",
+        "btl_G_sea_nami01",
+        "btl_G_sea_nami03"
+      ],
+      "warnings": []
+    },
+    {
+      "id": "alola_beach",
+      "label": "Alola Beach",
+      "file": "alola_beach.glbz",
+      "sha256": "e3d10433cc82849c9cb0b70416bb3b9cf5b00b0fe39c00b1c824582d4a0791a7",
+      "bytes": 288838,
+      "sourceSlots": [
+        102,
+        8
+      ],
+      "compositionId": "battle_0008_0102",
+      "route": "surface:beach,sand",
+      "timeStates": [
+        "dawn",
+        "day",
+        "sunset",
+        "night"
+      ],
+      "weatherStates": [
+        "clear"
+      ],
+      "animationClipCount": 19,
+      "waterBaseMaterials": [
+        "btl_A_sea_iro047",
+        "btl_A_sea_iro045"
+      ],
+      "waterOverlayMaterials": [
+        "btl_N_hama_senami03",
+        "btl_N_hama_Unami06",
+        "btl_G_hama_Unami05"
+      ],
+      "warnings": []
+    },
+    {
+      "id": "alola_flower_field",
+      "label": "Alola Flower Field",
+      "file": "alola_flower_field.glbz",
+      "sha256": "ca8230d30852c6f240ba3e4a42fdecbfa63a69592b930edbd9be925caa707474",
+      "bytes": 261883,
+      "sourceSlots": [
+        99,
+        4
+      ],
+      "compositionId": "battle_0004_0099",
+      "route": "surface:flower",
+      "timeStates": [
+        "day"
+      ],
+      "weatherStates": [
+        "clear"
+      ],
+      "animationClipCount": 1,
+      "waterBaseMaterials": [],
+      "waterOverlayMaterials": [],
+      "warnings": []
+    },
+    {
+      "id": "alola_grass_closed",
+      "label": "Alola Grass Field",
+      "file": "alola_grass_closed.glbz",
+      "sha256": "de20e4fcb421e2d2bf1d35959874d35f04b1ae5da2d5d30ee20050778921381e",
+      "bytes": 98859,
+      "sourceSlots": [
+        3
+      ],
+      "compositionId": "",
+      "route": "surface:grass",
+      "timeStates": [
+        "day"
+      ],
+      "weatherStates": [
+        "clear"
+      ],
+      "animationClipCount": 1,
+      "waterBaseMaterials": [],
+      "waterOverlayMaterials": [],
+      "warnings": []
+    },
+    {
+      "id": "alola_grass_arena",
+      "label": "Alola Grass Arena",
+      "file": "alola_grass_arena.glbz",
+      "sha256": "3e676bfd7869a9ec0e6548255cf84f504a181479e4db23bc3b9619426a563849",
+      "bytes": 253377,
+      "sourceSlots": [
+        96,
+        0
+      ],
+      "compositionId": "battle_0000_0096",
+      "route": "surface:grass,ground",
+      "timeStates": [
+        "day"
+      ],
+      "weatherStates": [
+        "clear"
+      ],
+      "animationClipCount": 1,
+      "waterBaseMaterials": [],
+      "waterOverlayMaterials": [],
+      "warnings": []
+    },
+    {
+      "id": "alola_grass_hill",
+      "label": "Alola Grass Hill",
+      "file": "alola_grass_hill.glbz",
+      "sha256": "eb12d429cbe55692cd482d2145b38641550a9fbfc28bc4b50068d1ecd9b97e54",
+      "bytes": 170172,
+      "sourceSlots": [
+        131,
+        70
+      ],
+      "compositionId": "battle_0070_0131",
+      "route": "surface:grass",
+      "timeStates": [
+        "day"
+      ],
+      "weatherStates": [
+        "clear"
+      ],
+      "animationClipCount": 1,
+      "waterBaseMaterials": [],
+      "waterOverlayMaterials": [],
+      "warnings": []
+    },
+    {
+      "id": "alola_dirt_field",
+      "label": "Alola Dirt Field",
+      "file": "alola_dirt_field.glbz",
+      "sha256": "50b10f8b41cfb1000a682ce7a08c4b2e578d0a802b7581fea928202d6d014fc9",
+      "bytes": 201194,
+      "sourceSlots": [
+        17
+      ],
+      "compositionId": "",
+      "route": "surface:dirt",
+      "timeStates": [
+        "day"
+      ],
+      "weatherStates": [
+        "clear"
+      ],
+      "animationClipCount": 2,
+      "waterBaseMaterials": [],
+      "waterOverlayMaterials": [],
+      "warnings": []
+    },
+    {
+      "id": "alola_freshwater",
+      "label": "Alola Freshwater",
+      "file": "alola_freshwater.glbz",
+      "sha256": "869a28ec90495d61608553b2d2204ef8bae46db7c78273e716f0cdb86727b543",
+      "bytes": 121942,
+      "sourceSlots": [
+        19
+      ],
+      "compositionId": "",
+      "route": "surface:freshwater",
+      "timeStates": [
+        "dawn",
+        "day",
+        "sunset",
+        "night"
+      ],
+      "weatherStates": [
+        "clear"
+      ],
+      "animationClipCount": 8,
+      "waterBaseMaterials": [
+        "btl_G_mz1_iro01"
+      ],
+      "waterOverlayMaterials": [
+        "btl_G_sea_nami03"
+      ],
+      "warnings": []
+    },
+    {
+      "id": "alola_mountain",
+      "label": "Alola Mountain",
+      "file": "alola_mountain.glbz",
+      "sha256": "ad1d4793047052d0ff13e1328e4473a046535776bed3b63d0d28c482d5d85656",
+      "bytes": 211277,
+      "sourceSlots": [
+        106,
+        23
+      ],
+      "compositionId": "battle_0023_0106",
+      "route": "surface:rock",
+      "timeStates": [
+        "day"
+      ],
+      "weatherStates": [
+        "clear"
+      ],
+      "animationClipCount": 2,
+      "waterBaseMaterials": [],
+      "waterOverlayMaterials": [],
+      "warnings": []
+    },
+    {
+      "id": "alola_asian_garden",
+      "label": "Alola Asian Garden",
+      "file": "alola_asian_garden.glbz",
+      "sha256": "a8845a6f4c4d1a0e9f99bd97c4d5c9023aca4233463b5a6f89e31808e990ef55",
+      "bytes": 233233,
+      "sourceSlots": [
+        109,
+        27
+      ],
+      "compositionId": "battle_0027_0109",
+      "route": "manual",
+      "timeStates": [
+        "day"
+      ],
+      "weatherStates": [
+        "clear"
+      ],
+      "animationClipCount": 1,
+      "waterBaseMaterials": [],
+      "waterOverlayMaterials": [],
+      "warnings": []
+    },
+    {
+      "id": "alola_waterfall",
+      "label": "Alola Waterfall",
+      "file": "alola_waterfall.glbz",
+      "sha256": "ea3d9e5c85be585e961ffc184311fe1b1a5eb22cbb855a2b1f1f4d1d779077ba",
+      "bytes": 151566,
+      "sourceSlots": [
+        111,
+        30
+      ],
+      "compositionId": "battle_0030_0111",
+      "route": "surface:river",
+      "timeStates": [
+        "day"
+      ],
+      "weatherStates": [
+        "clear"
+      ],
+      "animationClipCount": 2,
+      "waterBaseMaterials": [
+        "btl_N_taki_mz0"
+      ],
+      "waterOverlayMaterials": [],
+      "warnings": []
+    },
+    {
+      "id": "alola_dry_grass",
+      "label": "Alola Dry Grass",
+      "file": "alola_dry_grass.glbz",
+      "sha256": "ca21f379d26a0d3938fe3e6a008e59018d59edf433280173ff1bfc4b0cda0de1",
+      "bytes": 80024,
+      "sourceSlots": [
+        60
+      ],
+      "compositionId": "",
+      "route": "surface:dry_grass",
+      "timeStates": [
+        "day"
+      ],
+      "weatherStates": [
+        "clear"
+      ],
+      "animationClipCount": 1,
+      "waterBaseMaterials": [],
+      "waterOverlayMaterials": [],
+      "warnings": []
+    },
+    {
+      "id": "alola_bathroom",
+      "label": "Alola Bathroom",
+      "file": "alola_bathroom.glbz",
+      "sha256": "dc2b97ee9d8ae3930d4b98e3b978ab3c1a239667236201d00938edda422b1486",
+      "bytes": 27090,
+      "sourceSlots": [
+        11
+      ],
+      "compositionId": "",
+      "route": "manual",
+      "timeStates": [
+        "day"
+      ],
+      "weatherStates": [
+        "clear"
+      ],
+      "animationClipCount": 1,
+      "waterBaseMaterials": [],
+      "waterOverlayMaterials": [],
+      "warnings": []
+    },
+    {
+      "id": "alola_dream_visit",
+      "label": "Alola Dream Visit",
+      "file": "alola_dream_visit.glbz",
+      "sha256": "f35c0df727dbea7b5aaa889f05b0254fc8fd22975c2ccc5708a7d1528848d0d5",
+      "bytes": 82417,
+      "sourceSlots": [
+        64
+      ],
+      "compositionId": "",
+      "route": "event:dream_visit",
+      "timeStates": [
+        "day"
+      ],
+      "weatherStates": [
+        "clear"
+      ],
+      "animationClipCount": 1,
+      "waterBaseMaterials": [],
+      "waterOverlayMaterials": [],
+      "warnings": []
+    },
+    {
+      "id": "alola_hooh_celebi",
+      "label": "Ho-Oh and Celebi",
+      "file": "alola_hooh_celebi.glbz",
+      "sha256": "af660a19faf63dc7e99a8b0f2df57871c1e4eb3796255d4b463215903bdd0270",
+      "bytes": 364546,
+      "sourceSlots": [
+        75
+      ],
+      "compositionId": "",
+      "route": "pokemon:ho_oh,celebi",
+      "timeStates": [
+        "day"
+      ],
+      "weatherStates": [
+        "clear"
+      ],
+      "animationClipCount": 1,
+      "waterBaseMaterials": [],
+      "waterOverlayMaterials": [],
+      "warnings": []
+    },
+    {
+      "id": "alola_underwater",
+      "label": "Alola Underwater",
+      "file": "alola_underwater.glbz",
+      "sha256": "6891f7aba605c09f9e201e283e232ca94fe526ed3e55cc3526e9eccac6d6bebb",
+      "bytes": 341262,
+      "sourceSlots": [
+        76
+      ],
+      "compositionId": "",
+      "route": "pokemon_group:aquatic",
+      "timeStates": [
+        "day"
+      ],
+      "weatherStates": [
+        "clear"
+      ],
+      "animationClipCount": 1,
+      "waterBaseMaterials": [],
+      "waterOverlayMaterials": [],
+      "warnings": []
+    },
+    {
+      "id": "alola_arceus",
+      "label": "Arceus",
+      "file": "alola_arceus.glbz",
+      "sha256": "7255a9a960815d3379ab6bb31b4da866617100758e7c480059ed60d05b000d4b",
+      "bytes": 326980,
+      "sourceSlots": [
+        77
+      ],
+      "compositionId": "",
+      "route": "pokemon:arceus",
+      "timeStates": [
+        "day"
+      ],
+      "weatherStates": [
+        "clear"
+      ],
+      "animationClipCount": 1,
+      "waterBaseMaterials": [],
+      "waterOverlayMaterials": [],
+      "warnings": []
+    },
+    {
+      "id": "alola_rayquaza_deoxys",
+      "label": "Rayquaza and Deoxys",
+      "file": "alola_rayquaza_deoxys.glbz",
+      "sha256": "6100ada70277a518266694be71705a50edd4872c1b8d2c5c650c40bb7c7ccb6b",
+      "bytes": 157698,
+      "sourceSlots": [
+        81
+      ],
+      "compositionId": "",
+      "route": "pokemon:rayquaza,deoxys",
+      "timeStates": [
+        "day"
+      ],
+      "weatherStates": [
+        "clear"
+      ],
+      "animationClipCount": 1,
+      "waterBaseMaterials": [],
+      "waterOverlayMaterials": [],
+      "warnings": []
+    },
+    {
+      "id": "alola_groudon_cliff",
+      "label": "Groudon Cliff",
+      "file": "alola_groudon_cliff.glbz",
+      "sha256": "4e9466f702d8f9304e5f4fe068e149f396719ba54d31c22584080b9ca65003a8",
+      "bytes": 212237,
+      "sourceSlots": [
+        97,
+        1
+      ],
+      "compositionId": "battle_0001_0097",
+      "route": "pokemon:groudon",
+      "timeStates": [
+        "day"
+      ],
+      "weatherStates": [
+        "clear"
+      ],
+      "animationClipCount": 2,
+      "waterBaseMaterials": [],
+      "waterOverlayMaterials": [],
+      "warnings": []
+    },
+    {
+      "id": "alola_guzzlord",
+      "label": "Guzzlord",
+      "file": "alola_guzzlord.glbz",
+      "sha256": "c32e57be6ee718f3fcfe3b831a7ac0670769648eaee5f4c15397046c25a92632",
+      "bytes": 386845,
+      "sourceSlots": [
+        82
+      ],
+      "compositionId": "",
+      "route": "pokemon:guzzlord",
+      "timeStates": [
+        "day"
+      ],
+      "weatherStates": [
+        "clear"
+      ],
+      "animationClipCount": 1,
+      "waterBaseMaterials": [],
+      "waterOverlayMaterials": [],
+      "warnings": []
+    },
+    {
+      "id": "alola_meloetta",
+      "label": "Meloetta",
+      "file": "alola_meloetta.glbz",
+      "sha256": "2e496b164b518bca88291a2a39b143424ac5cdb829c87a6919274be536ae9f40",
+      "bytes": 350075,
+      "sourceSlots": [
+        83
+      ],
+      "compositionId": "",
+      "route": "pokemon:meloetta",
+      "timeStates": [
+        "day"
+      ],
+      "weatherStates": [
+        "clear"
+      ],
+      "animationClipCount": 1,
+      "waterBaseMaterials": [],
+      "waterOverlayMaterials": [],
+      "warnings": []
+    },
+    {
+      "id": "alola_party",
+      "label": "Alola Party",
+      "file": "alola_party.glbz",
+      "sha256": "f9bf3aabd2f45fe5435db9a4daa1a7c109e5a0d5eace8134159a9a8190c520e5",
+      "bytes": 320213,
+      "sourceSlots": [
+        84
+      ],
+      "compositionId": "",
+      "route": "event:party",
+      "timeStates": [
+        "day"
+      ],
+      "weatherStates": [
+        "clear"
+      ],
+      "animationClipCount": 1,
+      "waterBaseMaterials": [],
+      "waterOverlayMaterials": [],
+      "warnings": []
+    },
+    {
+      "id": "alola_special_0086",
+      "label": "Alola Special 0086",
+      "file": "alola_special_0086.glbz",
+      "sha256": "8071b300bef97d8573085ba44d18a9036361573d943f11484a597041d4efae19",
+      "bytes": 58585,
+      "sourceSlots": [
+        86
+      ],
+      "compositionId": "",
+      "route": "manual",
+      "timeStates": [
+        "day"
+      ],
+      "weatherStates": [
+        "clear"
+      ],
+      "animationClipCount": 1,
+      "waterBaseMaterials": [],
+      "waterOverlayMaterials": [],
+      "warnings": []
+    },
+    {
+      "id": "alola_special_0092",
+      "label": "Alola Special 0092",
+      "file": "alola_special_0092.glbz",
+      "sha256": "5f5a4cf7fc0e32ff42322445a1006499e5c8198ba68b22ec337b80e2d0b59c24",
+      "bytes": 240305,
+      "sourceSlots": [
+        92
+      ],
+      "compositionId": "",
+      "route": "manual",
+      "timeStates": [
+        "day"
+      ],
+      "weatherStates": [
+        "clear"
+      ],
+      "animationClipCount": 1,
+      "waterBaseMaterials": [],
+      "waterOverlayMaterials": [],
+      "warnings": []
+    }
+  ]
+}

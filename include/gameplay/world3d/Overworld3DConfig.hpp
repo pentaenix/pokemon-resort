@@ -237,6 +237,20 @@ struct TileLayersConfig {
     std::vector<TileLayerConfig> layers;
 };
 
+// Gameplay-facing identity of the visible tile surface at one logical map cell.
+// `surface` comes from the tile's single `surface.*` tag; the remaining tags are
+// retained so scripts can opt into more specific behavior without changing OWMAP.
+struct TileSurfaceInfo {
+    std::string surface = "ground";
+    int resort_tile_id = -1;
+    std::string tile_name;
+    std::vector<std::string> tags;
+};
+
+struct TileSurfaceGrid {
+    std::vector<std::vector<TileSurfaceInfo>> cells;
+};
+
 struct NpcConfig {
     std::string id;
     std::string character_id;
@@ -310,8 +324,16 @@ struct SceneConfig {
     std::vector<ModelPlacementConfig> models;
     TilePackageConfig tile_package;
     TileLayersConfig tile_layers;
+    TileSurfaceGrid tile_surfaces;
     std::vector<NpcConfig> characters;
     PlayerSpawnConfig player;
 };
+
+inline const TileSurfaceInfo* tileSurfaceAt(const SceneConfig& scene, int tile_x, int tile_y) {
+    if (tile_y < 0 || tile_y >= static_cast<int>(scene.tile_surfaces.cells.size())) return nullptr;
+    const auto& row = scene.tile_surfaces.cells[static_cast<std::size_t>(tile_y)];
+    if (tile_x < 0 || tile_x >= static_cast<int>(row.size())) return nullptr;
+    return &row[static_cast<std::size_t>(tile_x)];
+}
 
 } // namespace pr::gameplay::world3d

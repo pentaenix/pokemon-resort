@@ -1,12 +1,14 @@
 #pragma once
 
 #include "gameplay/world3d/Overworld3DConfig.hpp"
+#include "gameplay/attend/AttendLaunchContext.hpp"
 #include "gameplay/world3d/camera/Gen4FollowCamera.hpp"
 #include "gameplay/world3d/characters/CharacterController.hpp"
 #include "gameplay/world3d/characters/CharacterMovementConfig.hpp"
 #include "gameplay/world3d/characters/SpriteSheetAnimator.hpp"
 #include "gameplay/world3d/followers/FollowerController.hpp"
 #include "gameplay/world3d/effects/LandingDustSystem.hpp"
+#include "gameplay/world3d/effects/ProceduralWaterParticleSystem.hpp"
 #include "gameplay/world3d/dialogue/OverworldTextboxConfig.hpp"
 #include "gameplay/world3d/dialogue/OverworldTextboxController.hpp"
 #include "gameplay/world3d/dialogue/OverworldTextboxRenderer.hpp"
@@ -24,6 +26,7 @@
 #include "ui/transitions/ScreenTransition.hpp"
 
 #include <memory>
+#include <optional>
 #include <random>
 #include <string>
 #include <vector>
@@ -62,6 +65,7 @@ public:
 
     bool consumeReturnToTitleRequested();
     bool consumeOpenAttendRequested();
+    std::optional<gameplay::attend::AttendLaunchContext> consumeAttendLaunchContext();
     void resumeFromAttend();
     void shutdownBgfx();
     void resetForNextLaunch();
@@ -94,6 +98,7 @@ private:
     SDL_Rect visibleWorldViewportRect(int logical_w, int logical_h) const;
     SDL_Rect attendButtonRect() const;
     bool attendAvailable() const;
+    std::optional<gameplay::attend::AttendLaunchContext> buildAttendLaunchContext() const;
     SDL_Point mapPointerToLogical(int x, int y) const;
 
     std::string project_root_;
@@ -131,11 +136,13 @@ private:
     gameplay::world3d::followers::FollowerSessionConfig follower_session_config_{};
     std::unique_ptr<gameplay::world3d::followers::FollowerController> follower_controller_;
     std::unique_ptr<gameplay::world3d::effects::LandingDustSystem> landing_dust_system_;
+    std::unique_ptr<gameplay::world3d::effects::ProceduralWaterParticleSystem> water_particle_system_;
     std::unique_ptr<gameplay::world3d::npc::NpcActorDriver> npc_actor_driver_;
     gameplay::world3d::dialogue::OverworldTextboxConfig textbox_config_{};
     gameplay::world3d::dialogue::OverworldTextboxController textbox_controller_{};
     std::unique_ptr<gameplay::world3d::dialogue::OverworldTextboxRenderer> textbox_renderer_;
     gameplay::world3d::dialogue::OverworldTextboxController::Target active_interaction_target_{};
+    std::optional<gameplay::attend::AttendLaunchContext> pending_attend_launch_context_;
     gameplay::world3d::scripts::ScriptCatalog interaction_script_catalog_{};
     gameplay::world3d::scripts::ScriptCooldowns interaction_script_cooldowns_{};
     gameplay::world3d::interactions::InteractionSequenceController interaction_sequence_{};

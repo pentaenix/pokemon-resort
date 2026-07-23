@@ -85,8 +85,37 @@ bool AttendBgfxRenderer::Impl::buildAnimatedFloor() {
         floor_model_ = AttendPokemonModel{};
         return false;
     }
-    floor_animation_ = findAttendPokemonAnimation(floor_model_, config_.floor.animation_name);
-    if (!floor_animation_ || floor_animation_->channels.empty()) {
+    floor_environment_ = floor_model_.environment_scene.enabled;
+    if (floor_environment_) {
+        const AttendEnvironmentScene& environment = floor_model_.environment_scene;
+        const auto supported_state = [](const std::vector<AttendEnvironmentState>& states,
+                                        const std::string& requested,
+                                        const std::string& fallback) {
+            const auto available = [&](const std::string& id) {
+                return std::any_of(states.begin(), states.end(), [&](const AttendEnvironmentState& state) {
+                    return state.available && state.id == id;
+                });
+            };
+            if (!requested.empty() && available(requested)) return requested;
+            if (available(fallback)) return fallback;
+            const auto first = std::find_if(states.begin(), states.end(), [](const AttendEnvironmentState& state) {
+                return state.available;
+            });
+            return first == states.end() ? fallback : first->id;
+        };
+        environment_time_id_ = supported_state(
+            environment.time_states,
+            config_.floor.time_of_day,
+            environment.default_time.empty() ? "day" : environment.default_time);
+        environment_weather_id_ = supported_state(
+            environment.weather_states,
+            config_.floor.weather_id,
+            environment.default_weather.empty() ? "clear" : environment.default_weather);
+    }
+    floor_animation_ = floor_environment_
+        ? nullptr
+        : findAttendPokemonAnimation(floor_model_, config_.floor.animation_name);
+    if (!floor_environment_ && (!floor_animation_ || floor_animation_->channels.empty())) {
         floor_model_ = AttendPokemonModel{};
         floor_animation_ = nullptr;
         return false;
@@ -103,18 +132,70 @@ bool AttendBgfxRenderer::Impl::buildAnimatedFloor() {
         dst.pokemon_eye = false;
         dst.texture_mapping = src.texture_mapping;
         dst.sampler_flags = smoothSamplerFlags(src.base_color_sampler.wrap_s, src.base_color_sampler.wrap_t);
-        if (src.has_base_color_texture) {
+        dst.pica_tev = src.pica_tev;
+        const std::string environment_material_name = lowercaseAscii(src.name);
+        // sea_iro stores its displayed ocean colour directly. RAE samples it
+        // as untagged PICA bytes and lets the browser's output transform do
+        // the presentation conversion; Attend must likewise avoid applying
+        // a second one-way gamma transform to only this colour pass.
+        const bool sea_color_buffer =
+            environment_material_name.find("sea_iro") != std::string::npos;
+        const bool authored_ground_color =
+            environment_material_name.find("_jime") != std::string::npos ||
+            environment_material_name == "btl_g_eg03" ||
+            environment_material_name == "btl_g_egk3";
+        dst.pica_tev.sea_color_buffer = sea_color_buffer;
+        dst.pica_tev.display_encoded_output = sea_color_buffer || authored_ground_color;
+        const bool named_wave_overlay =
+            environment_material_name.find("nami") != std::string::npos;
+        dst.environment_pass_priority = src.environment_role == "water_base"
+            ? 0
+            : ((src.environment_role == "water_overlay" || named_wave_overlay) ? 10 : 5);
+        // Some freshwater wave materials predate the explicit environment
+        // role metadata. They are the same soft additive PICA pass as the sea
+        // wave materials; rendering them at full linear strength produces a
+        // conspicuous circular band through the arena.
+        if (named_wave_overlay && dst.pica_tev.effect_color_scale >= 0.999f) {
+            // sea_nami01 is the broad ocean highlight sheet. At the same
+            // strength as the small foam cards it covers the entire centre
+            // arena with a white veil; the 3DS framebuffer attenuates this
+            // pass more strongly than the local wavelets.
+            dst.pica_tev.effect_color_scale =
+                environment_material_name.find("sea_nami01") != std::string::npos
+                    ? 0.58f
+                    : 0.82f;
+        }
+        dst.uv_offsets = src.pica_tev.initial_offsets;
+        if (src.pica_tev.enabled) {
+            for (int unit = 0; unit < 3; ++unit) {
+                const std::size_t index = static_cast<std::size_t>(unit);
+                dst.texture_unit_sampler_flags[index] = smoothSamplerFlags(
+                    src.texture_unit_samplers[index].wrap_s,
+                    src.texture_unit_samplers[index].wrap_t);
+                if (src.has_texture_unit[index]) {
+                    dst.texture_units[index] = decodeTexture(
+                        src.texture_unit_bytes[index],
+                        src.name.empty() ? config_.floor.id.c_str() : src.name.c_str());
+                }
+            }
+        } else if (src.has_base_color_texture) {
             dst.texture = decodeTexture(
                 src.base_color_bytes,
                 src.name.empty() ? config_.floor.id.c_str() : src.name.c_str());
         }
         dst.additive = src.render_class == AttendRenderClass::Additive;
+        dst.multiplicative = src.pica_multiplicative_blend;
         dst.blend = src.render_class == AttendRenderClass::Blend ||
                     dst.additive ||
+                    dst.multiplicative ||
                     src.render_class == AttendRenderClass::UniformDecal ||
-                    dst.base_color[3] < 0.999f;
-        dst.mask_cutout = src.render_class == AttendRenderClass::Mask;
-        if (!src.has_rae_policy && !src.has_alpha_mode) {
+                    dst.base_color[3] < 0.999f ||
+                    src.pica_vertex_alpha_blend ||
+                    dst.pica_tev.standalone_black_key;
+        dst.mask_cutout = src.render_class == AttendRenderClass::Mask &&
+            !src.pica_vertex_alpha_blend &&
+            !src.pica_multiplicative_blend;
+        if (!src.pica_tev.enabled && !src.has_rae_policy && !src.has_alpha_mode) {
             dst.blend = dst.blend || dst.texture.has_partial_alpha;
             dst.mask_cutout = dst.texture.has_zero_alpha && !dst.blend && dst.base_color[3] >= 0.999f;
         }
@@ -124,6 +205,15 @@ bool AttendBgfxRenderer::Impl::buildAnimatedFloor() {
     }
     if (floor_mesh_.materials.empty()) {
         floor_mesh_.materials.push_back(MaterialResource{});
+    }
+
+    float floor_model_x = config_.floor.model_x;
+    float floor_model_y = config_.floor.model_y;
+    float floor_model_z = config_.floor.model_z;
+    if (floor_environment_) {
+        floor_model_x -= floor_model_.environment_scene.surface_anchor[0] * config_.floor.model_scale;
+        floor_model_y -= floor_model_.environment_scene.surface_anchor[1] * config_.floor.model_scale;
+        floor_model_z -= floor_model_.environment_scene.surface_anchor[2] * config_.floor.model_scale;
     }
 
     std::vector<Vertex> vertices;
@@ -140,6 +230,65 @@ bool AttendBgfxRenderer::Impl::buildAnimatedFloor() {
             floor_globals,
             floor_skin_matrices,
             floor_skinned_primitives_[primitive_index]);
+    }
+    if (floor_environment_) {
+        for (std::size_t primitive_index = 0; primitive_index < floor_model_.primitives.size(); ++primitive_index) {
+            const AttendPokemonPrimitive& primitive = floor_model_.primitives[primitive_index];
+            const std::uint32_t start = static_cast<std::uint32_t>(indices.size());
+            const std::uint32_t base = static_cast<std::uint32_t>(vertices.size());
+            for (const AttendPokemonVertex& v : floor_skinned_primitives_[primitive_index]) {
+                vertices.push_back(transformAttendVertex(
+                    v,
+                    floor_model_x,
+                    floor_model_y,
+                    floor_model_z,
+                    config_.floor.model_yaw_degrees,
+                    config_.floor.model_scale));
+            }
+            for (std::uint32_t index : primitive.indices) indices.push_back(base + index);
+            const std::uint32_t count = static_cast<std::uint32_t>(indices.size()) - start;
+            if (count == 0) continue;
+            MeshResource::Range range;
+            range.start = start;
+            range.count = count;
+            range.material = primitive.material;
+            range.node_index = primitive.mesh_node;
+            range.runtime_visible = primitive.default_visible;
+            if (primitive.mesh_node >= 0 && primitive.mesh_node < static_cast<int>(floor_model_.nodes.size())) {
+                const AttendPokemonNode& node = floor_model_.nodes[static_cast<std::size_t>(primitive.mesh_node)];
+                range.node_name = node.name;
+                range.composition_priority = node.composition_priority;
+            }
+            floor_mesh_.ranges.push_back(std::move(range));
+        }
+        std::stable_sort(
+            floor_mesh_.ranges.begin(),
+            floor_mesh_.ranges.end(),
+            [&](const MeshResource::Range& a, const MeshResource::Range& b) {
+                const MaterialResource* ma = a.material >= 0 && a.material < static_cast<int>(floor_mesh_.materials.size())
+                    ? &floor_mesh_.materials[static_cast<std::size_t>(a.material)] : nullptr;
+                const MaterialResource* mb = b.material >= 0 && b.material < static_cast<int>(floor_mesh_.materials.size())
+                    ? &floor_mesh_.materials[static_cast<std::size_t>(b.material)] : nullptr;
+                const bool blend_a = ma && ma->blend;
+                const bool blend_b = mb && mb->blend;
+                if (blend_a != blend_b) return !blend_a;
+                const int pass_a = ma ? ma->environment_pass_priority : 5;
+                const int pass_b = mb ? mb->environment_pass_priority : 5;
+                if (pass_a != pass_b) return pass_a < pass_b;
+                if (blend_a && a.composition_priority != b.composition_priority) {
+                    return a.composition_priority < b.composition_priority;
+                }
+                return a.start < b.start;
+            });
+        floor_frame_vertices_ = vertices;
+        const bool uploaded = uploadMesh(floor_mesh_, vertices, indices);
+        if (!uploaded) {
+            floor_environment_ = false;
+            floor_model_ = AttendPokemonModel{};
+            floor_skinned_primitives_.clear();
+            floor_frame_vertices_.clear();
+        }
+        return uploaded;
     }
     for (std::size_t mat = 0; mat < floor_mesh_.materials.size(); ++mat) {
         const std::uint32_t start = static_cast<std::uint32_t>(indices.size());
@@ -181,6 +330,7 @@ bool AttendBgfxRenderer::Impl::buildFloor() {
     if (!config_.floor.enabled) {
         return true;
     }
+    floor_environment_ = false;
     bool floor_built = buildAnimatedFloor();
     if (!floor_built) {
         floor_mesh_.destroy();

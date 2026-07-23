@@ -904,6 +904,9 @@ std::optional<FollowerInteractionInfo> FollowerController::interactionInfo() con
     info.species_name = follower_def_.species_name.empty() ? session_config_.pokemon_species : follower_def_.species_name;
     info.pokemon_size = follower_def_.pokemon_size;
     info.pokemon_types = follower_def_.pokemon_types;
+    info.species_slug = session_config_.pokemon_species;
+    info.form_id = session_config_.pokemon_form_id;
+    info.shiny = session_config_.pokemon_shiny;
     return info;
 }
 
@@ -1108,6 +1111,16 @@ std::optional<effects::LandingDustSpawnRequest> FollowerController::consumeLandi
     std::optional<effects::LandingDustSpawnRequest> out = pending_landing_dust_spawn_;
     pending_landing_dust_spawn_.reset();
     return out;
+}
+
+bool FollowerController::effectOnActualWater() const {
+    // Particle state follows the committed logical tile, not the interpolated
+    // render position. The loaded-world query also understands adjacent maps;
+    // querying scene_ directly made every follower appear to leave water when
+    // it crossed beyond the primary map's local coordinates.
+    return terrain_query_
+        ? terrain_query_->tileIsActualWater(follower_tile_.x, follower_tile_.y)
+        : terrain::isActualWaterTile(scene_, follower_tile_.x, follower_tile_.y);
 }
 
 int FollowerController::tileHeightUnits(int tx, int ty) const {

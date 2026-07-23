@@ -1,7 +1,7 @@
 {
   "_comment": "Temporary TEST ATTEND debug selection. Runtime behavior lives in interaction/provider/environment configs.",
   "id": "alola_battle_map_debug",
-  "activePokemon": "dewpider",
+  "activePokemon": "kyogre",
   "activeFloor": "alola_grass_battle_map",
   "activeSky": "clear",
   "pokemon": {
@@ -169,6 +169,22 @@
       "cornerRadius": 12,
       "strokeWidth": 2,
       "fontSize": 18,
+      "fill": "#2D2448E8",
+      "stroke": "#FFE8CDEE",
+      "text": "#FFFFFFFF"
+    },
+    "mapButton": {
+      "enabled": true,
+      "anchor": "top_left",
+      "labelPrefix": "MAP: ",
+      "width": 300,
+      "height": 44,
+      "marginX": 24,
+      "marginY": 230,
+      "paddingX": 16,
+      "cornerRadius": 12,
+      "strokeWidth": 2,
+      "fontSize": 16,
       "fill": "#2D2448E8",
       "stroke": "#FFE8CDEE",
       "text": "#FFFFFFFF"

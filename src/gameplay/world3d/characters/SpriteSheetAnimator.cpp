@@ -159,6 +159,12 @@ bool SpriteSheetAnimator::startActivitySession(const std::string& action_id) {
     return true;
 }
 
+void SpriteSheetAnimator::cancelActivitySession() {
+    activity_id_.clear();
+    activity_phase_ = ActivityPhase::None;
+    resetFrameClock();
+}
+
 void SpriteSheetAnimator::requestActivityExit() {
     if (activity_phase_ == ActivityPhase::Enter || activity_phase_ == ActivityPhase::Stay) {
         activity_phase_ = ActivityPhase::Exit;

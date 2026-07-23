@@ -421,6 +421,20 @@ std::vector<std::string> stringArrayMember(const JsonValue* obj, const char* key
     return out;
 }
 
+void readFloatArray(const JsonValue* value, float* out, std::size_t count) {
+    if (!value || !value->isArray()) return;
+    const auto& values = value->asArray();
+    for (std::size_t i = 0; i < count && i < values.size(); ++i) {
+        if (values[i].isNumber()) out[i] = static_cast<float>(values[i].asNumber());
+    }
+}
+
+std::array<float, 2> readFloatPair(const JsonValue* value) {
+    std::array<float, 2> out{0.0f, 0.0f};
+    readFloatArray(value, out.data(), out.size());
+    return out;
+}
+
 const JsonValue* raeExtras(const JsonValue& obj) {
     const JsonValue* extras = obj.get("extras");
     if (!extras || !extras->isObject()) return nullptr;
@@ -658,11 +672,25 @@ void readMaterials(const JsonValue& root, const std::uint8_t* bin, std::size_t b
             }
         }
         if (const JsonValue* rae = raeExtras(mat)) {
+            if (const JsonValue* environment = rae->get("environmentMaterial");
+                environment && environment->isObject()) {
+                material.environment_role = stringMember(environment, "role");
+            }
             if (const JsonValue* nitro = rae->get("nitro"); nitro && nitro->isObject()) {
                 material.nitro_texture_alpha = stringMember(nitro, "textureAlpha");
             }
             if (const JsonValue* pica = rae->get("pica"); pica && pica->isObject()) {
                 material.has_authoritative_pica = boolMember(pica, "authoritative", true);
+                material.pica_vertex_alpha_blend =
+                    boolMember(pica, "alphaBlendEnabled", false) &&
+                    stringMember(pica, "sourceRgbFactor") == "source_alpha" &&
+                    stringMember(pica, "destinationRgbFactor") == "one_minus_source_alpha" &&
+                    !boolMember(pica, "depthWriteEnabled", true);
+                material.pica_multiplicative_blend =
+                    boolMember(pica, "alphaBlendEnabled", false) &&
+                    stringMember(pica, "sourceRgbFactor") == "destination_color" &&
+                    stringMember(pica, "destinationRgbFactor") == "zero" &&
+                    !boolMember(pica, "depthWriteEnabled", true);
             }
             material.shiny_material_index = intMember(rae, "shinyMaterialIndex", material.shiny_material_index);
             if (const JsonValue* forms = rae->get("formMaterialIndices"); forms && forms->isObject()) {
@@ -705,7 +733,85 @@ void readMaterials(const JsonValue& root, const std::uint8_t* bin, std::size_t b
                     material.texture_mapping = AttendTextureMapping::Unknown;
                 }
             }
+            if (const JsonValue* tev = rae->get("picaTev"); tev && tev->isObject()) {
+                material.pica_tev.enabled = true;
+                material.pica_tev.outer_water_base = boolMember(tev, "outerWaterBase", false);
+                material.pica_tev.standalone_black_key = boolMember(tev, "standaloneBlackKey", false);
+                if (const JsonValue* scale = tev->get("effectColorScale"); scale && scale->isNumber()) {
+                    material.pica_tev.effect_color_scale = std::clamp(
+                        static_cast<float>(scale->asNumber()), 0.0f, 1.0f);
+                }
+                if (const JsonValue* indices = tev->get("textureIndices"); indices && indices->isObject()) {
+                    for (int unit = 0; unit < 3; ++unit) {
+                        const std::string key = std::to_string(unit);
+                        material.pica_tev.texture_indices[static_cast<std::size_t>(unit)] =
+                            intMember(indices, key.c_str(), -1);
+                    }
+                }
+                if (const JsonValue* coord_sets = tev->get("textureCoordSets"); coord_sets && coord_sets->isObject()) {
+                    for (int unit = 0; unit < 3; ++unit) {
+                        const std::string key = std::to_string(unit);
+                        material.pica_tev.texture_coord_sets[static_cast<std::size_t>(unit)] =
+                            intMember(coord_sets, key.c_str(), unit);
+                    }
+                }
+                if (const JsonValue* offsets = tev->get("initialOffsets"); offsets && offsets->isObject()) {
+                    for (int unit = 0; unit < 3; ++unit) {
+                        const std::string key = std::to_string(unit);
+                        material.pica_tev.initial_offsets[static_cast<std::size_t>(unit)] =
+                            readFloatPair(offsets->get(key));
+                    }
+                }
+                readFloatArray(tev->get("bufferColor"), material.pica_tev.buffer_color.data(), 4);
+                if (const JsonValue* assignments = tev->get("constantAssignments"); assignments && assignments->isArray()) {
+                    for (std::size_t i = 0; i < 6 && i < assignments->asArray().size(); ++i) {
+                        if (assignments->asArray()[i].isNumber()) {
+                            material.pica_tev.constant_assignments[i] =
+                                static_cast<int>(assignments->asArray()[i].asNumber());
+                        }
+                    }
+                }
+                if (const JsonValue* colors = tev->get("constantColors"); colors && colors->isArray()) {
+                    for (std::size_t i = 0; i < 6 && i < colors->asArray().size(); ++i) {
+                        readFloatArray(&colors->asArray()[i], material.pica_tev.constant_colors[i].data(), 4);
+                    }
+                }
+                if (const JsonValue* stages = tev->get("stages"); stages && stages->isArray()) {
+                    for (std::size_t i = 0; i < 6 && i < stages->asArray().size(); ++i) {
+                        const JsonValue& stage = stages->asArray()[i];
+                        AttendPicaTevStage& parsed = material.pica_tev.stages[i];
+                        parsed.source = static_cast<std::uint32_t>(intMember(&stage, "source", 0));
+                        parsed.operand = static_cast<std::uint32_t>(intMember(&stage, "operand", 0));
+                        parsed.combiner = static_cast<std::uint32_t>(intMember(&stage, "combiner", 0));
+                        parsed.scale = static_cast<std::uint32_t>(intMember(&stage, "scale", 0));
+                        parsed.update_color_buffer = boolMember(&stage, "updateColorBuffer", false);
+                        parsed.update_alpha_buffer = boolMember(&stage, "updateAlphaBuffer", false);
+                    }
+                }
+                for (int unit = 0; unit < 3; ++unit) {
+                    int texture_index = material.pica_tev.texture_indices[static_cast<std::size_t>(unit)];
+                    if (texture_index < 0 && unit == 0) {
+                        if (const JsonValue* pbr = mat.get("pbrMetallicRoughness"); pbr && pbr->isObject()) {
+                            if (const JsonValue* tex = pbr->get("baseColorTexture"); tex && tex->isObject()) {
+                                texture_index = intMember(tex, "index", -1);
+                            }
+                        }
+                    }
+                    if (texture_index < 0) continue;
+                    material.texture_unit_bytes[static_cast<std::size_t>(unit)] =
+                        imageBytes(root, bin, bin_len, texture_index);
+                    material.texture_unit_samplers[static_cast<std::size_t>(unit)] =
+                        textureSampler(root, texture_index);
+                    material.has_texture_unit[static_cast<std::size_t>(unit)] =
+                        !material.texture_unit_bytes[static_cast<std::size_t>(unit)].empty();
+                }
+            }
             readEyeSheet(rae, material);
+        }
+        if (!material.pica_tev.enabled && material.has_base_color_texture) {
+            material.texture_unit_bytes[0] = material.base_color_bytes;
+            material.texture_unit_samplers[0] = material.base_color_sampler;
+            material.has_texture_unit[0] = true;
         }
         if (material.eye_sheet.enabled && looksLikeMouthName(material.name)) {
             material.material_role = AttendMaterialRole::Mouth;
@@ -729,6 +835,9 @@ void readNodes(const JsonValue& root, AttendPokemonModel& out) {
             out.nodes[i].default_visible = boolMember(rae, "defaultVisible", out.nodes[i].default_visible);
             out.nodes[i].render_order = intMember(rae, "renderOrder", out.nodes[i].render_order);
             out.nodes[i].visible_for_forms = stringArrayMember(rae, "visibleForForms");
+            out.nodes[i].source_slot = intMember(rae, "sourceSlot", -1);
+            out.nodes[i].composition_priority = intMember(rae, "compositionPriority", 0);
+            out.nodes[i].composition_role = stringMember(rae, "compositionRole", "self_contained");
         }
         out.nodes[i].local_matrix = nodeLocalMatrix(
             node,
@@ -779,6 +888,8 @@ AttendPokemonVertex readVertex(
     const AccessorView& positions,
     const AccessorView& normals,
     const AccessorView& uvs,
+    const AccessorView& uvs1,
+    const AccessorView& uvs2,
     const AccessorView& colors,
     const AccessorView& joints,
     const AccessorView& weights,
@@ -795,6 +906,20 @@ AttendPokemonVertex readVertex(
     if (uvs.valid && index < uvs.count && uvs.num_components >= 2) {
         v.u = GltfReader::readFloat(uvs, index, 0);
         v.v = GltfReader::readFloat(uvs, index, 1);
+    }
+    if (uvs1.valid && index < uvs1.count && uvs1.num_components >= 2) {
+        v.u1 = GltfReader::readFloat(uvs1, index, 0);
+        v.v1 = GltfReader::readFloat(uvs1, index, 1);
+    } else {
+        v.u1 = v.u;
+        v.v1 = v.v;
+    }
+    if (uvs2.valid && index < uvs2.count && uvs2.num_components >= 2) {
+        v.u2 = GltfReader::readFloat(uvs2, index, 0);
+        v.v2 = GltfReader::readFloat(uvs2, index, 1);
+    } else {
+        v.u2 = v.u;
+        v.v2 = v.v;
     }
     if (colors.valid && index < colors.count && colors.num_components >= 3) {
         v.r = GltfReader::readNormalized(colors, index, 0);
@@ -846,6 +971,8 @@ void readPrimitives(const JsonValue& root, const GltfReader& reader, AttendPokem
             if (!positions.valid || positions.num_components < 3) continue;
             const AccessorView normals = reader.accessor(intMember(attrs, "NORMAL", -1));
             const AccessorView uvs = reader.accessor(intMember(attrs, "TEXCOORD_0", -1));
+            const AccessorView uvs1 = reader.accessor(intMember(attrs, "TEXCOORD_1", -1));
+            const AccessorView uvs2 = reader.accessor(intMember(attrs, "TEXCOORD_2", -1));
             const AccessorView colors = reader.accessor(intMember(attrs, "COLOR_0", -1));
             const AccessorView joints = reader.accessor(intMember(attrs, "JOINTS_0", -1));
             const AccessorView weights = reader.accessor(intMember(attrs, "WEIGHTS_0", -1));
@@ -874,7 +1001,7 @@ void readPrimitives(const JsonValue& root, const GltfReader& reader, AttendPokem
             }
             primitive.vertices.reserve(static_cast<std::size_t>(positions.count));
             for (int i = 0; i < positions.count; ++i) {
-                primitive.vertices.push_back(readVertex(reader, positions, normals, uvs, colors, joints, weights, i));
+                primitive.vertices.push_back(readVertex(reader, positions, normals, uvs, uvs1, uvs2, colors, joints, weights, i));
             }
             const AccessorView indices = reader.accessor(intMember(&primitive_json, "indices", -1));
             if (indices.valid) {
@@ -926,6 +1053,148 @@ void readAnimations(const JsonValue& root, const GltfReader& reader, AttendPokem
         }
         out.animations.push_back(std::move(anim));
     }
+}
+
+std::vector<AttendEnvironmentState> readEnvironmentStates(const JsonValue* states, const char* key) {
+    std::vector<AttendEnvironmentState> out;
+    if (!states || !states->isObject()) return out;
+    const JsonValue* entries = states->get(key);
+    if (!entries || !entries->isArray()) return out;
+    for (const JsonValue& value : entries->asArray()) {
+        if (!value.isObject()) continue;
+        AttendEnvironmentState state;
+        state.id = stringMember(&value, "id");
+        state.available = boolMember(&value, "available", false);
+        if (const JsonValue* poses = value.get("poses"); poses && poses->isArray()) {
+            for (const JsonValue& pose_value : poses->asArray()) {
+                if (!pose_value.isObject()) continue;
+                AttendEnvironmentFixedPose pose;
+                pose.clip = stringMember(&pose_value, "clip");
+                pose.frame = std::max(0, intMember(&pose_value, "frame", 0));
+                if (!pose.clip.empty()) state.poses.push_back(std::move(pose));
+            }
+        }
+        state.active_clips = stringArrayMember(&value, "activeClips");
+        if (!state.id.empty()) out.push_back(std::move(state));
+    }
+    return out;
+}
+
+void readEnvironmentScene(const JsonValue& root, AttendPokemonModel& out) {
+    const JsonValue* rae = raeExtras(root);
+    if (!rae) return;
+    const JsonValue* scene = rae->get("environmentScene");
+    if (!scene || !scene->isObject()) return;
+    AttendEnvironmentScene& parsed = out.environment_scene;
+    parsed.enabled = true;
+    parsed.schema_version = intMember(scene, "schemaVersion", 0);
+    parsed.id = stringMember(scene, "id");
+    parsed.label = stringMember(scene, "label", parsed.id);
+    parsed.default_time = stringMember(scene, "defaultTime", "day");
+    parsed.default_weather = stringMember(scene, "defaultWeather", "clear");
+    if (const JsonValue* source = scene->get("source"); source && source->isObject()) {
+        parsed.composition_id = stringMember(source, "compositionId");
+        if (const JsonValue* slots = source->get("slots"); slots && slots->isArray()) {
+            for (const JsonValue& slot : slots->asArray()) {
+                if (slot.isNumber()) parsed.source_slots.push_back(static_cast<int>(slot.asNumber()));
+            }
+        }
+    }
+    if (const JsonValue* anchor = scene->get("surfaceAnchor"); anchor && anchor->isObject()) {
+        if (const JsonValue* x = anchor->get("x"); x && x->isNumber()) parsed.surface_anchor[0] = static_cast<float>(x->asNumber());
+        if (const JsonValue* y = anchor->get("y"); y && y->isNumber()) parsed.surface_anchor[1] = static_cast<float>(y->asNumber());
+        if (const JsonValue* z = anchor->get("z"); z && z->isNumber()) parsed.surface_anchor[2] = static_cast<float>(z->asNumber());
+    }
+    if (const JsonValue* states = scene->get("states"); states && states->isObject()) {
+        if (const JsonValue* rate = states->get("sourceFrameRate"); rate && rate->isNumber()) {
+            parsed.source_frame_rate = std::max(1.0f, static_cast<float>(rate->asNumber()));
+        }
+        parsed.ambient_clips = stringArrayMember(states, "ambientClips");
+        parsed.time_states = readEnvironmentStates(states, "timeStates");
+        parsed.weather_states = readEnvironmentStates(states, "weatherStates");
+    }
+    const JsonValue* motion = rae->get("mapMaterialMotion");
+    if (!motion || !motion->isObject()) return;
+    if (const JsonValue* rate = motion->get("frameRate"); rate && rate->isNumber()) {
+        parsed.source_frame_rate = std::max(1.0f, static_cast<float>(rate->asNumber()));
+    }
+    parsed.default_clip = stringMember(motion, "defaultClip");
+    parsed.overlay_clips = stringArrayMember(motion, "overlayClips");
+    const JsonValue* clips = motion->get("clips");
+    if (!clips || !clips->isArray()) return;
+    for (const JsonValue& clip_value : clips->asArray()) {
+        if (!clip_value.isObject()) continue;
+        AttendEnvironmentMotionClip clip;
+        clip.id = stringMember(&clip_value, "id");
+        clip.frame_count = std::max(0, intMember(&clip_value, "frameCount", 0));
+        clip.loop = boolMember(&clip_value, "loop", true);
+        if (const JsonValue* tracks = clip_value.get("tracks"); tracks && tracks->isArray()) {
+            for (const JsonValue& track_value : tracks->asArray()) {
+                if (!track_value.isObject()) continue;
+                AttendEnvironmentMotionTrack track;
+                track.material = stringMember(&track_value, "material");
+                track.motion_kind = stringMember(&track_value, "motionKind");
+                track.texture_unit = std::clamp(intMember(&track_value, "textureUnit", 0), 0, 2);
+                if (const JsonValue* offsets = track_value.get("frameOffsets"); offsets && offsets->isArray()) {
+                    track.frame_offsets.reserve(offsets->asArray().size());
+                    for (const JsonValue& offset : offsets->asArray()) {
+                        track.frame_offsets.push_back(readFloatPair(&offset));
+                    }
+                }
+                if (!track.material.empty() && !track.frame_offsets.empty()) clip.tracks.push_back(std::move(track));
+            }
+        }
+        if (const JsonValue* visibility = clip_value.get("meshVisibility"); visibility && visibility->isObject()) {
+            for (const auto& [node_name, values] : visibility->asObject()) {
+                if (!values.isArray()) continue;
+                std::vector<bool> frames;
+                frames.reserve(values.asArray().size());
+                for (const JsonValue& frame : values.asArray()) {
+                    frames.push_back(frame.isBool() ? frame.asBool() : true);
+                }
+                if (!frames.empty()) clip.mesh_visibility.emplace_back(node_name, std::move(frames));
+            }
+        }
+        if (!clip.id.empty()) parsed.motion_clips.push_back(std::move(clip));
+    }
+}
+
+bool supportedTevSource(std::uint32_t source) {
+    switch (source & 15u) {
+        case 0u:
+        case 1u:
+        case 2u:
+        case 3u:
+        case 4u:
+        case 5u:
+        case 13u:
+        case 14u:
+        case 15u:
+            return true;
+        default:
+            return false;
+    }
+}
+
+bool validateEnvironmentMaterials(const AttendPokemonModel& model, std::string& message) {
+    if (!model.environment_scene.enabled) return true;
+    for (const AttendPokemonMaterial& material : model.materials) {
+        if (!material.pica_tev.enabled) continue;
+        for (const AttendPicaTevStage& stage : material.pica_tev.stages) {
+            for (int arg = 0; arg < 3; ++arg) {
+                if (!supportedTevSource((stage.source >> (arg * 4)) & 15u) ||
+                    !supportedTevSource((stage.source >> (16 + arg * 4)) & 15u)) {
+                    message = "unsupported PICA TEV source in material " + material.name;
+                    return false;
+                }
+            }
+            if ((stage.combiner & 15u) > 9u || ((stage.combiner >> 16) & 15u) > 9u) {
+                message = "unsupported PICA TEV combiner in material " + material.name;
+                return false;
+            }
+        }
+    }
+    return true;
 }
 
 std::array<float, 4> sampleChannel(const AttendPokemonAnimationChannel& channel, float time_seconds) {
@@ -1212,11 +1481,17 @@ AttendPokemonModel loadAttendPokemonModel(const std::string& path, std::string* 
     }
     const GltfReader reader(root, bin, bin_len);
     readTextureVariants(root, out);
+    readEnvironmentScene(root, out);
     readMaterials(root, bin, bin_len, out);
     readNodes(root, out);
     readSkins(root, reader, out);
     readPrimitives(root, reader, out);
     readAnimations(root, reader, out);
+    std::string environment_error;
+    if (!validateEnvironmentMaterials(out, environment_error)) {
+        fail(error, "Attend environment import failed: " + environment_error + " (" + path + ")");
+        return AttendPokemonModel{};
+    }
     out.valid = !out.nodes.empty() && !out.materials.empty() && !out.primitives.empty();
     if (!out.valid) {
         fail(error, "Attend Pokemon GLB did not produce renderable model: " + path);

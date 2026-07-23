@@ -6,23 +6,76 @@
       "id": "npc_watanabe",
       "characterPath": "assets/characters/npc/watanabe.charbin",
       "kind": "human",
-      "scriptId": "npc_idle_rotate",
+      "scriptId": "npc_destination_roam",
       "spawn": [4, 8],
       "facing": "south",
-      "behaviorProfile": "idle",
+      "behaviorProfile": "destination_roam",
       "movementSpeedProfile": "walk",
-      "followerPokemonFreedom": false
+      "followerPokemonFreedom": false,
+      "spawnPartnerPokemon": false,
+      "roamMinDistanceTiles": 8,
+      "roamWaitMinSeconds": 2.0,
+      "roamWaitMaxSeconds": 5.0
     },
     {
       "id": "npc_cynthia",
       "characterPath": "assets/characters/npc/cynthia.charbin",
       "kind": "human",
-      "scriptId": "npc_idle_rotate",
+      "scriptId": "npc_wander",
       "spawn": [12, 8],
       "facing": "south",
-      "behaviorProfile": "idle",
+      "behaviorProfile": "wander",
       "movementSpeedProfile": "walk",
       "followerPokemonFreedom": false
+    },
+    {
+      "id": "npc_tyler",
+      "characterPath": "assets/characters/npc/tyler.charbin",
+      "kind": "human",
+      "scriptId": "npc_static",
+      "spawn": [18, 17],
+      "facing": "south",
+      "behaviorProfile": "static",
+      "persistentActivityId": "yoga",
+      "persistentActivityFacing": "south",
+      "movementSpeedProfile": "walk",
+      "spawnPartnerPokemon": false
+    },
+    {
+      "id": "npc_tyler_panpour",
+      "characterPath": "assets/characters/pokemon/panpour.charbin",
+      "kind": "pokemon",
+      "scriptId": "npc_slow_rotate",
+      "spawn": [20, 17],
+      "facing": "south",
+      "behaviorProfile": "slow_rotate",
+      "movementSpeedProfile": "walk",
+      "rotateWaitMinSeconds": 4.0,
+      "rotateWaitMaxSeconds": 8.0
+    },
+    {
+      "id": "npc_tyler_pansage",
+      "characterPath": "assets/characters/pokemon/pansage.charbin",
+      "kind": "pokemon",
+      "scriptId": "npc_slow_rotate",
+      "spawn": [22, 17],
+      "facing": "south",
+      "behaviorProfile": "slow_rotate",
+      "movementSpeedProfile": "walk",
+      "rotateWaitMinSeconds": 4.0,
+      "rotateWaitMaxSeconds": 8.0
+    },
+    {
+      "id": "npc_tyler_pansear",
+      "characterPath": "assets/characters/pokemon/pansear.charbin",
+      "kind": "pokemon",
+      "scriptId": "npc_slow_rotate",
+      "spawn": [24, 17],
+      "facing": "south",
+      "behaviorProfile": "slow_rotate",
+      "movementSpeedProfile": "walk",
+      "rotateWaitMinSeconds": 4.0,
+      "rotateWaitMaxSeconds": 8.0
     }
   ]
 }

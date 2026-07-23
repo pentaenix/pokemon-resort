@@ -21,6 +21,15 @@
     },
     {
       "path": "npc/idle_rotate.json"
+    },
+    {
+      "path": "npc/slow_rotate.json"
+    },
+    {
+      "path": "npc/destination_roam.json"
+    },
+    {
+      "path": "npc/static.json"
     }
   ]
 }

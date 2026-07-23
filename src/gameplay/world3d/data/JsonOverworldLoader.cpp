@@ -413,6 +413,8 @@ CharacterSpriteDefinition loadCharacterDefinition(
     struct ActivityActionBinding {
         std::string id;
         std::string sheet_id;
+        std::string animation_name;
+        bool simple_loop = false;
     };
     std::vector<ActivityActionBinding> activity_actions;
     for (const JsonValue& action : action_array->asArray()) {
@@ -431,7 +433,11 @@ CharacterSpriteDefinition loadCharacterDefinition(
             run_sheet_id = sheet_id;
             if (!anim_name.empty()) run_anim_name = anim_name;
         } else if (action_type == "activity" && strOr(action.get("activityKind"), "") == "session") {
-            activity_actions.push_back(ActivityActionBinding{action_id, sheet_id});
+            activity_actions.push_back(ActivityActionBinding{action_id, sheet_id, anim_name, false});
+        } else if (action_type == "idle" && &action != selected_idle && !action_id.empty()) {
+            // Alternate idle sheets (for example Tyler's yoga loop) can be
+            // selected persistently by an NPC without changing the charbin.
+            activity_actions.push_back(ActivityActionBinding{action_id, sheet_id, anim_name, true});
         }
     }
 
@@ -548,8 +554,21 @@ CharacterSpriteDefinition loadCharacterDefinition(
             profileObjectById(project_root, activity_profile_id, profile_cache_root, profile_cache_loaded);
         const JsonValue* activity_profile_anims =
             activity_profile ? activity_profile->get("animations") : profile_anims;
-        CharacterActivitySessionDef session =
-            parseActivitySession(*action_node, activity_sheet->get("animations"), activity_profile_anims);
+        CharacterActivitySessionDef session{};
+        if (binding.simple_loop) {
+            const CharacterAnimationDef loop = parseAnimationByName(
+                activity_sheet->get("animations"),
+                activity_profile_anims,
+                binding.animation_name.empty() ? binding.id : binding.animation_name,
+                CharacterAnimationDef{{0}, 120});
+            session.enter = loop;
+            session.stay = loop;
+            session.exit = loop;
+            session.valid = !loop.frames.empty();
+        } else {
+            session = parseActivitySession(
+                *action_node, activity_sheet->get("animations"), activity_profile_anims);
+        }
         if (session.valid) {
             out.activity_sessions[binding.id] = std::move(session);
             if (binding.sheet_id != selected_sheet_id) {

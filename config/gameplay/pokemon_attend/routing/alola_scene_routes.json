@@ -1,0 +1,34 @@
+{
+  "_comment": "Data-driven scene selection. Precedence is event, exact Pokemon, Pokemon group, forced/exact tile tag, surface pool, fallback.",
+  "fallbackScene": "alola_grass_arena",
+  "eventRoutes": {
+    "dream-visit": "alola_dream_visit",
+    "party": "alola_party",
+    "asian-garden": "alola_asian_garden"
+  },
+  "pokemonRoutes": {},
+  "pokemonGroups": {},
+  "tileTagRoutes": {
+    "terrain.freshwater": "alola_freshwater",
+    "terrain.river": "alola_waterfall",
+    "terrain.flower": "alola_flower_field",
+    "terrain.dirt": "alola_dirt_field",
+    "terrain.rock": "alola_mountain",
+    "terrain.dry-grass": "alola_dry_grass"
+  },
+  "surfacePools": {
+    "ground": ["alola_grass_arena"],
+    "grass": ["alola_grass_closed", "alola_grass_arena", "alola_grass_hill"],
+    "flower": ["alola_flower_field"],
+    "sand": ["alola_beach"],
+    "beach": ["alola_beach"],
+    "sea": ["alola_open_sea", "alola_coastal_ocean"],
+    "freshwater": ["alola_freshwater"],
+    "river": ["alola_waterfall"],
+    "rock": ["alola_mountain"],
+    "mountain": ["alola_mountain"],
+    "dirt": ["alola_dirt_field"],
+    "dry-grass": ["alola_dry_grass"]
+  },
+  "manualOnlyScenes": ["alola_bathroom", "alola_special_0086", "alola_special_0092"]
+}

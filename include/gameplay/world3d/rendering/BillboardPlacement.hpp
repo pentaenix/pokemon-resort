@@ -44,6 +44,10 @@ struct TextureBillboardDraw {
     std::vector<std::uint8_t> png_bytes;
     std::string fallback_path;
     SDL_Rect source_rect{};
+    float tint_r = 1.0f;
+    float tint_g = 1.0f;
+    float tint_b = 1.0f;
+    float alpha_multiplier = 1.0f;
 };
 
 float billboardSortDepth(

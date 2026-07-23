@@ -9,6 +9,7 @@
 #include "gameplay/world3d/data/JsonOverworldLoader.hpp"
 #include "gameplay/world3d/followers/FollowerConfig.hpp"
 #include "gameplay/world3d/followers/NatureIdlePlanner.hpp"
+#include "gameplay/world3d/terrain/TerrainSurface.hpp"
 #include "resort/services/PokemonResortService.hpp"
 
 #include <algorithm>
@@ -30,6 +31,10 @@ std::string strOr(const JsonValue* value, const std::string& fallback) {
 
 int intOr(const JsonValue* value, int fallback) {
     return value && value->isNumber() ? static_cast<int>(value->asNumber()) : fallback;
+}
+
+double numOr(const JsonValue* value, double fallback) {
+    return value && value->isNumber() ? value->asNumber() : fallback;
 }
 
 bool boolOr(const JsonValue* value, bool fallback) {
@@ -63,7 +68,11 @@ NpcBehaviorKind behaviorFromString(const std::string& value) {
         lower.push_back(static_cast<char>(std::tolower(ch)));
     }
     if (lower == "idle") return NpcBehaviorKind::IdleRotate;
+    if (lower == "slow_rotate" || lower == "slowrotate") return NpcBehaviorKind::SlowRotate;
     if (lower == "wander") return NpcBehaviorKind::Wander;
+    if (lower == "destination_roam" || lower == "destinationroam" || lower == "long_roam") {
+        return NpcBehaviorKind::DestinationRoam;
+    }
     if (lower == "path") return NpcBehaviorKind::Path;
     return NpcBehaviorKind::Static;
 }
@@ -78,6 +87,8 @@ NpcBehaviorKind behaviorFromScriptId(const std::string& value, NpcBehaviorKind f
     if (lower == "npc_patrol") return NpcBehaviorKind::Path;
     if (lower == "npc_follow") return NpcBehaviorKind::FollowActor;
     if (lower == "npc_idle_rotate") return NpcBehaviorKind::IdleRotate;
+    if (lower == "npc_slow_rotate") return NpcBehaviorKind::SlowRotate;
+    if (lower == "npc_destination_roam") return NpcBehaviorKind::DestinationRoam;
     if (lower == "npc_static") return NpcBehaviorKind::Static;
     return fallback;
 }
@@ -185,7 +196,9 @@ void NpcActorDriver::initializeDefaultSceneActors(const camera::Vec3& player_pos
         }
     }
     for (const std::size_t index : owner_indices) {
-        if (index < actors_.size() && actors_[index].definition.kind == NpcActorKind::Human) {
+        if (index < actors_.size() &&
+            actors_[index].definition.kind == NpcActorKind::Human &&
+            actors_[index].definition.spawn_partner_pokemon) {
             addPartnerPokemonForActor(actors_[index]);
         }
     }
@@ -202,6 +215,10 @@ void NpcActorDriver::initializeDefaultSceneActors(const camera::Vec3& player_pos
         definition.script_id = "npc_wander";
         definition.pokemon_form_id = pokemon.form_id;
         definition.pokemon_shiny = pokemon.shiny;
+        definition.pokemon_species_slug = pokemon.species_slug;
+        definition.pokemon_display_name = pokemon.display_name;
+        definition.resort_box_id = pokemon.box_id;
+        definition.resort_slot_index = pokemon.slot_index;
         addActorAtRandomValidTile(definition);
     }
 
@@ -269,6 +286,16 @@ void NpcActorDriver::update(double dt) {
         Actor& actor = actors_[i];
         const bool interaction_locked = interaction_locked_actor_ && *interaction_locked_actor_ == i;
         if (actor.animator) {
+            if (!actor.definition.persistent_activity_id.empty()) {
+                if (actor.moving && actor.animator->activitySessionActive()) {
+                    // Persistent idle sheets are often single-direction strips.
+                    // A collision swap may move an otherwise static NPC, so
+                    // switch immediately to its directional walk sheet.
+                    actor.animator->cancelActivitySession();
+                } else if (!actor.moving && !actor.animator->activitySessionActive()) {
+                    actor.animator->startActivitySession(actor.definition.persistent_activity_id);
+                }
+            }
             bool swimming = false;
             if (actor.definition.kind == NpcActorKind::Pokemon &&
                 scene_->water_terrain.pokemon_swim_animation_enabled && terrain_query_) {
@@ -284,7 +311,11 @@ void NpcActorDriver::update(double dt) {
                 actor.moving && !interaction_locked
                     ? static_cast<double>(actor.move_speed_units_per_second / std::max(1.0f, movement_config_.walkSpeed()))
                     : 1.0);
-            actor.animator->setFacing(actor.facing);
+            const FacingDirection animation_facing =
+                actor.animator->activitySessionActive() && actor.definition.persistent_activity_facing
+                ? *actor.definition.persistent_activity_facing
+                : actor.facing;
+            actor.animator->setFacing(animation_facing);
             if (!interaction_locked || actor.animator->activitySessionActive()) {
                 actor.animator->update(dt);
             }
@@ -334,8 +365,12 @@ void NpcActorDriver::update(double dt) {
 
         if (actor.definition.behavior == NpcBehaviorKind::IdleRotate) {
             updateIdleRotate(actor, dt);
+        } else if (actor.definition.behavior == NpcBehaviorKind::SlowRotate) {
+            updateSlowRotate(actor, dt);
         } else if (actor.definition.behavior == NpcBehaviorKind::Wander) {
             updateRandomWalk(actor, dt);
+        } else if (actor.definition.behavior == NpcBehaviorKind::DestinationRoam) {
+            updateDestinationRoam(actor, dt);
         } else if (actor.definition.behavior == NpcBehaviorKind::Path) {
             updatePath(actor, dt);
         } else if (actor.definition.behavior == NpcBehaviorKind::FollowActor) {
@@ -431,6 +466,11 @@ std::optional<NpcInteractionActorInfo> NpcActorDriver::interactionActorInfo(cons
     info.dialogue_lines = actor.dialogue_lines;
     info.npc_interaction_mode = actor.npc_interaction_mode;
     info.runtime_interaction_script_id = actor.runtime_interaction_script_id;
+    info.species_slug = actor.definition.pokemon_species_slug;
+    info.form_id = actor.definition.pokemon_form_id;
+    info.shiny = actor.definition.pokemon_shiny;
+    info.resort_box_id = actor.definition.resort_box_id;
+    info.resort_slot_index = actor.definition.resort_slot_index;
     return info;
 }
 
@@ -549,6 +589,22 @@ void NpcActorDriver::collectBillboardDraws(
     }
 }
 
+std::vector<NpcEffectActorSnapshot> NpcActorDriver::effectActorSnapshots() const {
+    std::vector<NpcEffectActorSnapshot> out;
+    out.reserve(actors_.size());
+    for (const Actor& actor : actors_) {
+        const bool actual_water = terrain_query_
+            ? terrain_query_->tileIsActualWater(actor.tile_x, actor.tile_y)
+            : scene_ && terrain::isActualWaterTile(*scene_, actor.tile_x, actor.tile_y);
+        out.push_back(NpcEffectActorSnapshot{
+            actor.definition.id,
+            actor.position,
+            actual_water,
+            actor.moving});
+    }
+    return out;
+}
+
 std::optional<std::size_t> NpcActorDriver::addActorAtRandomValidTile(const NpcActorDefinition& definition) {
     const std::optional<std::pair<int, int>> tile = randomValidTile();
     if (!tile) {
@@ -591,6 +647,7 @@ std::optional<std::size_t> NpcActorDriver::addActor(const NpcActorDefinition& de
         } catch (const std::exception&) {
             // Character loading already validates the package; metadata is optional for movement.
         }
+        if (!definition.pokemon_display_name.empty()) actor.display_name = definition.pokemon_display_name;
         actor.running = speed_profile == "run" && actor.character.has_run;
         actor.move_speed_units_per_second = actor.running
             ? movement_config_.runSpeed()
@@ -619,6 +676,9 @@ std::optional<std::size_t> NpcActorDriver::addActor(const NpcActorDefinition& de
         actor.move_target = actor.position;
         if (actor.animator) {
             actor.animator->setFacing(actor.facing);
+            if (!definition.persistent_activity_id.empty()) {
+                actor.animator->startActivitySession(definition.persistent_activity_id);
+            }
             actor.source_rect = actor.animator->sourceRect();
         }
         actor.wait_seconds = 0.25 + (static_cast<double>(rng_() % 80U) / 100.0);
@@ -638,7 +698,10 @@ void NpcActorDriver::startStep(Actor& actor, int dx, int dy) {
 }
 
 void NpcActorDriver::startStepToTile(Actor& actor, int tx, int ty, bool allow_reserved_tile) {
-    if (!validWalkTile(tx, ty) || tileOccupied(tx, ty, &actor) || (!allow_reserved_tile && tileReserved(tx, ty))) {
+    if (!validWalkTile(tx, ty) ||
+        (actor.definition.kind == NpcActorKind::Human && terrain::isActualWaterTile(*scene_, tx, ty)) ||
+        tileOccupied(tx, ty, &actor) ||
+        (!allow_reserved_tile && tileReserved(tx, ty))) {
         return;
     }
     if (!canStepBetweenTiles(actor.tile_x, actor.tile_y, tx, ty)) {
@@ -679,7 +742,9 @@ void NpcActorDriver::updateRandomWalk(Actor& actor, double dt) {
     for (const auto& dir : kDirs) {
         const int tx = actor.tile_x + dir[0];
         const int ty = actor.tile_y + dir[1];
-        if (validWalkTile(tx, ty) && canStepBetweenTiles(actor.tile_x, actor.tile_y, tx, ty) &&
+        if (validWalkTile(tx, ty) &&
+            (actor.definition.kind != NpcActorKind::Human || !terrain::isActualWaterTile(*scene_, tx, ty)) &&
+            canStepBetweenTiles(actor.tile_x, actor.tile_y, tx, ty) &&
             !tileOccupied(tx, ty, &actor) && !tileReserved(tx, ty)) {
             candidates.push_back({dir[0], dir[1]});
         }
@@ -709,6 +774,110 @@ void NpcActorDriver::updateIdleRotate(Actor& actor, double dt) {
     std::uniform_int_distribution<int> pick(0, 3);
     actor.facing = kDirections[pick(rng_)];
     actor.wait_seconds = 1.0 + (static_cast<double>(rng_() % 180U) / 100.0);
+}
+
+void NpcActorDriver::updateSlowRotate(Actor& actor, double dt) {
+    actor.wait_seconds -= dt;
+    if (actor.wait_seconds > 0.0) return;
+    static constexpr FacingDirection kDirections[4] = {
+        FacingDirection::South,
+        FacingDirection::West,
+        FacingDirection::East,
+        FacingDirection::North,
+    };
+    std::uniform_int_distribution<int> pick(0, 3);
+    FacingDirection next = actor.facing;
+    for (int attempt = 0; attempt < 4 && next == actor.facing; ++attempt) {
+        next = kDirections[pick(rng_)];
+    }
+    actor.facing = next;
+    const double low = std::max(0.1, actor.definition.rotate_wait_min_seconds);
+    const double high = std::max(low, actor.definition.rotate_wait_max_seconds);
+    actor.wait_seconds = std::uniform_real_distribution<double>(low, high)(rng_);
+}
+
+void NpcActorDriver::updateDestinationRoam(Actor& actor, double dt) {
+    actor.wait_seconds -= dt;
+    if (actor.wait_seconds > 0.0) return;
+
+    if (actor.path.empty()) {
+        const int width = std::max(0, scene_->grid.width);
+        const int height = std::max(0, scene_->grid.height);
+        if (width == 0 || height == 0) {
+            actor.wait_seconds = 1.0;
+            return;
+        }
+        const int start_index = actor.tile_y * width + actor.tile_x;
+        std::vector<int> previous(static_cast<std::size_t>(width * height), -1);
+        std::vector<int> distance(static_cast<std::size_t>(width * height), -1);
+        std::deque<std::pair<int, int>> frontier;
+        frontier.push_back({actor.tile_x, actor.tile_y});
+        distance[static_cast<std::size_t>(start_index)] = 0;
+        static constexpr int kDirs[4][2] = {{0, -1}, {1, 0}, {0, 1}, {-1, 0}};
+        while (!frontier.empty()) {
+            const auto [x, y] = frontier.front();
+            frontier.pop_front();
+            const int from_index = y * width + x;
+            for (const auto& dir : kDirs) {
+                const int nx = x + dir[0];
+                const int ny = y + dir[1];
+                if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+                const int next_index = ny * width + nx;
+                if (distance[static_cast<std::size_t>(next_index)] >= 0 ||
+                    !validWalkTile(nx, ny) ||
+                    terrain::isActualWaterTile(*scene_, nx, ny) ||
+                    !canStepBetweenTiles(x, y, nx, ny)) {
+                    continue;
+                }
+                distance[static_cast<std::size_t>(next_index)] =
+                    distance[static_cast<std::size_t>(from_index)] + 1;
+                previous[static_cast<std::size_t>(next_index)] = from_index;
+                frontier.push_back({nx, ny});
+            }
+        }
+
+        std::vector<int> goals;
+        const int minimum_distance = std::max(2, actor.definition.roam_min_distance_tiles);
+        for (int index = 0; index < width * height; ++index) {
+            if (distance[static_cast<std::size_t>(index)] < minimum_distance) continue;
+            const int gx = index % width;
+            const int gy = index / width;
+            if (tileOccupied(gx, gy, &actor) || tileReserved(gx, gy)) continue;
+            goals.push_back(index);
+        }
+        if (goals.empty()) {
+            actor.wait_seconds = 1.0;
+            return;
+        }
+        const int goal = goals[std::uniform_int_distribution<std::size_t>(0, goals.size() - 1U)(rng_)];
+        std::vector<std::pair<int, int>> reverse_path;
+        for (int cursor = goal; cursor != start_index && cursor >= 0;
+             cursor = previous[static_cast<std::size_t>(cursor)]) {
+            reverse_path.push_back({cursor % width, cursor / width});
+        }
+        for (auto it = reverse_path.rbegin(); it != reverse_path.rend(); ++it) {
+            actor.path.push_back(*it);
+        }
+    }
+
+    while (!actor.path.empty()) {
+        const auto [next_x, next_y] = actor.path.front();
+        if (next_x == actor.tile_x && next_y == actor.tile_y) {
+            actor.path.pop_front();
+            continue;
+        }
+        if (terrain::isActualWaterTile(*scene_, next_x, next_y) ||
+            !validWalkTile(next_x, next_y) ||
+            tileOccupied(next_x, next_y, &actor) ||
+            tileReserved(next_x, next_y)) {
+            actor.path.clear();
+            actor.wait_seconds = 0.5;
+            return;
+        }
+        actor.path.pop_front();
+        startStepToTile(actor, next_x, next_y);
+        return;
+    }
 }
 
 void NpcActorDriver::updatePath(Actor& actor, double dt) {
@@ -908,6 +1077,14 @@ void NpcActorDriver::finishMovement(Actor& actor) {
             : 0.05;
     } else if (actor.definition.behavior == NpcBehaviorKind::Path) {
         actor.wait_seconds = 0.1;
+    } else if (actor.definition.behavior == NpcBehaviorKind::DestinationRoam) {
+        if (!actor.path.empty()) {
+            actor.wait_seconds = 0.02;
+        } else {
+            const double low = std::max(0.1, actor.definition.roam_wait_min_seconds);
+            const double high = std::max(low, actor.definition.roam_wait_max_seconds);
+            actor.wait_seconds = std::uniform_real_distribution<double>(low, high)(rng_);
+        }
     } else {
         actor.wait_seconds = 0.35 + (static_cast<double>(rng_() % 120U) / 100.0);
     }
@@ -949,8 +1126,24 @@ std::vector<NpcActorDefinition> NpcActorDriver::loadTestingActorDefinitions() {
             definition.behavior = behaviorFromString(strOr(item.get("behaviorProfile"), "static"));
             definition.script_id = strOr(item.get("scriptId"), "");
             definition.behavior = behaviorFromScriptId(definition.script_id, definition.behavior);
+            definition.persistent_activity_id = strOr(item.get("persistentActivityId"), "");
+            if (const JsonValue* activity_facing = item.get("persistentActivityFacing");
+                activity_facing && activity_facing->isString()) {
+                definition.persistent_activity_facing = facingFromString(activity_facing->asString());
+            }
+            definition.rotate_wait_min_seconds = numOr(
+                item.get("rotateWaitMinSeconds"), definition.rotate_wait_min_seconds);
+            definition.rotate_wait_max_seconds = numOr(
+                item.get("rotateWaitMaxSeconds"), definition.rotate_wait_max_seconds);
+            definition.roam_min_distance_tiles = static_cast<int>(numOr(
+                item.get("roamMinDistanceTiles"), definition.roam_min_distance_tiles));
+            definition.roam_wait_min_seconds = numOr(
+                item.get("roamWaitMinSeconds"), definition.roam_wait_min_seconds);
+            definition.roam_wait_max_seconds = numOr(
+                item.get("roamWaitMaxSeconds"), definition.roam_wait_max_seconds);
             definition.facing = facingFromString(strOr(item.get("facing"), "south"));
             definition.follower_pokemon_freedom = boolOr(item.get("followerPokemonFreedom"), false);
+            definition.spawn_partner_pokemon = boolOr(item.get("spawnPartnerPokemon"), true);
 
             const std::string character_path = strOr(item.get("characterPath"), "");
             if (!character_path.empty()) {
@@ -1197,6 +1390,7 @@ std::vector<ResortPokemonSpawnInfo> NpcActorDriver::resortPokemonSpawnList() con
                     path,
                     slot.species_slug,
                     slot.species_name,
+                    slot.display_name,
                     resort_pokemon_spawn_config_.box_id,
                     slot.slot_index,
                     slot.form_key.empty() ? "default" : slot.form_key,
