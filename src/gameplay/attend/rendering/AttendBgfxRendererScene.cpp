@@ -132,14 +132,15 @@ bool AttendBgfxRenderer::Impl::buildAnimatedFloor() {
         dst.pokemon_eye = false;
         dst.texture_mapping = src.texture_mapping;
         dst.sampler_flags = smoothSamplerFlags(src.base_color_sampler.wrap_s, src.base_color_sampler.wrap_t);
-        dst.pica_tev = src.pica_tev;
         const std::string environment_material_name = lowercaseAscii(src.name);
+        dst.pica_tev = src.pica_tev;
         // sea_iro stores its displayed ocean colour directly. RAE samples it
         // as untagged PICA bytes and lets the browser's output transform do
         // the presentation conversion; Attend must likewise avoid applying
         // a second one-way gamma transform to only this colour pass.
         const bool sea_color_buffer =
-            environment_material_name.find("sea_iro") != std::string::npos;
+            environment_material_name.find("sea_iro") != std::string::npos &&
+            !src.has_authoritative_pica;
         const bool authored_ground_color =
             environment_material_name.find("_jime") != std::string::npos ||
             environment_material_name == "btl_g_eg03" ||

@@ -145,10 +145,6 @@ void main()
             seaBuffer,
             clamp(outputColor.rgb, vec3(0.0), vec3(1.0)),
             0.08);
-        // This is the renderer-owned translucent colour buffer, not an
-        // opaque plane. A small alpha floor supplies the missing blue in the
-        // zero-alpha shore vertices while preserving the seabed below.
-        outputColor.a = max(outputColor.a, 0.34);
     }
     else if (u_picaSpecial.w > 0.5)
     {
