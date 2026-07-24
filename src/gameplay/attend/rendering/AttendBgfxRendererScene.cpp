@@ -121,6 +121,19 @@ bool AttendBgfxRenderer::Impl::buildAnimatedFloor() {
         return false;
     }
 
+    const AttendPokemonMaterial* alola_beach_outer_water = nullptr;
+    if (config_.floor.id == "alola_beach") {
+        const auto outer = std::find_if(
+            floor_model_.materials.begin(),
+            floor_model_.materials.end(),
+            [](const AttendPokemonMaterial& material) {
+                return material.name == "btl_A_sea_iro047";
+            });
+        if (outer != floor_model_.materials.end()) {
+            alola_beach_outer_water = &*outer;
+        }
+    }
+
     floor_mesh_.materials.resize(floor_model_.materials.size());
     for (std::size_t i = 0; i < floor_model_.materials.size(); ++i) {
         const AttendPokemonMaterial& src = floor_model_.materials[i];
@@ -152,6 +165,13 @@ bool AttendBgfxRenderer::Impl::buildAnimatedFloor() {
         dst.environment_pass_priority = src.environment_role == "water_base"
             ? 0
             : ((src.environment_role == "water_overlay" || named_wave_overlay) ? 10 : 5);
+        // Alola Beach's blended center ground overlaps its center-water sheet.
+        // Draw it after the ground, while sourcing its RGB from the outer sea;
+        // the center sheet keeps its own authored alpha and animation.
+        if (config_.floor.id == "alola_beach" && src.name == "btl_A_sea_iro045") {
+            dst.environment_pass_priority = 6;
+            dst.match_outer_water_color = alola_beach_outer_water != nullptr;
+        }
         // Some freshwater wave materials predate the explicit environment
         // role metadata. They are the same soft additive PICA pass as the sea
         // wave materials; rendering them at full linear strength produces a
@@ -170,12 +190,16 @@ bool AttendBgfxRenderer::Impl::buildAnimatedFloor() {
         if (src.pica_tev.enabled) {
             for (int unit = 0; unit < 3; ++unit) {
                 const std::size_t index = static_cast<std::size_t>(unit);
+                const AttendPokemonMaterial& texture_source =
+                    dst.match_outer_water_color && unit == 0
+                        ? *alola_beach_outer_water
+                        : src;
                 dst.texture_unit_sampler_flags[index] = smoothSamplerFlags(
-                    src.texture_unit_samplers[index].wrap_s,
-                    src.texture_unit_samplers[index].wrap_t);
-                if (src.has_texture_unit[index]) {
+                    texture_source.texture_unit_samplers[index].wrap_s,
+                    texture_source.texture_unit_samplers[index].wrap_t);
+                if (texture_source.has_texture_unit[index]) {
                     dst.texture_units[index] = decodeTexture(
-                        src.texture_unit_bytes[index],
+                        texture_source.texture_unit_bytes[index],
                         src.name.empty() ? config_.floor.id.c_str() : src.name.c_str());
                 }
             }

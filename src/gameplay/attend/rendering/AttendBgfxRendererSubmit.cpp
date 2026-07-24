@@ -173,9 +173,11 @@ void AttendBgfxRenderer::Impl::submitMesh(
                     material->pica_tev.constant_assignments[stage_index], 0, 5);
                 constants[stage_index] = material->pica_tev.constant_colors[static_cast<std::size_t>(constant_index)];
             }
-            const float encoded_output_mode = material->pica_tev.sea_color_buffer
-                ? 2.0f
-                : (material->pica_tev.display_encoded_output ? 1.0f : 0.0f);
+            const float encoded_output_mode = material->match_outer_water_color
+                ? 3.0f
+                : (material->pica_tev.sea_color_buffer
+                    ? 2.0f
+                    : (material->pica_tev.display_encoded_output ? 1.0f : 0.0f));
             const float special[4] = {
                 material->pica_tev.outer_water_base ? 1.0f : 0.0f,
                 material->pica_tev.standalone_black_key ? 1.0f : 0.0f,

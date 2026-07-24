@@ -135,7 +135,13 @@ void main()
         vec3 warmSand = tex1.rgb * vec3(0.78, 0.76, 0.72);
         outputColor.rgb = mix(outputColor.rgb, max(outputColor.rgb, warmSand), keyAmount);
     }
-    if (u_picaSpecial.w > 1.5)
+    if (u_picaSpecial.w > 2.5)
+    {
+        // Match a blended center-water sheet to its outer sea texture without
+        // replacing the center sheet's independently authored alpha.
+        outputColor.rgb = tex0.rgb;
+    }
+    else if (u_picaSpecial.w > 1.5)
     {
         vec3 seaBuffer = clamp(
             tex0.rgb * vec3(0.45, 0.36, 0.59),

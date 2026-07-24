@@ -216,6 +216,7 @@ private:
         bool eye_sclera_mask = false;
         bool separate_eye_iris = false;
         bool cull_backface = false;
+        bool match_outer_water_color = false;
         AttendTextureMapping texture_mapping = AttendTextureMapping::Uv;
         float alpha_cutoff = 0.5f;
         std::uint64_t sampler_flags = samplerFlags();
