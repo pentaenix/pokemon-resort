@@ -2,21 +2,40 @@
 
 #include "gameplay/world3d/Overworld3DConfig.hpp"
 #include "gameplay/world3d/camera/Gen4FollowCamera.hpp"
+#include "gameplay/world3d/characters/CharacterController.hpp"
+#include "gameplay/world3d/characters/CharacterMovementConfig.hpp"
+#include "gameplay/world3d/characters/GridActorMotor.hpp"
 #include "gameplay/world3d/characters/SpriteSheetAnimator.hpp"
 #include "gameplay/world3d/effects/LandingDustSystem.hpp"
 #include "gameplay/world3d/followers/FollowerConfig.hpp"
 #include "gameplay/world3d/followers/FollowerIdleExitTarget.hpp"
 #include "gameplay/world3d/followers/NatureIdleConfig.hpp"
 #include "gameplay/world3d/followers/NatureIdlePlanner.hpp"
-#include "gameplay/world3d/rendering/BillboardSpriteRenderer.hpp"
+#include "gameplay/world3d/scripts/OverworldScript.hpp"
+#include "gameplay/world3d/rendering/BillboardPlacement.hpp"
+#include "gameplay/world3d/terrain/ActorTerrainBinding.hpp"
+#include "gameplay/world3d/terrain/GridStepMotor.hpp"
 
 #include <SDL.h>
 #include <deque>
 #include <memory>
 #include <optional>
 #include <random>
+#include <utility>
 
 namespace pr::gameplay::world3d::followers {
+
+struct FollowerInteractionInfo {
+    int tile_x = 0;
+    int tile_y = 0;
+    std::string display_name;
+    std::string species_name;
+    std::string pokemon_size = "small";
+    std::vector<std::string> pokemon_types;
+    std::string species_slug;
+    std::string form_id = "default";
+    bool shiny = false;
+};
 
 class FollowerController {
 public:
@@ -26,29 +45,44 @@ public:
         const FollowerSummonConfig& summon_config,
         const FollowerSessionConfig& session_config);
 
-    void initialize(SDL_Renderer* renderer);
+    // Loads charbin packages without SDL; required for update() on bgfx path.
+    bool initializeResources();
+    bool resourcesReady() const { return resources_ready_; }
+    void setTerrainQuery(std::shared_ptr<characters::CharacterTerrainQuery> terrain_query);
+
+    void collectBillboardDraws(
+        const camera::Gen4FollowCamera& camera,
+        int viewport_w,
+        int viewport_h,
+        std::vector<rendering::CharacterBillboardDraw>& out) const;
     void update(
         double dt,
         const camera::Vec3& player_world_pos,
         FacingDirection player_facing,
+        const characters::CharacterController::MovementSegment& player_segment,
         bool player_idle,
-        bool player_activity);
-    void render(
-        SDL_Renderer* renderer,
-        const camera::Gen4FollowCamera& camera,
-        int viewport_w,
-        int viewport_h,
-        float tint_r,
-        float tint_g,
-        float tint_b,
-        float brightness);
-
-    bool activeForRender() const;
+        bool player_activity,
+        bool player_running);
+    bool visibleForSimulation() const;
+    camera::Vec3 effectWorldPosition() const { return follower_pos_; }
+    bool effectMoving() const { return motor_.moving(); }
+    bool effectOnActualWater() const;
     std::optional<float> renderDepth(
         const camera::Gen4FollowCamera& camera,
         int viewport_w,
         int viewport_h) const;
+    std::vector<std::pair<int, int>> reservedTiles() const;
+    std::optional<std::string> interactionTargetIdAtTile(int tx, int ty) const;
+    std::optional<FollowerInteractionInfo> interactionInfo() const;
+    bool setInteractionLocked(bool locked);
+    bool faceInteractionLockedTowardTile(int tx, int ty);
+    bool faceInteractionLocked(FacingDirection facing);
+    bool startInteractionSession();
+    void requestInteractionSessionExit();
+    bool interactionSessionReady() const;
+    bool interactionSessionFinished() const;
     bool triggerDebugJump();
+    bool triggerInteractionJump(int height_pixels);
     bool triggerDebugPoke();
     std::string debugActivityLabel() const;
     std::optional<effects::LandingDustSpawnRequest> consumeLandingDustSpawn();
@@ -76,14 +110,18 @@ private:
     const SceneConfig& scene_;
     FollowerSummonConfig summon_config_{};
     FollowerSessionConfig session_config_{};
+    characters::CharacterMovementConfig movement_config_{};
+    std::shared_ptr<characters::CharacterTerrainQuery> terrain_query_;
+    characters::GridActorMotor motor_{};
 
     State state_ = State::Hidden;
     CharacterSpriteDefinition follower_def_{};
     std::unique_ptr<characters::SpriteSheetAnimator> follower_animator_;
-    std::unique_ptr<rendering::BillboardSpriteRenderer> follower_renderer_;
     CharacterSpriteDefinition ball_def_{};
-    std::unique_ptr<rendering::BillboardSpriteRenderer> ball_renderer_;
     NatureIdleBehaviorConfig idle_config_{};
+    scripts::ScriptCatalog idle_script_catalog_{};
+    scripts::ScriptCooldowns idle_script_cooldowns_{};
+    double script_time_seconds_ = 0.0;
 
     camera::Vec3 follower_pos_{};
     camera::Vec3 ball_pos_{};
@@ -93,12 +131,21 @@ private:
     std::vector<int> ball_frames_;
     double state_elapsed_seconds_ = 0.0;
     std::deque<TilePoint> path_;
+    std::deque<TilePoint> player_step_trail_;
     std::deque<IdleAction> idle_actions_;
     TilePoint last_player_tile_{};
     TilePoint player_tile_{};
     TilePoint follower_tile_{};
+    TilePoint step_dest_tile_{};
+    terrain::GridStepMotor replay_step_motor_{};
     TilePoint idle_origin_tile_{};
+    TilePoint last_player_segment_from_{};
+    TilePoint last_player_segment_to_{};
+    TilePoint replay_from_tile_{};
+    TilePoint replay_to_tile_{};
     bool have_last_player_tile_ = false;
+    bool have_last_player_segment_ = false;
+    bool replay_follow_active_ = false;
     bool follower_moving_ = false;
     float follower_move_t_ = 1.0f;
     float follower_step_duration_s_ = 0.25f;
@@ -113,22 +160,29 @@ private:
     double current_step_speed_multiplier_ = 1.0;
     double current_step_hop_height_tiles_ = 0.0;
     bool player_idle_ = false;
+    bool player_running_ = false;
     bool idle_behavior_active_ = false;
     bool returning_to_origin_ = false;
     bool cancel_return_active_ = false;
     bool sleep_action_active_ = false;
     ManualDebugActionType manual_debug_action_ = ManualDebugActionType::None;
+    bool interaction_action_active_ = false;
     double manual_debug_elapsed_seconds_ = 0.0;
+    int manual_debug_jump_height_pixels_ = 0;
     std::string active_behavior_label_ = "none";
     int action_jump_landings_emitted_ = 0;
     std::optional<effects::LandingDustSpawnRequest> pending_landing_dust_spawn_;
     bool initialized_rng_ = false;
+    bool resources_ready_ = false;
+    bool interaction_locked_ = false;
     std::mt19937 rng_{};
 
+    terrain::ActorTerrainBinding terrainBinding() const;
     int tileHeightUnits(int tx, int ty) const;
     camera::Vec3 tileToWorldCenter(int tx, int ty) const;
     void beginStepToTile(const TilePoint& target, double speed_multiplier, bool hop_movement);
     void updateActiveStep(double dt);
+    bool updateReplayFollow(const characters::CharacterController::MovementSegment& player_segment);
     void updateNormalFollow();
     void updateNatureIdle(double dt);
     void cancelNatureIdle();

@@ -29,6 +29,13 @@ TransferFlowCoordinator::TransferFlowCoordinator(
       argv0_(argv0),
       resort_service_(resort_service) {}
 
+void TransferFlowCoordinator::rebindRenderer(SDL_Renderer* renderer) {
+    renderer_ = renderer;
+    loading_screen_.reset();
+    transfer_ticket_.reset();
+    transfer_system_screen_.reset();
+}
+
 void TransferFlowCoordinator::beginTicketScan() {
     ensureLoadingScreen();
     ensureTicketScreen();

@@ -1,0 +1,59 @@
+{
+  "_comment": "Shared Attend interaction/runtime defaults. Debug scenes should only override these for temporary tests.",
+  "camera": {
+    "_comment": "Auto-focus is the normal path. Tune distanceMultiplier first when Pokemon feel too close or far.",
+    "autoFocus": true,
+    "fullBodyFraming": {
+      "pokemonScreenHeight": 0.58,
+      "distanceMultiplier": 0.63,
+      "minimumDistance": 1,
+      "maximumDistance": 14,
+      "targetHeightRatio": 0.46,
+      "verticalOffset": 0.72,
+      "depthPadding": 0.36
+    },
+    "faceFraming": {
+      "faceScreenHeight": 0.86,
+      "distanceMultiplier": 0.38,
+      "headTargetHeightRatio": 0.82,
+      "verticalOffset": 0.08,
+      "minimumPokemonHeight": 1.45,
+      "depthPadding": 0.12
+    },
+    "advanced": {
+      "_comment": "Fallback and debugging controls. These are hidden/collapsed in the admin tool by default.",
+      "manualCameraFallback": {
+        "targetX": 0,
+        "targetZ": 0,
+        "distance": 4.2,
+        "height": 1.55,
+        "targetHeight": 0.68
+      },
+      "lens": {
+        "fovYDegrees": 42,
+        "nearClip": 0.05,
+        "farClip": 220
+      },
+      "freeCamera": {
+        "moveSpeed": 4,
+        "mouseSensitivity": 0.12,
+        "initialOffset": [
+          0,
+          0,
+          0
+        ],
+        "initialYawDegrees": 180,
+        "initialPitchDegrees": -12,
+        "pitchClampMinDegrees": -75,
+        "pitchClampMaxDegrees": 75
+      }
+    }
+  },
+  "viewportLook": {
+    "enabled": true,
+    "maxX": 0.231,
+    "maxY": 0.105,
+    "edgeMarginRatio": 0.12,
+    "smoothSeconds": 0.32
+  }
+}

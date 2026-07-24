@@ -41,6 +41,7 @@ enum class TitleScreenEvent {
     ButtonSfxRequested,
     UserSettingsSaveRequested,
     OpenResort3DTestRequested,
+    OpenTestAttendRequested,
     OpenResortLoadingRequested,
     OpenTradeLoadingRequested,
     OpenTransferRequested
@@ -66,6 +67,9 @@ public:
     std::vector<TitleScreenEvent> consumeEvents();
     UserSettings currentUserSettings() const;
     void applyUserSettings(const UserSettings& settings);
+    void prepareForOverworld3D();
+    void replaceAssets(Assets assets);
+    void returnToResortMenuFromAttend();
     void returnToMainMenuFromResort();
     void returnToMainMenuFromTradeLoading();
     void returnToMainMenuFromTransfer();

@@ -3,10 +3,18 @@
     "followStepDurationMs": 250,
     "ballAnimation": {
       "durationMs": 230,
-      "pokeball_hold_animation": 10,
+      "holdLastFrameMs": 10,
       "fullAnimation": true,
       "fallEnabled": true,
-      "fallHeightWorld": 10.0
+      "fallHeightWorld": 10.0,
+      "spriteScale": 0.36,
+      "screenOffsetYPx": 0,
+      "worldOffset": [0.0, 0.0, 0.0]
+    },
+    "landingDust": {
+      "spriteScale": 1.0,
+      "screenOffsetYPx": 0,
+      "worldOffset": [0.0, 0.0, 0.0]
     },
     "entryAnimation": {
       "durationMs": 180,

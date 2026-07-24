@@ -33,6 +33,7 @@ public:
     virtual bool acceptsAdvanceInput() const { return true; }
     virtual void onAdvancePressed() {}
     virtual void onBackPressed() {}
+    virtual void onAttendPressed() {}
 
     // --- Optional "long press" hooks (implemented by InputRouter) ---
     // If `captureAdvanceForLongPress()` is true, InputRouter will NOT call `onAdvancePressed()` on key-down.

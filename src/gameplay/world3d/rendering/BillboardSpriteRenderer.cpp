@@ -1,8 +1,13 @@
 #include "gameplay/world3d/rendering/BillboardSpriteRenderer.hpp"
 
+#include "gameplay/world3d/rendering/BillboardPlacement.hpp"
+#include "gameplay/world3d/rendering/CharacterTextureCache.hpp"
+#include "gameplay/world3d/rendering/PixelScale.hpp"
+
 #include <SDL_image.h>
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 
 namespace pr::gameplay::world3d::rendering {
 
@@ -51,9 +56,10 @@ bool isMaskValid(const std::vector<std::string>& mask, int w, int h) {
 
 BillboardSpriteRenderer::BillboardSpriteRenderer(
     SDL_Renderer* renderer,
+    const SceneConfig& scene,
     const CharacterSpriteDefinition& def,
     const SpriteShadowConfig& shadow_config)
-    : def_(def), shadow_config_(shadow_config.enabled ? shadow_config : defaultGen4ShadowConfig()) {
+    : scene_(scene), def_(def), shadow_config_(shadow_config.enabled ? shadow_config : defaultGen4ShadowConfig()) {
     SDL_Surface* surface = nullptr;
     if (!def.texture_png_bytes.empty()) {
         SDL_RWops* rw = SDL_RWFromConstMem(
@@ -86,27 +92,61 @@ BillboardSpriteRenderer::BillboardSpriteRenderer(
     SDL_SetTextureBlendMode(texture_.get(), SDL_BLENDMODE_BLEND);
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
 
-    SDL_Surface* white_surface = SDL_ConvertSurfaceFormat(surface, SDL_PIXELFORMAT_RGBA32, 0);
-    if (white_surface) {
-        SDL_LockSurface(white_surface);
-        auto* pixels = static_cast<Uint32*>(white_surface->pixels);
-        const std::size_t pixel_count =
-            static_cast<std::size_t>(white_surface->w) * static_cast<std::size_t>(white_surface->h);
-        for (std::size_t i = 0; i < pixel_count; ++i) {
-            Uint8 r = 0;
-            Uint8 g = 0;
-            Uint8 b = 0;
-            Uint8 a = 0;
-            SDL_GetRGBA(pixels[i], white_surface->format, &r, &g, &b, &a);
-            pixels[i] = SDL_MapRGBA(white_surface->format, 255, 255, 255, a);
+    auto uploadWhiteSurface = [&](SDL_Surface* white_surface) {
+        if (!white_surface) {
+            return;
         }
-        SDL_UnlockSurface(white_surface);
         SDL_Texture* white_raw = SDL_CreateTextureFromSurface(renderer, white_surface);
         if (white_raw) {
             white_texture_.reset(white_raw, SDL_DestroyTexture);
             SDL_SetTextureBlendMode(white_texture_.get(), SDL_BLENDMODE_BLEND);
         }
         SDL_FreeSurface(white_surface);
+    };
+
+    const RgbaImage white_rgba = buildWhiteSilhouetteFromPngBytes(def.texture_png_bytes);
+    if (white_rgba.valid()) {
+        SDL_Surface* white_surface = SDL_CreateRGBSurfaceWithFormat(
+            0,
+            white_rgba.width,
+            white_rgba.height,
+            32,
+            SDL_PIXELFORMAT_RGBA32);
+        if (white_surface) {
+            if (SDL_MUSTLOCK(white_surface)) {
+                SDL_LockSurface(white_surface);
+            }
+            const std::size_t source_pitch = static_cast<std::size_t>(white_rgba.width) * 4U;
+            auto* destination = static_cast<std::uint8_t*>(white_surface->pixels);
+            for (int y = 0; y < white_rgba.height; ++y) {
+                std::memcpy(
+                    destination + (static_cast<std::size_t>(y) * static_cast<std::size_t>(white_surface->pitch)),
+                    white_rgba.pixels.data() + (static_cast<std::size_t>(y) * source_pitch),
+                    source_pitch);
+            }
+            if (SDL_MUSTLOCK(white_surface)) {
+                SDL_UnlockSurface(white_surface);
+            }
+            uploadWhiteSurface(white_surface);
+        }
+    } else {
+        SDL_Surface* white_surface = SDL_ConvertSurfaceFormat(surface, SDL_PIXELFORMAT_RGBA32, 0);
+        if (white_surface) {
+            SDL_LockSurface(white_surface);
+            auto* pixels = static_cast<Uint32*>(white_surface->pixels);
+            const std::size_t pixel_count =
+                static_cast<std::size_t>(white_surface->w) * static_cast<std::size_t>(white_surface->h);
+            for (std::size_t i = 0; i < pixel_count; ++i) {
+                Uint8 r = 0;
+                Uint8 g = 0;
+                Uint8 b = 0;
+                Uint8 a = 0;
+                SDL_GetRGBA(pixels[i], white_surface->format, &r, &g, &b, &a);
+                pixels[i] = SDL_MapRGBA(white_surface->format, 255, 255, 255, a);
+            }
+            SDL_UnlockSurface(white_surface);
+            uploadWhiteSurface(white_surface);
+        }
     }
     SDL_FreeSurface(surface);
 
@@ -161,7 +201,8 @@ BillboardSpriteRenderer::BillboardSpriteRenderer(
 void BillboardSpriteRenderer::render(
     SDL_Renderer* renderer,
     const camera::Gen4FollowCamera& camera,
-    const camera::Vec3& world_pos,
+    const terrain::ActorTerrainBinding& binding,
+    const camera::Vec3& simulation_pos,
     const SDL_Rect& source_rect,
     int viewport_w,
     int viewport_h,
@@ -169,6 +210,7 @@ void BillboardSpriteRenderer::render(
     float tint_g,
     float tint_b,
     float brightness,
+    bool draw_shadow,
     float sprite_scale_multiplier,
     float alpha_multiplier,
     float white_overlay_alpha,
@@ -179,27 +221,34 @@ void BillboardSpriteRenderer::render(
         return;
     }
 
-    float sx = 0.0f;
-    float sy = 0.0f;
-    float depth = 0.0f;
-    camera::Vec3 world_anchor = world_pos;
-    world_anchor.x += def_.world_offset_x;
-    world_anchor.y += def_.world_offset_y;
-    world_anchor.z += def_.world_offset_z;
-    if (!camera.worldToScreen(world_anchor, viewport_w, viewport_h, sx, sy, depth)) {
+    const BillboardPlacement placement = buildCharacterBillboardPlacement(
+        scene_,
+        camera,
+        binding,
+        def_,
+        simulation_pos,
+        source_rect,
+        viewport_w,
+        viewport_h,
+        sprite_scale_multiplier);
+    if (!placement.visible) {
         return;
     }
 
-    const float scale = camera.perspectiveScale(depth) * std::max(0.1f, def_.sprite_scale) * std::max(0.1f, sprite_scale_multiplier);
-    const int w = std::max(2, static_cast<int>(std::round(source_rect.w * scale * 0.60f)));
-    const int h = std::max(2, static_cast<int>(std::round(source_rect.h * scale * 0.60f)));
-    const int anchor_y = (def_.anchor == "center") ? (h / 2) : h;
-    const int sprite_screen_x = static_cast<int>(std::round(sx));
-    const int sprite_screen_y = static_cast<int>(std::round(sy));
+    int sprite_x = 0;
+    int sprite_y = 0;
+    int sprite_w = 0;
+    int sprite_h = 0;
+    if (!projectBillboardScreenRect(
+            camera, placement, viewport_w, viewport_h, sprite_x, sprite_y, sprite_w, sprite_h)) {
+        return;
+    }
+    sprite_x += def_.screen_offset_x_px + extra_screen_offset_x_px;
+    sprite_y += def_.screen_offset_y_px + extra_screen_offset_y_px;
 
-    if (shadow_texture_) {
-        camera::Vec3 shadow_world = shadow_world_override ? *shadow_world_override : world_pos;
-        shadow_world.y += shadow_config_.world_y_lift;
+    if (draw_shadow && shadow_texture_) {
+        const camera::Vec3 shadow_world =
+            shadow_world_override ? *shadow_world_override : placement.shadow_ground;
         float shx = 0.0f;
         float shy = 0.0f;
         float shd = 0.0f;
@@ -207,16 +256,20 @@ void BillboardSpriteRenderer::render(
             int shadow_w = 2;
             int shadow_h = 2;
             if (shadow_config_.pixel_coherent) {
+                const float px_scale_x =
+                    static_cast<float>(sprite_w) / std::max(1.0f, static_cast<float>(source_rect.w));
+                const float px_scale_y =
+                    static_cast<float>(sprite_h) / std::max(1.0f, static_cast<float>(source_rect.h));
                 shadow_w = std::max(
                     2,
-                    static_cast<int>(std::round(static_cast<float>(shadow_config_.texture_width_px) * scale * 0.60f)));
+                    static_cast<int>(std::round(static_cast<float>(shadow_config_.texture_width_px) * px_scale_x)));
                 shadow_h = std::max(
                     2,
-                    static_cast<int>(std::round(static_cast<float>(shadow_config_.texture_height_px) * scale * 0.60f)));
+                    static_cast<int>(std::round(static_cast<float>(shadow_config_.texture_height_px) * px_scale_y)));
             } else {
                 const float shadow_scale = camera.perspectiveScale(shd);
-                const float sprite_w_px = static_cast<float>(source_rect.w) * std::max(0.1f, def_.sprite_scale) * 0.60f;
-                const float sprite_h_px = static_cast<float>(source_rect.h) * std::max(0.1f, def_.sprite_scale) * 0.60f;
+                const float sprite_w_px = static_cast<float>(source_rect.w);
+                const float sprite_h_px = static_cast<float>(source_rect.h);
                 shadow_w = std::max(
                     2,
                     static_cast<int>(std::round(sprite_w_px * shadow_scale * (shadow_config_.radius_x_tiles * 2.0f))));
@@ -224,11 +277,9 @@ void BillboardSpriteRenderer::render(
                     2,
                     static_cast<int>(std::round(sprite_h_px * shadow_scale * (shadow_config_.radius_z_tiles * 2.0f))));
             }
-            const int shadow_anchor_y = shadow_world_override
-                ? static_cast<int>(std::round(shy))
-                : (sprite_screen_y + def_.screen_offset_y_px);
             const int shadow_bottom =
-                shadow_anchor_y + shadow_config_.feet_to_shadow_bottom_px + shadow_config_.screen_offset_y_px;
+                static_cast<int>(std::round(shy)) + shadow_config_.feet_to_shadow_bottom_px +
+                shadow_config_.screen_offset_y_px;
             SDL_Rect shadow_dst{
                 static_cast<int>(std::round(shx)) - (shadow_w / 2) + shadow_config_.screen_offset_x_px,
                 shadow_bottom - shadow_h,
@@ -239,11 +290,7 @@ void BillboardSpriteRenderer::render(
         }
     }
 
-    SDL_Rect dst{
-        sprite_screen_x - (w / 2) + def_.screen_offset_x_px + extra_screen_offset_x_px,
-        sprite_screen_y - anchor_y + def_.screen_offset_y_px + extra_screen_offset_y_px,
-        w,
-        h};
+    SDL_Rect dst{sprite_x, sprite_y, sprite_w, sprite_h};
     const float br = std::max(0.0f, brightness);
     SDL_SetTextureColorMod(
         texture_.get(),

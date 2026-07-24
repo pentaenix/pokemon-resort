@@ -4,13 +4,16 @@
 #include "gameplay/world3d/data/OwmapOverworldLoader.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <cstdint>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <iostream>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace pr::gameplay::world3d::data {
@@ -59,6 +62,24 @@ double numOr(const JsonValue* v, double fallback) {
 
 int intOr(const JsonValue* v, int fallback) {
     return (v && v->isNumber()) ? static_cast<int>(v->asNumber()) : fallback;
+}
+
+std::string lowerAscii(std::string value) {
+    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
+        return static_cast<char>(std::tolower(c));
+    });
+    return value;
+}
+
+std::vector<std::string> stringArrayOrEmpty(const JsonValue* value) {
+    std::vector<std::string> out;
+    if (!value || !value->isArray()) return out;
+    for (const JsonValue& item : value->asArray()) {
+        if (item.isString()) {
+            out.push_back(item.asString());
+        }
+    }
+    return out;
 }
 
 const JsonValue* profileObjectById(
@@ -113,6 +134,105 @@ CharacterAnimationDef parseAnimationByName(
     return out;
 }
 
+CharacterActivitySessionDef parseActivitySession(
+    const JsonValue& action,
+    const JsonValue* sheet_anims,
+    const JsonValue* profile_anims) {
+    CharacterActivitySessionDef out{};
+    const JsonValue* phases = action.get("phases");
+    if (!phases || !phases->isObject()) {
+        return out;
+    }
+    const auto phaseAnimName = [phases](const char* phase, const char* fallback) {
+        const JsonValue* node = phases->get(phase);
+        if (!node || !node->isObject()) return std::string{fallback};
+        return strOr(node->get("animationName"), fallback);
+    };
+    out.enter = parseAnimationByName(
+        sheet_anims,
+        profile_anims,
+        phaseAnimName("enter", "enter"),
+        CharacterAnimationDef{{0}, 120});
+    out.stay = parseAnimationByName(
+        sheet_anims,
+        profile_anims,
+        phaseAnimName("stay", "stay"),
+        CharacterAnimationDef{{0}, 250});
+    out.exit = parseAnimationByName(
+        sheet_anims,
+        profile_anims,
+        phaseAnimName("exit", "exit"),
+        CharacterAnimationDef{{0}, 120});
+    out.valid = !out.enter.frames.empty() && !out.stay.frames.empty() && !out.exit.frames.empty();
+    return out;
+}
+
+std::vector<std::string> normalizedModifiers(const JsonValue* value) {
+    std::vector<std::string> modifiers = stringArrayOrEmpty(value);
+    for (std::string& modifier : modifiers) {
+        modifier = lowerAscii(modifier);
+    }
+    std::sort(modifiers.begin(), modifiers.end());
+    modifiers.erase(std::unique(modifiers.begin(), modifiers.end()), modifiers.end());
+    return modifiers;
+}
+
+bool actionMatchesAppearance(
+    const JsonValue& action,
+    const std::string& semantic_id,
+    const CharacterAppearanceSelection& appearance) {
+    const std::string action_id = lowerAscii(strOr(action.get("id"), ""));
+    const std::string behavior = lowerAscii(strOr(action.get("behavior"), action_id));
+    if (behavior != semantic_id && action_id != semantic_id) {
+        return false;
+    }
+
+    const std::string requested_form = lowerAscii(appearance.form_id.empty() ? "default" : appearance.form_id);
+    const std::string action_form = lowerAscii(strOr(action.get("formId"), "default"));
+    if (action_form != requested_form) {
+        return false;
+    }
+
+    const std::vector<std::string> modifiers = normalizedModifiers(action.get("modifiers"));
+    const bool has_shiny = std::binary_search(modifiers.begin(), modifiers.end(), "shiny");
+    return has_shiny == appearance.shiny && modifiers.size() == (appearance.shiny ? 1U : 0U);
+}
+
+const JsonValue* findAppearanceAction(
+    const JsonValue* actions,
+    const std::string& semantic_id,
+    const CharacterAppearanceSelection& appearance) {
+    if (!actions || !actions->isArray()) {
+        return nullptr;
+    }
+    for (const JsonValue& action : actions->asArray()) {
+        if (action.isObject() && actionMatchesAppearance(action, semantic_id, appearance)) {
+            return &action;
+        }
+    }
+    return nullptr;
+}
+
+const JsonValue* selectAppearanceAction(
+    const JsonValue* actions,
+    const std::string& semantic_id,
+    const CharacterAppearanceSelection& appearance) {
+    if (const JsonValue* exact = findAppearanceAction(actions, semantic_id, appearance)) {
+        return exact;
+    }
+    if (appearance.shiny) {
+        CharacterAppearanceSelection base_variant = appearance;
+        base_variant.shiny = false;
+        if (const JsonValue* base = findAppearanceAction(actions, semantic_id, base_variant)) {
+            return base;
+        }
+    }
+    if (lowerAscii(appearance.form_id.empty() ? "default" : appearance.form_id) != "default") {
+        return findAppearanceAction(actions, semantic_id, CharacterAppearanceSelection{});
+    }
+    return nullptr;
+}
+
 std::string readLengthPrefixedString(const std::vector<std::uint8_t>& file, std::size_t& offset, const std::string& path) {
     if (offset + 4 > file.size()) {
         throw std::runtime_error("Invalid charbin asset string length header: " + path);
@@ -127,6 +247,38 @@ std::string readLengthPrefixedString(const std::vector<std::uint8_t>& file, std:
     return out;
 }
 
+JsonValue readCharbinJsonRoot(const std::string& character_package_path) {
+    const fs::path input_path(character_package_path);
+    if (input_path.extension() != ".charbin") {
+        throw std::runtime_error(
+            "Overworld character loader now supports only .charbin packages: " + character_package_path);
+    }
+
+    const std::vector<std::uint8_t> file = readBinaryFile(character_package_path);
+    if (file.size() < kCharbinHeaderSize) {
+        throw std::runtime_error("Character package too small: " + character_package_path);
+    }
+    if (std::memcmp(file.data(), kCharbinMagic, kCharbinMagicSize) != 0) {
+        throw std::runtime_error("Character package has invalid magic: " + character_package_path);
+    }
+    const std::uint32_t version = readU32Le(file.data() + 8);
+    if (version != kCharbinFormatVersion) {
+        throw std::runtime_error("Unsupported charbin version in: " + character_package_path);
+    }
+    const std::uint32_t json_len = readU32Le(file.data() + 12);
+    if (kCharbinHeaderSize + static_cast<std::size_t>(json_len) + 4 > file.size()) {
+        throw std::runtime_error("Character package truncated at metadata: " + character_package_path);
+    }
+
+    const std::size_t json_start = kCharbinHeaderSize;
+    const std::string json_blob(reinterpret_cast<const char*>(file.data() + json_start), static_cast<std::size_t>(json_len));
+    JsonValue root = parseJsonText(json_blob);
+    if (!root.isObject()) {
+        throw std::runtime_error("Character package metadata root must be an object: " + character_package_path);
+    }
+    return root;
+}
+
 } // namespace
 
 SceneConfig loadSceneConfig(const std::string& project_root, const std::string& scene_json_path) {
@@ -137,7 +289,10 @@ SceneConfig loadSceneConfig(const std::string& project_root, const std::string& 
     return loadOwmapScene(project_root, scene_json_path);
 }
 
-CharacterSpriteDefinition loadCharacterDefinition(const std::string& project_root, const std::string& character_package_path) {
+CharacterSpriteDefinition loadCharacterDefinition(
+    const std::string& project_root,
+    const std::string& character_package_path,
+    const CharacterAppearanceSelection& appearance) {
     const fs::path input_path(character_package_path);
     if (input_path.extension() != ".charbin") {
         throw std::runtime_error(
@@ -199,6 +354,18 @@ CharacterSpriteDefinition loadCharacterDefinition(const std::string& project_roo
     CharacterSpriteDefinition out;
     out.id = strOr(root.get("id"), "character");
     out.texture_path = character_package_path;
+    if (const JsonValue* metadata = root.get("metadata"); metadata && metadata->isObject()) {
+        out.character_type = lowerAscii(strOr(metadata->get("characterType"), "npc"));
+        out.pokemon_size = lowerAscii(strOr(metadata->get("pokemonSize"), "small"));
+        if (out.pokemon_size != "medium" && out.pokemon_size != "large" && out.pokemon_size != "human") {
+            out.pokemon_size = "small";
+        }
+        out.species_name = strOr(metadata->get("speciesName"), "");
+        out.pokemon_types = stringArrayOrEmpty(metadata->get("pokemonTypes"));
+        for (std::string& type : out.pokemon_types) {
+            type = lowerAscii(type);
+        }
+    }
 
     const std::string profile_id = strOr(root.get("baseProfile"), "character");
     static JsonValue profile_cache_root;
@@ -220,6 +387,7 @@ CharacterSpriteDefinition loadCharacterDefinition(const std::string& project_roo
     const JsonValue* profile_anims = profile ? profile->get("animations") : nullptr;
     out.idle = parseAnimation(profile_anims, "idle", CharacterAnimationDef{{0}, 250});
     out.walk = parseAnimation(profile_anims, "walk", CharacterAnimationDef{{0, 1, 2, 3}, 120});
+    out.run = parseAnimation(profile_anims, "run", out.walk);
     out.pause = parseAnimation(profile_anims, "pause", CharacterAnimationDef{{0}, 400});
     out.play = parseAnimation(profile_anims, "play", CharacterAnimationDef{{0,1,2,3,4,5,6,7,8,9}, 120});
 
@@ -231,19 +399,45 @@ CharacterSpriteDefinition loadCharacterDefinition(const std::string& project_roo
 
     std::string walk_sheet_id;
     std::string idle_sheet_id;
+    std::string run_sheet_id;
     std::string walk_anim_name = "walk";
     std::string idle_anim_name = "idle";
+    std::string run_anim_name = "run";
+    const JsonValue* selected_walk = selectAppearanceAction(action_array, "walk", appearance);
+    const JsonValue* selected_idle = selectAppearanceAction(action_array, "idle", appearance);
+    const JsonValue* selected_run = selectAppearanceAction(action_array, "run", appearance);
+    // Never substitute a different form or a non-shiny sheet for swimming. If
+    // an exact swim asset is absent, retaining the selected land sheet is less
+    // visually wrong than changing the Pokemon's appearance in the water.
+    const JsonValue* selected_swim = findAppearanceAction(action_array, "swim", appearance);
+    struct ActivityActionBinding {
+        std::string id;
+        std::string sheet_id;
+        std::string animation_name;
+        bool simple_loop = false;
+    };
+    std::vector<ActivityActionBinding> activity_actions;
     for (const JsonValue& action : action_array->asArray()) {
         if (!action.isObject()) continue;
         const std::string action_id = strOr(action.get("id"), "");
         const std::string sheet_id = strOr(action.get("sheetId"), "");
         const std::string anim_name = strOr(action.get("animationName"), "");
-        if (action_id == "walk") {
+        const std::string action_type = strOr(action.get("type"), "");
+        if (&action == selected_walk) {
             walk_sheet_id = sheet_id;
             if (!anim_name.empty()) walk_anim_name = anim_name;
-        } else if (action_id == "idle") {
+        } else if (&action == selected_idle) {
             idle_sheet_id = sheet_id;
             if (!anim_name.empty()) idle_anim_name = anim_name;
+        } else if (&action == selected_run) {
+            run_sheet_id = sheet_id;
+            if (!anim_name.empty()) run_anim_name = anim_name;
+        } else if (action_type == "activity" && strOr(action.get("activityKind"), "") == "session") {
+            activity_actions.push_back(ActivityActionBinding{action_id, sheet_id, anim_name, false});
+        } else if (action_type == "idle" && &action != selected_idle && !action_id.empty()) {
+            // Alternate idle sheets (for example Tyler's yoga loop) can be
+            // selected persistently by an NPC without changing the charbin.
+            activity_actions.push_back(ActivityActionBinding{action_id, sheet_id, anim_name, true});
         }
     }
 
@@ -255,23 +449,34 @@ CharacterSpriteDefinition loadCharacterDefinition(const std::string& project_roo
         throw std::runtime_error("Character package has no usable sprite sheet selection: " + character_package_path);
     }
 
-    const JsonValue* selected_sheet = nullptr;
-    for (const JsonValue& sheet : sheet_array->asArray()) {
-        if (!sheet.isObject()) continue;
-        if (strOr(sheet.get("id"), "") == selected_sheet_id) {
-            selected_sheet = &sheet;
-            break;
+    const auto findSheetById = [sheet_array](const std::string& sheet_id) -> const JsonValue* {
+        if (sheet_id.empty()) {
+            return nullptr;
         }
-    }
+        for (const JsonValue& sheet : sheet_array->asArray()) {
+            if (!sheet.isObject()) continue;
+            if (strOr(sheet.get("id"), "") == sheet_id) {
+                return &sheet;
+            }
+        }
+        return nullptr;
+    };
+
+    const JsonValue* selected_sheet = findSheetById(selected_sheet_id);
     if (!selected_sheet || !selected_sheet->isObject()) {
         throw std::runtime_error("Character package selected sheet not found: " + selected_sheet_id + " in " + character_package_path);
     }
 
-    const std::string asset_id = strOr(selected_sheet->get("assetId"), "");
-    auto asset_it = assets.find(asset_id);
-    if (asset_it == assets.end()) {
-        throw std::runtime_error("Character package selected sheet asset not found: " + asset_id + " in " + character_package_path);
-    }
+    const auto findSheetAsset = [&assets, &character_package_path](const JsonValue& sheet) {
+        const std::string asset_id = strOr(sheet.get("assetId"), "");
+        auto asset_it = assets.find(asset_id);
+        if (asset_it == assets.end()) {
+            throw std::runtime_error("Character package selected sheet asset not found: " + asset_id + " in " + character_package_path);
+        }
+        return asset_it;
+    };
+
+    auto asset_it = findSheetAsset(*selected_sheet);
     out.texture_png_bytes = asset_it->second;
 
     std::string selected_profile_id = strOr(selected_sheet->get("profile"), profile_id);
@@ -281,8 +486,96 @@ CharacterSpriteDefinition loadCharacterDefinition(const std::string& project_roo
 
     out.idle = parseAnimationByName(sheet_anims, anim_root, idle_anim_name, out.idle);
     out.walk = parseAnimationByName(sheet_anims, anim_root, walk_anim_name, out.walk);
+    if (!run_sheet_id.empty()) {
+        const JsonValue* run_sheet = findSheetById(run_sheet_id);
+        if (run_sheet && run_sheet->isObject()) {
+            const std::string run_profile_id = strOr(run_sheet->get("profile"), profile_id);
+            const JsonValue* run_profile = profileObjectById(project_root, run_profile_id, profile_cache_root, profile_cache_loaded);
+            const JsonValue* run_sheet_anims = run_sheet->get("animations");
+            const JsonValue* run_anim_root = run_profile ? run_profile->get("animations") : profile_anims;
+            out.run = parseAnimationByName(run_sheet_anims, run_anim_root, run_anim_name, out.run);
+            out.has_run = !out.run.frames.empty();
+            if (out.has_run && run_sheet_id != selected_sheet_id) {
+                out.run_texture_png_bytes = findSheetAsset(*run_sheet)->second;
+            }
+        }
+    }
+    if (!out.has_run) {
+        out.run = out.walk;
+        out.run_texture_png_bytes.clear();
+    }
+    if (selected_swim) {
+        const std::string swim_sheet_id = strOr(selected_swim->get("sheetId"), "");
+        const std::string swim_anim_name = strOr(selected_swim->get("animationName"), "swim");
+        const JsonValue* swim_sheet = findSheetById(swim_sheet_id);
+        if (swim_sheet && swim_sheet->isObject()) {
+            const std::string swim_profile_id = strOr(swim_sheet->get("profile"), profile_id);
+            const JsonValue* swim_profile =
+                profileObjectById(project_root, swim_profile_id, profile_cache_root, profile_cache_loaded);
+            const JsonValue* swim_profile_anims = swim_profile ? swim_profile->get("animations") : profile_anims;
+            // Charbins distinguish idle_swim from the movement-driven swim
+            // action, but most shared Pokemon profiles only name the four-frame
+            // sequence "walk". Keep the selected swim sheet and inherit that
+            // movement cadence when a sheet-specific "swim" sequence is absent.
+            const CharacterAnimationDef swim_movement_fallback = parseAnimationByName(
+                swim_sheet->get("animations"),
+                swim_profile_anims,
+                "walk",
+                out.walk);
+            out.swim = parseAnimationByName(
+                swim_sheet->get("animations"),
+                swim_profile_anims,
+                swim_anim_name,
+                swim_movement_fallback);
+            out.has_swim = !out.swim.frames.empty();
+            if (out.has_swim && swim_sheet_id != selected_sheet_id) {
+                out.activity_texture_png_bytes["__locomotion_swim"] = findSheetAsset(*swim_sheet)->second;
+            }
+        }
+    }
     out.pause = parseAnimationByName(sheet_anims, anim_root, "pause", out.pause);
     out.play = parseAnimationByName(sheet_anims, anim_root, "play", out.play);
+    for (const ActivityActionBinding& binding : activity_actions) {
+        if (binding.id.empty()) continue;
+        const JsonValue* action_node = nullptr;
+        for (const JsonValue& action : action_array->asArray()) {
+            if (action.isObject() && strOr(action.get("id"), "") == binding.id) {
+                action_node = &action;
+                break;
+            }
+        }
+        if (!action_node) continue;
+        const JsonValue* activity_sheet = findSheetById(binding.sheet_id);
+        if (!activity_sheet || !activity_sheet->isObject()) {
+            activity_sheet = selected_sheet;
+        }
+        const std::string activity_profile_id = strOr(activity_sheet->get("profile"), profile_id);
+        const JsonValue* activity_profile =
+            profileObjectById(project_root, activity_profile_id, profile_cache_root, profile_cache_loaded);
+        const JsonValue* activity_profile_anims =
+            activity_profile ? activity_profile->get("animations") : profile_anims;
+        CharacterActivitySessionDef session{};
+        if (binding.simple_loop) {
+            const CharacterAnimationDef loop = parseAnimationByName(
+                activity_sheet->get("animations"),
+                activity_profile_anims,
+                binding.animation_name.empty() ? binding.id : binding.animation_name,
+                CharacterAnimationDef{{0}, 120});
+            session.enter = loop;
+            session.stay = loop;
+            session.exit = loop;
+            session.valid = !loop.frames.empty();
+        } else {
+            session = parseActivitySession(
+                *action_node, activity_sheet->get("animations"), activity_profile_anims);
+        }
+        if (session.valid) {
+            out.activity_sessions[binding.id] = std::move(session);
+            if (binding.sheet_id != selected_sheet_id) {
+                out.activity_texture_png_bytes[binding.id] = findSheetAsset(*activity_sheet)->second;
+            }
+        }
+    }
     if (selected_profile) {
         out.frame_width = intOr(selected_profile->get("frameWidth"), out.frame_width);
         out.frame_height = intOr(selected_profile->get("frameHeight"), out.frame_height);
@@ -297,7 +590,7 @@ CharacterSpriteDefinition loadCharacterDefinition(const std::string& project_roo
 
         const JsonValue* rendering = selected_profile->get("rendering");
         if (rendering && rendering->isObject()) {
-            out.world_height = static_cast<float>(numOr(rendering->get("worldHeight"), 28.0));
+            out.world_height = static_cast<float>(numOr(rendering->get("worldHeight"), 32.0));
             out.sprite_scale = static_cast<float>(numOr(rendering->get("spriteScale"), 1.0));
             out.anchor = strOr(rendering->get("anchor"), "bottom_center");
             if (const JsonValue* world_offset = rendering->get("worldOffset"); world_offset && world_offset->isArray()) {
@@ -313,8 +606,81 @@ CharacterSpriteDefinition loadCharacterDefinition(const std::string& project_roo
             }
         }
     }
+    if (const JsonValue* sheet_overrides = selected_sheet->get("profileOverrides");
+        sheet_overrides && sheet_overrides->isObject()) {
+        out.frame_width = intOr(sheet_overrides->get("frameWidth"), out.frame_width);
+        out.frame_height = intOr(sheet_overrides->get("frameHeight"), out.frame_height);
+        out.columns = intOr(sheet_overrides->get("columns"), out.columns);
+        out.rows = intOr(sheet_overrides->get("rows"), out.rows);
+    }
 
     return out;
+}
+
+CharacterPackageMetadata loadCharacterPackageMetadata(const std::string& character_package_path) {
+    const JsonValue root = readCharbinJsonRoot(character_package_path);
+
+    CharacterPackageMetadata out;
+    out.id = strOr(root.get("id"), "");
+    out.display_name = strOr(root.get("displayName"), out.id);
+
+    const JsonValue* metadata = root.get("metadata");
+    if (metadata && metadata->isObject()) {
+        out.character_type = strOr(metadata->get("characterType"), "npc");
+        if (out.character_type == "npc") {
+            const std::string mode = lowerAscii(strOr(metadata->get("npcInteractionMode"), "direct_dialogue"));
+            out.npc_interaction_mode = mode == "scripted" ? "scripted" : "direct_dialogue";
+        }
+        out.pokemon_size = lowerAscii(strOr(metadata->get("pokemonSize"), "small"));
+        if (out.pokemon_size != "medium" && out.pokemon_size != "large" && out.pokemon_size != "human") {
+            out.pokemon_size = "small";
+        }
+        out.species_name = strOr(metadata->get("speciesName"), "");
+        out.pokemon_types = stringArrayOrEmpty(metadata->get("pokemonTypes"));
+        for (std::string& type : out.pokemon_types) {
+            type = lowerAscii(type);
+        }
+        out.movement_speed_profile = strOr(
+            metadata->get("movementSpeedProfile"),
+            strOr(metadata->get("movementProfile"), out.movement_speed_profile));
+        const JsonValue* partner = metadata->get("partnerPokemon");
+        if (partner && partner->isObject()) {
+            CharacterPackagePartnerPokemon p;
+            p.pokemon_id = strOr(partner->get("pokemonId"), "");
+            p.form_id = strOr(partner->get("formId"), "default");
+            p.nickname = strOr(partner->get("nickname"), "");
+            p.relationship = strOr(partner->get("relationship"), "");
+            if (!p.pokemon_id.empty()) {
+                out.partner_pokemon = std::move(p);
+            }
+        }
+    }
+    if (const JsonValue* dialogue = root.get("dialogue"); dialogue && dialogue->isObject()) {
+        if (const JsonValue* lines = dialogue->get("lines"); lines && lines->isArray()) {
+            for (const JsonValue& line : lines->asArray()) {
+                if (line.isString()) {
+                    out.dialogue_lines.push_back(line.asString());
+                } else if (line.isObject()) {
+                    const std::string body = strOr(line.get("body"), strOr(line.get("text"), ""));
+                    if (!body.empty()) out.dialogue_lines.push_back(body);
+                }
+            }
+        }
+    }
+    return out;
+}
+
+std::optional<CharacterSpriteDefinition> tryLoadCharacterDefinition(
+    const std::string& project_root,
+    const std::string& character_package_path,
+    const CharacterAppearanceSelection& appearance) {
+    try {
+        return loadCharacterDefinition(project_root, character_package_path, appearance);
+    } catch (const std::exception& ex) {
+        std::cerr << "[Overworld3D] Failed to load character package '" << character_package_path
+                  << "': " << ex.what() << std::endl;
+        return std::nullopt;
+    }
 }
 
 } // namespace pr::gameplay::world3d::data

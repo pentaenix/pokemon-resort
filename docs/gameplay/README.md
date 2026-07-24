@@ -15,3 +15,6 @@ Current docs:
 - `docs/gameplay/owmap_format.md`
 - `docs/gameplay/owmap_tile_layers_proposal.md`
 - `docs/gameplay/overworld_glb_models.md`
+- `docs/gameplay/test_attend.md`
+- `docs/gameplay/test_attend_agent_guide.md`
+- `docs/gameplay/test_attend_animation_semantics.md`

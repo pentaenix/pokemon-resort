@@ -13,3 +13,13 @@ Game-ready character and Pokémon overworld definitions live here.
 Author packages in **SPMK** (Characters tab). Default save folder is this directory when `spmk` and `pokemon-resort` sit side by side in the repo.
 
 Override folder: SPMK library sidebar **Change folder…**, or `SPMK_CHARACTERS_DIR` in the environment.
+
+## 3D overworld test (local packages)
+
+The **3D TEST** screen and bgfx follower need packages present on disk (often not committed). Minimum set:
+
+- Player path from the loaded map metadata (e.g. `playable/haru.charbin`)
+- `pokemon/psyduck.charbin` when using default `config/gameplay/followers/session.json`
+- `objects/poke_ball.charbin` (or the configured `pokeballId`)
+
+Missing packages log a warning and disable the follower; the player package must load for the screen to start.

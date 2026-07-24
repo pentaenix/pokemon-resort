@@ -34,6 +34,16 @@ void AppFrameRequests::requestSaveSfx() {
     sfx_requests_.save = true;
 }
 
+void AppFrameRequests::requestOverworldBlockedSfxIf(bool condition) {
+    sfx_requests_.overworld_blocked = sfx_requests_.overworld_blocked || condition;
+}
+
+void AppFrameRequests::requestOneShotSfx(const std::string& relative_path) {
+    if (!relative_path.empty()) {
+        sfx_requests_.one_shot_sfx_paths.push_back(relative_path);
+    }
+}
+
 void AppFrameRequests::requestUserSettingsSave() {
     user_settings_save_requested_ = true;
 }

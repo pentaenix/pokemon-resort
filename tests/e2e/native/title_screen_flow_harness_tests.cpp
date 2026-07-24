@@ -260,6 +260,26 @@ void testResortSelectionOpensResortSubmenuAnd3DTest() {
            "3D TEST should emit open-resort-3d-test event");
 }
 
+void testResortSelectionOpensTestAttend() {
+    TitleFlowHarness harness;
+    harness.reachMainMenuIdle();
+
+    harness.press(SDLK_m);
+    harness.advance(harness.config().menu.animation.intro_duration + 0.01);
+    expect(harness.state() == pr::TitleState::ResortIdle,
+           "RESORT submenu should be idle before selecting TEST ATTEND");
+
+    harness.press(SDLK_s);
+    harness.press(SDLK_s);
+    harness.consumeEvents();
+    harness.press(SDLK_m);
+    const std::vector<pr::TitleScreenEvent> open_events = harness.consumeEvents();
+    expect(containsEvent(open_events, pr::TitleScreenEvent::ButtonSfxRequested),
+           "activating TEST ATTEND should request button SFX event");
+    expect(containsEvent(open_events, pr::TitleScreenEvent::OpenTestAttendRequested),
+           "TEST ATTEND should emit open-test-attend event");
+}
+
 void testTradeSelectionRaisesOpenTradeLoadingAfterFade() {
     TitleFlowHarness harness;
     harness.reachMainMenuIdle();
@@ -314,6 +334,7 @@ int main() {
         {"options flow changes settings and returns to menu", testOptionsFlowChangesSettingsAndReturnsToMenu},
         {"transfer selection raises open-transfer after fade", testTransferSelectionRaisesOpenTransferAfterFade},
         {"resort selection opens resort submenu and 3d test", testResortSelectionOpensResortSubmenuAnd3DTest},
+        {"resort selection opens test attend", testResortSelectionOpensTestAttend},
         {"trade selection raises open-trade-loading after fade", testTradeSelectionRaisesOpenTradeLoadingAfterFade},
         {"controller can drive start and menu navigation", testControllerCanDriveStartAndMenuNavigation},
     };

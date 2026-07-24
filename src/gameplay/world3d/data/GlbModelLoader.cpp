@@ -6,9 +6,11 @@
 #include <array>
 #include <cmath>
 #include <cstring>
+#include <cctype>
 #include <fstream>
 #include <functional>
 #include <limits>
+#include <string>
 
 namespace pr::gameplay::world3d::data {
 
@@ -33,6 +35,32 @@ int intMember(const JsonValue* obj, const char* key, int fallback) {
     if (!obj) return fallback;
     const JsonValue* v = obj->get(key);
     return (v && v->isNumber()) ? static_cast<int>(v->asNumber()) : fallback;
+}
+
+bool containsCaseInsensitive(const std::string& haystack, const char* needle) {
+    std::string lower;
+    lower.reserve(haystack.size());
+    for (char ch : haystack) {
+        lower.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(ch))));
+    }
+    return lower.find(needle) != std::string::npos;
+}
+
+bool isSoftShadowMaterialName(const std::string& name) {
+    return containsCaseInsensitive(name, "shadow") ||
+        containsCaseInsensitive(name, "kage") ||
+        containsCaseInsensitive(name, "shade");
+}
+
+void applySoftShadowMaterialPolicy(GlbMaterial& material) {
+    if (!isSoftShadowMaterialName(material.name)) {
+        return;
+    }
+    material.alpha_blend = true;
+    material.alpha_mode = GlbMaterial::AlphaMode::Blend;
+    material.render_class = GlbMaterial::RenderClass::Blend;
+    material.alpha_cutoff = 0.0f;
+    material.base_color[3] = std::min(material.base_color[3], 0.45f);
 }
 
 // Column-major 4x4, matching glTF's node.matrix layout.
@@ -64,6 +92,12 @@ void transformPoint(const Mat4& mat, float x, float y, float z, float& ox, float
     ox = mat.m[0] * x + mat.m[4] * y + mat.m[8] * z + mat.m[12];
     oy = mat.m[1] * x + mat.m[5] * y + mat.m[9] * z + mat.m[13];
     oz = mat.m[2] * x + mat.m[6] * y + mat.m[10] * z + mat.m[14];
+}
+
+void transformVector(const Mat4& mat, float x, float y, float z, float& ox, float& oy, float& oz) {
+    ox = mat.m[0] * x + mat.m[4] * y + mat.m[8] * z;
+    oy = mat.m[1] * x + mat.m[5] * y + mat.m[9] * z;
+    oz = mat.m[2] * x + mat.m[6] * y + mat.m[10] * z;
 }
 
 Mat4 trsMatrix(const std::array<float, 3>& t, const std::array<float, 4>& q, const std::array<float, 3>& s) {
@@ -151,6 +185,7 @@ struct AccessorView {
     int component_type = 0;
     int num_components = 0;
     std::size_t stride = 0;
+    bool normalized = false;
     bool valid = false;
 };
 
@@ -198,6 +233,9 @@ public:
         view.component_type = component_type;
         view.num_components = num_comp;
         view.stride = stride;
+        if (const JsonValue* normalized = acc.get("normalized"); normalized && normalized->isBool()) {
+            view.normalized = normalized->asBool();
+        }
         view.valid = true;
         return view;
     }
@@ -228,6 +266,23 @@ public:
         }
     }
 
+    static float readNormalizedComponent(const AccessorView& v, int element, int comp) {
+        const std::uint8_t* p = v.base + static_cast<std::size_t>(element) * v.stride;
+        switch (v.component_type) {
+            case 5121:
+                return static_cast<float>(p[comp]) / 255.0f;
+            case 5123: {
+                std::uint16_t out = 0;
+                std::memcpy(&out, p + static_cast<std::size_t>(comp) * sizeof(out), sizeof(out));
+                return static_cast<float>(out) / 65535.0f;
+            }
+            case 5126:
+                return readFloat(v, element, comp);
+            default:
+                return 1.0f;
+        }
+    }
+
 private:
     const JsonValue& root_;
     const std::uint8_t* bin_;
@@ -254,6 +309,9 @@ int resolveMaterial(
     const JsonValue& mat = mat_arr[static_cast<std::size_t>(material_index)];
 
     GlbMaterial gmat;
+    if (const JsonValue* name = mat.get("name"); name && name->isString()) {
+        gmat.name = name->asString();
+    }
     if (const JsonValue* pbr = mat.get("pbrMetallicRoughness"); pbr && pbr->isObject()) {
         if (const JsonValue* bcf = pbr->get("baseColorFactor"); bcf && bcf->isArray()) {
             const auto& arr = bcf->asArray();
@@ -291,8 +349,34 @@ int resolveMaterial(
     }
     if (const JsonValue* alpha = mat.get("alphaMode"); alpha && alpha->isString()) {
         const std::string mode = alpha->asString();
-        gmat.alpha_blend = (mode == "MASK" || mode == "BLEND");
+        if (mode == "MASK") {
+            gmat.alpha_mode = GlbMaterial::AlphaMode::Mask;
+            gmat.alpha_blend = true;
+        } else if (mode == "BLEND") {
+            gmat.alpha_mode = GlbMaterial::AlphaMode::Blend;
+            gmat.alpha_blend = true;
+        }
     }
+    if (const JsonValue* cutoff = mat.get("alphaCutoff"); cutoff && cutoff->isNumber()) {
+        gmat.alpha_cutoff = std::clamp(static_cast<float>(cutoff->asNumber()), 0.0f, 1.0f);
+    }
+    if (const JsonValue* extras = mat.get("extras"); extras && extras->isObject()) {
+        if (const JsonValue* rae = extras->get("rae"); rae && rae->isObject()) {
+            if (const JsonValue* render_class = rae->get("renderClass"); render_class && render_class->isString()) {
+                const std::string value = render_class->asString();
+                if (value == "mask") {
+                    gmat.render_class = GlbMaterial::RenderClass::Mask;
+                } else if (value == "blend") {
+                    gmat.render_class = GlbMaterial::RenderClass::Blend;
+                } else if (value == "uniform_decal") {
+                    gmat.render_class = GlbMaterial::RenderClass::UniformDecal;
+                } else {
+                    gmat.render_class = GlbMaterial::RenderClass::Opaque;
+                }
+            }
+        }
+    }
+    applySoftShadowMaterialPolicy(gmat);
 
     const int local_index = static_cast<int>(out.materials.size());
     out.materials.push_back(std::move(gmat));
@@ -308,18 +392,29 @@ void appendPrimitive(
     const GltfReader& reader,
     const JsonValue& primitive,
     const Mat4& world,
+    int node_index,
     int local_material,
     GlbMesh& out) {
     const JsonValue* attributes = primitive.get("attributes");
     if (!attributes || !attributes->isObject()) return;
     const int pos_acc = intMember(attributes, "POSITION", -1);
     const int uv_acc = intMember(attributes, "TEXCOORD_0", -1);
+    const int color_acc = intMember(attributes, "COLOR_0", -1);
     if (pos_acc < 0) return;
 
     const AccessorView positions = reader.accessor(pos_acc);
     if (!positions.valid || positions.num_components < 3) return;
     const AccessorView uvs = uv_acc >= 0 ? reader.accessor(uv_acc) : AccessorView{};
     const bool has_uv = uvs.valid && uvs.num_components >= 2;
+    const AccessorView colors = color_acc >= 0 ? reader.accessor(color_acc) : AccessorView{};
+    const bool has_color = colors.valid && colors.num_components >= 3;
+    std::vector<AccessorView> morph_positions;
+    if (const JsonValue* targets = primitive.get("targets"); targets && targets->isArray()) {
+        morph_positions.reserve(targets->asArray().size());
+        for (const JsonValue& target : targets->asArray()) {
+            morph_positions.push_back(reader.accessor(intMember(&target, "POSITION", -1)));
+        }
+    }
 
     const auto build_vertex = [&](int vertex_index) {
         GlbVertex v;
@@ -327,9 +422,31 @@ void appendPrimitive(
         const float ly = GltfReader::readFloat(positions, vertex_index, 1);
         const float lz = GltfReader::readFloat(positions, vertex_index, 2);
         transformPoint(world, lx, ly, lz, v.x, v.y, v.z);
+        v.node = node_index;
+        v.morph_position_deltas.reserve(morph_positions.size());
+        for (const AccessorView& morph : morph_positions) {
+            std::array<float, 3> delta{0.0f, 0.0f, 0.0f};
+            if (morph.valid && morph.num_components >= 3 && vertex_index < morph.count) {
+                transformVector(
+                    world,
+                    GltfReader::readFloat(morph, vertex_index, 0),
+                    GltfReader::readFloat(morph, vertex_index, 1),
+                    GltfReader::readFloat(morph, vertex_index, 2),
+                    delta[0], delta[1], delta[2]);
+            }
+            v.morph_position_deltas.push_back(delta);
+        }
         if (has_uv && vertex_index < uvs.count) {
             v.u = GltfReader::readFloat(uvs, vertex_index, 0);
             v.v = GltfReader::readFloat(uvs, vertex_index, 1);
+        }
+        if (has_color && vertex_index < colors.count) {
+            v.r = GltfReader::readNormalizedComponent(colors, vertex_index, 0);
+            v.g = GltfReader::readNormalizedComponent(colors, vertex_index, 1);
+            v.b = GltfReader::readNormalizedComponent(colors, vertex_index, 2);
+            v.a = colors.num_components >= 4
+                ? GltfReader::readNormalizedComponent(colors, vertex_index, 3)
+                : 1.0f;
         }
         out.aabb_min[0] = std::min(out.aabb_min[0], v.x);
         out.aabb_min[1] = std::min(out.aabb_min[1], v.y);
@@ -460,6 +577,7 @@ GlbMesh loadGlbModel(const std::string& path, std::string* error) {
 
     GltfReader reader(root, bin, bin_len);
     std::vector<int> material_remap;
+    out.node_morph_target_counts.assign(nodes.size(), 0);
 
     // Determine root nodes: scenes[scene].nodes, else every node.
     std::vector<int> root_nodes;
@@ -492,7 +610,12 @@ GlbMesh loadGlbModel(const std::string& path, std::string* error) {
                     for (const JsonValue& primitive : prims->asArray()) {
                         const int gltf_mat = intMember(&primitive, "material", -1);
                         const int local_mat = resolveMaterial(root, bin, bin_len, gltf_mat, material_remap, out);
-                        appendPrimitive(root, reader, primitive, world, local_mat, out);
+                        if (const JsonValue* targets = primitive.get("targets"); targets && targets->isArray()) {
+                            out.node_morph_target_counts[static_cast<std::size_t>(node_index)] = std::max(
+                                out.node_morph_target_counts[static_cast<std::size_t>(node_index)],
+                                static_cast<int>(targets->asArray().size()));
+                        }
+                        appendPrimitive(root, reader, primitive, world, node_index, local_mat, out);
                     }
                 }
             }
@@ -505,6 +628,61 @@ GlbMesh loadGlbModel(const std::string& path, std::string* error) {
     };
     for (int root_node : root_nodes) {
         walk(root_node, Mat4::identity(), 0);
+    }
+
+    if (const JsonValue* animations = root.get("animations"); animations && animations->isArray()) {
+        for (const JsonValue& animation_json : animations->asArray()) {
+            GlbAnimation animation;
+            if (const JsonValue* name = animation_json.get("name"); name && name->isString()) animation.name = name->asString();
+            const JsonValue* samplers = animation_json.get("samplers");
+            const JsonValue* channels = animation_json.get("channels");
+            if (!samplers || !samplers->isArray() || !channels || !channels->isArray()) continue;
+            for (const JsonValue& channel_json : channels->asArray()) {
+                const JsonValue* target = channel_json.get("target");
+                if (!target || !target->isObject() || !target->get("path") ||
+                    !target->get("path")->isString() || target->get("path")->asString() != "weights") continue;
+                const int node_index = intMember(target, "node", -1);
+                const int sampler_index = intMember(&channel_json, "sampler", -1);
+                if (node_index < 0 || node_index >= static_cast<int>(out.node_morph_target_counts.size()) ||
+                    sampler_index < 0 || sampler_index >= static_cast<int>(samplers->asArray().size())) continue;
+                const JsonValue& sampler = samplers->asArray()[static_cast<std::size_t>(sampler_index)];
+                const AccessorView input = reader.accessor(intMember(&sampler, "input", -1));
+                const AccessorView output = reader.accessor(intMember(&sampler, "output", -1));
+                const int mesh_target_count = out.node_morph_target_counts[static_cast<std::size_t>(node_index)];
+                const bool cubic = sampler.get("interpolation") && sampler.get("interpolation")->isString() &&
+                    sampler.get("interpolation")->asString() == "CUBICSPLINE";
+                const int output_multiplier = cubic ? 3 : 1;
+                if (!input.valid || input.component_type != 5126 || !output.valid ||
+                    output.component_type != 5126 || mesh_target_count <= 0 || input.count <= 0) continue;
+                const int values_per_key = output.count / (input.count * output_multiplier);
+                const int target_count = std::min(mesh_target_count, values_per_key);
+                if (target_count <= 0) continue;
+                GlbMorphAnimationChannel channel;
+                channel.target_node = node_index;
+                channel.target_count = target_count;
+                if (const JsonValue* interpolation = sampler.get("interpolation"); interpolation && interpolation->isString() &&
+                    interpolation->asString() == "STEP") channel.interpolation = GlbMorphAnimationChannel::Interpolation::Step;
+                else if (cubic) channel.interpolation = GlbMorphAnimationChannel::Interpolation::CubicSpline;
+                channel.times.reserve(static_cast<std::size_t>(input.count));
+                channel.weights.reserve(static_cast<std::size_t>(input.count * target_count));
+                for (int i = 0; i < input.count; ++i) channel.times.push_back(GltfReader::readFloat(input, i, 0));
+                for (int key = 0; key < input.count; ++key) {
+                    for (int target_index = 0; target_index < target_count; ++target_index) {
+                        const int base = (key * target_count * output_multiplier) + target_index;
+                        if (cubic) {
+                            channel.in_tangents.push_back(GltfReader::readFloat(output, base, 0));
+                            channel.weights.push_back(GltfReader::readFloat(output, base + target_count, 0));
+                            channel.out_tangents.push_back(GltfReader::readFloat(output, base + (target_count * 2), 0));
+                        } else {
+                            channel.weights.push_back(GltfReader::readFloat(output, base, 0));
+                        }
+                    }
+                }
+                if (!channel.times.empty()) animation.duration_seconds = std::max(animation.duration_seconds, channel.times.back());
+                animation.morph_channels.push_back(std::move(channel));
+            }
+            if (!animation.morph_channels.empty()) out.animations.push_back(std::move(animation));
+        }
     }
 
     if (out.triangles.empty()) {

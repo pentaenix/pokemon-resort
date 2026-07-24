@@ -16,6 +16,7 @@ class ScreenInput;
 class TitleScreen;
 class TransferFlowCoordinator;
 class Overworld3DTestScreen;
+class AttendTestScreen;
 
 class AppScreenCoordinator {
 public:
@@ -23,7 +24,8 @@ public:
         TitleScreen& title_screen,
         AppLoadingCoordinator& loading,
         TransferFlowCoordinator& transfer_flow,
-        Overworld3DTestScreen& overworld3d_test);
+        Overworld3DTestScreen& overworld3d_test,
+        AttendTestScreen& attend_test);
 
     Screen* activeScreen();
     ScreenInput* activeInput();
@@ -41,7 +43,8 @@ private:
         Title,
         ResortLoading,
         TransferFlow,
-        Overworld3DTest
+        Overworld3DTest,
+        TestAttend
     };
 
     enum class LoadingReturnTarget {
@@ -50,24 +53,33 @@ private:
         TransferTickets
     };
 
+    enum class AttendReturnTarget {
+        TitleResortMenu,
+        Overworld3D
+    };
+
     void updateTitle(double dt);
     void updateLoading(double dt);
     void updateTransfer(double dt);
     void updateOverworld3D(double dt);
+    void updateTestAttend(double dt);
     void updateTransition(double dt);
     void startSuccessfulSaveQuickTransition();
     void beginSuccessfulSaveLoadingScreen();
     void finishLoadingTransition();
     void collectTransferFrameRequests();
+    void collectOverworldFrameRequests();
 
     TitleScreen& title_screen_;
     AppLoadingCoordinator& loading_;
     TransferFlowCoordinator& transfer_flow_;
     Overworld3DTestScreen& overworld3d_test_;
+    AttendTestScreen& attend_test_;
     AppFrameRequests frame_requests_;
     AppTransitionController transition_controller_;
     ActiveScreen active_screen_ = ActiveScreen::Title;
     LoadingReturnTarget loading_return_target_ = LoadingReturnTarget::ResortTitle;
+    AttendReturnTarget attend_return_target_ = AttendReturnTarget::TitleResortMenu;
     /// First `updateLoading` after `beginSuccessfulSaveLoadingScreen` runs deferred Save+Exit IO and unblocks the boat.
     bool pending_successful_save_quick_pass_work_ = false;
     int successful_save_deferred_io_frames_remaining_ = 0;

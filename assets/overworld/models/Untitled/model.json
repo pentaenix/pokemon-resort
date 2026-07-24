@@ -1,0 +1,70 @@
+{
+  "manifestVersion": 1,
+  "storageFormat": "glb",
+  "id": "Untitled",
+  "displayName": "Untitled",
+  "defaultYawDeg": 0,
+  "defaultScale": 1,
+  "compiledAt": "2026-07-09T14:56:35.399Z",
+  "sourceFormat": "glb",
+  "sourceFile": "Untitled.glb",
+  "glbFile": "Untitled.glb",
+  "modelFile": "Untitled.glb",
+  "modelByteSize": 689788,
+  "modelHash": "535c90e29616feba",
+  "footprintTiles": {
+    "w": 7,
+    "d": 4,
+    "h": 3
+  },
+  "renderFootprintTiles": {
+    "w": 7,
+    "d": 4,
+    "h": 3
+  },
+  "authoringFootprintTiles": {
+    "w": 7,
+    "d": 4,
+    "h": 3
+  },
+  "collisionFootprintTiles": {
+    "w": 7,
+    "d": 4,
+    "h": 3
+  },
+  "previewOffsetTiles": {
+    "x": 0,
+    "y": 0
+  },
+  "aabb": {
+    "min": [
+      -51,
+      0,
+      -25
+    ],
+    "max": [
+      51,
+      41.5,
+      25
+    ]
+  },
+  "vertexCount": 6444,
+  "triangleCount": 11060,
+  "materials": [
+    "Acrylic_Glass",
+    "Ground_sand",
+    "Plinth_Painted",
+    "Frame_Steel",
+    "Frame_Steel.001",
+    "Water_Surface",
+    "Water_Volume",
+    "Body",
+    "Eye",
+    "Material.001",
+    "Material.002",
+    "Material.004",
+    "Body.002",
+    "Eye.002"
+  ],
+  "textureCount": 4
+}

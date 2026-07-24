@@ -241,9 +241,30 @@ void TitleScreen::applyUserSettings(const UserSettings& settings) {
     option_textures_dirty_ = true;
 }
 
+void TitleScreen::replaceAssets(Assets assets) {
+    assets_ = std::move(assets);
+    option_textures_dirty_ = true;
+    option_textures_.clear();
+    cached_section_title_.clear();
+    section_title_texture_ = TextureHandle{};
+    section_back_texture_ = TextureHandle{};
+    shine_texture_.reset();
+    shine_pixels_.clear();
+}
+
 void TitleScreen::returnToMainMenuFromTransfer() {
     main_menu_.selectTransfer();
     changeState(TitleState::MainMenuIdle);
+}
+
+void TitleScreen::prepareForOverworld3D() {
+    main_menu_.reset();
+    changeState(TitleState::MainMenuIdle);
+}
+
+void TitleScreen::returnToResortMenuFromAttend() {
+    main_menu_.reset();
+    changeState(TitleState::ResortIdle);
 }
 
 void TitleScreen::returnToMainMenuFromResort() {
@@ -449,6 +470,9 @@ void TitleScreen::activateResortSelection() {
             emitEvent(TitleScreenEvent::OpenResort3DTestRequested);
             break;
         case title_screen::ResortMenuAction::StartCinematic:
+            break;
+        case title_screen::ResortMenuAction::OpenTestAttend:
+            emitEvent(TitleScreenEvent::OpenTestAttendRequested);
             break;
         case title_screen::ResortMenuAction::CloseResortMenu:
             changeState(TitleState::ResortOutro);

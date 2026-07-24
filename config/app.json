@@ -18,6 +18,9 @@
     "navigate_right_keys": ["RIGHT", "D"],
     "forward_keys": ["M", "RETURN", "SPACE"],
     "back_keys": ["N", "ESCAPE", "BACKSPACE"],
+    "run_keys": ["B"],
+    "run_toggle_keys": [],
+    "attend_keys": ["X"],
     "record_toggle_keys": ["R"],
     "screenshot_keys": ["T"]
   },
@@ -30,6 +33,7 @@
     "putdown_sfx": "assets/sfx/putdown.mp3",
     "error_sfx": "assets/sfx/error.mp3",
     "save_sfx": "assets/sfx/save.mp3",
+    "overworld_blocked_sfx": "assets/overworld/sfx/bump_wall.mp3",
     "music_volume": 3,
     "sfx_volume": 8
   },
@@ -37,7 +41,11 @@
     "enabled": true,
     "hotkey": "R"
   },
+  "renderer": {
+    "world3d_backend": "bgfx",
+    "bgfx_preference": "auto"
+  },
   "target_fps": 60,
-  "enable_frame_counter": true,
-  "enable_active_idle_behavior_debug": true
+  "enable_frame_counter": false,
+  "enable_active_idle_behavior_debug": false
 }

@@ -28,6 +28,7 @@ public:
 
     bool consumeReturnToMenuRequest();
     bool isLoadingAnimationComplete() const;
+    void rebindRenderer(SDL_Renderer* renderer);
 
 private:
     SDL_Renderer* renderer_ = nullptr;

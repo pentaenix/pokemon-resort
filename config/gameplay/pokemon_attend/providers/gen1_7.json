@@ -1,0 +1,211 @@
+{
+  "_comment": "Pokemon provider defaults and sparse per-Pokemon exceptions for the Gen 1-7 3DS/Alola model set. Scene placement belongs in debug scenes, not here.",
+  "defaults": {
+    "provider": "gen1_7",
+    "modelDirectory": "assets/pokemon_attend/pokemon_models",
+    "modelFilePattern": "{id}.glb",
+    "animationPattern": "pm{dex4}_00_00_00000_defaultwait01_loop.gfbanm",
+    "eyeCloseAnimationPattern": "pm{dex4}_00_00_08000_eye01.gfbanm",
+    "yawDegrees": 0,
+    "pitchDegrees": 0,
+    "scale": 0.01,
+    "idleMotion": {
+      "_comment": "Legacy transform-only idle motion. Keep disabled while GLB animation drives the Pokemon.",
+      "enabled": false,
+      "bobAmplitude": 0,
+      "bobSeconds": 2.2,
+      "rockDegrees": 0,
+      "rockSeconds": 4.2
+    },
+    "idleBehavior": {
+      "_comment": "Pokemon-only inactivity behavior. Missing semantic animations simply do not play for that Pokemon.",
+      "enabled": true,
+      "emoteAfterSeconds": 30,
+      "emoteIntervalMinSeconds": 0,
+      "emoteIntervalMaxSeconds": 30,
+      "sleepAfterSeconds": 180,
+      "emoteAnimation": "emote_vocal",
+      "sleepAnimation": "sleep_loop",
+      "emoteEye": "normal_open",
+      "emoteMouth": "closed_normal",
+      "sleepEye": "closed",
+      "sleepMouth": "closed_narrow",
+      "emoteDurationSeconds": 0,
+      "sleepDurationSeconds": 3600,
+      "fadeInSeconds": 0.55,
+      "fadeOutSeconds": 0.75
+    },
+    "interactionAdapter": {
+      "source": "gen1_7",
+      "headNodeNames": [
+        "head"
+      ],
+      "eyelidNodeSubstrings": [
+        "eyelid"
+      ],
+      "semanticAnimationSlots": {
+        "idle_default": [
+          "slot4_00"
+        ],
+        "idle_ground": [
+          "slot5_00",
+          "slot6_00",
+          "slot4_00"
+        ],
+        "emote_vocal": [
+          "slot4_01"
+        ],
+        "emote_happy": [
+          "slot5_21",
+          "slot5_16",
+          "slot5_12",
+          "slot4_01"
+        ],
+        "emote_alt": [
+          "slot5_12",
+          "slot5_16",
+          "slot5_21",
+          "slot4_01"
+        ],
+        "jump_start": [
+          "slot4_03"
+        ],
+        "jump_loop": [
+          "slot4_04"
+        ],
+        "jump_land": [
+          "slot4_05"
+        ],
+        "attack_physical": [
+          "slot4_08"
+        ],
+        "attack_special": [
+          "slot4_12"
+        ],
+        "attack_unique": [
+          "slot4_13"
+        ],
+        "reaction_hit": [
+          "slot4_16"
+        ],
+        "reaction_faint": [
+          "slot4_17"
+        ],
+        "mouth_vocal": [
+          "slot4_22"
+        ],
+        "sleep_start": [
+          "slot5_04"
+        ],
+        "sleep_loop": [
+          "slot5_05"
+        ],
+        "reaction_shake": [
+          "slot5_06",
+          "slot5_09"
+        ],
+        "eat_start": [
+          "slot5_22",
+          "slot5_23"
+        ],
+        "eat_loop": [
+          "slot5_23",
+          "slot5_25"
+        ],
+        "eat_end": [
+          "slot5_24",
+          "slot5_23"
+        ],
+        "eat_peck": [
+          "slot5_25",
+          "slot5_23"
+        ],
+        "fly_flap": [
+          "slot6_01"
+        ],
+        "walk": [
+          "slot6_02"
+        ],
+        "run": [
+          "slot6_03"
+        ],
+        "levitate_stop": [
+          "slot6_08"
+        ],
+        "levitate_start": [
+          "slot6_09"
+        ]
+      },
+      "reactionCombos": {
+        "pet_happy": {
+          "animation": "emote_happy",
+          "eye": "happy",
+          "mouth": "happy_open",
+          "durationSeconds": 1.7,
+          "fadeInSeconds": 0.35,
+          "fadeOutSeconds": 0.55,
+          "eyeLingerSeconds": 0.35,
+          "minPetSeconds": 1,
+          "largePokemonHeight": 1.45,
+          "largePokemonFadeScale": 1.55,
+          "readyAnimation": "mouth_vocal",
+          "readyEye": "normal_open",
+          "readyMouth": "happy_open",
+          "readyWeight": 0.24,
+          "readyFadeSeconds": 0.35
+        }
+      },
+      "eyeExpressionFrames": {
+        "normal_open": 0,
+        "angry": 1,
+        "sick_hurt": 2,
+        "happy": 3,
+        "closed": 4,
+        "sad": 5,
+        "hit": 6,
+        "padding_red_stain": 7
+      },
+      "mouthExpressionFrames": {
+        "closed_normal": 0,
+        "angry_open": 1,
+        "happy_open": 2,
+        "sad_closed": 3,
+        "happy_open_wide": 4,
+        "unused_5": 5,
+        "closed_narrow": 6,
+        "unused_7": 7
+      },
+      "eyeCloseTimeSeconds": 0.39,
+      "petEyeCloseDelaySeconds": 0.16,
+      "petEyeCloseCooldownSeconds": 0.42,
+      "spontaneousBlinkMinSeconds": 3.8,
+      "spontaneousBlinkMaxSeconds": 8.2,
+      "spontaneousBlinkDurationSeconds": 0.34,
+      "headLookStrength": 1.8,
+      "headYawAxis": [
+        1,
+        0,
+        0
+      ],
+      "headPitchAxis": [
+        0,
+        1,
+        0
+      ]
+    }
+  },
+  "pokemon": {
+    "giratina": {
+      "spriteFormKeys": {
+        "01": "origin"
+      },
+      "camera": {
+        "formFraming": {
+          "01": {
+            "targetYRatioOffset": -0.08
+          }
+        }
+      }
+    }
+  }
+}

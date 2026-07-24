@@ -1,5 +1,6 @@
 {
   "transfer_screen": {
+    "enable_stamp": false,
     "fade": {
       "in_seconds": 0.2,
       "to_black_seconds": 0.12,

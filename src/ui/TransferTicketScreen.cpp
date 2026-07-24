@@ -221,7 +221,9 @@ void TransferTicketScreen::render(SDL_Renderer* renderer) {
     renderTransferTicketWaveBanner(renderer, wave_banner_, elapsed_seconds_, window_config_.virtual_width);
     drawTextureCentered(renderer, screen_text_.title, screen_header_.title_center.x, screen_header_.title_center.y);
     drawTextureCentered(renderer, screen_text_.subtitle, screen_header_.subtitle_center.x, screen_header_.subtitle_center.y);
-    drawTextureTopLeft(renderer, assets_.stamp, 0, 0);
+    if (enable_stamp_) {
+        drawTextureTopLeft(renderer, assets_.stamp, 0, 0);
+    }
 
     if (!list_controller_.fadeToBlackActive() && fade_in_seconds_ > 0.0) {
         const double t = clamp01(fade_in_elapsed_seconds_ / fade_in_seconds_);
@@ -436,6 +438,7 @@ void TransferTicketScreen::loadTransferConfig() {
     }
 
     if (transfer_screen_config) {
+        enable_stamp_ = boolFromObjectOrDefault(*transfer_screen_config, "enable_stamp", enable_stamp_);
         if (const JsonValue* fade = transfer_screen_config->get("fade")) {
             fade_in_seconds_ = std::max(0.0, doubleFromObjectOrDefault(*fade, "in_seconds", fade_in_seconds_));
             selection_transition_.fade_to_black_seconds = std::max(

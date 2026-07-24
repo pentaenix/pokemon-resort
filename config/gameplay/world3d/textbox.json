@@ -1,0 +1,37 @@
+{
+  "attendButton": {
+    "enabled": true,
+    "iconPath": "assets/overworld/ui/attend_icon.png",
+    "topPx": 16,
+    "rightPx": 16,
+    "widthPx": 48,
+    "heightPx": 48
+  },
+  "textbox": {
+    "_comment": "Reusable empty overworld interaction text box. selectedSkinIndex uses visual column order: 0 starts at the top-left skin, continues down the left column, then continues down the right column. Valid values are 0-12; the bottom-right 14th sheet cell is intentionally ignored.",
+    "visibleMode": "enabled",
+    "selectedSkinIndex": 0,
+    "validSkinCount": 13,
+    "spriteSheetPath": "assets/overworld/ui/text_boxes.png",
+    "padding": {
+      "bottomPx": 5,
+      "sidePx": 5
+    },
+    "sourceSheet": {
+      "cellWidthPx": 256,
+      "cellHeightPx": 48,
+      "columns": 2
+    },
+    "horizontalStretch": {
+      "stripWidthPx": 5,
+      "sourceCenterXPx": 128
+    },
+    "text": {
+      "fontPath": "assets/fonts/power clear.ttf",
+      "fontSizePx": 14,
+      "leftInsetPx": 16,
+      "rightInsetPx": 12,
+      "topInsetPx": 7
+    }
+  }
+}

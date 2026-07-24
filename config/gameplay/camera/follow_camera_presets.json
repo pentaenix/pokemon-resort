@@ -1,0 +1,22 @@
+{
+  "_comment": "Runtime-reloadable follow-camera pitch calibration. Change selectedPreset, save, then press 1 in the overworld test scene to reload/apply this file.",
+  "selectedPreset": 9,
+  "presets": {
+    "0": { "pitchDeg": -56.25 },
+    "1": { "pitchDeg": -56.0 },
+    "2": { "pitchDeg": -55.875 },
+    "3": { "pitchDeg": -55.75 },
+    "4": { "pitchDeg": -55.625 },
+    "5": { "pitchDeg": -55.5 },
+    "6": { "pitchDeg": -55.375 },
+    "7": { "pitchDeg": -55.25 },
+    "8": { "pitchDeg": -55.125 },
+    "9": { "pitchDeg": -55.0 },
+    "10": { "pitchDeg": -54.875 },
+    "11": { "pitchDeg": -54.75 },
+    "12": { "pitchDeg": -54.625 },
+    "13": { "pitchDeg": -54.5 },
+    "14": { "pitchDeg": -54.375 },
+    "15": { "pitchDeg": -54.25 }
+  }
+}

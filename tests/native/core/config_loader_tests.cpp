@@ -109,7 +109,10 @@ void testAppConfigCanOverrideEveryInputBindingVector() {
             "navigate_left_keys": ["J"],
             "navigate_right_keys": ["L"],
             "forward_keys": ["P"],
-            "back_keys": ["O"]
+            "back_keys": ["O"],
+            "run_keys": ["B"],
+            "run_toggle_keys": ["V"],
+            "attend_keys": ["X"]
         }
     })json");
 
@@ -125,6 +128,9 @@ void testAppConfigCanOverrideEveryInputBindingVector() {
     expect(config.input.navigate_right_keys == std::vector<std::string>({"L"}), "navigate_right_keys should be fully data-driven");
     expect(config.input.forward_keys == std::vector<std::string>({"P"}), "forward_keys should be fully data-driven");
     expect(config.input.back_keys == std::vector<std::string>({"O"}), "back_keys should be fully data-driven");
+    expect(config.input.run_keys == std::vector<std::string>({"B"}), "run_keys should be fully data-driven");
+    expect(config.input.run_toggle_keys == std::vector<std::string>({"V"}), "run_toggle_keys should be fully data-driven");
+    expect(config.input.attend_keys == std::vector<std::string>({"X"}), "attend_keys should be fully data-driven");
 }
 
 void testInvalidInputVectorsFailWithActionName() {

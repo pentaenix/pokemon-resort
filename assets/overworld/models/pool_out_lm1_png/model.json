@@ -1,0 +1,85 @@
+{
+  "manifestVersion": 1,
+  "storageFormat": "glb",
+  "id": "pool_out_lm1_png",
+  "displayName": "pool_out_lm1_png",
+  "defaultYawDeg": 0,
+  "defaultScale": 1,
+  "compiledAt": "2026-06-18T21:02:31.022Z",
+  "sourceFormat": "obj",
+  "sourceFile": "pool_out_lm1_png.glb",
+  "glbFile": "pool_out_lm1_png.glb",
+  "modelFile": "pool_out_lm1_png.glb",
+  "modelByteSize": 15024,
+  "modelHash": "f5750e77265ca183",
+  "footprintTiles": {
+    "w": 5,
+    "d": 5,
+    "h": 4
+  },
+  "renderFootprintTiles": {
+    "w": 5,
+    "d": 5,
+    "h": 4
+  },
+  "authoringFootprintTiles": {
+    "w": 5,
+    "d": 5,
+    "h": 4
+  },
+  "collisionFootprintTiles": {
+    "w": 5,
+    "d": 5,
+    "h": 4
+  },
+  "previewOffsetTiles": {
+    "x": 0,
+    "y": 0
+  },
+  "aabb": {
+    "min": [
+      -32,
+      -16.246089935302734,
+      -36.638671875
+    ],
+    "max": [
+      40.736328125,
+      38.447269439697266,
+      32
+    ]
+  },
+  "vertexCount": 144,
+  "triangleCount": 136,
+  "materials": [
+    "pool_b_lm2",
+    "pool_b_lm1",
+    "pool_w_lm1",
+    "pool_kasa_lm1",
+    "pool_out_lm1"
+  ],
+  "textureCount": 5,
+  "convertedFromObj": true,
+  "sourceObj": "Resort Area Swimming Pool.obj",
+  "materialsMeta": {
+    "pool_b_lm1": {
+      "textureResolved": "pool_b_lm1.png",
+      "textureName": "pool_b_lm1.png"
+    },
+    "pool_b_lm2": {
+      "textureResolved": "pool_b_lm2.png",
+      "textureName": "pool_b_lm2.png"
+    },
+    "pool_kasa_lm1": {
+      "textureResolved": "pool_kasa_lm1.png",
+      "textureName": "pool_kasa_lm1.png"
+    },
+    "pool_out_lm1": {
+      "textureResolved": "pool_out_lm1.png",
+      "textureName": "pool_out_lm1.png"
+    },
+    "pool_w_lm1": {
+      "textureResolved": "pool_w_lm1.png",
+      "textureName": "pool_w_lm1.png"
+    }
+  }
+}

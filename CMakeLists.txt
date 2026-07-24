@@ -5,10 +5,54 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+include(FetchContent)
+
+set(BGFX_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(BGFX_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(BGFX_BUILD_TOOLS ON CACHE BOOL "" FORCE)
+set(BGFX_BUILD_TOOLS_BIN2C OFF CACHE BOOL "" FORCE)
+set(BGFX_BUILD_TOOLS_GEOMETRY OFF CACHE BOOL "" FORCE)
+set(BGFX_BUILD_TOOLS_TEXTURE OFF CACHE BOOL "" FORCE)
+set(BGFX_BUILD_TOOLS_SHADER ON CACHE BOOL "" FORCE)
+set(BGFX_INSTALL OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(
+    bgfx_cmake
+    GIT_REPOSITORY https://github.com/bkaradzic/bgfx.cmake.git
+    GIT_TAG 4ba3843dd96f39252cb4e995f28070fdfd12a3d3
+    GIT_SHALLOW TRUE
+    GIT_SUBMODULES bgfx bimg bx
+)
+FetchContent_MakeAvailable(bgfx_cmake)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
 find_package(SDL2 REQUIRED)
 find_package(SDL2_image REQUIRED)
 find_package(SDL2_ttf REQUIRED)
 find_package(SQLite3)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(ZSTD REQUIRED IMPORTED_TARGET libzstd)
+
+set(WORLD3D_BGFX_SHADER_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/gameplay/world3d/rendering/bgfx/shaders)
+set(WORLD3D_BGFX_SHADER_OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated/world3d-shaders)
+bgfx_compile_shaders(
+    TYPE VERTEX
+    SHADERS ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/vs_world.sc ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/vs_world_camera_sphere.sc ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/vs_world_pica.sc ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/vs_billboard.sc
+    VARYING_DEF ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/varying.def.sc
+    OUTPUT_DIR ${WORLD3D_BGFX_SHADER_OUTPUT_DIR}
+    INCLUDE_DIRS ${bgfx_cmake_SOURCE_DIR}/bgfx/src
+    OUT_FILES_VAR WORLD3D_BGFX_VERTEX_SHADERS
+)
+bgfx_compile_shaders(
+    TYPE FRAGMENT
+    SHADERS ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/fs_textured_cutout.sc ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/fs_pokemon_eye.sc ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/fs_eye_sclera_mask.sc ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/fs_pica_tev.sc
+    VARYING_DEF ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/varying.def.sc
+    OUTPUT_DIR ${WORLD3D_BGFX_SHADER_OUTPUT_DIR}
+    INCLUDE_DIRS ${bgfx_cmake_SOURCE_DIR}/bgfx/src
+    OUT_FILES_VAR WORLD3D_BGFX_FRAGMENT_SHADERS
+)
+add_custom_target(world3d_bgfx_shaders DEPENDS ${WORLD3D_BGFX_VERTEX_SHADERS} ${WORLD3D_BGFX_FRAGMENT_SHADERS})
 
 set(RESORT_STORAGE_SOURCES
     src/core/crypto/Sha256.cpp
@@ -45,14 +89,53 @@ set(RESORT_STORAGE_SOURCES
     src/resort/integration/Gen12DvBytes.cpp
 )
 
+add_library(world3d_bgfx_renderer STATIC
+    src/core/crypto/Sha256.cpp
+    src/gameplay/attend/rendering/AttendBgfxRenderer.cpp
+    src/gameplay/attend/rendering/AttendBgfxRendererAnimation.cpp
+    src/gameplay/attend/rendering/AttendBgfxRendererCamera.cpp
+    src/gameplay/attend/rendering/AttendBgfxRendererCommon.cpp
+    src/gameplay/attend/rendering/AttendBgfxRendererCore.cpp
+    src/gameplay/attend/rendering/AttendBgfxRendererEye.cpp
+    src/gameplay/attend/rendering/AttendBgfxRendererPokemonBuild.cpp
+    src/gameplay/attend/rendering/AttendBgfxRendererRender.cpp
+    src/gameplay/attend/rendering/AttendBgfxRendererScene.cpp
+    src/gameplay/attend/rendering/AttendBgfxRendererSubmit.cpp
+    src/gameplay/attend/rendering/AttendBgfxRendererCornerButton.cpp
+    src/gameplay/attend/rendering/AttendBgfxRendererProfilePlate.cpp
+    src/gameplay/attend/rendering/AttendBgfxRendererUi.cpp
+    src/gameplay/attend/rendering/AttendPokemonAsset.cpp
+    src/gameplay/attend/rendering/AttendEyeSocketMask.cpp
+    src/gameplay/attend/rendering/AttendPokemonMaterialPolicy.cpp
+    src/gameplay/attend/rendering/AttendPokemonModel.cpp
+    src/gameplay/world3d/rendering/bgfx/BgfxBackend.cpp
+    src/gameplay/world3d/rendering/bgfx/BillboardBgfxDrawer.cpp
+    src/gameplay/world3d/rendering/bgfx/OverworldBgfxRenderer.cpp
+    src/gameplay/world3d/rendering/bgfx/RampTerrainRender.cpp
+    src/gameplay/world3d/data/RtpksTilePackageLoader.cpp
+    src/gameplay/world3d/rendering/BillboardPlacement.cpp
+    src/gameplay/world3d/rendering/PixelScale.cpp
+    src/gameplay/world3d/rendering/WorldBillboardCompositor.cpp
+    src/gameplay/world3d/rendering/CharacterTextureCache.cpp
+    src/gameplay/world3d/rendering/SpriteShadowDecal.cpp
+    src/gameplay/world3d/terrain/TerrainSurface.cpp
+    src/ui/overlay/OverlaySliceLayout.cpp
+)
+target_include_directories(world3d_bgfx_renderer PUBLIC include)
+target_include_directories(world3d_bgfx_renderer PRIVATE ${bgfx_cmake_SOURCE_DIR}/bimg/3rdparty/tinyexr/deps/miniz)
+target_compile_features(world3d_bgfx_renderer PRIVATE cxx_std_20)
+target_link_libraries(world3d_bgfx_renderer PUBLIC bgfx bx bimg SDL2::SDL2 SDL2_image::SDL2_image SDL2_ttf::SDL2_ttf PkgConfig::ZSTD)
+
 add_executable(title_screen_demo
     src/main.cpp
     src/core/App.cpp
     src/core/app/audio/AppAudioDirector.cpp
+    src/core/app/audio/PokemonCryPlayer.cpp
     src/core/app/frame/AppFrameRequests.cpp
     src/core/app/loading/AppLoadingCoordinator.cpp
     src/core/app/AppPaths.cpp
     src/core/app/screen/AppScreenCoordinator.cpp
+    src/core/app/screen/AppScreenCoordinatorAttend.cpp
     src/core/app/screen/AppScreenCoordinatorOverworld3D.cpp
     src/core/app/screen/AppScreenCoordinatorLoading.cpp
     src/core/app/screen/AppScreenCoordinatorTitle.cpp
@@ -66,6 +149,7 @@ add_executable(title_screen_demo
     src/core/config/Json.cpp
     src/core/domain/PokemonBall.cpp
     src/core/domain/PokemonOrigin.cpp
+    src/core/assets/PokemonCryAssets.cpp
     src/core/assets/PokeSpriteAssets.cpp
     src/core/config/ConfigLoader.cpp
     src/core/bridge/SaveBridgeClient.cpp
@@ -77,20 +161,38 @@ add_executable(title_screen_demo
     src/gameplay/world3d/camera/Gen4FollowCamera.cpp
     src/gameplay/world3d/characters/SpriteSheetAnimator.cpp
     src/gameplay/world3d/characters/CharacterController.cpp
+    src/gameplay/world3d/characters/CharacterTerrainQuery.cpp
+    src/gameplay/world3d/characters/GridActorMotor.cpp
+    src/gameplay/world3d/terrain/ActorTerrainBinding.cpp
+    src/gameplay/world3d/terrain/GridStepMotor.cpp
     src/gameplay/world3d/data/SceneMetadataParser.cpp
     src/gameplay/world3d/data/JsonOverworldLoader.cpp
     src/gameplay/world3d/data/OwmapOverworldLoader.cpp
     src/gameplay/world3d/data/GlbModelLoader.cpp
+    src/gameplay/world3d/data/GlbModelAnimation.cpp
+    src/gameplay/world3d/characters/CharacterMovementConfig.cpp
     src/gameplay/world3d/rendering/GlbModelRenderer.cpp
     src/gameplay/world3d/effects/LandingDustSystem.cpp
+    src/gameplay/world3d/effects/ProceduralWaterParticleSystem.cpp
     src/gameplay/world3d/followers/FollowerConfig.cpp
     src/gameplay/world3d/followers/FollowerController.cpp
     src/gameplay/world3d/followers/FollowerIdleExitTarget.cpp
     src/gameplay/world3d/followers/NatureIdleConfig.cpp
     src/gameplay/world3d/followers/NatureIdlePlanner.cpp
+    src/gameplay/world3d/npc/ResortPokemonSpawnConfig.cpp
+    src/gameplay/world3d/npc/NpcActorDriver.cpp
+    src/gameplay/world3d/scripts/OverworldScript.cpp
+    src/gameplay/world3d/dialogue/OverworldTextboxConfig.cpp
+    src/gameplay/world3d/dialogue/OverworldTextboxController.cpp
+    src/gameplay/world3d/dialogue/OverworldTextboxRenderer.cpp
+    src/gameplay/world3d/interactions/InteractionSequence.cpp
+    src/gameplay/world3d/interactions/InteractionText.cpp
     src/gameplay/world3d/rendering/BillboardSpriteRenderer.cpp
     src/gameplay/world3d/rendering/FallbackTerrainRenderer.cpp
     src/gameplay/world3d/rendering/OverworldMapRenderer.cpp
+    src/gameplay/attend/AttendSceneConfig.cpp
+    src/gameplay/attend/AttendSceneRouter.cpp
+    src/gameplay/attend/PokemonModelCatalog.cpp
     src/core/save/SaveLibrary.cpp
     src/core/save/SaveDataStore.cpp
     src/core/app/persistence/UserSettingsPersistence.cpp
@@ -104,6 +206,10 @@ add_executable(title_screen_demo
     src/ui/loading/ResortTransferLoadingScreen.cpp
     src/ui/loading/ResortTransferLoadingScreenMotion.cpp
     src/ui/TitleScreen.cpp
+    src/ui/AttendTestScreen.cpp
+    src/ui/attend/AttendOverlay.cpp
+    src/ui/overlay/OverlayCanvas.cpp
+    src/ui/transitions/ScreenTransition.cpp
     src/ui/Overworld3DTestScreen.cpp
     src/ui/TransferFlowCoordinator.cpp
     src/ui/title_screen/MainMenuController.cpp
@@ -187,8 +293,15 @@ add_executable(title_screen_demo
 )
 
 target_include_directories(title_screen_demo PRIVATE include)
+add_dependencies(title_screen_demo world3d_bgfx_shaders)
+add_custom_command(
+    TARGET title_screen_demo POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${WORLD3D_BGFX_SHADER_OUTPUT_DIR}
+            $<TARGET_FILE_DIR:title_screen_demo>/shaders
+)
 
-target_link_libraries(title_screen_demo PRIVATE SDL2::SDL2 SDL2::SDL2main SDL2_image::SDL2_image SDL2_ttf::SDL2_ttf)
+target_link_libraries(title_screen_demo PRIVATE world3d_bgfx_renderer SDL2::SDL2 SDL2::SDL2main SDL2_image::SDL2_image SDL2_ttf::SDL2_ttf)
 if(SQLite3_FOUND)
     target_link_libraries(title_screen_demo PRIVATE SQLite3::SQLite3)
 else()
@@ -196,6 +309,15 @@ else()
 endif()
 
 if(APPLE)
+    find_path(VORBIS_INCLUDE_DIR vorbis/vorbisfile.h PATHS /opt/homebrew /usr/local PATH_SUFFIXES include)
+    find_library(VORBISFILE_LIBRARY vorbisfile PATHS /opt/homebrew /usr/local PATH_SUFFIXES lib)
+    find_library(VORBIS_LIBRARY vorbis PATHS /opt/homebrew /usr/local PATH_SUFFIXES lib)
+    find_library(OGG_LIBRARY ogg PATHS /opt/homebrew /usr/local PATH_SUFFIXES lib)
+    if(VORBIS_INCLUDE_DIR AND VORBISFILE_LIBRARY AND VORBIS_LIBRARY AND OGG_LIBRARY)
+        target_include_directories(title_screen_demo PRIVATE ${VORBIS_INCLUDE_DIR})
+        target_link_libraries(title_screen_demo PRIVATE ${VORBISFILE_LIBRARY} ${VORBIS_LIBRARY} ${OGG_LIBRARY})
+        target_compile_definitions(title_screen_demo PRIVATE PR_ENABLE_VORBIS_AUDIO=1)
+    endif()
     target_link_libraries(title_screen_demo PRIVATE "-framework AVFoundation" "-framework Foundation")
 endif()
 
@@ -302,6 +424,62 @@ add_executable(title_screen_section_tests
 )
 target_include_directories(title_screen_section_tests PRIVATE include)
 add_test(NAME title_screen_section_tests COMMAND title_screen_section_tests)
+
+add_executable(resort_menu_controller_tests
+    tests/native/title_screen/resort_menu_controller_tests.cpp
+    src/ui/title_screen/ResortMenuController.cpp
+)
+target_include_directories(resort_menu_controller_tests PRIVATE include)
+add_test(NAME resort_menu_controller_tests COMMAND resort_menu_controller_tests)
+
+add_executable(attend_scene_config_tests
+    tests/native/attend/attend_scene_config_tests.cpp
+    src/gameplay/attend/AttendSceneConfig.cpp
+    src/gameplay/attend/PokemonModelCatalog.cpp
+    src/core/config/Json.cpp
+)
+target_include_directories(attend_scene_config_tests PRIVATE include)
+add_test(NAME attend_scene_config_tests COMMAND attend_scene_config_tests)
+
+add_executable(attend_pokemon_model_tests
+    tests/native/attend/attend_pokemon_model_tests.cpp
+    src/core/crypto/Sha256.cpp
+    src/gameplay/attend/rendering/AttendPokemonAsset.cpp
+    src/gameplay/attend/rendering/AttendPokemonMaterialPolicy.cpp
+    src/gameplay/attend/rendering/AttendPokemonModel.cpp
+    src/core/config/Json.cpp
+)
+target_include_directories(attend_pokemon_model_tests PRIVATE include)
+target_link_libraries(attend_pokemon_model_tests PRIVATE SDL2::SDL2 SDL2_image::SDL2_image PkgConfig::ZSTD)
+add_test(NAME attend_pokemon_model_tests COMMAND attend_pokemon_model_tests)
+
+add_executable(attend_eye_socket_mask_tests
+    tests/native/attend/attend_eye_socket_mask_tests.cpp
+    src/gameplay/attend/rendering/AttendEyeSocketMask.cpp
+)
+target_include_directories(attend_eye_socket_mask_tests PRIVATE include)
+add_test(NAME attend_eye_socket_mask_tests COMMAND attend_eye_socket_mask_tests)
+
+add_executable(attend_pokemon_glbz_tests
+    tests/native/attend/attend_pokemon_glbz_tests.cpp
+    src/core/crypto/Sha256.cpp
+    src/gameplay/attend/rendering/AttendPokemonAsset.cpp
+    src/gameplay/attend/rendering/AttendPokemonModel.cpp
+    src/core/config/Json.cpp
+)
+target_include_directories(attend_pokemon_glbz_tests PRIVATE include)
+target_link_libraries(attend_pokemon_glbz_tests PRIVATE SDL2::SDL2 SDL2_image::SDL2_image PkgConfig::ZSTD)
+add_test(NAME attend_pokemon_glbz_tests COMMAND attend_pokemon_glbz_tests)
+
+add_executable(overlay_canvas_tests
+    tests/native/ui/overlay_canvas_tests.cpp
+    src/ui/overlay/OverlayCanvas.cpp
+    src/core/assets/Assets.cpp
+    src/core/assets/Font.cpp
+)
+target_include_directories(overlay_canvas_tests PRIVATE include)
+target_link_libraries(overlay_canvas_tests PRIVATE SDL2::SDL2 SDL2_image::SDL2_image SDL2_ttf::SDL2_ttf)
+add_test(NAME overlay_canvas_tests COMMAND overlay_canvas_tests)
 
 add_executable(resort_loading_transition_screen_tests
     tests/native/resort_loading/resort_loading_transition_screen_tests.cpp
@@ -429,9 +607,70 @@ add_executable(owmap_overworld_loader_tests
     src/gameplay/world3d/data/SceneMetadataParser.cpp
     src/gameplay/world3d/data/JsonOverworldLoader.cpp
     src/gameplay/world3d/data/OwmapOverworldLoader.cpp
+    src/gameplay/world3d/data/RtpksTilePackageLoader.cpp
+    src/gameplay/world3d/characters/CharacterController.cpp
+    src/gameplay/world3d/characters/CharacterTerrainQuery.cpp
+    src/gameplay/world3d/characters/GridActorMotor.cpp
+    src/gameplay/world3d/terrain/ActorTerrainBinding.cpp
+    src/gameplay/world3d/terrain/GridStepMotor.cpp
+    src/gameplay/world3d/terrain/TerrainSurface.cpp
+    src/gameplay/world3d/followers/FollowerConfig.cpp
+    src/gameplay/world3d/rendering/BillboardPlacement.cpp
+    src/gameplay/world3d/rendering/PixelScale.cpp
+    src/gameplay/world3d/rendering/WorldBillboardCompositor.cpp
+    src/gameplay/world3d/camera/Gen4CameraPreset.cpp
+    src/gameplay/world3d/camera/Gen4FollowCamera.cpp
 )
-target_include_directories(owmap_overworld_loader_tests PRIVATE include)
+target_include_directories(owmap_overworld_loader_tests PRIVATE
+    include
+    ${bgfx_cmake_SOURCE_DIR}/bimg/3rdparty/tinyexr/deps/miniz)
+target_link_libraries(owmap_overworld_loader_tests PRIVATE SDL2::SDL2 bimg)
 add_test(NAME owmap_overworld_loader_tests COMMAND owmap_overworld_loader_tests)
+
+add_executable(glb_model_animation_tests
+    tests/native/world3d/glb_model_animation_tests.cpp
+    src/core/config/Json.cpp
+    src/gameplay/world3d/data/GlbModelLoader.cpp
+    src/gameplay/world3d/data/GlbModelAnimation.cpp
+)
+target_include_directories(glb_model_animation_tests PRIVATE include)
+add_test(NAME glb_model_animation_tests COMMAND glb_model_animation_tests)
+
+add_executable(rtpks_ocean_tile_tests
+    tests/native/world3d/rtpks_ocean_tile_tests.cpp
+    src/core/config/Json.cpp
+)
+target_include_directories(rtpks_ocean_tile_tests PRIVATE include)
+target_compile_definitions(rtpks_ocean_tile_tests PRIVATE PR_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(rtpks_ocean_tile_tests PRIVATE world3d_bgfx_renderer)
+add_test(NAME rtpks_ocean_tile_tests COMMAND rtpks_ocean_tile_tests)
+
+add_executable(overworld_textbox_tests
+    tests/native/world3d/overworld_textbox_tests.cpp
+    src/core/config/Json.cpp
+    src/core/assets/Font.cpp
+    src/gameplay/world3d/dialogue/OverworldTextboxConfig.cpp
+    src/gameplay/world3d/dialogue/OverworldTextboxController.cpp
+    src/gameplay/world3d/dialogue/OverworldTextboxRenderer.cpp
+    src/ui/overlay/OverlaySliceLayout.cpp
+)
+target_include_directories(overworld_textbox_tests PRIVATE include)
+target_link_libraries(overworld_textbox_tests PRIVATE SDL2::SDL2 SDL2_image::SDL2_image SDL2_ttf::SDL2_ttf)
+add_test(NAME overworld_textbox_tests COMMAND overworld_textbox_tests)
+
+add_executable(interaction_system_tests
+    tests/native/world3d/interaction_system_tests.cpp
+    src/core/config/Json.cpp
+    src/gameplay/world3d/characters/SpriteSheetAnimator.cpp
+    src/gameplay/world3d/interactions/InteractionSequence.cpp
+    src/gameplay/world3d/interactions/InteractionText.cpp
+    src/gameplay/world3d/npc/ResortPokemonSpawnConfig.cpp
+    src/gameplay/world3d/scripts/OverworldScript.cpp
+    src/ui/transitions/ScreenTransition.cpp
+)
+target_include_directories(interaction_system_tests PRIVATE include)
+target_link_libraries(interaction_system_tests PRIVATE SDL2::SDL2)
+add_test(NAME interaction_system_tests COMMAND interaction_system_tests)
 
 add_executable(transfer_box_edits_store_tests
     tests/native/core/transfer_box_edits_store_tests.cpp
@@ -473,6 +712,15 @@ add_executable(pokesprite_assets_tests
 target_include_directories(pokesprite_assets_tests PRIVATE include)
 target_link_libraries(pokesprite_assets_tests PRIVATE SDL2::SDL2 SDL2_image::SDL2_image SDL2_ttf::SDL2_ttf)
 add_test(NAME pokesprite_assets_tests COMMAND pokesprite_assets_tests)
+
+add_executable(pokemon_cry_assets_tests
+    tests/native/core/pokemon_cry_assets_tests.cpp
+    src/core/app/audio/PokemonCryPlayer.cpp
+    src/core/app/frame/AppFrameRequests.cpp
+    src/core/assets/PokemonCryAssets.cpp
+)
+target_include_directories(pokemon_cry_assets_tests PRIVATE include)
+add_test(NAME pokemon_cry_assets_tests COMMAND pokemon_cry_assets_tests)
 
 add_executable(save_library_cache_tests
     tests/native/core/save_library_cache_tests.cpp

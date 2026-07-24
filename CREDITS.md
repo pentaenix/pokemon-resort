@@ -33,11 +33,21 @@ This file tracks people whose work contributed to this project, including borrow
 - Contribution:
   Unofficial sprite assets merged for now, including custom mega forms and other additional Pokemon or form icons such as Mega Absol, Mega Garchomp Z, Mega Meowstic, Mega Lucario Z, Mega Zeraora, Mega Raichu X/Y, Rotom Stereo, Mega Golurk, and the Gen 10 concepts Pombon, Browt, and Gecqua.
 
+### PokeAPI
+
+- Status: `okay`
+- Source: [PokeAPI/cries `cries/pokemon/latest`](https://github.com/PokeAPI/cries/tree/main/cries/pokemon/latest)
+- Contribution:
+  Pokemon cry audio files copied from the upstream `cries/pokemon/latest` folder into `assets/pokemon/cries` as standalone `.ogg` assets, without upstream repository metadata.
+
 
 
 
 OW Sprites:
 https://eeveeexpo.com/resources/516/
+https://www.deviantart.com/kingofthe-x-roads/art/Gen-9-Sprites-Pokemon-Scarlet-and-Violet-908341834
+https://www.pokecommunity.com/threads/ds-style-gen-vii-and-beyond-pok%C3%A9mon-sprite-repository-in-64x64.368703/
+https://www.deviantart.com/willdinomaster55/art/Alola-Beach-Background-3-985971356
 NoNonever
 Golisopod User
 Help-14

@@ -3,8 +3,9 @@
 ## Scope
 This milestone adds a data-driven 3D overworld proof of concept reachable from the title flow:
 - Main menu `RESORT` now opens a Resort submenu.
-- Resort submenu contains `3D TEST` and `START CINEMATIC` (placeholder).
+- Resort submenu contains `3D TEST`, `START CINEMATIC` (placeholder), `TEST ATTEND`, and `BACK`.
 - Selecting `3D TEST` opens the overworld test screen.
+- Selecting `TEST ATTEND` opens a separate Pokemon interaction preview; see `docs/gameplay/test_attend.md`.
 
 Reference for camera facts and Gen 4 behavior source of truth:
 - `docs/pk4_documentation.md`
@@ -32,6 +33,12 @@ Character assets:
 Map assets and scene config:
 - `assets/overworld/maps/testing.owmap` (runtime default)
 - `assets/overworld/maps/flat_bootstrap.owmap` (reference sample)
+- Interaction behavior scripts: `config/gameplay/world3d/interactions.json`
+- Interaction text catalog: `config/gameplay/world3d/interaction_text.json`
+- Interaction text box config: `config/gameplay/world3d/textbox.json`
+- Interaction text box skins: `assets/overworld/ui/text_boxes.png`
+- Temporary Resort-box Pokemon roster: `config/gameplay/world3d/pokemon_spawns.json`
+- Overworld script catalog: `config/gameplay/world3d/scripts/script_catalog.json`
 
 Loader policy:
 - `.owmap` is the primary runtime format.
@@ -54,7 +61,9 @@ Menu and app flow:
 - `src/ui/title_screen/ResortMenuController.cpp`
 - `src/ui/TitleScreen.cpp`
 - `src/core/app/screen/AppScreenCoordinatorOverworld3D.cpp`
+- `src/core/app/screen/AppScreenCoordinatorAttend.cpp`
 - `src/ui/Overworld3DTestScreen.cpp`
+- `src/ui/AttendTestScreen.cpp`
 
 Overworld systems:
 - `src/gameplay/world3d/data/JsonOverworldLoader.cpp`
@@ -66,6 +75,13 @@ Overworld systems:
 - `src/gameplay/world3d/characters/SpriteSheetAnimator.cpp`
 - `src/gameplay/world3d/followers/FollowerConfig.cpp`
 - `src/gameplay/world3d/followers/FollowerController.cpp`
+- `src/gameplay/world3d/npc/ResortPokemonSpawnConfig.cpp`
+- `src/gameplay/world3d/npc/NpcActorDriver.cpp`
+- `src/gameplay/world3d/dialogue/OverworldTextboxConfig.cpp`
+- `src/gameplay/world3d/dialogue/OverworldTextboxController.cpp`
+- `src/gameplay/world3d/dialogue/OverworldTextboxRenderer.cpp`
+- `src/gameplay/world3d/interactions/InteractionSequence.cpp`
+- `src/gameplay/world3d/interactions/InteractionText.cpp`
 - `src/gameplay/world3d/rendering/OverworldMapRenderer.cpp`
 - `src/gameplay/world3d/rendering/BillboardSpriteRenderer.cpp`
 
@@ -87,6 +103,23 @@ Shared rendering profile supports:
 - `rendering.anchor` (`bottom_center` or `center`)
 - `rendering.worldOffset`
 - `rendering.screenOffsetPx`
+
+Global billboard presentation (`config/gameplay/world3d/render.json`):
+- `billboard.tileAnchorOffsetTiles.forward` — legacy presentation offset; keep `0.0` so actor feet stay on the simulation XZ position.
+- `billboard.tileAnchorOffsetTiles.right` — legacy lateral offset; keep `0.0` for collision-aligned actor rendering.
+
+## Temporary Resort-box Pokemon Roster
+
+`config/gameplay/world3d/pokemon_spawns.json` controls the temporary overworld Pokemon source before map spawn points and companion selection exist.
+
+- `enabled`: turns this temporary roster on or off.
+- `profileId`: Resort profile to read.
+- `boxId`: zero-based Resort box id to read (`0` is Box 1).
+- `maxPokemon`: maximum valid Pokemon used from that box, including the follower.
+
+The first valid Pokemon, in box-slot order, becomes the follower. Later selected Pokemon spawn on random valid map tiles and use the roaming behavior. Each actor carries the Resort slot's `form_key` and `shiny` state into charbin appearance selection: matching `formId` and `modifiers: ["shiny"]` sheets are used when present, otherwise the matching base sheet is used. `maxPokemon: 0`, a disabled roster, or an empty box produces no follower and no roster Pokemon. `config/character_testing/characters.json` is only for fixed test actors and does not source Pokemon from Resort boxes.
+
+Per-character `worldOffset` from charbin is unchanged.
 
 Global sprite shadow supports:
 - `shadow.enabled`
@@ -131,6 +164,8 @@ Summon behavior is shared gameplay tuning and contains:
 - `entryAnimation.colorRgba`
 
 Follower flow:
+- The first valid Pokemon found in Resort Box 1 becomes the follower Pokemon. `config/gameplay/followers/session.json` remains the fallback when Box 1 has no valid Resort Pokemon package.
+- Other valid Resort Box 1 Pokemon spawn at random valid points as roaming Pokemon actors.
 - Follower starts hidden.
 - On first player movement, ball release animation runs.
 - Pokémon entry flash/scale animation plays from size `0` and stays white until full size.
@@ -188,6 +223,35 @@ App-level debug overlay toggle:
 
 When enabled, the overworld screen shows `AIB: ...` in the top-left with the follower's current idle or debug action label.
 
+## Interaction Text Box
+
+NPC/Pokemon interaction prompts are driven by the interaction system documented in `docs/gameplay/overworld_interactions.md`. Pressing Accept while facing an interactable target starts a behavior sequence rather than directly opening the textbox.
+
+Default behavior:
+
+- Pokemon are script-first. With no eligible valid script, targets face the player, then Haru's player charbin enters the size-based interaction activity when available. Free text opens while Haru holds the session stay phase.
+- NPC charbins use `metadata.npcInteractionMode`: missing or `direct_dialogue` faces the player and reads that NPC's `dialogue.lines`; `scripted` selects an eligible shared interaction script and falls back to direct dialogue when none is available. Human NPCs do not use Pokemon size-session animations.
+- The source boundary reserves future precedence for a transient runtime-assigned script over NPC scripted mode over direct dialogue; spawning and assignment are not implemented here.
+- Accept closes the current textbox and advances the sequence.
+- Back cancels the sequence, exits any active player interaction session, and unlocks the target.
+
+Behavior scripts live in `config/gameplay/world3d/scripts/`. Pokemon free text selection lives in `config/gameplay/world3d/interaction_text.json`: matching text entries are filtered by required tags, the most-specific matching group wins, weighted random selects inside that group, and selected text ids enter a global in-memory cooldown. Human NPC free text instead comes from that character's charbin `dialogue.lines`.
+
+The visible textbox skin still uses `config/gameplay/world3d/textbox.json`.
+
+Textbox text presentation is data-driven under `textbox.text`: `fontPath`, `fontSizePx`, `leftInsetPx`, `rightInsetPx`, and `topInsetPx` select the font, wrapping width, and placement inside the skin. The default uses the regular non-bold `assets/fonts/power clear.ttf` face. The legacy `futureText` object remains readable for compatibility.
+
+The top-right Attend shortcut is authored in the same file under `attendButton`: `enabled`, `iconPath`, `topPx`, `rightPx`, `widthPx`, and `heightPx`. It is visible only while a Pokemon interaction textbox is active. Clicking it or pressing the app-level `input.attend_keys` binding (default `X`) opens Attend without resetting the overworld screen. Attend Back or its top-left return button returns to the same overworld instance, preserving player position and runtime state.
+
+Overworld screen changes use reusable controllers under `ui/transitions`. `config/gameplay/world3d/transitions.json` selects the Attend transition type and owns `durationSeconds`, `circleSegments`, and `maxRadiusScale`. The first type, `black_iris`, runs a four-stage handoff: close around the projected player in the overworld, open over Attend, close over Attend on return, then open over the restored overworld. The active interaction textbox is closed and its target unlocked on return.
+
+- `textbox.visibleMode`: `enabled` or `disabled`.
+- `textbox.selectedSkinIndex`: choose skin `0` through `12`; visual order goes down the left column first, then down the right column. The 14th bottom-right sheet cell is empty and ignored.
+- `textbox.padding.bottomPx` / `textbox.padding.sidePx`: DS/internal viewport padding.
+- `textbox.horizontalStretch.stripWidthPx` / `sourceCenterXPx`: the central source strip stretched to fit the visible world viewport width. The left and right stylized sides are copied without stretching.
+
+The active target is interaction-locked during the full sequence so movement, rotation, and idle behavior do not start until cleanup finishes.
+
 ## Camera Preset
 The POC loads the camera preset ID from map config (`camera.preset`), currently targeting:
 - `gen4_platinum_default_exterior`
@@ -217,4 +281,5 @@ Not implemented yet:
 - warps and triggers
 - battle transitions
 - cinematic runtime
+- overworld-to-TEST-ATTEND handoff
 - interiors and camera variants (including HGSS variants)

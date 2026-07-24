@@ -3,6 +3,7 @@
 #include <SDL_image.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <limits>
 
@@ -284,6 +285,10 @@ void GlbModelRenderer::classifyTriangleCutouts() const {
         }
 
         const data::GlbMaterial& mat = mesh_.materials[static_cast<std::size_t>(tri.material)];
+        if (mat.render_class == data::GlbMaterial::RenderClass::UniformDecal) {
+            triangle_cutout_[i] = 1;
+            continue;
+        }
         if (!mat.alpha_blend) {
             triangle_cutout_[i] = 0;
             continue;
@@ -335,16 +340,24 @@ void GlbModelRenderer::render(
         float depth = 0.0f;
         int material = -1;
         bool cutout = false;
+        bool uniform_decal = false;
     };
 
     std::vector<DrawTri> draw;
     draw.reserve(mesh_.triangles.size());
+    const double animation_time = std::chrono::duration<double>(
+        std::chrono::steady_clock::now().time_since_epoch()).count();
+    const std::vector<std::vector<float>> morph_weights =
+        data::sampleGlbMorphWeights(mesh_, animation_time);
 
     const auto project = [&](const data::GlbVertex& vtx, float& sx, float& sy, float& depth) -> bool {
         // model space -> scale -> yaw(+Y) -> translate(placement)
-        const float lx = vtx.x * scale_;
-        const float ly = vtx.y * scale_;
-        const float lz = vtx.z * scale_;
+        const std::array<float, 3> position = morph_weights.empty()
+            ? std::array<float, 3>{vtx.x, vtx.y, vtx.z}
+            : data::sampleGlbMorphPosition(vtx, morph_weights);
+        const float lx = position[0] * scale_;
+        const float ly = position[1] * scale_;
+        const float lz = position[2] * scale_;
         const float rx = lx * cos_yaw_ + lz * sin_yaw_;
         const float rz = -lx * sin_yaw_ + lz * cos_yaw_;
         const camera::Vec3 world{x_ + rx, y_ + ly, z_ + rz};
@@ -358,6 +371,11 @@ void GlbModelRenderer::render(
             continue;
         }
         const bool cutout = tri_index < triangle_cutout_.size() && triangle_cutout_[tri_index] != 0;
+        bool uniform_decal = false;
+        if (tri.material >= 0 && tri.material < static_cast<int>(mesh_.materials.size())) {
+            const data::GlbMaterial& mat = mesh_.materials[static_cast<std::size_t>(tri.material)];
+            uniform_decal = mat.render_class == data::GlbMaterial::RenderClass::UniformDecal;
+        }
         Uint8 mr = cr;
         Uint8 mg = cg;
         Uint8 mb = cb;
@@ -403,6 +421,7 @@ void GlbModelRenderer::render(
                 dt.depth = (p0.depth + p1.depth + p2.depth) / 3.0f;
                 dt.material = tri.material;
                 dt.cutout = cutout;
+                dt.uniform_decal = uniform_decal;
                 draw.push_back(dt);
             }
         };
@@ -434,6 +453,10 @@ void GlbModelRenderer::render(
         const float delta = a.depth - b.depth;
         if (std::fabs(delta) > kCoplanarDepthEpsilon) {
             return a.depth > b.depth; // far first
+        }
+
+        if (a.uniform_decal != b.uniform_decal) {
+            return a.uniform_decal; // ground decals before walls when coplanar
         }
 
         if (a.cutout != b.cutout) {

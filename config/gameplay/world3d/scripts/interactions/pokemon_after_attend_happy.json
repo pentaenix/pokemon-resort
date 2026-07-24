@@ -1,0 +1,19 @@
+{
+  "id": "interaction_pokemon_after_attend_happy",
+  "kind": "interaction",
+  "targetGates": ["POKEMON"],
+  "trigger": "ACCEPT",
+  "priority": 100,
+  "weight": 1,
+  "cooldownSeconds": 0,
+  "when": { "allTags": ["POKEMON", "AFTER_POKEMON_ATTEND"] },
+  "actions": [
+    { "action": "DISABLE_ATTEND" },
+    { "action": "JUMP", "heightPixels": 12 },
+    { "action": "WAIT", "durationSeconds": 0.5 },
+    { "action": "JUMP", "heightPixels": 12 },
+    { "action": "WAIT", "durationSeconds": 0.5 },
+    { "action": "TEXT", "value": "{NAME} is really happy!" },
+    { "action": "EXIT_INTERACTION" }
+  ]
+}

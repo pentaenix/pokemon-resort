@@ -1,0 +1,984 @@
+{
+  "_comment": "Environment catalog for ripped Alola battle maps. Map pieces and sky presets live here, not in the Pokemon/provider config.",
+  "activeFloor": "alola_grass_battle_map",
+  "activeSky": "clear",
+  "floorDefaults": {
+    "placementAnchor": "world",
+    "modelPlacement": {
+      "_comment": "World placement for the floor and any extension that does not override placement.",
+      "x": 0,
+      "y": -0.032,
+      "z": -8.5,
+      "yawDegrees": 0,
+      "scale": 0.009
+    },
+    "hiddenMaterialSubstrings": [],
+    "weatherMaterialSubstrings": [
+      "btl_G_all_rain",
+      "btl_G_all_rain0m",
+      "btl_G_all_snow0m"
+    ],
+    "activeWeather": 0,
+    "weatherModes": [
+      {
+        "id": "clear",
+        "label": "Clear",
+        "visibleMaterialSubstrings": []
+      },
+      {
+        "id": "rain",
+        "label": "Rain",
+        "visibleMaterialSubstrings": [
+          "btl_G_all_rain",
+          "btl_G_all_rain0m"
+        ]
+      },
+      {
+        "id": "snow",
+        "label": "Snow",
+        "visibleMaterialSubstrings": [
+          "btl_G_all_snow0m"
+        ]
+      }
+    ]
+  },
+  "shadow": {
+    "enabled": true,
+    "strength": 0.38,
+    "radiusX": 0.46,
+    "radiusZ": 0.28,
+    "yOffset": 0.006
+  },
+  "depthOfField": {
+    "enabled": true,
+    "strength": 0.68,
+    "maxRadius": 4.4,
+    "focusDepth": 0.8,
+    "falloff": 3.8
+  },
+  "background": {
+    "clearColor": "#8FD3F6"
+  },
+  "mapPlacementOverrides": {
+    "_comment": "Additive per-map tuning applied after each map's modelPlacement. Zero preserves the exported/default placement.",
+    "alola_open_sea": {
+      "position": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "rotation": {
+        "yawDegrees": 0
+      },
+      "scale": 0
+    },
+    "alola_coastal_ocean": {
+      "position": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "rotation": {
+        "yawDegrees": 0
+      },
+      "scale": 0
+    },
+    "alola_beach": {
+      "position": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "rotation": {
+        "yawDegrees": 0
+      },
+      "scale": 0
+    },
+    "alola_flower_field": {
+      "position": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "rotation": {
+        "yawDegrees": 0
+      },
+      "scale": 0
+    },
+    "alola_grass_closed": {
+      "position": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "rotation": {
+        "yawDegrees": 0
+      },
+      "scale": 0
+    },
+    "alola_grass_arena": {
+      "position": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "rotation": {
+        "yawDegrees": 0
+      },
+      "scale": 0
+    },
+    "alola_grass_hill": {
+      "position": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "rotation": {
+        "yawDegrees": 0
+      },
+      "scale": 0
+    },
+    "alola_dirt_field": {
+      "position": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "rotation": {
+        "yawDegrees": 0
+      },
+      "scale": 0
+    },
+    "alola_freshwater": {
+      "position": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "rotation": {
+        "yawDegrees": 0
+      },
+      "scale": 0
+    },
+    "alola_mountain": {
+      "position": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "rotation": {
+        "yawDegrees": 0
+      },
+      "scale": 0
+    },
+    "alola_asian_garden": {
+      "position": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "rotation": {
+        "yawDegrees": 0
+      },
+      "scale": 0
+    },
+    "alola_waterfall": {
+      "position": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "rotation": {
+        "yawDegrees": 0
+      },
+      "scale": 0
+    },
+    "alola_dry_grass": {
+      "position": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "rotation": {
+        "yawDegrees": 0
+      },
+      "scale": 0
+    },
+    "alola_bathroom": {
+      "position": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "rotation": {
+        "yawDegrees": 0
+      },
+      "scale": 0
+    },
+    "alola_dream_visit": {
+      "position": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "rotation": {
+        "yawDegrees": 0
+      },
+      "scale": 0
+    },
+    "alola_hooh_celebi": {
+      "position": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "rotation": {
+        "yawDegrees": 0
+      },
+      "scale": 0
+    },
+    "alola_underwater": {
+      "position": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "rotation": {
+        "yawDegrees": 0
+      },
+      "scale": 0
+    },
+    "alola_arceus": {
+      "position": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "rotation": {
+        "yawDegrees": 0
+      },
+      "scale": 0
+    },
+    "alola_rayquaza_deoxys": {
+      "position": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "rotation": {
+        "yawDegrees": 0
+      },
+      "scale": 0
+    },
+    "alola_groudon_cliff": {
+      "position": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "rotation": {
+        "yawDegrees": 0
+      },
+      "scale": 0
+    },
+    "alola_guzzlord": {
+      "position": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "rotation": {
+        "yawDegrees": 0
+      },
+      "scale": 0
+    },
+    "alola_meloetta": {
+      "position": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "rotation": {
+        "yawDegrees": 0
+      },
+      "scale": 0
+    },
+    "alola_party": {
+      "position": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "rotation": {
+        "yawDegrees": 0
+      },
+      "scale": 0
+    },
+    "alola_special_0086": {
+      "position": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "rotation": {
+        "yawDegrees": 0
+      },
+      "scale": 0
+    },
+    "alola_special_0092": {
+      "position": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "rotation": {
+        "yawDegrees": 0
+      },
+      "scale": 0
+    },
+    "alola_grass_battle_map": {
+      "position": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "rotation": {
+        "yawDegrees": 0
+      },
+      "scale": 0
+    }
+  },
+  "floors": {
+    "alola_open_sea": {
+      "id": "alola_open_sea",
+      "label": "Alola Open Sea",
+      "appearsForPokemon": [],
+      "model": "assets/pokemon_attend/environments/alola/alola_open_sea.glbz",
+      "timeOfDay": "day",
+      "weather": "clear",
+      "modelPlacement": {
+        "x": 0,
+        "y": 0,
+        "z": -8.5,
+        "yawDegrees": 0,
+        "scale": 0.009
+      }
+    },
+    "alola_coastal_ocean": {
+      "id": "alola_coastal_ocean",
+      "label": "Alola Coastal Ocean",
+      "appearsForPokemon": [],
+      "model": "assets/pokemon_attend/environments/alola/alola_coastal_ocean.glbz",
+      "timeOfDay": "day",
+      "weather": "clear",
+      "modelPlacement": {
+        "x": 0,
+        "y": 0,
+        "z": -8.5,
+        "yawDegrees": 0,
+        "scale": 0.009
+      }
+    },
+    "alola_beach": {
+      "id": "alola_beach",
+      "label": "Alola Beach",
+      "appearsForPokemon": [],
+      "model": "assets/pokemon_attend/environments/alola/alola_beach.glbz",
+      "timeOfDay": "day",
+      "weather": "clear",
+      "modelPlacement": {
+        "x": 0,
+        "y": 0,
+        "z": -8.5,
+        "yawDegrees": 0,
+        "scale": 0.009
+      }
+    },
+    "alola_flower_field": {
+      "id": "alola_flower_field",
+      "label": "Alola Flower Field",
+      "appearsForPokemon": [],
+      "model": "assets/pokemon_attend/environments/alola/alola_flower_field.glbz",
+      "timeOfDay": "day",
+      "weather": "clear",
+      "modelPlacement": {
+        "x": 0,
+        "y": 0,
+        "z": -8.5,
+        "yawDegrees": 0,
+        "scale": 0.009
+      }
+    },
+    "alola_grass_closed": {
+      "id": "alola_grass_closed",
+      "label": "Alola Grass Closed",
+      "appearsForPokemon": [],
+      "model": "assets/pokemon_attend/environments/alola/alola_grass_closed.glbz",
+      "timeOfDay": "day",
+      "weather": "clear",
+      "modelPlacement": {
+        "x": 0,
+        "y": 0,
+        "z": -8.5,
+        "yawDegrees": 0,
+        "scale": 0.009
+      }
+    },
+    "alola_grass_arena": {
+      "id": "alola_grass_arena",
+      "label": "Alola Grass Arena",
+      "appearsForPokemon": [],
+      "model": "assets/pokemon_attend/environments/alola/alola_grass_arena.glbz",
+      "timeOfDay": "day",
+      "weather": "clear",
+      "modelPlacement": {
+        "x": 0,
+        "y": 0,
+        "z": -8.5,
+        "yawDegrees": 0,
+        "scale": 0.009
+      }
+    },
+    "alola_grass_hill": {
+      "id": "alola_grass_hill",
+      "label": "Alola Grass Hill",
+      "appearsForPokemon": [],
+      "model": "assets/pokemon_attend/environments/alola/alola_grass_hill.glbz",
+      "timeOfDay": "day",
+      "weather": "clear",
+      "modelPlacement": {
+        "x": 0,
+        "y": 0,
+        "z": -8.5,
+        "yawDegrees": 0,
+        "scale": 0.009
+      }
+    },
+    "alola_dirt_field": {
+      "id": "alola_dirt_field",
+      "label": "Alola Dirt Field",
+      "appearsForPokemon": [],
+      "model": "assets/pokemon_attend/environments/alola/alola_dirt_field.glbz",
+      "timeOfDay": "day",
+      "weather": "clear",
+      "modelPlacement": {
+        "x": 0,
+        "y": 0,
+        "z": -8.5,
+        "yawDegrees": 0,
+        "scale": 0.009
+      }
+    },
+    "alola_freshwater": {
+      "id": "alola_freshwater",
+      "label": "Alola Freshwater",
+      "appearsForPokemon": [],
+      "model": "assets/pokemon_attend/environments/alola/alola_freshwater.glbz",
+      "timeOfDay": "day",
+      "weather": "clear",
+      "modelPlacement": {
+        "x": 0,
+        "y": 0,
+        "z": -8.5,
+        "yawDegrees": 0,
+        "scale": 0.009
+      }
+    },
+    "alola_mountain": {
+      "id": "alola_mountain",
+      "label": "Alola Mountain",
+      "appearsForPokemon": [],
+      "model": "assets/pokemon_attend/environments/alola/alola_mountain.glbz",
+      "timeOfDay": "day",
+      "weather": "clear",
+      "modelPlacement": {
+        "x": 0,
+        "y": 0,
+        "z": -8.5,
+        "yawDegrees": 0,
+        "scale": 0.009
+      }
+    },
+    "alola_asian_garden": {
+      "id": "alola_asian_garden",
+      "label": "Alola Asian Garden",
+      "appearsForPokemon": [],
+      "model": "assets/pokemon_attend/environments/alola/alola_asian_garden.glbz",
+      "timeOfDay": "day",
+      "weather": "clear",
+      "modelPlacement": {
+        "x": 0,
+        "y": 0,
+        "z": -8.5,
+        "yawDegrees": 0,
+        "scale": 0.009
+      }
+    },
+    "alola_waterfall": {
+      "id": "alola_waterfall",
+      "label": "Alola Waterfall",
+      "appearsForPokemon": [],
+      "model": "assets/pokemon_attend/environments/alola/alola_waterfall.glbz",
+      "timeOfDay": "day",
+      "weather": "clear",
+      "modelPlacement": {
+        "x": 0,
+        "y": 0,
+        "z": -8.5,
+        "yawDegrees": 0,
+        "scale": 0.009
+      }
+    },
+    "alola_dry_grass": {
+      "id": "alola_dry_grass",
+      "label": "Alola Dry Grass",
+      "appearsForPokemon": [],
+      "model": "assets/pokemon_attend/environments/alola/alola_dry_grass.glbz",
+      "timeOfDay": "day",
+      "weather": "clear",
+      "modelPlacement": {
+        "x": 0,
+        "y": 0,
+        "z": -8.5,
+        "yawDegrees": 0,
+        "scale": 0.009
+      }
+    },
+    "alola_bathroom": {
+      "id": "alola_bathroom",
+      "label": "Alola Bathroom",
+      "appearsForPokemon": [],
+      "model": "assets/pokemon_attend/environments/alola/alola_bathroom.glbz",
+      "timeOfDay": "day",
+      "weather": "clear",
+      "modelPlacement": {
+        "x": 0,
+        "y": 0,
+        "z": -8.5,
+        "yawDegrees": 0,
+        "scale": 0.009
+      }
+    },
+    "alola_dream_visit": {
+      "id": "alola_dream_visit",
+      "label": "Alola Dream Visit",
+      "appearsForPokemon": [],
+      "model": "assets/pokemon_attend/environments/alola/alola_dream_visit.glbz",
+      "timeOfDay": "day",
+      "weather": "clear",
+      "modelPlacement": {
+        "x": 0,
+        "y": 0,
+        "z": -8.5,
+        "yawDegrees": 0,
+        "scale": 0.009
+      }
+    },
+    "alola_hooh_celebi": {
+      "id": "alola_hooh_celebi",
+      "label": "Alola Ho-Oh and Celebi",
+      "appearsForPokemon": [
+        "ho-oh",
+        "celebi"
+      ],
+      "model": "assets/pokemon_attend/environments/alola/alola_hooh_celebi.glbz",
+      "timeOfDay": "day",
+      "weather": "clear",
+      "modelPlacement": {
+        "x": 0,
+        "y": 0,
+        "z": -8.5,
+        "yawDegrees": 0,
+        "scale": 0.009
+      }
+    },
+    "alola_underwater": {
+      "id": "alola_underwater",
+      "label": "Alola Underwater",
+      "appearsForPokemon": [
+        "lugia",
+        "kyogre",
+        "manaphy"
+      ],
+      "model": "assets/pokemon_attend/environments/alola/alola_underwater.glbz",
+      "timeOfDay": "day",
+      "weather": "clear",
+      "modelPlacement": {
+        "x": 0,
+        "y": 0,
+        "z": -8.5,
+        "yawDegrees": 90,
+        "scale": 0.01
+      }
+    },
+    "alola_arceus": {
+      "id": "alola_arceus",
+      "label": "Alola Arceus",
+      "appearsForPokemon": [
+        "arceus"
+      ],
+      "model": "assets/pokemon_attend/environments/alola/alola_arceus.glbz",
+      "timeOfDay": "day",
+      "weather": "clear",
+      "modelPlacement": {
+        "x": 0,
+        "y": 0,
+        "z": -8.5,
+        "yawDegrees": 0,
+        "scale": 0.009
+      }
+    },
+    "alola_rayquaza_deoxys": {
+      "id": "alola_rayquaza_deoxys",
+      "label": "Alola Rayquaza and Deoxys",
+      "appearsForPokemon": [
+        "rayquaza",
+        "deoxys"
+      ],
+      "model": "assets/pokemon_attend/environments/alola/alola_rayquaza_deoxys.glbz",
+      "timeOfDay": "day",
+      "weather": "clear",
+      "modelPlacement": {
+        "x": 0,
+        "y": 0,
+        "z": -8.5,
+        "yawDegrees": 0,
+        "scale": 0.009
+      }
+    },
+    "alola_groudon_cliff": {
+      "id": "alola_groudon_cliff",
+      "label": "Alola Groudon Cliff",
+      "appearsForPokemon": [
+        "groudon"
+      ],
+      "model": "assets/pokemon_attend/environments/alola/alola_groudon_cliff.glbz",
+      "timeOfDay": "day",
+      "weather": "clear",
+      "modelPlacement": {
+        "x": 0,
+        "y": 0,
+        "z": -8.5,
+        "yawDegrees": 0,
+        "scale": 0.009
+      }
+    },
+    "alola_guzzlord": {
+      "id": "alola_guzzlord",
+      "label": "Alola Guzzlord",
+      "appearsForPokemon": [
+        "guzzlord"
+      ],
+      "model": "assets/pokemon_attend/environments/alola/alola_guzzlord.glbz",
+      "timeOfDay": "day",
+      "weather": "clear",
+      "modelPlacement": {
+        "x": 0,
+        "y": 0,
+        "z": -8.5,
+        "yawDegrees": 0,
+        "scale": 0.009
+      }
+    },
+    "alola_meloetta": {
+      "id": "alola_meloetta",
+      "label": "Alola Meloetta",
+      "appearsForPokemon": [
+        "meloetta"
+      ],
+      "model": "assets/pokemon_attend/environments/alola/alola_meloetta.glbz",
+      "timeOfDay": "day",
+      "weather": "clear",
+      "modelPlacement": {
+        "x": 0,
+        "y": 0,
+        "z": -8.5,
+        "yawDegrees": 0,
+        "scale": 0.009
+      }
+    },
+    "alola_party": {
+      "id": "alola_party",
+      "label": "Alola Party",
+      "appearsForPokemon": [],
+      "model": "assets/pokemon_attend/environments/alola/alola_party.glbz",
+      "timeOfDay": "day",
+      "weather": "clear",
+      "modelPlacement": {
+        "x": 0,
+        "y": 0,
+        "z": -8.5,
+        "yawDegrees": 0,
+        "scale": 0.009
+      }
+    },
+    "alola_special_0086": {
+      "id": "alola_special_0086",
+      "label": "Alola Special 0086",
+      "appearsForPokemon": [],
+      "model": "assets/pokemon_attend/environments/alola/alola_special_0086.glbz",
+      "timeOfDay": "day",
+      "weather": "clear",
+      "modelPlacement": {
+        "x": 0,
+        "y": 0,
+        "z": -8.5,
+        "yawDegrees": 0,
+        "scale": 0.009
+      }
+    },
+    "alola_special_0092": {
+      "id": "alola_special_0092",
+      "label": "Alola Special 0092",
+      "appearsForPokemon": [],
+      "model": "assets/pokemon_attend/environments/alola/alola_special_0092.glbz",
+      "timeOfDay": "day",
+      "weather": "clear",
+      "modelPlacement": {
+        "x": 0,
+        "y": 0,
+        "z": -8.5,
+        "yawDegrees": 0,
+        "scale": 0.009
+      }
+    },
+    "alola_grass_battle_map": {
+      "id": "alola_grass_battle_map",
+      "label": "Alola Grass Battle Map",
+      "appearsForPokemon": [],
+      "model": "assets/pokemon_attend/floors/grass_field.glb",
+      "extensions": [
+        {
+          "id": "alola_grass_battle_map_extension",
+          "label": "Alola Grass Battle Map Extension",
+          "model": "assets/pokemon_attend/floors/grass_extension.glb"
+        }
+      ]
+    }
+  },
+  "skyDefaults": {
+    "enabled": true,
+    "shape": "dome",
+    "radius": 92,
+    "distance": 0,
+    "height": 92,
+    "bottomY": 0.2,
+    "arcDegrees": 360,
+    "segments": 128,
+    "verticalSegments": 48,
+    "edgeDarkening": 0.08,
+    "gradientColors": [
+      {
+        "at": 0,
+        "color": "#4DAFE8"
+      },
+      {
+        "at": 0.55,
+        "color": "#93D6F7"
+      },
+      {
+        "at": 1,
+        "color": "#FFFBE8"
+      }
+    ],
+    "lighting": {
+      "brightness": 1.08,
+      "pokemonBrightness": 1.02,
+      "backdropBrightness": 1,
+      "backdropSaturation": 1,
+      "backdropContrast": 1,
+      "ambient": 0.74,
+      "directional": 0.34,
+      "formShadow": 0.24,
+      "lightDirection": [
+        -0.35,
+        0.82,
+        0.45
+      ],
+      "tint": [
+        1,
+        0.99,
+        0.95
+      ]
+    }
+  },
+  "skyPresetOrder": [
+    "clear",
+    "sunset",
+    "cloudy",
+    "night"
+  ],
+  "skyPresets": {
+    "clear": {
+      "id": "clear",
+      "label": "Clear",
+      "gradientColors": [
+        {
+          "at": 0,
+          "color": "#4CAEE8"
+        },
+        {
+          "at": 0.5,
+          "color": "#90D7F8"
+        },
+        {
+          "at": 0.82,
+          "color": "#DDF5FF"
+        },
+        {
+          "at": 1,
+          "color": "#FFFBE8"
+        }
+      ],
+      "lighting": {
+        "brightness": 1.08,
+        "pokemonBrightness": 1.02,
+        "backdropBrightness": 1,
+        "backdropSaturation": 1,
+        "backdropContrast": 1,
+        "ambient": 0.74,
+        "directional": 0.34,
+        "formShadow": 0.24,
+        "lightDirection": [
+          -0.35,
+          0.82,
+          0.45
+        ],
+        "tint": [
+          1,
+          0.99,
+          0.95
+        ]
+      }
+    },
+    "sunset": {
+      "id": "sunset",
+      "label": "Sunset",
+      "edgeDarkening": 0.12,
+      "gradientColors": [
+        {
+          "at": 0,
+          "color": "#6E74B9"
+        },
+        {
+          "at": 0.36,
+          "color": "#EA8C72"
+        },
+        {
+          "at": 0.7,
+          "color": "#FFD089"
+        },
+        {
+          "at": 1,
+          "color": "#FFF0BC"
+        }
+      ],
+      "lighting": {
+        "brightness": 1.04,
+        "pokemonBrightness": 1.02,
+        "backdropBrightness": 0.98,
+        "backdropSaturation": 1.05,
+        "backdropContrast": 1.02,
+        "ambient": 0.72,
+        "directional": 0.38,
+        "formShadow": 0.28,
+        "lightDirection": [
+          -0.75,
+          0.48,
+          0.36
+        ],
+        "tint": [
+          1.06,
+          0.88,
+          0.72
+        ]
+      }
+    },
+    "cloudy": {
+      "id": "cloudy",
+      "label": "Cloudy",
+      "edgeDarkening": 0.04,
+      "gradientColors": [
+        {
+          "at": 0,
+          "color": "#6D90A9"
+        },
+        {
+          "at": 0.44,
+          "color": "#A8BBC7"
+        },
+        {
+          "at": 0.78,
+          "color": "#CBD6DB"
+        },
+        {
+          "at": 1,
+          "color": "#EEF2F0"
+        }
+      ],
+      "lighting": {
+        "brightness": 1,
+        "pokemonBrightness": 1.02,
+        "backdropBrightness": 0.97,
+        "backdropSaturation": 0.92,
+        "backdropContrast": 0.96,
+        "ambient": 0.86,
+        "directional": 0.18,
+        "formShadow": 0.18,
+        "lightDirection": [
+          -0.2,
+          0.9,
+          0.32
+        ],
+        "tint": [
+          0.92,
+          0.97,
+          1
+        ]
+      }
+    },
+    "night": {
+      "id": "night",
+      "label": "Night",
+      "edgeDarkening": 0.18,
+      "gradientColors": [
+        {
+          "at": 0,
+          "color": "#0B1C3C"
+        },
+        {
+          "at": 0.48,
+          "color": "#173767"
+        },
+        {
+          "at": 0.78,
+          "color": "#2B5487"
+        },
+        {
+          "at": 1,
+          "color": "#6E8EBD"
+        }
+      ],
+      "lighting": {
+        "brightness": 0.96,
+        "pokemonBrightness": 1.02,
+        "backdropBrightness": 0.78,
+        "backdropSaturation": 0.9,
+        "backdropContrast": 1.08,
+        "ambient": 0.52,
+        "directional": 0.18,
+        "formShadow": 0.34,
+        "lightDirection": [
+          -0.52,
+          0.68,
+          0.52
+        ],
+        "tint": [
+          0.7,
+          0.8,
+          1
+        ]
+      }
+    }
+  }
+}

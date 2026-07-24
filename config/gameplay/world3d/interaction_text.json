@@ -1,0 +1,60 @@
+{
+  "texts": [
+    {
+      "id": "pokemon_ground_interest",
+      "body": "{NAME} nudges the ground with interest.",
+      "requiredTags": [],
+      "weight": 3,
+      "globalCooldownSeconds": 35
+    },
+    {
+      "id": "pokemon_player_attention",
+      "body": "{NAME} watches {PLAYER_NAME} closely.",
+      "requiredTags": [
+        "POKEMON"
+      ],
+      "weight": 2,
+      "globalCooldownSeconds": 20
+    },
+    {
+      "id": "pokemon_water_listening",
+      "body": "{NAME} listens for water nearby.",
+      "requiredTags": [
+        "POKEMON"
+      ],
+      "weight": 2,
+      "globalCooldownSeconds": 45
+    },
+    {
+      "id": "pokemon_grass_delight",
+      "body": "{NAME} seems to enjoy the grass underfoot.",
+      "requiredTags": [
+        "POKEMON",
+        "TYPE_GRASS",
+        "TILE_GRASS"
+      ],
+      "weight": 3,
+      "globalCooldownSeconds": 50
+    },
+    {
+      "id": "pokemon_fire_pool_caution",
+      "body": "{NAME} is keeping a careful distance from the water.",
+      "requiredTags": [
+        "POKEMON",
+        "TYPE_FIRE",
+        "POOL"
+      ],
+      "weight": 3,
+      "globalCooldownSeconds": 60
+    },
+    {
+      "id": "pokemon_default",
+      "body": "{NAME} is looking around with bright eyes.",
+      "requiredTags": [
+        "POKEMON"
+      ],
+      "weight": 1,
+      "globalCooldownSeconds": 15
+    }
+  ]
+}

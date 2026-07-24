@@ -1,0 +1,6 @@
+{
+  "_comment": "Shared Attend audio timing. Audio asset lookup remains data-driven by active Pokemon species.",
+  "audio": {
+    "petHappyCryDelaySeconds": 0.2
+  }
+}

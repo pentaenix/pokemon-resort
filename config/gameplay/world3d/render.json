@@ -1,6 +1,102 @@
 {
+  "terrain": {
+    "_comment": "Renderer-facing terrain defaults. tileSize still controls cell width/depth; heightPerFloor controls vertical units per encoded terrain height. Disable floorHeightColors/rampColors once authored per-cell textures should own those colors.",
+    "heightPerFloor": 16.0,
+    "rampInclineInsetPx": 6.0,
+    "floorColors": {
+      "checkerA": [116, 156, 190, 255],
+      "checkerB": [125, 166, 200, 255]
+    },
+    "floorHeightColors": {
+      "enabled": true,
+      "firstNonBase": {
+        "checkerA": [196, 84, 86, 255],
+        "checkerB": [214, 102, 92, 255]
+      }
+    },
+    "rampColors": {
+      "enabled": true,
+      "checkerA": [232, 198, 84, 255],
+      "checkerB": [246, 214, 104, 255]
+    },
+    "rampReadability": {
+      "enabled": true,
+      "lowShade": 0.88,
+      "highShade": 1.10,
+      "bandCount": 5.0,
+      "bandStrength": 0.12,
+      "bandSoftness": 0.32
+    },
+    "wallColors": {
+      "northSouth": [88, 117, 145, 255],
+      "eastWest": [80, 108, 136, 255]
+    },
+    "wireColor": [102, 138, 170, 120]
+  },
+  "waterTraversal": {
+    "_comment": "Gameplay-side water surface. Beach/coast RTPKS tiles are invisible actor ramps but remain land; only traversal.swim/traversal.surf tiles put Pokemon into their form/shiny-aware swim locomotion. The player also follows the height but keeps the normal sprite until a player swim sheet exists.",
+    "enabled": true,
+    "surfaceHeightWorld": -11.0,
+    "shorelineRampEnabled": true,
+    "pokemonSwimAnimationEnabled": true
+  },
+  "pixelScale": {
+    "_comment": "Authoring ruler only. worldUnitsPerPixel <= 0 derives tileSize / mapPixelsPerTile. zoom/worldRender* are legacy compatibility inputs; prefer sceneCamera/worldViewport below.",
+    "mapPixelsPerTile": 16,
+    "worldUnitsPerPixel": 0.0,
+    "zoom": 1.0,
+    "zoomMin": 0.5,
+    "zoomMax": 3.0,
+    "pixelPerfectWorld": true,
+    "worldRenderWidth": 400,
+    "worldRenderHeight": 250
+  },
+  "worldViewport": {
+    "_comment": "Shared DS-native scene composition. baseWidth/baseHeight define the low-res pixel density; upscale raises internal 3D resolution for both overworld and TEST ATTEND (1 = DS-like, 2 = 2x).",
+    "enabled": true,
+    "baseWidth": 400,
+    "baseHeight": 250,
+    "upscale": 1
+  },
+  "sceneCamera": {
+    "_comment": "3D scene-camera distance scaling. World billboards project through this camera, so camera moves also scale sprites relative to terrain/models.",
+    "distanceScale": 1.0,
+    "distanceScaleMin": 0.5,
+    "distanceScaleMax": 3.0
+  },
+  "pixelCompositor": {
+    "_comment": "World-sized pixel-art billboards are projected to the base viewport, quantized to integer pixels, then scaled by worldViewport.upscale. actorDepthBiasPx is a tiny render-only nudge toward the camera to keep paper-thin character quads from intersecting adjacent wall geometry. actorScreenOffsetYPx is a global render-only vertical actor offset; positive values lower actors on screen without changing collision.",
+    "spriteSizing": "native",
+    "snapAnchors": true,
+    "actorDepthBiasPx": 10.0,
+    "actorScreenOffsetYPx": 1
+  },
+  "presentation": {
+    "_comment": "Final backbuffer presentation of the completed internal world target.",
+    "scaleMode": "integerFit",
+    "zoom": 1.0
+  },
+  "environmentAnimation": {
+    "_comment": "Global renderer-only multiplier for animated RTPKS materials and overworld GLB props. Actor movement and UI timing are unaffected.",
+    "speedMultiplier": 0.7,
+    "water": {
+      "_comment": "Water-only controls. Scroll affects horizontal UV flow; wave affects vertical advance/retreat and wet-sand phase; wait adds a rest after each wave cycle. Smooth interpolation removes visible 15 Hz sample stepping without smoothing texture-pattern swaps.",
+      "scrollSpeedMultiplier": 0.7,
+      "waveSpeedMultiplier": 1.6,
+      "waitBetweenWavesSeconds": 0.0,
+      "smoothUvMotion": true,
+      "shorelineSeamOverlapPixels": 0.5
+    }
+  },
   "occlusion": {
     "_comment": "How far (in tiles) toward the camera a placed model's occlusion anchor is biased when depth-sorting it against the player/follower. Larger = the building starts hiding the character sooner (further forward). Tune so a character entering a doorway is hidden by the building rather than drawing over its roof.",
     "modelBehindBiasTiles": 1.0
+  },
+  "billboard": {
+    "_comment": "Actor billboard feet should stay on the simulation XZ position. Keep offsets at 0 unless a purely visual mode is added that cannot affect collision feel.",
+    "tileAnchorOffsetTiles": {
+      "forward": 0.0,
+      "right": 0.0
+    }
   }
 }

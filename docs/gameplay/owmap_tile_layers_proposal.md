@@ -1,9 +1,16 @@
-# OWMAP Tile Layer Proposal
+# OWMAP Tile Layer Architecture
 
-This is a proposal for extending `.owmap` with paintable tile-type layers.
-It is intended for the map editor/export pipeline before the C++ runtime format
-is changed. The current runtime `.owmap` format is documented in
-`docs/gameplay/owmap_format.md`.
+This document records the design behind the implemented `.owmap` RTPKS tile
+layers. The shipped representation differs from the original binary proposal:
+tile layer cells are stored in the metadata JSON as stable `resortTileId`
+values, while the bound RTPKS package owns meshes, materials, animations,
+gameplay tags, and collision authoring rules. The current on-disk format is
+documented in `docs/gameplay/owmap_format.md`.
+
+The Operations Desk Map Editor is the current RTPKS authoring surface. Its
+**Edit tile pack…** modal can rename and reorder palette tabs, create smart path
+sets, import textured GLB or image tiles, slice spritesheets into animation
+frames, edit tags/properties, and configure automatic collision painting.
 
 ## Goal
 
@@ -60,10 +67,12 @@ For a 256 by 256 map with 7 tile layers:
 256 * 256 * 7 * 2 bytes = 917,504 bytes
 ```
 
-## Global Tile Dictionary
+## Package Tile Dictionary
 
-The project should have one global tile dictionary. Map cells store only compact
-IDs. The dictionary stores render, editor, gameplay, and pathfinding metadata.
+Each map binds one RTPKS tile dictionary. Map cells store only stable IDs from
+that package. The package stores render, editor, gameplay, collision, and
+pathfinding metadata. Stable IDs are never renumbered when tabs are edited or
+new tiles are added.
 
 Runtime C++ shape:
 
@@ -187,7 +196,7 @@ The same tile type ID should mean the same thing on any layer.
 
 ## Animated Tiles
 
-Animated tiles should be represented in the tile dictionary, not in map cells.
+Animated tiles are represented in the RTPKS definition, not in map cells.
 
 The map cell remains:
 
@@ -210,8 +219,49 @@ The dictionary defines animation:
 }
 ```
 
-This allows water, grass, snow, and other animated surfaces to share the same map
-format. The renderer chooses the draw path from `renderKind`.
+The Tile Pack Editor accepts a spritesheet and slices it into individual PNG
+frames. The runtime material stores the frame paths and frame duration. The bgfx
+renderer selects the globally synchronized frame at draw time, so all uses of a
+water tile animate together without expanding `.owmap` cells.
+
+RAE `.tile` imports may instead provide `materialMotion`: an exact sampled UV
+offset timeline plus optional sparse texture-pattern keyframes. RTPKS preserves
+that representation and the GLB sampler (`repeat`, `clamp`, or `mirror`) per
+axis. A material stores `uvMapping.mode: "world"` only when its complete mesh
+UV field passes an exact affine-fit check; shoreline UV islands remain in mesh
+space. Both the Admin
+3D viewport and bgfx runtime add the placement anchor through that basis before
+sampling, so adjacent water, cloud, and grass tiles remain one continuous UV
+field instead of visibly restarting at every cell. DS motion also carries an
+exact `timebaseHz`, `interpolation: "step"`, and material layer role/order.
+Both renderers therefore advance the original discrete samples on source ticks,
+independent of display frame rate or rounded millisecond durations, while
+keeping pattern swaps globally synchronized. This is the
+preferred representation for Generation V open-water, river, and reflection
+layers; it does not bake scrolling water into hundreds of PNG frames.
+
+Transparent shoreline and rock-transition pieces keep only their authored
+foam/sand/rock geometry and mesh-space motion. The repeatable open-ocean body
+keeps its lower and translucent upper planes as two ordered materials in one
+1x1 tile below the transition.
+This avoids duplicate coplanar water and keeps every plane constrained to the
+cells explicitly authored in the `.owmap`.
+
+`sway` remains valid authored metadata for a future shader path. Frame animation
+and `materialMotion` are the currently rendered runtime animation modes.
+
+## Collision authoring
+
+Collision remains part of the `.owmap` terrain bit grid. A tile definition can
+carry an editor rule that paints those bits automatically:
+
+- `none`: never alter collision
+- `footprint`: block the complete tile footprint
+- `mask`: block only selected footprint cells
+
+`autoApply` controls painting. `clearOnErase` is opt-in because clearing a tile
+must not normally remove collision intentionally authored for another object.
+These are authoring rules, not a second runtime collision layer.
 
 ## Relationship To Existing Layers
 
@@ -224,6 +274,12 @@ collision   bit grid         blocked/unblocked movement
 tileLayers  uint16 grids     paintable tile identity and visual/gameplay type
 objects     object list      3D models, NPCs, interactables, props
 ```
+
+Do not put broad surface behavior such as water, snow, tall grass, mud, or
+swimmable areas into the `special` byte. `special` should stay a compact
+terrain-mechanics layer for ramps, ledges, forced movement, and similar local
+movement rules. Surface behavior should come from tile-type IDs resolved through
+the global tile dictionary.
 
 Pathfinding can use multiple inputs:
 - `collision` for hard blocked checks
@@ -285,3 +341,34 @@ The runtime should:
 - treat unknown non-zero tile IDs as authoring/export errors
 - let specialized renderers handle `renderKind`, such as water, animated surfaces, or snow
 
+## Modifier / Surface Graph Guidance
+
+For thousands of chunk-like maps, avoid adding another dense always-present graph
+for every possible behavior. Prefer this split:
+
+- common authored tile identity lives in tile layers as compact `uint16` IDs
+- behavior such as `water`, `surfable`, `swimAnimation`, `shallow`, `deep`,
+  `tallGrass`, or `encounterSurface` lives in the global tile dictionary
+- rare extra modifiers should be optional map metadata or sparse runs/rectangles,
+  emitted only when a map actually uses them
+
+Example dictionary-driven water tile:
+
+```json
+{
+  "id": 42,
+  "name": "water_deep",
+  "renderKind": "water",
+  "tags": ["water", "surfable", "deep"],
+  "movement": {
+    "requires": "swim",
+    "animation": "swim"
+  }
+}
+```
+
+This keeps each cell small: the map stores `42`, while renderer, movement,
+animation, Pokémon AI, and pathfinding all read the same resolved tile
+definition. The runtime should cache resolved per-cell flags for loaded chunks
+when useful, but those caches should be generated at load time and not stored in
+every `.owmap`.

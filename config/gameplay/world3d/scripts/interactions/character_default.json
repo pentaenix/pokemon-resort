@@ -1,0 +1,14 @@
+{
+  "id": "interaction_character_default",
+  "kind": "interaction",
+  "targetGates": ["CHARACTER"],
+  "trigger": "ACCEPT",
+  "priority": 0,
+  "weight": 1,
+  "cooldownSeconds": 0,
+  "when": { "allTags": ["CHARACTER"] },
+  "actions": [
+    { "action": "FACE_PLAYER" },
+    { "action": "TEXT_FREE" }
+  ]
+}

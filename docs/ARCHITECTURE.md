@@ -13,6 +13,7 @@ For test strategy, use [`tests/README.md`](/Users/vanta/Desktop/title_screen_dem
 The app currently implements:
 
 - title intro, title hold, main menu, options menu, and Resort/Trade loading-transition test flows
+- Resort submenu routing to the 3D overworld test and standalone TEST ATTEND interaction debug scene
 - transfer entry from the main menu
 - loading screen while external saves are scanned and probed
 - transfer-ticket selection built from bridge/cache summaries
@@ -47,6 +48,7 @@ When changing behavior, name which source of truth you are changing before you e
 - [`Types.hpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/core/Types.hpp) is the app/title config and persisted settings contract.
 - [`Assets.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/assets/Assets.cpp) resolves project-root asset paths, loads textures, renders text, and builds title logo masks.
 - [`PokeSpriteAssets.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/assets/PokeSpriteAssets.cpp) owns Pokemon sprite, item icon, misc icon, and SDL texture-cache resolution for transfer UI. Its contract is documented in [`docs/assets/pokesprite_subsystem.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/assets/pokesprite_subsystem.md).
+- [`PokemonCryAssets.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/assets/PokemonCryAssets.cpp) owns reusable Pokemon cry path resolution by species id. [`PokemonCryPlayer.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/app/audio/PokemonCryPlayer.cpp) turns those resolved cries into app one-shot SFX requests, so screens/controllers can request Pokemon cries without hard-coding cry folders.
 - [`InputBindings.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/input/InputBindings.cpp) maps human-readable key names from JSON to SDL keycodes.
 - [`InputRouter.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/input/InputRouter.cpp) translates SDL keyboard, mouse, and controller events into the active [`ScreenInput`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/ui/ScreenInput.hpp).
 - [`SaveDataStore.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/save/SaveDataStore.cpp) loads primary/backup user settings and writes atomically.
@@ -61,7 +63,52 @@ When changing behavior, name which source of truth you are changing before you e
 
 - [`ScreenInput.hpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/ui/ScreenInput.hpp) defines the reusable input vocabulary for screens.
 - [`Screen.hpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/ui/Screen.hpp) extends that vocabulary with `update(dt)` and `render(renderer)`.
+- [`OverlayCanvas.hpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/ui/overlay/OverlayCanvas.hpp) is the reusable logical overlay surface for buttons and lightweight HUD controls. It owns anchoring and hit testing in app/window logical coordinates. [`OverlaySliceLayout.hpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/ui/overlay/OverlaySliceLayout.hpp) owns reusable three-slice sprite layout for UI panels such as overworld text boxes. SDL screens can draw overlay surfaces directly; bgfx screens should use the same shared layout sources and draw the visible overlay through bgfx so Metal/canvas presentation layers cannot hide it.
 - Full-screen UI pages should prefer `Screen` unless they are intentionally only helper/controller code.
+
+### Overworld Interactions
+
+The Gen 4 overworld test routes player-triggered NPC/Pokemon interaction through reusable modules under [`gameplay/world3d/interactions`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/gameplay/world3d/interactions). [`InteractionSequenceController`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/gameplay/world3d/interactions/InteractionSequence.hpp) owns pure source selection and action ordering such as `facePlayer`, `pokemonInteractionSession`, and `textFree`; [`InteractionText`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/gameplay/world3d/interactions/InteractionText.hpp) owns tag-specific weighted text selection and global in-memory cooldowns. Pokemon are script-first and retain the established sequence as a safe fallback. NPC charbins own only `metadata.npcInteractionMode` (`direct_dialogue` by default, or `scripted`); scripted selection falls back to that NPC's `dialogue.lines`. A future spawner may provide a transient runtime interaction script reference with precedence over NPC mode, but charbins do not require a permanent script id. [`Overworld3DTestScreen.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/Overworld3DTestScreen.cpp) remains the scene adapter that locks targets, applies facing, opens the textbox, and asks Haru's player animator to run the size-based interaction activity for Pokemon targets. Keep new interaction rules in the shared interaction modules and authored JSON under `config/gameplay/world3d/`; do not put new script logic directly in the screen.
+
+Detailed authoring and extension guidance lives in [`docs/gameplay/overworld_interactions.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/gameplay/overworld_interactions.md).
+
+### Overworld Tile Packages
+
+`.owmap` metadata binds one RTPKS package and stores stable `resortTileId`
+placements in decoration layers. [`RtpksTilePackageLoader.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/gameplay/world3d/data/RtpksTilePackageLoader.cpp)
+loads meshes, materials, frame animation assets, exact material-motion timelines,
+per-axis texture samplers, gameplay tags, and collision authoring metadata.
+[`OverworldBgfxRenderer.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/gameplay/world3d/rendering/bgfx/OverworldBgfxRenderer.cpp)
+keeps static geometry batched by material, selects globally synchronized pattern
+keyframes, and smoothly interpolates UV offsets during submission. Materials may
+also carry a source-derived world-UV basis (`uPerTile` / `vPerTile`), so repeating
+1x1 placements continue one texture field instead of restarting their UV domain.
+Layered water therefore remains layered geometry: each plane keeps its own
+uniform/texture alpha, height, sampler, and UV motion rather than becoming a
+baked flipbook. Tile geometry is emitted only for authored `.owmap` placements;
+the renderer never extends an ocean plane beyond its placed footprint.
+
+World model placements also accept self-contained GLBs with morph-target `weights`
+animation channels. [`GlbModelLoader.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/gameplay/world3d/data/GlbModelLoader.cpp)
+retains morph deltas and clip data, while [`GlbModelAnimation.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/gameplay/world3d/data/GlbModelAnimation.cpp)
+samples the first authored clip as a synchronized loop. Both the bgfx renderer and SDL
+fallback consume that contract, so animated props referenced by map/tile placements do not
+need scene-specific playback code.
+
+The Operations Desk Map Editor owns RTPKS authoring. Its Tile Pack Editor may
+reorganize tabs and smart paths or append assets, but must never renumber an
+existing stable tile id. Automatic tile collision is applied to the `.owmap`
+terrain collision grid while painting; it is not a second runtime collision
+source. See [`docs/gameplay/owmap_format.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/gameplay/owmap_format.md)
+and [`docs/gameplay/owmap_tile_layers_proposal.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/gameplay/owmap_tile_layers_proposal.md).
+
+### Overworld Script Engine
+
+[`gameplay/world3d/scripts`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/gameplay/world3d/scripts) owns reusable script loading, validation, tag/proximity matching, priority/weight selection, and cooldowns. Author scripts as individual JSON files listed by [`script_catalog.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/gameplay/world3d/scripts/script_catalog.json). The Script Engine Operations Desk module owns safe file editing and validation. Existing follower idle and NPC movement remain compatibility executors: scripts decide eligibility while their established planner, pathing, jump, and landing-dust implementations perform motion. Do not move terrain physics or actor collision into the editor.
+
+### Temporary Overworld Pokemon Roster
+
+[`ResortPokemonSpawnConfig`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/gameplay/world3d/npc/ResortPokemonSpawnConfig.hpp) owns the temporary Resort-box roster contract, loaded from [`config/gameplay/world3d/pokemon_spawns.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/gameplay/world3d/pokemon_spawns.json). It selects a profile and box, caps the total valid Pokemon used by the overworld, reserves the first one for the follower, and leaves the remaining selected entries to [`NpcActorDriver`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/include/gameplay/world3d/npc/NpcActorDriver.hpp) as random roaming spawns. `maxPokemon` includes the follower. An empty or disabled roster produces neither a follower nor roster Pokemon. Authored entries in `config/character_testing/characters.json` are separate fixed test actors and must not use a Resort-box source.
 
 ### Title, Menu, Options, And Placeholder Sections
 
@@ -73,6 +120,16 @@ When changing behavior, name which source of truth you are changing before you e
 - [`TitleScreenRender.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/title_screen/TitleScreenRender.cpp) owns title/menu/options/section rendering helpers, button geometry, texture caches, and logo shine generation.
 
 Title-side effects should flow through typed `TitleScreenEvent` values. Avoid adding more boolean consume methods.
+
+### TEST ATTEND Interaction Debug Scene
+
+[`AttendTestScreen.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/AttendTestScreen.cpp) is a standalone `Screen` reached from `RESORT -> TEST ATTEND`. It renders a data-driven Pokemon interaction debug scene through [`AttendBgfxRenderer.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/gameplay/attend/rendering/AttendBgfxRenderer.cpp). [`config/gameplay/pokemon_attend.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/gameplay/pokemon_attend.json) is a small manifest that points to concern-specific files under `config/gameplay/pokemon_attend/`: debug scene files own temporary selections and TEST ATTEND-only overlay buttons, interaction files own shared camera/pointer/hand defaults, provider files own reusable Pokemon/model defaults and interaction adapters, and environment files own floor/extension catalogs plus edge-proof sky/light/presentation presets. Per-Pokemon entries should stay sparse: model paths are inferred from `activePokemon` plus the provider file pattern, while common placement, animation naming, idle behavior, interaction adapter defaults, and eye-close naming are inferred from defaults or provider rules. The current scene uses one world-placed environment GLB floor, weather material groups, mouse-edge look-target nudging, a simple data-driven contact shadow, and an initial auto-focus camera calculation that frames the active Pokemon from its setup pose without following animation. It is intentionally independent from transfer, Resort storage, and the Gen 4 overworld proof of concept.
+
+TEST ATTEND uses a Pokemon-specific GLB path under `gameplay/attend/rendering`: it preserves skeletal skinning, transform animation channels, material sampler wrap, RAE material policy extras, and Pokemon eye metadata beyond the overworld prop contract. The overworld loader separately supports looping morph-target weight animation for environmental props. RAE Gen 1-7/3DS exports must be rendered from `extras.rae.renderClass`, mesh `renderOrder`/`defaultVisible`, `eyeSheet`/`eyeExpression` UV metadata, and appearance variant metadata. Combined normal/shiny/form/pattern GLBs should expose root `extras.rae.appearanceVariants`; the renderer resolves form visibility/material swaps first and texture/color swaps second. Base-color eye sheets must not be routed through the older Violet-style `emissiveTexture`/`.lym` eye compositor unless the material actually exports that emissive-mask pattern.
+
+The TEST ATTEND weather button is laid out and hit-tested by [`AttendOverlay.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/attend/AttendOverlay.cpp), a scene-specific adapter over the shared overlay canvas. Its bgfx-visible button surface is drawn by [`AttendBgfxRenderer.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/gameplay/attend/rendering/AttendBgfxRenderer.cpp) from the same rect and scene `ui.weatherButton` style data. Keep new shared overlay layout, anchoring, and hit-test rules in `ui/overlay`; keep scene meanings such as weather, feed, or tutorial actions in the consuming screen/module.
+
+App-level routing for this placeholder lives in [`AppScreenCoordinatorAttend.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/core/app/screen/AppScreenCoordinatorAttend.cpp). The current return target is the title Resort flow. A future overworld-launched attend route should suspend the active overworld with `Overworld3DTestScreen::suspendForAttend()`, release heavyweight presentation resources while preserving overworld state, and resume with `resumeAfterAttend()` instead of `resetForNextLaunch()`.
 
 ### Transfer Flow Shell
 
@@ -255,7 +312,7 @@ See [`docs/config/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-res
 
 ## Testing Map
 
-Use [`tests/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/tests/README.md) as the canonical test source. As of the current build, the native CTest suite includes storage/backend, title controllers, transfer ticket, transfer flow, transfer-system config/state/browser/action-menu/focus, input/config, PokeSprite assets, save-library cache, headless boot, title flow harness, transfer-system harness, and transfer-ticket Unicode harness coverage.
+Use [`tests/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/tests/README.md) as the canonical test source. As of the current build, the native CTest suite includes storage/backend, title controllers, transfer ticket, transfer flow, transfer-system config/state/browser/action-menu/focus, input/config, PokeSprite and Pokemon cry assets, save-library cache, headless boot, title flow harness, transfer-system harness, and transfer-ticket Unicode harness coverage.
 
 Run:
 

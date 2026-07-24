@@ -1,5 +1,15 @@
 #include "gameplay/world3d/followers/FollowerController.hpp"
 
+#include "gameplay/world3d/interactions/InteractionSequence.hpp"
+
+#include "gameplay/world3d/data/JsonOverworldLoader.hpp"
+#include "gameplay/world3d/rendering/BillboardPlacement.hpp"
+#include "gameplay/world3d/terrain/ActorTerrainBinding.hpp"
+#include "gameplay/world3d/terrain/GridStepMotor.hpp"
+#include "gameplay/world3d/terrain/TerrainSurface.hpp"
+
+#include <limits>
+
 #include "gameplay/world3d/data/JsonOverworldLoader.hpp"
 
 #include <algorithm>
@@ -70,43 +80,99 @@ FollowerController::FollowerController(
       scene_(scene),
       summon_config_(summon_config),
       session_config_(session_config),
-      idle_config_(loadNatureIdleBehaviorConfig(project_root)) {}
+      movement_config_(characters::loadCharacterMovementConfig(project_root)),
+      terrain_query_(characters::makeLocalCharacterTerrainQuery(scene)),
+      idle_config_(loadNatureIdleBehaviorConfig(project_root)),
+      idle_script_catalog_(scripts::loadScriptCatalog(project_root)) {}
 
-void FollowerController::initialize(SDL_Renderer* renderer) {
+bool FollowerController::initializeResources() {
     if (!session_config_.enabled || session_config_.pokemon_species.empty()) {
         state_ = State::Hidden;
-        return;
+        resources_ready_ = false;
+        return false;
+    }
+    if (resources_ready_) {
+        return true;
     }
     if (!initialized_rng_) {
         rng_.seed(std::random_device{}());
         initialized_rng_ = true;
     }
 
-    follower_def_ = data::loadCharacterDefinition(
+    const std::string follower_path = session_config_.pokemon_charbin_path.empty()
+        ? resolveFollowerPokemonCharbinPath(project_root_, session_config_.pokemon_species)
+        : session_config_.pokemon_charbin_path;
+    const auto follower_opt = data::tryLoadCharacterDefinition(
         project_root_,
-        resolveFollowerPokemonCharbinPath(project_root_, session_config_.pokemon_species));
+        follower_path,
+        data::CharacterAppearanceSelection{session_config_.pokemon_form_id, session_config_.pokemon_shiny});
+    if (!follower_opt) {
+        resources_ready_ = false;
+        return false;
+    }
+    follower_def_ = *follower_opt;
     follower_animator_ = std::make_unique<characters::SpriteSheetAnimator>(follower_def_);
-    follower_renderer_ = std::make_unique<rendering::BillboardSpriteRenderer>(renderer, follower_def_, scene_.sprite_shadow);
 
-    ball_def_ = data::loadCharacterDefinition(
+    const auto ball_opt = data::tryLoadCharacterDefinition(
         project_root_,
         resolveFollowerPokeballCharbinPath(project_root_, session_config_.pokeball_id));
-    ball_renderer_ = std::make_unique<rendering::BillboardSpriteRenderer>(renderer, ball_def_, scene_.sprite_shadow);
+    if (!ball_opt) {
+        resources_ready_ = false;
+        follower_animator_.reset();
+        return false;
+    }
+    ball_def_ = *ball_opt;
     ball_frames_ = ball_def_.play.frames.empty() ? std::vector<int>{0} : ball_def_.play.frames;
     follower_step_duration_s_ = std::max(0.01f, static_cast<float>(summon_config_.follow_step_duration_ms) / 1000.0f);
+    resources_ready_ = true;
+    return true;
+}
+
+void FollowerController::setTerrainQuery(std::shared_ptr<characters::CharacterTerrainQuery> terrain_query) {
+    if (!terrain_query) return;
+    terrain_query_ = std::move(terrain_query);
+    motor_.setTerrainQuery(terrain_query_);
+    if (state_ == State::Active && !follower_moving_) {
+        follower_pos_.y = terrainBinding().simulation_y;
+    }
+}
+
+terrain::ActorTerrainBinding FollowerController::terrainBinding() const {
+    terrain::TileCoord sample{follower_tile_.x, follower_tile_.y};
+    if (replay_follow_active_) {
+        sample = replay_step_motor_.activeSampleTile(follower_move_t_);
+    } else if (follower_moving_) {
+        return motor_.terrainBinding();
+    }
+    terrain::ActorTerrainBinding binding = terrain_query_
+        ? terrain_query_->bindActorStanding(follower_tile_.x, follower_tile_.y, follower_pos_.x, follower_pos_.z)
+        : terrain::bindActorStanding(scene_, follower_tile_.x, follower_tile_.y, follower_pos_.x, follower_pos_.z);
+    binding.height_sample_tx = sample.x;
+    binding.height_sample_ty = sample.y;
+    return binding;
 }
 
 void FollowerController::beginStepToTile(const TilePoint& target, double speed_multiplier, bool hop_movement) {
     const TilePoint from_tile = follower_tile_;
     follower_move_from_ = follower_pos_;
-    follower_move_to_ = tileToWorldCenter(target.x, target.y);
-    follower_tile_ = target;
+    step_dest_tile_ = target;
     follower_move_t_ = 0.0f;
-    follower_moving_ = true;
     current_step_speed_multiplier_ = std::max(0.1, speed_multiplier);
     current_step_hop_height_tiles_ = hop_movement ? 0.25 : 0.0;
     const int dx = target.x - from_tile.x;
     const int dy = target.y - from_tile.y;
+    const float tile_size = std::max(1.0f, scene_.grid.tile_size);
+    const float step_duration = std::max(0.001f, follower_step_duration_s_ / static_cast<float>(current_step_speed_multiplier_));
+    motor_.setTerrainQuery(terrain_query_);
+    motor_.setMoveSpeedUnitsPerSecond(tile_size / step_duration);
+    motor_.resetToTile(from_tile.x, from_tile.y, follower_pos_);
+    const characters::GridActorMotor::StepResult step = motor_.tryStartStep(dx, dy);
+    follower_moving_ = step.started;
+    follower_move_to_ = motor_.moveTarget();
+    if (!follower_moving_) {
+        current_step_hop_height_tiles_ = 0.0;
+        return;
+    }
     if (dx > 0) follower_facing_ = FacingDirection::East;
     else if (dx < 0) follower_facing_ = FacingDirection::West;
     else if (dy > 0) follower_facing_ = FacingDirection::South;
@@ -118,21 +184,106 @@ void FollowerController::beginStepToTile(const TilePoint& target, double speed_m
 void FollowerController::updateActiveStep(double dt) {
     render_offset_ = camera::Vec3{};
     if (!follower_moving_) return;
-    follower_move_t_ += static_cast<float>(dt) / std::max(0.001f, follower_step_duration_s_ / static_cast<float>(current_step_speed_multiplier_));
-    if (follower_move_t_ >= 1.0f) {
-        follower_move_t_ = 1.0f;
+    const bool finished = motor_.update(dt);
+    follower_move_t_ = motor_.moveT();
+    follower_pos_ = motor_.position();
+    if (finished) {
         follower_pos_ = follower_move_to_;
+        follower_tile_ = step_dest_tile_;
         follower_moving_ = false;
         current_step_hop_height_tiles_ = 0.0;
         return;
     }
-    follower_pos_.x = follower_move_from_.x + ((follower_move_to_.x - follower_move_from_.x) * follower_move_t_);
-    follower_pos_.y = follower_move_from_.y + ((follower_move_to_.y - follower_move_from_.y) * follower_move_t_);
-    follower_pos_.z = follower_move_from_.z + ((follower_move_to_.z - follower_move_from_.z) * follower_move_t_);
     if (current_step_hop_height_tiles_ > 0.0) {
         const double t = std::clamp(static_cast<double>(follower_move_t_), 0.0, 1.0);
         render_offset_.y = static_cast<float>((4.0 * t * (1.0 - t)) * current_step_hop_height_tiles_ * scene_.grid.tile_size);
     }
+}
+
+bool FollowerController::updateReplayFollow(
+    const characters::CharacterController::MovementSegment& player_segment) {
+    if (interaction_locked_) {
+        return false;
+    }
+    if (!player_segment.active || player_step_trail_.size() < 3) {
+        if (replay_follow_active_) {
+            follower_pos_ = tileToWorldCenter(replay_to_tile_.x, replay_to_tile_.y);
+            follower_tile_ = replay_to_tile_;
+            follower_moving_ = false;
+            replay_follow_active_ = false;
+        }
+        return false;
+    }
+
+    const TilePoint from = player_step_trail_[player_step_trail_.size() - 3U];
+    const TilePoint to = player_step_trail_[player_step_trail_.size() - 2U];
+    if (from.x == to.x && from.y == to.y) {
+        return false;
+    }
+
+    if (!replay_follow_active_ ||
+        replay_from_tile_.x != from.x ||
+        replay_from_tile_.y != from.y ||
+        replay_to_tile_.x != to.x ||
+        replay_to_tile_.y != to.y) {
+        replay_from_tile_ = from;
+        replay_to_tile_ = to;
+        if (terrain_query_) {
+            replay_step_motor_ = terrain_query_->beginStep(
+                from.x,
+                from.y,
+                to.x,
+                to.y,
+                to.x - from.x,
+                to.y - from.y,
+                terrain_query_->tileBaseHeightUnits(from.x, from.y),
+                terrain_query_->tileBaseHeightUnits(to.x, to.y));
+        } else {
+            replay_step_motor_ = terrain::GridStepMotor::beginStep(
+                scene_,
+                from.x,
+                from.y,
+                to.x,
+                to.y,
+                to.x - from.x,
+                to.y - from.y,
+                tileHeightUnits(from.x, from.y),
+                tileHeightUnits(to.x, to.y));
+        }
+    }
+
+    replay_follow_active_ = true;
+    follower_tile_ = from;
+    step_dest_tile_ = to;
+    follower_move_t_ = std::clamp(player_segment.t, 0.0f, 1.0f);
+    follower_moving_ = true;
+    current_step_hop_height_tiles_ = 0.0;
+    if (to.x > from.x) follower_facing_ = FacingDirection::East;
+    else if (to.x < from.x) follower_facing_ = FacingDirection::West;
+    else if (to.y > from.y) follower_facing_ = FacingDirection::South;
+    else if (to.y < from.y) follower_facing_ = FacingDirection::North;
+
+    const camera::Vec3 from_pos = tileToWorldCenter(from.x, from.y);
+    const camera::Vec3 to_pos = tileToWorldCenter(to.x, to.y);
+    follower_pos_.x = from_pos.x + ((to_pos.x - from_pos.x) * follower_move_t_);
+    follower_pos_.z = from_pos.z + ((to_pos.z - from_pos.z) * follower_move_t_);
+    if (replay_step_motor_.interpolate_y) {
+        follower_pos_.y = terrain_query_
+            ? terrain_query_->actorHeightDuringStep(
+                follower_pos_.x,
+                follower_pos_.z,
+                replay_step_motor_,
+                follower_move_t_)
+            : terrain::actorHeightDuringStep(
+                scene_,
+                follower_pos_.x,
+                follower_pos_.z,
+                replay_step_motor_,
+                follower_move_t_);
+    } else {
+        follower_pos_.y = from_pos.y + ((to_pos.y - from_pos.y) * follower_move_t_);
+    }
+    return true;
 }
 
 void FollowerController::finishNatureIdle(bool natural_end) {
@@ -214,11 +365,14 @@ void FollowerController::updateNormalFollow() {
         }
         if (path_.empty()) return;
     }
-    const TilePoint next = path_.front();
-    path_.pop_front();
+    const double owner_speed_multiplier = player_running_
+        ? static_cast<double>(movement_config_.runSpeed() / std::max(1.0f, movement_config_.walkSpeed()))
+        : 1.0;
     const double speed = cancel_return_active_
         ? idle_config_.cancel_return_speed_multiplier
-        : 1.0;
+        : owner_speed_multiplier;
+    const TilePoint next = path_.front();
+    path_.pop_front();
     beginStepToTile(next, speed, false);
 }
 
@@ -335,8 +489,11 @@ void FollowerController::updateManualDebugAction(double dt) {
     if (manual_debug_action_ == ManualDebugActionType::Jump) {
         const double duration = std::max(0.01, idle_config_.jump.duration_seconds);
         const double phase = std::clamp(manual_debug_elapsed_seconds_ / duration, 0.0, 1.0);
+        const int jump_height_pixels = manual_debug_jump_height_pixels_ > 0
+            ? manual_debug_jump_height_pixels_
+            : idle_config_.jump.height_pixels;
         render_screen_offset_y_px_ =
-            -static_cast<int>(std::lround((4.0 * phase * (1.0 - phase)) * static_cast<double>(idle_config_.jump.height_pixels)));
+            -static_cast<int>(std::lround((4.0 * phase * (1.0 - phase)) * static_cast<double>(jump_height_pixels)));
         if (manual_debug_elapsed_seconds_ >= duration) {
             pending_landing_dust_spawn_ = effects::LandingDustSpawnRequest{
                 reinterpret_cast<std::uintptr_t>(this),
@@ -344,6 +501,7 @@ void FollowerController::updateManualDebugAction(double dt) {
                 duration};
             manual_debug_action_ = ManualDebugActionType::None;
             manual_debug_elapsed_seconds_ = 0.0;
+            manual_debug_jump_height_pixels_ = 0;
             render_screen_offset_y_px_ = 0;
             active_behavior_label_ = "none";
         }
@@ -373,27 +531,76 @@ void FollowerController::update(
     double dt,
     const camera::Vec3& player_world_pos,
     FacingDirection player_facing,
+    const characters::CharacterController::MovementSegment& player_segment,
     bool player_idle,
-    bool player_activity) {
-    if (!follower_renderer_ || !session_config_.enabled) return;
+    bool player_activity,
+    bool player_running) {
+    if (!resources_ready_ || !session_config_.enabled) return;
+    script_time_seconds_ += dt;
 
     player_facing_ = player_facing;
     player_idle_ = player_idle;
+    player_running_ = player_running;
+    const bool replay_mode = session_config_.movement_mode == "replay";
     const float ts = std::max(1.0f, scene_.grid.tile_size);
-    const TilePoint player_tile{
-        static_cast<int>(std::floor(player_world_pos.x / ts)),
-        static_cast<int>(std::floor(player_world_pos.z / ts))};
+    const TilePoint player_tile = replay_mode && player_segment.active
+        ? TilePoint{player_segment.to_x, player_segment.to_y}
+        : TilePoint{
+            static_cast<int>(std::floor(player_world_pos.x / ts)),
+            static_cast<int>(std::floor(player_world_pos.z / ts))};
     player_tile_ = player_tile;
 
     if (!have_last_player_tile_) {
         last_player_tile_ = player_tile;
         player_tile_ = player_tile;
         follower_tile_ = player_tile;
+        player_step_trail_.clear();
+        player_step_trail_.push_back(player_tile);
         have_last_player_tile_ = true;
     }
-    if (player_tile.x != last_player_tile_.x || player_tile.y != last_player_tile_.y) {
+    if (replay_mode &&
+        player_segment.active &&
+        (!have_last_player_segment_ ||
+         last_player_segment_from_.x != player_segment.from_x ||
+         last_player_segment_from_.y != player_segment.from_y ||
+         last_player_segment_to_.x != player_segment.to_x ||
+         last_player_segment_to_.y != player_segment.to_y)) {
+        const TilePoint from{player_segment.from_x, player_segment.from_y};
+        const TilePoint to{player_segment.to_x, player_segment.to_y};
+        if (player_step_trail_.empty() ||
+            player_step_trail_.back().x != from.x ||
+            player_step_trail_.back().y != from.y) {
+            player_step_trail_.push_back(from);
+        }
+        if (player_step_trail_.back().x != to.x || player_step_trail_.back().y != to.y) {
+            player_step_trail_.push_back(to);
+        }
+        while (player_step_trail_.size() > 32) {
+            player_step_trail_.pop_front();
+        }
+        last_player_segment_from_ = from;
+        last_player_segment_to_ = to;
+        have_last_player_segment_ = true;
+        path_.clear();
+        if (state_ == State::Hidden) {
+            state_ = State::BallRelease;
+            state_elapsed_seconds_ = 0.0;
+            ball_pos_ = tileToWorldCenter(from.x, from.y);
+            follower_pos_ = ball_pos_;
+            follower_tile_ = from;
+        }
+        last_player_tile_ = player_tile;
+    } else if (player_tile.x != last_player_tile_.x || player_tile.y != last_player_tile_.y) {
         path_.push_back(last_player_tile_);
         if (path_.size() > 24) path_.pop_front();
+        if (player_step_trail_.empty() ||
+            player_step_trail_.back().x != player_tile.x ||
+            player_step_trail_.back().y != player_tile.y) {
+            player_step_trail_.push_back(player_tile);
+            while (player_step_trail_.size() > 32) {
+                player_step_trail_.pop_front();
+            }
+        }
         if (state_ == State::Hidden) {
             state_ = State::BallRelease;
             state_elapsed_seconds_ = 0.0;
@@ -420,13 +627,67 @@ void FollowerController::update(
         return;
     }
 
-    updateActiveStep(dt);
+    const bool replay_following =
+        replay_mode &&
+        !idle_behavior_active_ &&
+        !cancel_return_active_ &&
+        manual_debug_action_ == ManualDebugActionType::None &&
+        updateReplayFollow(player_segment);
+    if (!replay_following) {
+        updateActiveStep(dt);
+    }
+    if (!follower_moving_ && state_ == State::Active) {
+        follower_pos_.y = terrainBinding().simulation_y;
+    }
     if (follower_animator_) {
+        const double playback_speed = player_running_ && (follower_moving_ || !path_.empty())
+            ? static_cast<double>(movement_config_.runSpeed() / std::max(1.0f, movement_config_.walkSpeed()))
+            : 1.0;
+        bool swimming = false;
+        if (scene_.water_terrain.pokemon_swim_animation_enabled && terrain_query_) {
+            const float tile_size = terrain_query_->tileSize();
+            const int water_tx = static_cast<int>(std::floor(follower_pos_.x / tile_size));
+            const int water_ty = static_cast<int>(std::floor(follower_pos_.z / tile_size));
+            swimming = terrain_query_->tileIsActualWater(water_tx, water_ty);
+        }
         follower_animator_->setFacing(follower_facing_);
-        follower_animator_->setMoving(follower_moving_);
-        if (manual_debug_action_ == ManualDebugActionType::None) {
+        follower_animator_->setPlaybackSpeedMultiplier(playback_speed);
+        follower_animator_->setSwimming(swimming);
+        follower_animator_->setRunning(player_running_ && (follower_moving_ || !path_.empty()));
+        follower_animator_->setMoving(interaction_locked_ ? false : follower_moving_);
+        if ((!interaction_locked_ || follower_animator_->activitySessionActive()) &&
+            manual_debug_action_ == ManualDebugActionType::None) {
             follower_animator_->update(dt);
         }
+    }
+
+    if (interaction_locked_) {
+        path_.clear();
+        idle_actions_.clear();
+        idle_behavior_active_ = false;
+        returning_to_origin_ = false;
+        cancel_return_active_ = false;
+        sleep_action_active_ = false;
+        idle_seconds_ = 0.0;
+        if (follower_moving_) {
+            follower_moving_ = false;
+            replay_follow_active_ = false;
+            follower_pos_ = tileToWorldCenter(follower_tile_.x, follower_tile_.y);
+        }
+        if (interaction_action_active_ && manual_debug_action_ != ManualDebugActionType::None) {
+            updateManualDebugAction(dt);
+            if (manual_debug_action_ == ManualDebugActionType::None) {
+                interaction_action_active_ = false;
+            }
+        } else {
+            manual_debug_action_ = ManualDebugActionType::None;
+            interaction_action_active_ = false;
+            render_offset_ = camera::Vec3{};
+            render_screen_offset_y_px_ = 0;
+            active_behavior_label_ = "none";
+            pending_landing_dust_spawn_.reset();
+        }
+        return;
     }
 
     if (player_activity && idle_behavior_active_) {
@@ -515,6 +776,16 @@ void FollowerController::update(
     idle_seconds_ += dt;
     if (idle_seconds_ < idle_config_.start_after_idle_seconds) return;
     idle_seconds_ = 0.0;
+    scripts::ScriptContext script_context{};
+    script_context.tags = {"POKEMON", "FOLLOWER", "NATURE_" + scripts::normalizeScriptTag(canonical_nature)};
+    script_context.nearest_tag_distance_tiles["PLAYER"] =
+        std::abs(player_tile.x - follower_tile_.x) + std::abs(player_tile.y - follower_tile_.y);
+    const scripts::OverworldScript* selected_script = scripts::selectScript(
+        idle_script_catalog_, scripts::ScriptKind::Idle, script_context,
+        idle_script_cooldowns_, script_time_seconds_, rng_);
+    if (!selected_script || (!session_config_.idle_script_id.empty() && selected_script->id != session_config_.idle_script_id)) {
+        return;
+    }
     idle_origin_tile_ = follower_tile_;
     idle_origin_facing_ = follower_facing_;
     IdlePlan plan;
@@ -567,101 +838,228 @@ void FollowerController::update(
     active_behavior_label_ = behaviorLabel(plan.behavior);
 }
 
-void FollowerController::render(
-    SDL_Renderer* renderer,
+bool FollowerController::visibleForSimulation() const {
+    return resources_ready_ && state_ != State::Hidden;
+}
+
+std::vector<std::pair<int, int>> FollowerController::reservedTiles() const {
+    if (!visibleForSimulation()) {
+        return {};
+    }
+
+    std::vector<std::pair<int, int>> tiles;
+    tiles.push_back({follower_tile_.x, follower_tile_.y});
+    if ((follower_moving_ || replay_follow_active_) &&
+        (step_dest_tile_.x != follower_tile_.x || step_dest_tile_.y != follower_tile_.y)) {
+        tiles.push_back({step_dest_tile_.x, step_dest_tile_.y});
+    }
+    return tiles;
+}
+
+std::optional<std::string> FollowerController::interactionTargetIdAtTile(int tx, int ty) const {
+    if (state_ != State::Active || follower_moving_ || replay_follow_active_ || !resources_ready_) {
+        return std::nullopt;
+    }
+    if (follower_tile_.x == tx && follower_tile_.y == ty) {
+        return session_config_.pokemon_species.empty()
+            ? std::string{"follower_pokemon"}
+            : std::string{"follower_pokemon:" + session_config_.pokemon_species};
+    }
+    return std::nullopt;
+}
+
+bool FollowerController::setInteractionLocked(bool locked) {
+    if (locked && (state_ != State::Active || follower_moving_ || replay_follow_active_ || !resources_ready_)) {
+        interaction_locked_ = false;
+        return false;
+    }
+    interaction_locked_ = locked;
+    if (!interaction_locked_) {
+        return true;
+    }
+    path_.clear();
+    idle_actions_.clear();
+    idle_behavior_active_ = false;
+    returning_to_origin_ = false;
+    cancel_return_active_ = false;
+    sleep_action_active_ = false;
+    manual_debug_action_ = ManualDebugActionType::None;
+    interaction_action_active_ = false;
+    render_offset_ = camera::Vec3{};
+    render_screen_offset_y_px_ = 0;
+    active_behavior_label_ = "none";
+    pending_landing_dust_spawn_.reset();
+    idle_seconds_ = 0.0;
+    return true;
+}
+
+std::optional<FollowerInteractionInfo> FollowerController::interactionInfo() const {
+    if (state_ != State::Active || !resources_ready_) {
+        return std::nullopt;
+    }
+    FollowerInteractionInfo info{};
+    info.tile_x = follower_tile_.x;
+    info.tile_y = follower_tile_.y;
+    info.display_name = session_config_.pokemon_species.empty() ? std::string{"Pokemon"} : session_config_.pokemon_species;
+    info.species_name = follower_def_.species_name.empty() ? session_config_.pokemon_species : follower_def_.species_name;
+    info.pokemon_size = follower_def_.pokemon_size;
+    info.pokemon_types = follower_def_.pokemon_types;
+    info.species_slug = session_config_.pokemon_species;
+    info.form_id = session_config_.pokemon_form_id;
+    info.shiny = session_config_.pokemon_shiny;
+    return info;
+}
+
+bool FollowerController::faceInteractionLockedTowardTile(int tx, int ty) {
+    if (!interaction_locked_) {
+        return false;
+    }
+    follower_facing_ = interactions::facingTowardTiles(follower_tile_.x, follower_tile_.y, tx, ty, follower_facing_);
+    if (follower_animator_) {
+        follower_animator_->setFacing(follower_facing_);
+    }
+    return true;
+}
+
+bool FollowerController::faceInteractionLocked(FacingDirection facing) {
+    if (!interaction_locked_) {
+        return false;
+    }
+    follower_facing_ = facing;
+    if (follower_animator_) {
+        follower_animator_->setFacing(follower_facing_);
+    }
+    return true;
+}
+
+bool FollowerController::startInteractionSession() {
+    if (!interaction_locked_ || !follower_animator_) {
+        return false;
+    }
+    const std::optional<std::string> action_id =
+        interactions::interactionActivityIdForPokemonSize(follower_def_.pokemon_size);
+    return action_id && follower_animator_->startActivitySession(*action_id);
+}
+
+void FollowerController::requestInteractionSessionExit() {
+    if (follower_animator_) {
+        follower_animator_->requestActivityExit();
+    }
+}
+
+bool FollowerController::interactionSessionReady() const {
+    return !follower_animator_ ||
+        !follower_animator_->activitySessionActive() ||
+        follower_animator_->activityStayActive();
+}
+
+bool FollowerController::interactionSessionFinished() const {
+    return !follower_animator_ || follower_animator_->activityFinished();
+}
+
+void FollowerController::collectBillboardDraws(
     const camera::Gen4FollowCamera& camera,
     int viewport_w,
     int viewport_h,
-    float tint_r,
-    float tint_g,
-    float tint_b,
-    float brightness) {
-    if (!activeForRender()) return;
-    if (state_ == State::BallRelease && ball_renderer_ && ball_renderer_->valid()) {
+    std::vector<rendering::CharacterBillboardDraw>& out) const {
+    if (!visibleForSimulation()) {
+        return;
+    }
+
+    if (state_ == State::BallRelease) {
         const double animation_seconds = std::max(0.001, ballReleasePhaseSeconds(summon_config_));
         const double held_elapsed_seconds = std::min(state_elapsed_seconds_, animation_seconds);
         const float t = std::clamp(
             static_cast<float>(held_elapsed_seconds / animation_seconds),
-            0.0f, 1.0f);
+            0.0f,
+            1.0f);
         int frame = ball_frames_.front();
         if (summon_config_.ball_animation.full_animation) {
-            const int idx = std::clamp(static_cast<int>(std::round(t * static_cast<float>(std::max(0, static_cast<int>(ball_frames_.size()) - 1)))),
-                0, static_cast<int>(ball_frames_.size()) - 1);
+            const int idx = std::clamp(
+                static_cast<int>(std::round(t * static_cast<float>(std::max(0, static_cast<int>(ball_frames_.size()) - 1)))),
+                0,
+                static_cast<int>(ball_frames_.size()) - 1);
             frame = ball_frames_[static_cast<std::size_t>(idx)];
         } else if (t > 0.5f) {
             frame = ball_frames_.back();
         }
-        camera::Vec3 draw = ball_pos_;
-        if (summon_config_.ball_animation.fall_enabled) draw.y += (1.0f - t) * summon_config_.ball_animation.fall_height_world;
-        ball_renderer_->render(
-            renderer,
+        const float ts = std::max(1.0f, scene_.grid.tile_size);
+        const int ball_tx = static_cast<int>(std::floor(ball_pos_.x / ts));
+        const int ball_ty = static_cast<int>(std::floor(ball_pos_.z / ts));
+        const terrain::ActorTerrainBinding binding =
+            terrain::bindActorStanding(scene_, ball_tx, ball_ty, ball_pos_.x, ball_pos_.z);
+        camera::Vec3 sim_pos = ball_pos_;
+        if (summon_config_.ball_animation.fall_enabled) {
+            sim_pos.y += (1.0f - t) * summon_config_.ball_animation.fall_height_world;
+        }
+        rendering::CharacterBillboardDraw draw{};
+        draw.character = &ball_def_;
+        draw.source_rect = sourceRectForFrame(ball_def_, frame);
+        draw.sprite_scale_multiplier = summon_config_.ball_animation.sprite_scale;
+        draw.draw_shadow = false;
+        draw.placement = rendering::buildCharacterBillboardPlacement(
+            scene_,
             camera,
-            draw,
-            sourceRectForFrame(ball_def_, frame),
+            binding,
+            ball_def_,
+            sim_pos,
+            draw.source_rect,
             viewport_w,
             viewport_h,
-            1.0f,
-            1.0f,
-            1.0f,
-            1.0f,
-            1.0f,
-            1.0f,
-            0.0f,
-            &ball_pos_);
+            summon_config_.ball_animation.sprite_scale,
+            summon_config_.ball_animation.screen_offset_y_px,
+            camera::Vec3{
+                summon_config_.ball_animation.world_offset_x,
+                summon_config_.ball_animation.world_offset_y,
+                summon_config_.ball_animation.world_offset_z});
+        out.push_back(draw);
         return;
     }
-    if (!follower_animator_ || !follower_renderer_) return;
-    float scale_mul = 1.0f;
-    float tr = tint_r;
-    float tg = tint_g;
-    float tb = tint_b;
-    float alpha_mul = 1.0f;
-    float white_overlay_alpha = 0.0f;
+
+    if (!follower_animator_) {
+        return;
+    }
+
+    rendering::CharacterBillboardDraw draw{};
+    draw.character = &follower_def_;
+    draw.source_rect = follower_animator_->sourceRect();
+    draw.activity_id = follower_animator_->textureSheetId();
+    draw.draw_shadow = !follower_animator_->swimming();
+    draw.use_run_texture = follower_animator_->running();
     if (state_ == State::EntryFlash) {
         const float t = std::clamp(
-            static_cast<float>((state_elapsed_seconds_ * 1000.0) / std::max(1.0, static_cast<double>(summon_config_.entry_animation.duration_ms))),
+            static_cast<float>((state_elapsed_seconds_ * 1000.0) /
+                std::max(1.0, static_cast<double>(summon_config_.entry_animation.duration_ms))),
             0.0f,
             1.0f);
-        scale_mul = summon_config_.entry_animation.start_scale + ((1.0f - summon_config_.entry_animation.start_scale) * t);
-        tr = summon_config_.entry_animation.tint_r;
-        tg = summon_config_.entry_animation.tint_g;
-        tb = summon_config_.entry_animation.tint_b;
-        alpha_mul = summon_config_.entry_animation.alpha;
-        white_overlay_alpha = 1.0f;
+        draw.sprite_scale_multiplier =
+            summon_config_.entry_animation.start_scale + ((1.0f - summon_config_.entry_animation.start_scale) * t);
+        draw.tint_r = summon_config_.entry_animation.tint_r;
+        draw.tint_g = summon_config_.entry_animation.tint_g;
+        draw.tint_b = summon_config_.entry_animation.tint_b;
+        draw.alpha_multiplier = summon_config_.entry_animation.alpha;
+        draw.white_overlay_alpha = 1.0f;
     }
-    camera::Vec3 draw_pos = follower_pos_;
-    draw_pos.x += render_offset_.x;
-    draw_pos.y += render_offset_.y;
-    draw_pos.z += render_offset_.z;
-    const SDL_Rect src = follower_animator_->sourceRect();
-    follower_renderer_->render(
-        renderer,
+    draw.placement = rendering::buildCharacterBillboardPlacement(
+        scene_,
         camera,
-        draw_pos,
-        src,
+        terrainBinding(),
+        follower_def_,
+        follower_pos_,
+        draw.source_rect,
         viewport_w,
         viewport_h,
-        tr,
-        tg,
-        tb,
-        brightness,
-        scale_mul,
-        alpha_mul,
-        white_overlay_alpha,
-        nullptr,
-        0,
-        render_screen_offset_y_px_);
-}
-
-bool FollowerController::activeForRender() const {
-    return state_ != State::Hidden && follower_renderer_ && follower_renderer_->valid();
+        draw.sprite_scale_multiplier,
+        render_screen_offset_y_px_,
+        render_offset_);
+    out.push_back(draw);
 }
 
 std::optional<float> FollowerController::renderDepth(
     const camera::Gen4FollowCamera& camera,
     int viewport_w,
     int viewport_h) const {
-    if (!activeForRender()) return std::nullopt;
+    if (!visibleForSimulation()) return std::nullopt;
     camera::Vec3 p = (state_ == State::BallRelease) ? ball_pos_ : follower_pos_;
     float sx = 0.0f, sy = 0.0f, depth = 0.0f;
     if (!camera.worldToScreen(p, viewport_w, viewport_h, sx, sy, depth)) return std::nullopt;
@@ -674,11 +1072,20 @@ bool FollowerController::triggerDebugJump() {
         return false;
     }
     manual_debug_action_ = ManualDebugActionType::Jump;
+    interaction_action_active_ = false;
     manual_debug_elapsed_seconds_ = 0.0;
+    manual_debug_jump_height_pixels_ = 0;
     render_offset_ = camera::Vec3{};
     render_screen_offset_y_px_ = 0;
     pending_landing_dust_spawn_.reset();
     active_behavior_label_ = "debug_jump";
+    return true;
+}
+
+bool FollowerController::triggerInteractionJump(int height_pixels) {
+    if (!triggerDebugJump()) return false;
+    interaction_action_active_ = true;
+    manual_debug_jump_height_pixels_ = std::max(0, height_pixels);
     return true;
 }
 
@@ -706,6 +1113,16 @@ std::optional<effects::LandingDustSpawnRequest> FollowerController::consumeLandi
     return out;
 }
 
+bool FollowerController::effectOnActualWater() const {
+    // Particle state follows the committed logical tile, not the interpolated
+    // render position. The loaded-world query also understands adjacent maps;
+    // querying scene_ directly made every follower appear to leave water when
+    // it crossed beyond the primary map's local coordinates.
+    return terrain_query_
+        ? terrain_query_->tileIsActualWater(follower_tile_.x, follower_tile_.y)
+        : terrain::isActualWaterTile(scene_, follower_tile_.x, follower_tile_.y);
+}
+
 int FollowerController::tileHeightUnits(int tx, int ty) const {
     if (scene_.terrain.heights.empty()) return 0;
     if (ty < 0 || ty >= static_cast<int>(scene_.terrain.heights.size())) return 0;
@@ -715,8 +1132,13 @@ int FollowerController::tileHeightUnits(int tx, int ty) const {
 }
 
 camera::Vec3 FollowerController::tileToWorldCenter(int tx, int ty) const {
-    const float ts = std::max(1.0f, scene_.grid.tile_size);
-    return camera::Vec3{(static_cast<float>(tx) + 0.5f) * ts, static_cast<float>(tileHeightUnits(tx, ty)) * ts, (static_cast<float>(ty) + 0.5f) * ts};
+    const float ts = terrain_query_ ? terrain_query_->tileSize() : std::max(1.0f, scene_.grid.tile_size);
+    const float cx = (static_cast<float>(tx) + 0.5f) * ts;
+    const float cz = (static_cast<float>(ty) + 0.5f) * ts;
+    const float y = terrain_query_
+        ? terrain_query_->bindActorStanding(tx, ty, cx, cz).simulation_y
+        : terrain::heightAtActorFeet(scene_, cx, cz, tx, ty);
+    return camera::Vec3{cx, y, cz};
 }
 
 } // namespace pr::gameplay::world3d::followers

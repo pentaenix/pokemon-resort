@@ -1,0 +1,8 @@
+{
+  "attend": {
+    "type": "black_iris",
+    "durationSeconds": 0.65,
+    "circleSegments": 64,
+    "maxRadiusScale": 1.15
+  }
+}

@@ -1,5 +1,6 @@
 #include "core/app/screen/AppScreenCoordinator.hpp"
 
+#include "ui/AttendTestScreen.hpp"
 #include "ui/Screen.hpp"
 #include "ui/ScreenInput.hpp"
 #include "ui/Overworld3DTestScreen.hpp"
@@ -12,11 +13,13 @@ AppScreenCoordinator::AppScreenCoordinator(
     TitleScreen& title_screen,
     AppLoadingCoordinator& loading,
     TransferFlowCoordinator& transfer_flow,
-    Overworld3DTestScreen& overworld3d_test)
+    Overworld3DTestScreen& overworld3d_test,
+    AttendTestScreen& attend_test)
     : title_screen_(title_screen),
       loading_(loading),
       transfer_flow_(transfer_flow),
-      overworld3d_test_(overworld3d_test) {}
+      overworld3d_test_(overworld3d_test),
+      attend_test_(attend_test) {}
 
 Screen* AppScreenCoordinator::activeScreen() {
     switch (active_screen_) {
@@ -28,6 +31,8 @@ Screen* AppScreenCoordinator::activeScreen() {
             return transfer_flow_.activeScreen();
         case ActiveScreen::Overworld3DTest:
             return &overworld3d_test_;
+        case ActiveScreen::TestAttend:
+            return &attend_test_;
     }
     return nullptr;
 }
@@ -53,6 +58,9 @@ void AppScreenCoordinator::update(double dt) {
         case ActiveScreen::Overworld3DTest:
             updateOverworld3D(dt);
             break;
+        case ActiveScreen::TestAttend:
+            updateTestAttend(dt);
+            break;
     }
 
     updateTransition(dt);
@@ -74,6 +82,7 @@ AppMusicRequest AppScreenCoordinator::musicRequest() const {
 
 AppSfxRequests AppScreenCoordinator::consumeSfxRequests() {
     collectTransferFrameRequests();
+    collectOverworldFrameRequests();
     return frame_requests_.consumeSfxRequests();
 }
 
@@ -114,6 +123,8 @@ std::string AppScreenCoordinator::screenshotNameContext() const {
         }
         case ActiveScreen::Overworld3DTest:
             return "overworld3d_test";
+        case ActiveScreen::TestAttend:
+            return "test_attend";
     }
     return "screen";
 }

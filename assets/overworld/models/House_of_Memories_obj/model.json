@@ -1,0 +1,75 @@
+{
+  "manifestVersion": 1,
+  "storageFormat": "glb",
+  "id": "House_of_Memories_obj",
+  "displayName": "House_of_Memories_obj",
+  "defaultYawDeg": 0,
+  "defaultScale": 1,
+  "compiledAt": "2026-06-18T21:03:02.088Z",
+  "sourceFormat": "obj",
+  "sourceFile": "House_of_Memories_obj.glb",
+  "glbFile": "House_of_Memories_obj.glb",
+  "modelFile": "House_of_Memories_obj.glb",
+  "modelByteSize": 18164,
+  "modelHash": "09799943bd2a7bcc",
+  "footprintTiles": {
+    "w": 6,
+    "d": 5,
+    "h": 7
+  },
+  "renderFootprintTiles": {
+    "w": 6,
+    "d": 5,
+    "h": 7
+  },
+  "authoringFootprintTiles": {
+    "w": 6,
+    "d": 5,
+    "h": 7
+  },
+  "collisionFootprintTiles": {
+    "w": 6,
+    "d": 5,
+    "h": 7
+  },
+  "previewOffsetTiles": {
+    "x": 0,
+    "y": 0
+  },
+  "aabb": {
+    "min": [
+      -42.5625,
+      0.8320313096046448,
+      -43.671878814697266
+    ],
+    "max": [
+      49.20703125,
+      99.82813262939453,
+      34.5625
+    ]
+  },
+  "vertexCount": 278,
+  "triangleCount": 226,
+  "materials": [
+    "light1",
+    "h_kage_lm1",
+    "lambert5"
+  ],
+  "textureCount": 3,
+  "convertedFromObj": true,
+  "sourceObj": "House of Memories.obj",
+  "materialsMeta": {
+    "h_kage_lm1": {
+      "textureResolved": "h_kage_lm1.png",
+      "textureName": "h_kage_lm1.png"
+    },
+    "lambert5": {
+      "textureResolved": "lambert5.png",
+      "textureName": "lambert5.png"
+    },
+    "light1": {
+      "textureResolved": "light1.png",
+      "textureName": "light1.png"
+    }
+  }
+}

@@ -14,6 +14,8 @@ public:
     void requestPutdownSfxIf(bool condition);
     void requestErrorSfxIf(bool condition);
     void requestSaveSfx();
+    void requestOverworldBlockedSfxIf(bool condition);
+    void requestOneShotSfx(const std::string& relative_path);
     void requestUserSettingsSave();
 
     AppSfxRequests consumeSfxRequests();

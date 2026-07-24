@@ -1,0 +1,61 @@
+{
+  "manifestVersion": 1,
+  "storageFormat": "glb",
+  "id": "palm_young",
+  "displayName": "palm_young",
+  "defaultYawDeg": 0,
+  "defaultScale": 1,
+  "compiledAt": "2026-07-18T05:32:29.136Z",
+  "sourceFormat": "glb",
+  "sourceFile": "palm_young.glb",
+  "glbFile": "palm_young.glb",
+  "modelFile": "palm_young.glb",
+  "modelByteSize": 88676,
+  "modelHash": "ed21617f42c932d6",
+  "footprintTiles": {
+    "w": 5,
+    "d": 5,
+    "h": 6
+  },
+  "renderFootprintTiles": {
+    "w": 5,
+    "d": 5,
+    "h": 6
+  },
+  "authoringFootprintTiles": {
+    "w": 5,
+    "d": 5,
+    "h": 6
+  },
+  "collisionFootprintTiles": {
+    "w": 5,
+    "d": 5,
+    "h": 6
+  },
+  "previewOffsetTiles": {
+    "x": 0,
+    "y": 0
+  },
+  "aabb": {
+    "min": [
+      -33.06895446777344,
+      0.06199999898672104,
+      -36.81715504089482
+    ],
+    "max": [
+      33.03768539428711,
+      81.3279370132727,
+      30.63749885559082
+    ]
+  },
+  "vertexCount": 177,
+  "triangleCount": 136,
+  "materials": [
+    "c15_wood_2",
+    "c15_wood_3",
+    "c15_wood_4",
+    "PalmShadowMaterial",
+    "BaseContactMaterial"
+  ],
+  "textureCount": 5
+}

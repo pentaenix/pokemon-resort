@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -19,12 +20,53 @@ struct GlbVertex {
     float z = 0.0f;
     float u = 0.0f;
     float v = 0.0f;
+    float r = 1.0f;
+    float g = 1.0f;
+    float b = 1.0f;
+    float a = 1.0f;
+    int node = -1;
+    std::vector<std::array<float, 3>> morph_position_deltas;
+};
+
+struct GlbMorphAnimationChannel {
+    enum class Interpolation { Linear, Step, CubicSpline };
+
+    int target_node = -1;
+    int target_count = 0;
+    Interpolation interpolation = Interpolation::Linear;
+    std::vector<float> times;
+    std::vector<float> weights; // key-major: times.size() * target_count
+    std::vector<float> in_tangents;
+    std::vector<float> out_tangents;
+};
+
+struct GlbAnimation {
+    std::string name;
+    float duration_seconds = 0.0f;
+    std::vector<GlbMorphAnimationChannel> morph_channels;
 };
 
 struct GlbMaterial {
+    enum class AlphaMode {
+        Opaque,
+        Mask,
+        Blend
+    };
+
+    enum class RenderClass {
+        Opaque,
+        Mask,
+        Blend,
+        UniformDecal
+    };
+
+    std::string name;
     std::vector<std::uint8_t> image_bytes; // embedded PNG/JPEG; empty when untextured
     bool has_texture = false;
-    bool alpha_blend = false;              // glTF alphaMode MASK or BLEND
+    bool alpha_blend = false;              // legacy SDL fallback flag: glTF alphaMode MASK or BLEND
+    AlphaMode alpha_mode = AlphaMode::Opaque;
+    RenderClass render_class = RenderClass::Opaque;
+    float alpha_cutoff = 0.5f;
     float base_color[4] = {1.0f, 1.0f, 1.0f, 1.0f};
 };
 
@@ -38,6 +80,8 @@ struct GlbTriangle {
 struct GlbMesh {
     std::vector<GlbTriangle> triangles;
     std::vector<GlbMaterial> materials;
+    std::vector<GlbAnimation> animations;
+    std::vector<int> node_morph_target_counts;
     bool valid = false;
     float aabb_min[3] = {0.0f, 0.0f, 0.0f};
     float aabb_max[3] = {0.0f, 0.0f, 0.0f};
@@ -47,5 +91,13 @@ struct GlbMesh {
 // provided, a human-readable reason in *error. Only self-contained .glb files (geometry and
 // images embedded in the binary chunk) are supported; external buffers/URIs are rejected.
 GlbMesh loadGlbModel(const std::string& path, std::string* error = nullptr);
+
+// Samples the first authored animation as a looping clip. Empty per-node entries mean that
+// node has no animated morph weights. Static models return an empty vector.
+std::vector<std::vector<float>> sampleGlbMorphWeights(const GlbMesh& mesh, double time_seconds);
+std::array<float, 3> sampleGlbMorphPosition(
+    const GlbVertex& vertex,
+    const std::vector<std::vector<float>>& node_weights);
+GlbVertex applyGlbMorphWeights(const GlbVertex& vertex, const std::vector<std::vector<float>>& node_weights);
 
 } // namespace pr::gameplay::world3d::data

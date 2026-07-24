@@ -1,5 +1,7 @@
 #include "gameplay/world3d/rendering/OverworldMapRenderer.hpp"
 
+#include "gameplay/world3d/terrain/TerrainSurface.hpp"
+
 #include <SDL_image.h>
 
 #include <algorithm>
@@ -81,6 +83,10 @@ int terrainHeight(const SceneConfig& scene) {
         return static_cast<int>(scene.terrain.heights.size());
     }
     return std::max(1, scene.grid.height);
+}
+
+SDL_Color toSdlColor(const TerrainColor& color) {
+    return SDL_Color{color.r, color.g, color.b, color.a};
 }
 
 } // namespace
@@ -308,56 +314,7 @@ void OverworldMapRenderer::render(
     };
 
     const auto fill_tile_corner_heights = [&](int x, int y, float (&c)[4]) {
-        // Corner order matches push_quad_face vertex order:
-        // 0=(x0,z0) north-west, 1=(x1,z0) north-east, 2=(x1,z1) south-east, 3=(x0,z1) south-west
-        const float low = static_cast<float>(tile_h(x, y)) * tile_size;
-        const float high = static_cast<float>(tile_h(x, y) + 1) * tile_size;
-        c[0] = low;
-        c[1] = low;
-        c[2] = low;
-        c[3] = low;
-        switch (tile_special(x, y)) {
-            case kSpecialFlat:
-                break;
-            case kSpecialRampNorth:
-                c[0] = high; c[1] = high; c[2] = low; c[3] = low;
-                break;
-            case kSpecialRampEast:
-                c[0] = low; c[1] = high; c[2] = high; c[3] = low;
-                break;
-            case kSpecialRampSouth:
-                c[0] = low; c[1] = low; c[2] = high; c[3] = high;
-                break;
-            case kSpecialRampWest:
-                c[0] = high; c[1] = low; c[2] = low; c[3] = high;
-                break;
-            case kSpecialConvexNE:
-                c[2] = high;
-                break;
-            case kSpecialConvexSE:
-                c[1] = high;
-                break;
-            case kSpecialConvexSW:
-                c[0] = high;
-                break;
-            case kSpecialConvexNW:
-                c[3] = high;
-                break;
-            case kSpecialConcaveNE:
-                c[0] = high; c[1] = high; c[3] = high;
-                break;
-            case kSpecialConcaveSE:
-                c[0] = high; c[3] = high;
-                break;
-            case kSpecialConcaveSW:
-                c[2] = high;
-                break;
-            case kSpecialConcaveNW:
-                c[1] = high; c[2] = high;
-                break;
-            default:
-                break;
-        }
+        terrain::fillTileCornerHeights(scene_, x, y, c);
     };
 
     const auto push_tile_top = [&](int x, int y, SDL_Color color) {
@@ -377,11 +334,23 @@ void OverworldMapRenderer::render(
         push_quad_face(x0, c[0], z0, x1, c[1], z0, x1, c[2], z1, x0, c[3], z1, color);
     };
 
-    const SDL_Color top_a{116, 156, 190, 255};
-    const SDL_Color top_b{125, 166, 200, 255};
+    const SDL_Color floor_a = toSdlColor(scene_.terrain.floor_color_a);
+    const SDL_Color floor_b = toSdlColor(scene_.terrain.floor_color_b);
+    const SDL_Color first_non_base_a = toSdlColor(scene_.terrain.first_non_base_floor_color_a);
+    const SDL_Color first_non_base_b = toSdlColor(scene_.terrain.first_non_base_floor_color_b);
+    const SDL_Color ramp_a = toSdlColor(scene_.terrain.ramp_color_a);
+    const SDL_Color ramp_b = toSdlColor(scene_.terrain.ramp_color_b);
     for (int y = 0; y < grid_h; ++y) {
         for (int x = 0; x < grid_w; ++x) {
-            const SDL_Color color = (((x + y) & 1) == 0) ? top_a : top_b;
+            const bool slope = terrain::isSlopeSpecial(tile_special(x, y));
+            const bool checker = ((x + y) & 1) != 0;
+            SDL_Color color = checker ? floor_b : floor_a;
+            if (scene_.terrain.floor_height_recolor_enabled && tile_h(x, y) == 1) {
+                color = checker ? first_non_base_b : first_non_base_a;
+            }
+            if (slope && scene_.terrain.ramp_recolor_enabled) {
+                color = checker ? ramp_b : ramp_a;
+            }
             push_tile_top(x, y, color);
         }
     }
@@ -400,8 +369,8 @@ void OverworldMapRenderer::render(
             color);
     };
 
-    const SDL_Color wall_ns{88, 117, 145, 255};
-    const SDL_Color wall_ew{80, 108, 136, 255};
+    const SDL_Color wall_ns = toSdlColor(scene_.terrain.wall_color_ns);
+    const SDL_Color wall_ew = toSdlColor(scene_.terrain.wall_color_ew);
     for (int y = 0; y < grid_h; ++y) {
         for (int x = 0; x < grid_w; ++x) {
             const float x0 = static_cast<float>(x) * tile_size;

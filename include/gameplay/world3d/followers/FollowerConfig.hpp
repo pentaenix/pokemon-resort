@@ -21,10 +21,25 @@ struct FollowerBallAnimationConfig {
     bool full_animation = true;
     bool fall_enabled = true;
     float fall_height_world = 10.0f;
+    float sprite_scale = 0.36f;
+    int screen_offset_y_px = 0;
+    float world_offset_x = 0.0f;
+    float world_offset_y = 0.0f;
+    float world_offset_z = 0.0f;
+};
+
+struct FollowerDustRenderConfig {
+    bool override_idle_config = false;
+    float sprite_scale = 1.0f;
+    int screen_offset_y_px = 0;
+    float world_offset_x = 0.0f;
+    float world_offset_y = 0.0f;
+    float world_offset_z = 0.0f;
 };
 
 struct FollowerSummonConfig {
     FollowerBallAnimationConfig ball_animation{};
+    FollowerDustRenderConfig landing_dust{};
     FollowerEntryAnimationConfig entry_animation{};
     int follow_step_duration_ms = 250;
 };
@@ -32,9 +47,14 @@ struct FollowerSummonConfig {
 struct FollowerSessionConfig {
     bool enabled = true;
     std::string pokemon_species;
+    std::string pokemon_charbin_path;
+    std::string pokemon_form_id = "default";
+    bool pokemon_shiny = false;
     std::string pokeball_id = "poke_ball";
     std::string nature;
     std::string forced_behavior;
+    std::string idle_script_id = "idle_follower_default";
+    std::string movement_mode = "trail";
 };
 
 FollowerSummonConfig loadFollowerSummonConfig(const std::string& project_root);

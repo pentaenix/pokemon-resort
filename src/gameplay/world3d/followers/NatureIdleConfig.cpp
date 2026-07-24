@@ -30,6 +30,18 @@ void parseRange(const JsonValue* root, NatureIdleRangeSeconds& out) {
     if (out.max < out.min) std::swap(out.min, out.max);
 }
 
+void parseWorldOffset(
+    const JsonValue* value,
+    float& out_x,
+    float& out_y,
+    float& out_z) {
+    if (!value || !value->isArray()) return;
+    const auto& arr = value->asArray();
+    if (arr.size() > 0 && arr[0].isNumber()) out_x = static_cast<float>(arr[0].asNumber());
+    if (arr.size() > 1 && arr[1].isNumber()) out_y = static_cast<float>(arr[1].asNumber());
+    if (arr.size() > 2 && arr[2].isNumber()) out_z = static_cast<float>(arr[2].asNumber());
+}
+
 void parseWeightTable(
     const JsonValue* root,
     std::unordered_map<std::string, std::unordered_map<std::string, int>>& out) {
@@ -113,6 +125,11 @@ NatureIdleBehaviorConfig loadNatureIdleBehaviorConfig(const std::string& project
                 static_cast<float>(numOr(dust->get("spriteScale"), out.landing_dust.sprite_scale));
             out.landing_dust.screen_offset_y_px =
                 intOr(dust->get("screenOffsetYPx"), out.landing_dust.screen_offset_y_px);
+            parseWorldOffset(
+                dust->get("worldOffset"),
+                out.landing_dust.world_offset_x,
+                out.landing_dust.world_offset_y,
+                out.landing_dust.world_offset_z);
         }
         if (const JsonValue* fallback = idle->get("fallbackOrder"); fallback && fallback->isArray()) {
             out.fallback_order.clear();

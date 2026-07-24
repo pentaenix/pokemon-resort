@@ -1,0 +1,26 @@
+{
+  "id": "interaction_pokemon_default",
+  "kind": "interaction",
+  "targetGates": [],
+  "trigger": "ACCEPT",
+  "priority": 0,
+  "weight": 1,
+  "cooldownSeconds": 0,
+  "when": {
+    "allTags": []
+  },
+  "actions": [
+    {
+      "action": "FACE_PLAYER"
+    },
+    {
+      "action": "FACE_AWAY"
+    },
+    {
+      "action": "POKEMON_INTERACTION_SESSION"
+    },
+    {
+      "action": "TEXT_FREE"
+    }
+  ]
+}

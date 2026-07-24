@@ -108,6 +108,7 @@ Unknown top-level keys on import are **preserved** (deep merge does not strip th
 |-------|------|----------|-------------|
 | `originGame` | `string` | no | Provenance label. |
 | `characterType` | `string` | no | `player`, `npc`, `pokemon`, or `object` (legacy `playable` → `player`). Default `npc`. |
+| `npcInteractionMode` | `string` | no | **NPC only.** `direct_dialogue` (default, including legacy packages) reads this character's `dialogue.lines`; `scripted` asks the runtime for an eligible interaction script and falls back to direct dialogue when none is available. Pokémon are always script-first and do not use this field. A future runtime-assigned interaction script takes precedence over NPC scripted mode, which takes precedence over the direct-dialogue fallback. |
 | `objectAnimated` | `boolean` | no | **Object only.** Hint for the game: use `animate` vs `static` when both actions exist. Default `false`. |
 | `pokemonId` | `number \| null` | no | National dex number (Pokémon only). |
 | `speciesName` | `string` | no | Species display name (Pokémon only). |
@@ -115,7 +116,7 @@ Unknown top-level keys on import are **preserved** (deep merge does not strip th
 | `selectedFormId` | `string` | no | Active form id. |
 | `pokedexEntry` | `string` | no | Flavor text (Pokémon only). |
 | `pokemonTypes` | `string[]` | no | e.g. `["dragon","ground"]` (Pokémon only). |
-| `pokemonSize` | `string` | no | `small` or `large` — large uses 64×64 cells on a 256×256 sheet (`pokemon_large` profile). |
+| `pokemonSize` | `string` | no | `small`, `human`, `medium`, or `large`. Human uses `character` profile at 32px; medium uses 40×40 cells on `pokemon_small`; large uses `pokemon_large` (64×64). |
 | `pokeapi` | `object \| null` | no | Cached PokéAPI snapshot (Pokémon only). See [metadata.pokeapi](#metadatapokeapi). Filled by SPMK **Fetch from PokéAPI**; embedded in `.charbin` so the game need not call the API. |
 | `description` | `string` | no | Short bio (single text area). Shown for both types. |
 | `personality` | `string[]` | no | Trait chips. Legacy single string is coerced to one item. **UI:** NPC only. |
@@ -124,7 +125,36 @@ Unknown top-level keys on import are **preserved** (deep merge does not strip th
 | `tags` | `string[]` | no | **UI:** NPC only; chip list. |
 | `partnerPokemon` | `object \| null` | yes* | `null` if none. *Validator warns if key missing. **UI:** NPC only. |
 | `extraPartnerPokemon` | `array` | no | Additional partners. |
-| `custom` | `object` | no | Extension point. |
+| `identityType` | `string` | no | NPC intel: `unique_character`, `trainer_class`, `generic_npc`, `unknown`. |
+| `role` | `string` | no | NPC intel role label. |
+| `region` | `string` | no | NPC intel region. |
+| `intelConfidence` | `number` | no | LLM confidence 0–1. |
+| `intelCustomOrEdited` | `boolean` | no | NPC was customized after import. |
+| `pokemonVariant` | `object` | no | **Pokémon only.** Structured forms / appearance modifiers / behaviors. See [metadata.pokemonVariant](#metadatapokemonvariant). |
+| `custom` | `object` | no | Extension point. `custom.npcIntel` holds the full LLM NPC intel JSON (availability, canon, structured dialogue, …). |
+
+### metadata.pokemonVariant
+
+Structured variant model (replaces flat `walk_*` suffix explosion in the editor). SPMK batch import writes this block and per-sheet fields.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `formKind` | `string` | `default`, `indexed`, `named`, `regional`, or `decoration` — how filenames map to forms. |
+| `defaultFormId` | `string` | Usually `default`. |
+| `forms` | `{id, name}[]` | Known form ids (e.g. Unown `0`–`26`, Alcremie `0`–`63`). |
+| `modifierDefs` | `{id, name}[]` | Appearance overlays (e.g. `shiny`). |
+| `behaviorDefs` | `object[]` | Animation sheet types: `idle`, `walk`, `sleep`, `swim`, `eating`. |
+
+**Concepts:**
+
+| Layer | Meaning | Examples |
+|-------|---------|----------|
+| **Form** | Alternate appearance (pick one) | `default`, `12`, `female`, `alola` |
+| **Modifier** | Appearance overlay | `shiny` |
+| **Behavior** | Sheet / animation type | `walk`, `sleep`, `swim`, `eating` |
+| **Actions** | Game clips for a variant | Walk import → `idle` + `walk` only (no auto `pause`) |
+
+Legacy `metadata.custom.overworldFormIds` / `overworldSpriteKeys` are still updated for compatibility.
 
 ### metadata.pokeapi
 
@@ -191,7 +221,10 @@ Each sheet is one embedded PNG grid.
 | `name` | `string` | no | Display name (e.g. `Walk`). |
 | `assetId` | `string` | yes | Key into embedded assets (e.g. `walk_png`). |
 | `profile` | `string` | no | Profile key; defaults to package `baseProfile`. |
-| `profileOverrides` | `object` | no | Override `columns`, `rows`, etc. from profile. |
+| `profileOverrides` | `object` | no | Override profile grid settings for this sheet only. Common keys: `columns`, `rows`, `frameWidth`, `frameHeight`. Width and height may differ for non-square cells (e.g. `32×48`). |
+| `formId` | `string` | no | **Pokémon.** Form id for this sheet; default `default`. |
+| `modifiers` | `string[]` | no | **Pokémon.** Appearance modifiers (e.g. `["shiny"]`). |
+| `behavior` | `string` | no | **Pokémon.** Sheet behavior: `walk`, `sleep`, `swim`, `eating`. |
 | `animations` | `object` | no | Per-sheet animation overrides; see below. |
 
 Rules:
@@ -220,11 +253,17 @@ Links game logic to a sheet + profile animation name.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `id` | `string` | yes | Unique action id (e.g. `idle`, `walk`). |
-| `type` | `string` | yes | `idle`, `movement`, or `walk` (movement-like). |
+| `id` | `string` | yes | Unique action id (e.g. `idle`, `walk`, `fishing`). |
+| `type` | `string` | yes | `idle`, `movement`, `walk` (legacy), or `activity` (see below). |
 | `sheetId` | `string` | yes | Must match a `spriteSheets[].id`. |
-| `animationName` | `string` | yes | Key in sprite profile `animations` (e.g. `idle`, `walk`). |
-| `movementDriven` | `boolean` | no | `true` for walk-style actions. |
+| `animationName` | `string` | yes* | Key in sprite profile `animations` or sheet override. *Not used on `activity` (phases name clips). |
+| `formId` | `string` | no | **Pokémon.** Form this action belongs to. |
+| `modifiers` | `string[]` | no | **Pokémon.** Appearance modifiers for this action. |
+| `behavior` | `string` | no | **Pokémon.** `idle`, `walk`, `sleep`, `swim`, `eating`. |
+| `movementDriven` | `boolean` | no | `true` for walk-style actions; always `false` for `activity`. |
+| `activityKind` | `string` | activity only | `"single"` or `"session"`. |
+| `phases` | `object` | activity only | Phase id → `{ animationName, loop? }`. |
+| `facingMode` | `string` | no | `activity` only: `"four_direction"` (default) or `"south_only"`. |
 
 Recommended pair for trainers / NPCs (`character` profile):
 
@@ -233,15 +272,16 @@ Recommended pair for trainers / NPCs (`character` profile):
 | `idle` | `idle` | `idle` | `false` |
 | `walk` | `movement` | `walk` | `true` |
 
-Recommended triple for `metadata.characterType: "pokemon"` (`pokemon_small` / `pokemon_large`):
+Recommended pair for `metadata.characterType: "pokemon"` (`pokemon_small` / `pokemon_large`) **per walk variant**:
 
 | id | type | animationName | movementDriven | Notes |
 |----|------|---------------|----------------|-------|
-| `idle` | `idle` | `walk` | `false` | **Uses walk cycle** while standing (Gen-style bob). |
-| `pause` | `idle` | `pause` | `false` | **Frame 0 only** — no animation advance. |
+| `idle` | `idle` | `walk` | `false` | Standing bob from walk cycle (Gen-style). |
 | `walk` | `movement` | `walk` | `true` | Movement-driven walk. |
 
-Validator **warnings** (not errors) if `character` profile lacks idle or walk/movement actions, or if Pokémon lacks `pause` / walk or idle does not target `walk`.
+Non-walk behaviors add one action each (`sleep`, `swim`, `eating`) pointing at their sheet. `pause` is **not** auto-created on import; add manually if needed.
+
+Validator **warnings** (not errors) if `character` profile lacks idle or walk/movement actions.
 
 Recommended for `metadata.characterType: "object"` (`object` profile, sheet id `sheet`):
 
@@ -250,6 +290,55 @@ Recommended for `metadata.characterType: "object"` (`object` profile, sheet id `
 | `play` | `idle` | `play` | `false` | Row-major 4×4 grid, up to 10 non-empty cells, **no loop** (`loop: false`). |
 
 Per-sheet `spriteSheets[].animations.play.frames` overrides detected frames after import. Objects must **not** use movement / walk actions.
+
+### Activity actions (proposed)
+
+Stationary overworld clips that use the 4-direction grid but **do not** move tiles (fishing, watering plants, petting). Same sheet layout as walk/run; gameplay does not advance world position.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `type` | `string` | yes | `"activity"` |
+| `activityKind` | `string` | yes | `"single"` (one `play` phase) or `"session"` (`enter` → `stay` → `exit`) |
+| `sheetId` | `string` | yes | Sheet with PNG + `animations` overrides |
+| `movementDriven` | `boolean` | yes | Always `false` |
+| `facingMode` | `string` | no | `"four_direction"` (default) or `"south_only"` |
+| `phases` | `object` | yes | Phase id → `{ animationName, loop? }` |
+
+**Phase ids:** `single` → `play` only. `session` → `enter`, `stay`, `exit` (all required). Each `animationName` resolves on the sheet's `animations` map. Set `loop: true` on `stay`; `enter`, `exit`, and `play` default to one-shot (`loop: false`).
+
+Example session action (fishing):
+
+```json
+{
+  "id": "fishing",
+  "type": "activity",
+  "activityKind": "session",
+  "sheetId": "fishing",
+  "movementDriven": false,
+  "phases": {
+    "enter": { "animationName": "cast", "loop": false },
+    "stay": { "animationName": "fishing", "loop": true },
+    "exit": { "animationName": "exit", "loop": false }
+  }
+}
+```
+
+Example single action (water plants):
+
+```json
+{
+  "id": "water",
+  "type": "activity",
+  "activityKind": "single",
+  "sheetId": "water",
+  "movementDriven": false,
+  "phases": {
+    "play": { "animationName": "water", "loop": false }
+  }
+}
+```
+
+Not yet validated in SPMK or loaded by C++ (`SpriteSheetAnimator` only toggles idle/walk today). Author via debug export JSON until tooling ships.
 
 ### metadata.itemApi (objects from PokéAPI)
 
@@ -286,33 +375,49 @@ Pokémon profiles define `walk` (4 frames) and `pause` (frame 0 only). They do *
 
 **Object** profile uses a 4×4 grid (32×32 cells, same upload scaling as characters) but only **row 0 / south** is used. Animations: `static` (frame 0), `play` (row-major cells, non-looping). No movement actions.
 
-### Pokémon batch import (species, forms, animation layers)
+### Pokémon batch import (species, forms, modifiers, behaviors)
 
-**One `.charbin` per species** — alternate appearances and animations merge into the same file (e.g. all 64 Alcremie decorations × shiny × swim).
+**One `.charbin` per species** — forms, shiny, and behavior sheets merge into the same file.
+
+**Folder layout** — primary **dex sprite pack** (select the folder containing these four subfolders):
+
+```
+your_pack/
+  base/                 → walk — psyduck.png, garchomp_female.png, …
+  base_shiny/           → walk + shiny
+  swimming/             → swim
+  swimming_shiny/       → swim + shiny
+```
+
+Each animation folder holds every species (~1000+ PNGs). Filenames identify species and form; folder names set behavior and shiny.
+
+Alternate layout (also supported): `species/base/file.png` when importing one species at a time.
 
 | Field | Description |
 |-------|-------------|
-| `animationVariant` | Optional layers: `shiny`, `swim`, `eating` (space/comma/`_` separated). Combined with filename. |
+| `animationVariant` | Optional extra tokens: `shiny`, `swim`, `eating` (space/comma/`_` separated). Combined with filename and UI checkboxes. |
+| `importBehavior` | Optional override: `walk`, `sleep`, `swim`, `eating`. Empty = infer from filename / `animationVariant`. |
+| `formKind` | `default`, `indexed`, `named`, `regional`, `decoration`. |
 | `importMode` | `create`: replace whole package only for plain base import (`SPECIES.png`, no form, no layers). `add`: merge base `walk` only. |
 
 **Filename parsing** (stem before `.png`):
 
-| Pattern | Species id | Sheet suffix | Example sheet id |
-|---------|------------|--------------|------------------|
-| `PSYDUCK` | `psyduck` | (none) | `walk` |
-| `GARCHOMP_female` | `garchomp` | `female` | `walk_female` |
-| `ARCEUS_1` | `arceus` | `1` | `walk_1` |
-| `ALCREMIE_42` | `alcremie` | `42` | `walk_42` |
-| `ALCREMIE_42_shiny_swim` | `alcremie` | `42_shiny_swim` | `walk_42_shiny_swim` |
-| `PIKACHU` + UI `shiny eating` | `pikachu` | `shiny_eating` | `walk_shiny_eating` |
+| Pattern | Species id | Form | Modifiers | Behavior | Example sheet id |
+|---------|------------|------|-----------|----------|------------------|
+| `PSYDUCK` | `psyduck` | `default` | — | `walk` | `walk` |
+| `GARCHOMP_female` | `garchomp` | `female` | — | `walk` | `walk_female` |
+| `ARCEUS_1` | `arceus` | `1` | — | `walk` | `walk_1` |
+| `ALCREMIE_42` | `alcremie` | `42` | — | `walk` | `walk_42` |
+| `ALCREMIE_42` + UI shiny | `alcremie` | `42` | `shiny` | `walk` | `walk_42_shiny` |
+| `ALCREMIE_1` + UI shiny swim | `alcremie` | `1` | `shiny` | `swim` | `swim_1_shiny` |
 
-Layer order in suffixes is always **form → shiny → swim → eating**. `swimming` → `swim`, `eat` → `eating`.
+**Appearance modifiers** (`shiny`, …) are separate from **behaviors** (`walk`, `sleep`, `swim`, `eating`). `swimming` → `swim`, `eat` → `eating`.
 
 **Persist rules:**
 
-- Any import with a **form** or **animation layer** merges into existing `{species}.charbin` (never replaces other sheets).
+- Any import with a **form**, **modifier**, or **non-walk behavior** merges into existing `{species}.charbin`.
 - Plain base + `create` replaces the file; plain base + `add` updates `walk` only.
-- Missing species + form/layers creates a package with only those sheets (no assumed base walk).
+- Walk import creates `idle` + `walk` actions for that variant (not `pause`).
 
 **Metadata** (extension, under `metadata.custom`):
 
@@ -487,6 +592,7 @@ Embedded assets: `{ "walk_png": <PNG bytes> }` — typically 128×128 (4×4 cell
 | POST | `/api/packages/draft/open-path` | Open file into draft |
 | PATCH | `/api/packages/draft` | Merge fields into draft package |
 | POST | `/api/packages/draft/asset` | Upload PNG (`assetId`, file) |
+| POST | `/api/packages/draft/add-sheet` | Upload PNG + merge sheet: `mode` (`primary` \| `replace_primary` \| `walk_variant` \| `custom_anim`), `label`, optional `walkSheetId`, `animKind` (`movement` \| `idle` \| `south_only`), `includeIdle`, `frameCount`, `frameTimeMs` — writes `spriteSheets[].animations` + `actions[]` |
 | POST | `/api/packages/save` | Write draft to `{id}.charbin` |
 | POST | `/api/packages/validate` | Run validator |
 | POST | `/api/packages/delete/{package_id}` | Delete library file (preferred) |
@@ -529,4 +635,6 @@ For inspecting packages without parsing binary.
 | 2026-05-31 | `metadata.pokeapi` snapshot; Pokémon idle→`walk`, `pause` action + profile anim. |
 | 2026-05-31 | Pokémon batch: `animationVariant` + `importMode`; multi-sheet `walk_*` actions per species. |
 | 2026-05-31 | Pokémon batch: parse `female` / numeric forms + combinable `shiny`/`swim`/`eating` layers; `overworldSpriteKeys`. |
-| 2026-05-31 | Batch: PokéAPI fuzzy slug; large sheets 512→256 (`pokemon_large`, 64px cells); base import no longer wipes forms. |
+| 2026-06-12 | Add-sheet: general animation sheet flow (`custom_anim`) for all character types; Pokémon walk variants stay on batch import. |
+| 2026-06-12 | Proposed `type: activity` actions with `activityKind` and `phases` (single play and enter/stay/exit sessions). |
+| 2026-06-18 | Pokémon structured variant model: `metadata.pokemonVariant`, per-sheet `formId`/`modifiers`/`behavior`, walk import → `idle`+`walk` only; batch `importBehavior` + `formKind`. |

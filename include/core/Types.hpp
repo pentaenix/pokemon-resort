@@ -128,6 +128,9 @@ struct InputConfig {
     std::vector<std::string> navigate_right_keys{"RIGHT", "D"};
     std::vector<std::string> forward_keys{"M", "RETURN", "SPACE"};
     std::vector<std::string> back_keys{"N", "ESCAPE", "BACKSPACE"};
+    std::vector<std::string> run_keys{"B"};
+    std::vector<std::string> run_toggle_keys{};
+    std::vector<std::string> attend_keys{"X"};
     /// Optional app-level bindings. Missing/empty means disabled.
     std::vector<std::string> record_toggle_keys{};
     std::vector<std::string> screenshot_keys{};
@@ -143,6 +146,7 @@ struct AudioConfig {
     std::string putdown_sfx = "assets/sfx/putdown.mp3";
     std::string error_sfx = "assets/sfx/error.mp3";
     std::string save_sfx = "assets/sfx/save.mp3";
+    std::string overworld_blocked_sfx = "assets/overworld/sfx/bump_wall.mp3";
     int music_volume = 7;
     int sfx_volume = 8;
 };
@@ -201,11 +205,16 @@ struct AppConfig {
         bool enabled = false;
         std::string hotkey = "R";
     };
+    struct RendererConfig {
+        std::string world3d_backend = "bgfx";
+        std::string bgfx_preference = "auto";
+    };
 
     WindowConfig window;
     InputConfig input;
     AudioConfig audio;
     RecordingConfig recording;
+    RendererConfig renderer;
     int target_fps = 60;
     bool enable_frame_counter = false;
     bool enable_active_idle_behavior_debug = false;

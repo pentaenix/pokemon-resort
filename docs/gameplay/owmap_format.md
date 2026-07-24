@@ -34,8 +34,47 @@ Indexing for all layers is row-major:
   - `2..5`: directional ramps (N/E/S/W)
   - `6..9`: convex corner ramps (NE/SE/SW/NW)
   - `10..13`: concave corner ramps (NE/SE/SW/NW)
+
+Corner ramp labels name the affected corner in map space. Corner order in the
+runtime height solver is `NW, NE, SE, SW`.
+- Convex corners (`cNE`, `cSE`, `cSW`, `cNW`) raise only the named corner.
+- Concave corners (`vNE`, `vSE`, `vSW`, `vNW`) keep the named corner low and
+  raise the other three corners.
+
+### Cardinal ramp ownership (runtime + editor)
+
+Directional ramp specials (`2` = north, `3` = east, `4` = south, `5` = west) are stored on the **lower-height cell** (the tile with the smaller `height` value). The high side of the slope faces the neighboring cell that is one height unit taller (e.g. `RAMP_N` on tile `(x,y)` means north neighbor `(x,y-1)` has `height[y][x]+1`).
+
+Mesh corners, movement height (`TerrainSurface`), and the map editor preview all use the same rule: the ramp mesh is drawn on the tile that owns the special, not on the upper plateau tile.
+
+Grid axes in the game: `tile_x` → world +X (east), `tile_y` → world +Z (south), north is `tile_y - 1`.
 - `collision` on disk: 1 bit per cell (`1` blocked, `0` walkable)
   - unpacked at runtime to `terrain.collision[y][x]` as `uint8` `0/1`
+  - the Map Editor can set these bits automatically when painting an RTPKS tile
+    whose definition uses `collision.mode: footprint` or `collision.mode: mask`
+  - automatic clearing on tile erase is opt-in (`clearOnErase`) so an artist's
+    manually authored collision is not removed accidentally
+
+## RTPKS decoration layers
+
+`metaJson.tilePackage` binds the RTPKS package. `metaJson.tileLayers.layers[]`
+stores visible decoration layers whose `cells[y][x]` values are stable
+`resortTileId` numbers or `null`. Tile definitions in the package may include:
+
+- palette tab membership and smart-path grids for editor organization
+- namespaced gameplay tags and typed properties
+- footprint or mask-based automatic collision authoring rules
+- frame animation metadata and runtime texture frames
+
+The map does not duplicate these definitions. Renaming tabs, changing tags, or
+adding animation therefore updates the package without rewriting every `.owmap`
+that uses the same stable IDs.
+
+Only the anchor cell stores a multi-cell tile ID. Editor hit testing resolves
+every covered cell back to that anchor: erasing or eyedropping any part affects
+the whole tile. Painting a new footprint first removes every same-layer tile
+whose footprint intersects it, including tiles anchored outside the newly
+clicked cell, so 1x3 and 3x3 pieces cannot silently overlap.
 
 ## Loader architecture in this repo
 
@@ -61,4 +100,3 @@ Current 3D test default:
 - dimension sanity (`>0`, `<=256`)
 - payload size/truncation checks
 - metadata JSON parse check
-
