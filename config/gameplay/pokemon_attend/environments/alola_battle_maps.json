@@ -5,7 +5,7 @@
   "floorDefaults": {
     "placementAnchor": "world",
     "modelPlacement": {
-      "_comment": "World placement for the floor and any extension that does not override placement.",
+      "_comment": "Shared world placement for every floor that omits modelPlacement. Per-map deltas belong in mapPlacementOverrides; leave those at zero to follow this block.",
       "x": 0,
       "y": -0.032,
       "z": -8.5,
@@ -60,7 +60,7 @@
     "clearColor": "#8FD3F6"
   },
   "mapPlacementOverrides": {
-    "_comment": "Additive per-map tuning applied after each map's modelPlacement. Zero preserves the exported/default placement.",
+    "_comment": "Additive per-map tuning applied after floorDefaults (and any optional floors.*.modelPlacement). All-zero values follow the general Alola map placement tool.",
     "alola_open_sea": {
       "position": {
         "x": 0,
@@ -108,11 +108,11 @@
     "alola_grass_closed": {
       "position": {
         "x": 0,
-        "y": 0,
-        "z": 0
+        "y": 0.032,
+        "z": 3
       },
       "rotation": {
-        "yawDegrees": 0
+        "yawDegrees": 20
       },
       "scale": 0
     },
@@ -240,13 +240,13 @@
     "alola_underwater": {
       "position": {
         "x": 0,
-        "y": 0,
+        "y": 0.032,
         "z": 0
       },
       "rotation": {
-        "yawDegrees": 0
+        "yawDegrees": 90
       },
-      "scale": 0
+      "scale": 0.001
     },
     "alola_arceus": {
       "position": {
@@ -355,14 +355,7 @@
       "appearsForPokemon": [],
       "model": "assets/pokemon_attend/environments/alola/alola_open_sea.glbz",
       "timeOfDay": "day",
-      "weather": "clear",
-      "modelPlacement": {
-        "x": 0,
-        "y": 0,
-        "z": -8.5,
-        "yawDegrees": 0,
-        "scale": 0.009
-      }
+      "weather": "clear"
     },
     "alola_coastal_ocean": {
       "id": "alola_coastal_ocean",
@@ -370,14 +363,7 @@
       "appearsForPokemon": [],
       "model": "assets/pokemon_attend/environments/alola/alola_coastal_ocean.glbz",
       "timeOfDay": "day",
-      "weather": "clear",
-      "modelPlacement": {
-        "x": 0,
-        "y": 0,
-        "z": -8.5,
-        "yawDegrees": 0,
-        "scale": 0.009
-      }
+      "weather": "clear"
     },
     "alola_beach": {
       "id": "alola_beach",
@@ -385,14 +371,7 @@
       "appearsForPokemon": [],
       "model": "assets/pokemon_attend/environments/alola/alola_beach.glbz",
       "timeOfDay": "day",
-      "weather": "clear",
-      "modelPlacement": {
-        "x": 0,
-        "y": 0,
-        "z": -8.5,
-        "yawDegrees": 0,
-        "scale": 0.009
-      }
+      "weather": "clear"
     },
     "alola_flower_field": {
       "id": "alola_flower_field",
@@ -400,14 +379,7 @@
       "appearsForPokemon": [],
       "model": "assets/pokemon_attend/environments/alola/alola_flower_field.glbz",
       "timeOfDay": "day",
-      "weather": "clear",
-      "modelPlacement": {
-        "x": 0,
-        "y": 0,
-        "z": -8.5,
-        "yawDegrees": 0,
-        "scale": 0.009
-      }
+      "weather": "clear"
     },
     "alola_grass_closed": {
       "id": "alola_grass_closed",
@@ -415,14 +387,7 @@
       "appearsForPokemon": [],
       "model": "assets/pokemon_attend/environments/alola/alola_grass_closed.glbz",
       "timeOfDay": "day",
-      "weather": "clear",
-      "modelPlacement": {
-        "x": 0,
-        "y": 0,
-        "z": -8.5,
-        "yawDegrees": 0,
-        "scale": 0.009
-      }
+      "weather": "clear"
     },
     "alola_grass_arena": {
       "id": "alola_grass_arena",
@@ -430,14 +395,7 @@
       "appearsForPokemon": [],
       "model": "assets/pokemon_attend/environments/alola/alola_grass_arena.glbz",
       "timeOfDay": "day",
-      "weather": "clear",
-      "modelPlacement": {
-        "x": 0,
-        "y": 0,
-        "z": -8.5,
-        "yawDegrees": 0,
-        "scale": 0.009
-      }
+      "weather": "clear"
     },
     "alola_grass_hill": {
       "id": "alola_grass_hill",
@@ -445,14 +403,7 @@
       "appearsForPokemon": [],
       "model": "assets/pokemon_attend/environments/alola/alola_grass_hill.glbz",
       "timeOfDay": "day",
-      "weather": "clear",
-      "modelPlacement": {
-        "x": 0,
-        "y": 0,
-        "z": -8.5,
-        "yawDegrees": 0,
-        "scale": 0.009
-      }
+      "weather": "clear"
     },
     "alola_dirt_field": {
       "id": "alola_dirt_field",
@@ -460,14 +411,7 @@
       "appearsForPokemon": [],
       "model": "assets/pokemon_attend/environments/alola/alola_dirt_field.glbz",
       "timeOfDay": "day",
-      "weather": "clear",
-      "modelPlacement": {
-        "x": 0,
-        "y": 0,
-        "z": -8.5,
-        "yawDegrees": 0,
-        "scale": 0.009
-      }
+      "weather": "clear"
     },
     "alola_freshwater": {
       "id": "alola_freshwater",
@@ -475,14 +419,7 @@
       "appearsForPokemon": [],
       "model": "assets/pokemon_attend/environments/alola/alola_freshwater.glbz",
       "timeOfDay": "day",
-      "weather": "clear",
-      "modelPlacement": {
-        "x": 0,
-        "y": 0,
-        "z": -8.5,
-        "yawDegrees": 0,
-        "scale": 0.009
-      }
+      "weather": "clear"
     },
     "alola_mountain": {
       "id": "alola_mountain",
@@ -490,14 +427,7 @@
       "appearsForPokemon": [],
       "model": "assets/pokemon_attend/environments/alola/alola_mountain.glbz",
       "timeOfDay": "day",
-      "weather": "clear",
-      "modelPlacement": {
-        "x": 0,
-        "y": 0,
-        "z": -8.5,
-        "yawDegrees": 0,
-        "scale": 0.009
-      }
+      "weather": "clear"
     },
     "alola_asian_garden": {
       "id": "alola_asian_garden",
@@ -505,14 +435,7 @@
       "appearsForPokemon": [],
       "model": "assets/pokemon_attend/environments/alola/alola_asian_garden.glbz",
       "timeOfDay": "day",
-      "weather": "clear",
-      "modelPlacement": {
-        "x": 0,
-        "y": 0,
-        "z": -8.5,
-        "yawDegrees": 0,
-        "scale": 0.009
-      }
+      "weather": "clear"
     },
     "alola_waterfall": {
       "id": "alola_waterfall",
@@ -520,14 +443,7 @@
       "appearsForPokemon": [],
       "model": "assets/pokemon_attend/environments/alola/alola_waterfall.glbz",
       "timeOfDay": "day",
-      "weather": "clear",
-      "modelPlacement": {
-        "x": 0,
-        "y": 0,
-        "z": -8.5,
-        "yawDegrees": 0,
-        "scale": 0.009
-      }
+      "weather": "clear"
     },
     "alola_dry_grass": {
       "id": "alola_dry_grass",
@@ -535,14 +451,7 @@
       "appearsForPokemon": [],
       "model": "assets/pokemon_attend/environments/alola/alola_dry_grass.glbz",
       "timeOfDay": "day",
-      "weather": "clear",
-      "modelPlacement": {
-        "x": 0,
-        "y": 0,
-        "z": -8.5,
-        "yawDegrees": 0,
-        "scale": 0.009
-      }
+      "weather": "clear"
     },
     "alola_bathroom": {
       "id": "alola_bathroom",
@@ -550,14 +459,7 @@
       "appearsForPokemon": [],
       "model": "assets/pokemon_attend/environments/alola/alola_bathroom.glbz",
       "timeOfDay": "day",
-      "weather": "clear",
-      "modelPlacement": {
-        "x": 0,
-        "y": 0,
-        "z": -8.5,
-        "yawDegrees": 0,
-        "scale": 0.009
-      }
+      "weather": "clear"
     },
     "alola_dream_visit": {
       "id": "alola_dream_visit",
@@ -565,14 +467,7 @@
       "appearsForPokemon": [],
       "model": "assets/pokemon_attend/environments/alola/alola_dream_visit.glbz",
       "timeOfDay": "day",
-      "weather": "clear",
-      "modelPlacement": {
-        "x": 0,
-        "y": 0,
-        "z": -8.5,
-        "yawDegrees": 0,
-        "scale": 0.009
-      }
+      "weather": "clear"
     },
     "alola_hooh_celebi": {
       "id": "alola_hooh_celebi",
@@ -583,14 +478,7 @@
       ],
       "model": "assets/pokemon_attend/environments/alola/alola_hooh_celebi.glbz",
       "timeOfDay": "day",
-      "weather": "clear",
-      "modelPlacement": {
-        "x": 0,
-        "y": 0,
-        "z": -8.5,
-        "yawDegrees": 0,
-        "scale": 0.009
-      }
+      "weather": "clear"
     },
     "alola_underwater": {
       "id": "alola_underwater",
@@ -602,14 +490,7 @@
       ],
       "model": "assets/pokemon_attend/environments/alola/alola_underwater.glbz",
       "timeOfDay": "day",
-      "weather": "clear",
-      "modelPlacement": {
-        "x": 0,
-        "y": 0,
-        "z": -8.5,
-        "yawDegrees": 90,
-        "scale": 0.01
-      }
+      "weather": "clear"
     },
     "alola_arceus": {
       "id": "alola_arceus",
@@ -619,14 +500,7 @@
       ],
       "model": "assets/pokemon_attend/environments/alola/alola_arceus.glbz",
       "timeOfDay": "day",
-      "weather": "clear",
-      "modelPlacement": {
-        "x": 0,
-        "y": 0,
-        "z": -8.5,
-        "yawDegrees": 0,
-        "scale": 0.009
-      }
+      "weather": "clear"
     },
     "alola_rayquaza_deoxys": {
       "id": "alola_rayquaza_deoxys",
@@ -637,14 +511,7 @@
       ],
       "model": "assets/pokemon_attend/environments/alola/alola_rayquaza_deoxys.glbz",
       "timeOfDay": "day",
-      "weather": "clear",
-      "modelPlacement": {
-        "x": 0,
-        "y": 0,
-        "z": -8.5,
-        "yawDegrees": 0,
-        "scale": 0.009
-      }
+      "weather": "clear"
     },
     "alola_groudon_cliff": {
       "id": "alola_groudon_cliff",
@@ -654,14 +521,7 @@
       ],
       "model": "assets/pokemon_attend/environments/alola/alola_groudon_cliff.glbz",
       "timeOfDay": "day",
-      "weather": "clear",
-      "modelPlacement": {
-        "x": 0,
-        "y": 0,
-        "z": -8.5,
-        "yawDegrees": 0,
-        "scale": 0.009
-      }
+      "weather": "clear"
     },
     "alola_guzzlord": {
       "id": "alola_guzzlord",
@@ -671,14 +531,7 @@
       ],
       "model": "assets/pokemon_attend/environments/alola/alola_guzzlord.glbz",
       "timeOfDay": "day",
-      "weather": "clear",
-      "modelPlacement": {
-        "x": 0,
-        "y": 0,
-        "z": -8.5,
-        "yawDegrees": 0,
-        "scale": 0.009
-      }
+      "weather": "clear"
     },
     "alola_meloetta": {
       "id": "alola_meloetta",
@@ -688,14 +541,7 @@
       ],
       "model": "assets/pokemon_attend/environments/alola/alola_meloetta.glbz",
       "timeOfDay": "day",
-      "weather": "clear",
-      "modelPlacement": {
-        "x": 0,
-        "y": 0,
-        "z": -8.5,
-        "yawDegrees": 0,
-        "scale": 0.009
-      }
+      "weather": "clear"
     },
     "alola_party": {
       "id": "alola_party",
@@ -703,14 +549,7 @@
       "appearsForPokemon": [],
       "model": "assets/pokemon_attend/environments/alola/alola_party.glbz",
       "timeOfDay": "day",
-      "weather": "clear",
-      "modelPlacement": {
-        "x": 0,
-        "y": 0,
-        "z": -8.5,
-        "yawDegrees": 0,
-        "scale": 0.009
-      }
+      "weather": "clear"
     },
     "alola_special_0086": {
       "id": "alola_special_0086",
@@ -718,14 +557,7 @@
       "appearsForPokemon": [],
       "model": "assets/pokemon_attend/environments/alola/alola_special_0086.glbz",
       "timeOfDay": "day",
-      "weather": "clear",
-      "modelPlacement": {
-        "x": 0,
-        "y": 0,
-        "z": -8.5,
-        "yawDegrees": 0,
-        "scale": 0.009
-      }
+      "weather": "clear"
     },
     "alola_special_0092": {
       "id": "alola_special_0092",
@@ -733,14 +565,7 @@
       "appearsForPokemon": [],
       "model": "assets/pokemon_attend/environments/alola/alola_special_0092.glbz",
       "timeOfDay": "day",
-      "weather": "clear",
-      "modelPlacement": {
-        "x": 0,
-        "y": 0,
-        "z": -8.5,
-        "yawDegrees": 0,
-        "scale": 0.009
-      }
+      "weather": "clear"
     },
     "alola_grass_battle_map": {
       "id": "alola_grass_battle_map",

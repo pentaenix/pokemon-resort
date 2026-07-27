@@ -58,7 +58,7 @@ Do not let one renderer file become the dumping ground. If a file is approaching
 |---|---|---|
 | Move Pokemon closer/farther in normal view | `interaction/defaults.json` `camera.fullBodyFraming.distanceMultiplier` | Per-species scale unless only one Pokemon/form is wrong |
 | Fix one Pokemon/form face or body framing | provider sparse override in `providers/gen1_7.json` | Global camera math if other Pokemon are correct |
-| Add a map or map extension | `environments/alola_battle_maps.json` floor catalog / `extensions` | Renderer hard-coded asset paths |
+| Add a map or map extension | `environments/alola_battle_maps.json` floor catalog / `extensions` | Renderer hard-coded asset paths. Do not copy `modelPlacement` onto each new floor; leave offsets at zero so Alola map placement stays shared |
 | Change sky, light, weather, blur, shadow | `environments/alola_battle_maps.json` | Pokemon material hacks |
 | Tune hand graphic size | `interaction/defaults.json` hand visual scale | Pet detection bounds |
 | Tune pet detection | interaction config and renderer hit/projection logic | Hand graphic scale |

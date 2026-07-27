@@ -234,6 +234,35 @@ int main() {
                    extension.model_scale == config.floor.model_scale,
                "floor extensions without placement overrides should inherit the main floor placement");
     }
+
+    // Catalog maps omit floors.*.modelPlacement so zero mapPlacementOverrides follow floorDefaults.
+    pr::gameplay::attend::AttendSceneLoadOverrides open_sea_overrides;
+    open_sea_overrides.environment_id = "alola_open_sea";
+    const pr::gameplay::attend::AttendSceneConfig open_sea =
+        pr::gameplay::attend::loadAttendSceneConfig(root.string(), open_sea_overrides);
+    expect(open_sea.floor.id == "alola_open_sea",
+           "environment override should select the open-sea Alola map");
+    expect(open_sea.floor.model_scale == config.floor.model_scale,
+           "zero scale override should follow shared floorDefaults model scale");
+    expect(open_sea.floor.model_yaw_degrees == 0.0f,
+           "zero rotation override should follow shared floorDefaults yaw");
+    expect(open_sea.floor.model_z == -8.5f,
+           "zero depth override should follow shared floorDefaults depth");
+    expect(open_sea.floor.model_y == -0.032f,
+           "zero height override should follow shared floorDefaults surface height");
+
+    pr::gameplay::attend::AttendSceneLoadOverrides grass_closed_overrides;
+    grass_closed_overrides.environment_id = "alola_grass_closed";
+    const pr::gameplay::attend::AttendSceneConfig grass_closed =
+        pr::gameplay::attend::loadAttendSceneConfig(root.string(), grass_closed_overrides);
+    expect(grass_closed.floor.id == "alola_grass_closed",
+           "environment override should select the grass-closed Alola map");
+    expect(grass_closed.floor.model_yaw_degrees == 20.0f,
+           "nonzero rotation offset should add onto shared floorDefaults yaw");
+    expect(grass_closed.floor.model_z == -5.5f,
+           "nonzero depth offset should add onto shared floorDefaults depth");
+    expect(grass_closed.floor.model_scale == config.floor.model_scale,
+           "zero scale offset should still follow shared floorDefaults scale");
     expect(config.viewport_look.enabled, "environment attend scene should enable mouse edge-look controls");
     expect(config.viewport_look.max_x > 0.0f && config.viewport_look.max_x < 0.5f,
            "mouse edge look should use a subtle horizontal target nudge");
