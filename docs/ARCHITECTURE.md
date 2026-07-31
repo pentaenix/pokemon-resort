@@ -139,6 +139,16 @@ App-level routing for this placeholder lives in [`AppScreenCoordinatorAttend.cpp
 
 If a transfer flow rule can be tested without SDL or PKHeX, prefer `TransferFlowController` or `TransferSelectionBuilder`.
 
+### Overworld Door Travel
+
+Door visuals are RTPKS tile semantics; door behavior, links, and destination
+anchors are OWMAP metadata. Pure lookup and script sequencing live under
+`include/gameplay/world3d/doors` and `src/gameplay/world3d/doors`. The
+`Overworld3DTestScreen` adapter intercepts movement before bounds/collision,
+drives the circular transition, teleports the character, and dispatches
+trigger-phase animation to `OverworldBgfxRenderer`. Door sequences themselves
+remain data-authored in the overworld script catalog.
+
 ### Loading And Transfer Ticket Selection
 
 - [`src/ui/loading`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/ui/loading) owns reusable loading screens. `PokeballLoadingScreen.cpp` owns the black rotating Pokeball screen, and `ResortTransferLoadingScreen.cpp` owns the boat/resort transfer screen. Both are created through `LoadingScreenFactory` and read [`loading_screen.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/loading_screen.json); see [`docs/loading/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/loading/README.md).

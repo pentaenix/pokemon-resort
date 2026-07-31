@@ -1,0 +1,57 @@
+{
+  "manifestVersion": 1,
+  "storageFormat": "glb",
+  "id": "interior_842_floor_fhyuka_1_740ac0e1",
+  "displayName": "Interior 842 floor: fhyuka_1",
+  "defaultYawDeg": 0,
+  "defaultScale": 1,
+  "compiledAt": "2026-07-27T21:19:30.349Z",
+  "sourceFormat": "glb",
+  "sourceFile": "floor_fhyuka_1_740ac0e1.glb",
+  "glbFile": "interior_842_floor_fhyuka_1_740ac0e1.glb",
+  "modelFile": "interior_842_floor_fhyuka_1_740ac0e1.glb",
+  "modelByteSize": 25612,
+  "modelHash": "0c787deee02403ef",
+  "footprintTiles": {
+    "w": 13,
+    "d": 10,
+    "h": 1
+  },
+  "renderFootprintTiles": {
+    "w": 13,
+    "d": 10,
+    "h": 1
+  },
+  "authoringFootprintTiles": {
+    "w": 13,
+    "d": 10,
+    "h": 1
+  },
+  "collisionFootprintTiles": {
+    "w": 13,
+    "d": 10,
+    "h": 1
+  },
+  "previewOffsetTiles": {
+    "x": 0,
+    "y": 0
+  },
+  "aabb": {
+    "min": [
+      -100,
+      0,
+      -77.5
+    ],
+    "max": [
+      100,
+      0.015625,
+      77.5
+    ]
+  },
+  "vertexCount": 54,
+  "triangleCount": 76,
+  "materials": [
+    "fhyuka_1"
+  ],
+  "textureCount": 1
+}

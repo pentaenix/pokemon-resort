@@ -59,6 +59,10 @@ struct LoadedWorldChunk {
     int origin_tile_y = 0;
 };
 
+std::vector<LoadedWorldChunk> selectActiveWorldChunks(
+    const std::vector<LoadedWorldChunk>& catalog,
+    const std::string& active_map_id);
+
 std::shared_ptr<CharacterTerrainQuery> makeLoadedWorldCharacterTerrainQuery(
     std::vector<LoadedWorldChunk> chunks);
 

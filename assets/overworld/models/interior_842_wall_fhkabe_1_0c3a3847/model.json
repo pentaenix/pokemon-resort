@@ -1,0 +1,57 @@
+{
+  "manifestVersion": 1,
+  "storageFormat": "glb",
+  "id": "interior_842_wall_fhkabe_1_0c3a3847",
+  "displayName": "Interior 842 wall: fhkabe_1",
+  "defaultYawDeg": 0,
+  "defaultScale": 1,
+  "compiledAt": "2026-07-29T16:46:14.866Z",
+  "sourceFormat": "glb",
+  "sourceFile": "wall_fhkabe_1_0c3a3847.glb",
+  "glbFile": "interior_842_wall_fhkabe_1_0c3a3847.glb",
+  "modelFile": "interior_842_wall_fhkabe_1_0c3a3847.glb",
+  "modelByteSize": 39324,
+  "modelHash": "6d58d9185840b475",
+  "footprintTiles": {
+    "w": 13,
+    "d": 9,
+    "h": 2
+  },
+  "renderFootprintTiles": {
+    "w": 13,
+    "d": 9,
+    "h": 2
+  },
+  "authoringFootprintTiles": {
+    "w": 13,
+    "d": 9,
+    "h": 2
+  },
+  "collisionFootprintTiles": {
+    "w": 13,
+    "d": 9,
+    "h": 2
+  },
+  "previewOffsetTiles": {
+    "x": 0,
+    "y": 0
+  },
+  "aabb": {
+    "min": [
+      -99,
+      16.5,
+      -69
+    ],
+    "max": [
+      99,
+      40.53125,
+      69
+    ]
+  },
+  "vertexCount": 64,
+  "triangleCount": 54,
+  "materials": [
+    "fhkabe_1"
+  ],
+  "textureCount": 1
+}

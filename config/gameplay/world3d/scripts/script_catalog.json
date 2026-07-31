@@ -30,6 +30,12 @@
     },
     {
       "path": "npc/static.json"
+    },
+    {
+      "path": "doors/door_enter_default.json"
+    },
+    {
+      "path": "doors/door_exit_default.json"
     }
   ]
 }

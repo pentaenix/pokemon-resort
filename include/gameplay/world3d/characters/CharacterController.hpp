@@ -41,6 +41,10 @@ public:
     void stop();
     void setMoveSpeedUnitsPerSecond(float speed);
     void setTerrainQuery(std::shared_ptr<CharacterTerrainQuery> terrain_query);
+    bool teleportToTile(
+        int tile_x, int tile_y, FacingDirection facing, bool allow_outside = false);
+    void offsetWorldPosition(float x, float z);
+    void face(FacingDirection facing);
 
     FacingDirection facing() const { return facing_; }
     bool moving() const { return motor_.moving(); }

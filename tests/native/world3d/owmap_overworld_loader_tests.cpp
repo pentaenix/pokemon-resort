@@ -3,6 +3,7 @@
 #include "gameplay/world3d/characters/CharacterTerrainQuery.hpp"
 #include "gameplay/world3d/data/OwmapOverworldLoader.hpp"
 #include "gameplay/world3d/data/JsonOverworldLoader.hpp"
+#include "gameplay/world3d/data/SceneMetadataParser.hpp"
 #include "gameplay/world3d/followers/FollowerConfig.hpp"
 #include "gameplay/world3d/rendering/BillboardPlacement.hpp"
 #include "gameplay/world3d/rendering/PixelScale.hpp"
@@ -111,6 +112,124 @@ void testOwmapMagicSniffAndDispatch() {
     expect(via_dispatch.grid.height > 0, "dispatch loader should parse owmap grid height");
     expect(!via_dispatch.tile_package.path.empty(), "dispatch loader should parse linked RTPKS package path");
     expect(!via_dispatch.tile_layers.layers.empty(), "dispatch loader should parse RTPKS tile layers");
+}
+
+void testInteriorEnvironmentMetadataLoads() {
+    const fs::path root = repositoryRoot();
+    const auto metadata = pr::parseJsonText(R"json({
+        "id": "house_test",
+        "type": "interior",
+        "visual": { "mesh": "", "format": "none" },
+        "grid": { "enabled": true, "tileSize": 16, "width": 12, "height": 10 },
+        "terrainVisual": { "floorHeightScale": 8 },
+        "player": { "spawnTile": [5, 8], "facing": "north" },
+        "environment": {
+            "space": "interior:house_test",
+            "clearColor": [3, 4, 5, 255],
+            "renderOtherSpaces": false
+        },
+        "interior": {
+            "shellModelId": "interiors/house_test.glb",
+            "floorDatum": -2.5,
+            "gridOrigin": [-16, 32],
+            "openings": [{ "edge": "south", "from": 4, "to": 6 }]
+        }
+    })json");
+    const auto scene = pr::gameplay::world3d::data::parseSceneMetadata(metadata, root.string());
+    expect(scene.map_type == "interior", "interior map type loads");
+    expect(scene.environment.space == "interior:house_test", "interior space loads");
+    expect(scene.environment.clear_color.r == 3 && scene.environment.clear_color.b == 5,
+        "interior clear color loads");
+    expect(!scene.environment.render_other_spaces, "interior can isolate unrelated spaces");
+    expect(scene.interior.shell_model_id == "interiors/house_test.glb", "interior shell id loads");
+    expect(std::abs(scene.interior.floor_datum + 2.5f) < 0.001f, "interior floor datum loads");
+    expect(scene.interior.grid_origin_x == -16 && scene.interior.grid_origin_y == 32,
+        "interior grid origin loads");
+    expect(scene.interior.openings.size() == 1 && scene.interior.openings[0].edge == "south",
+        "interior boundary opening loads");
+    expect(std::abs(scene.terrain.height_per_floor - 8.0f) < 0.001f,
+        "interior per-map floor height scale loads for multi-height collision");
+}
+
+void testActiveInteriorSpaceIsRebasedAndIsolated() {
+    using pr::gameplay::world3d::characters::LoadedWorldChunk;
+    pr::gameplay::world3d::SceneConfig outside;
+    outside.id = "outside";
+    outside.environment.space = "world";
+    outside.environment.render_other_spaces = true;
+    pr::gameplay::world3d::SceneConfig neighbor = outside;
+    neighbor.id = "neighbor";
+    pr::gameplay::world3d::SceneConfig inside;
+    inside.id = "inside";
+    inside.map_type = "interior";
+    inside.environment.space = "interior:inside";
+    inside.environment.render_other_spaces = false;
+    const std::vector<LoadedWorldChunk> catalog{
+        {"outside", outside, 0, 0},
+        {"neighbor", neighbor, 16, 0},
+        {"inside", inside, 4096, 0},
+    };
+
+    const auto exterior = pr::gameplay::world3d::characters::selectActiveWorldChunks(catalog, "neighbor");
+    expect(exterior.size() == 2, "exterior active space retains neighboring exterior chunks");
+    expect(exterior[0].origin_tile_x == -16 && exterior[1].origin_tile_x == 0,
+        "active exterior chunk space is rebased to local coordinates");
+
+    const auto interior = pr::gameplay::world3d::characters::selectActiveWorldChunks(catalog, "inside");
+    expect(interior.size() == 1 && interior[0].id == "inside",
+        "isolated interior excludes exterior chunks");
+    expect(interior[0].origin_tile_x == 0 && interior[0].origin_tile_y == 0,
+        "isolated interior becomes the local origin");
+}
+
+void testGeneratedInterior842LoadsAsRuntimeScene() {
+    const fs::path root = repositoryRoot();
+    const fs::path map_path = root / "assets" / "overworld" / "maps" / "interior_842.owmap";
+    if (!fs::exists(map_path)) {
+        std::cout << "[SKIP] generated interior_842.owmap not present in workspace\n";
+        return;
+    }
+
+    const auto scene = pr::gameplay::world3d::data::loadOwmapScene(root.string(), map_path.string());
+    expect(scene.id == "interior_842", "generated interior keeps its stable map id");
+    expect(scene.map_type == "interior", "generated interior loads with interior map type");
+    expect(scene.grid.width == 14 && scene.grid.height == 10,
+        "generated interior grid matches RAE-derived dimensions");
+    expect(scene.environment.space == "interior:interior_842",
+        "generated interior owns an isolated render space");
+    expect(!scene.environment.render_other_spaces,
+        "generated interior does not render exterior chunks");
+    expect(scene.environment.clear_color.r == 0 && scene.environment.clear_color.g == 0 &&
+            scene.environment.clear_color.b == 0 && scene.environment.clear_color.a == 255,
+        "generated interior clears the world outside its shell to opaque black");
+    expect(scene.models.size() == 1 && fs::exists(scene.models[0].glb_path),
+        "generated interior references its compiled shell model");
+    expect(scene.anchors.size() == 1 && scene.anchors[0].id == "inside_entry" &&
+            scene.anchors[0].tile_x == 6 && scene.anchors[0].tile_y == 10,
+        "generated interior arrives on its halo door tile before scripted inward movement");
+    expect(scene.terrain.collision[0][6] == 1 && scene.terrain.collision[5][0] == 1 &&
+            scene.terrain.collision[5][13] == 1 && scene.terrain.collision[9][6] == 0,
+        "generated interior keeps actors one tile inside walls while leaving its doorway open");
+    expect(scene.links.size() == 1 && scene.links[0].id == "return_outside" &&
+            scene.links[0].destination_map_id == "0",
+        "generated interior links back to the exterior map");
+    expect(scene.door_triggers.size() == 1 && scene.door_triggers[0].id == "interior_exit" &&
+            scene.door_triggers[0].tile_y == scene.grid.height,
+        "generated interior exit is authored in the south off-grid halo");
+    expect(scene.door_triggers[0].visual.map_id == "0" &&
+            scene.door_triggers[0].visual.tile_x == 16 &&
+            scene.door_triggers[0].visual.tile_y == 16 &&
+            scene.door_triggers[0].script_id == "door_exit_default",
+        "generated interior exit controls the door mesh on the exterior threshold with the exit script");
+    pr::gameplay::world3d::characters::CharacterController door_player(scene);
+    expect(!door_player.teleportToTile(6, 10, pr::gameplay::world3d::FacingDirection::North),
+        "ordinary teleports reject an off-grid interior destination");
+    expect(door_player.teleportToTile(
+            6, 10, pr::gameplay::world3d::FacingDirection::North, true),
+        "door travel can place the player on the one-cell halo door tile");
+    const auto inward_step = door_player.moveInput(0, -1, 0.02);
+    expect(inward_step.attempted_step && !inward_step.blocked,
+        "the scripted entry step crosses from the halo door tile onto the threshold");
 }
 
 void testTerrainRenderConfigLoads() {
@@ -229,6 +348,18 @@ void testPlayerCannotStepIntoUnloadedChunk() {
     expect(result.attempted_step, "unloaded west chunk movement attempts a step");
     expect(result.blocked, "unloaded world tile should block movement");
     expect(player.tileX() == 0 && player.tileY() == 1, "player remains in current chunk");
+}
+
+void testPlayerCanFaceDoorWithoutStartingMovement() {
+    using namespace pr::gameplay::world3d;
+    SceneConfig scene = makeFlatMovementScene(3, 3, 1, 1, FacingDirection::East);
+    characters::CharacterController player(scene, 64.0f, 0.0f);
+
+    player.face(FacingDirection::North);
+
+    expect(player.facing() == FacingDirection::North, "door approach can turn the player toward the door");
+    expect(!player.moving(), "turning toward a door must not start a grid step");
+    expect(player.tileX() == 1 && player.tileY() == 1, "turning toward a door keeps the current tile");
 }
 
 void testPlayableCharacterRunSheetLoads() {
@@ -1317,6 +1448,14 @@ int main() {
         std::cout << "[PASS] legacy NPC and Pokemon interaction metadata compatibility\n";
         testFlatBootstrapOwmapParsesExpectedCells();
         std::cout << "[PASS] flat_bootstrap owmap parses expected cells\n";
+        testInteriorEnvironmentMetadataLoads();
+        std::cout << "[PASS] interior environment metadata loads\n";
+        testActiveInteriorSpaceIsRebasedAndIsolated();
+        std::cout << "[PASS] active interior space is rebased and isolated\n";
+        testGeneratedInterior842LoadsAsRuntimeScene();
+        std::cout << "[PASS] generated interior 842 loads as runtime scene\n";
+        testPlayerCanFaceDoorWithoutStartingMovement();
+        std::cout << "[PASS] player can face door without starting movement\n";
         testOwmapMagicSniffAndDispatch();
         std::cout << "[PASS] owmap sniff and dispatch\n";
         testTerrainRenderConfigLoads();

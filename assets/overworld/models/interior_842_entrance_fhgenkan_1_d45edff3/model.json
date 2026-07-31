@@ -1,0 +1,57 @@
+{
+  "manifestVersion": 1,
+  "storageFormat": "glb",
+  "id": "interior_842_entrance_fhgenkan_1_d45edff3",
+  "displayName": "Interior 842 entrance: fhgenkan_1",
+  "defaultYawDeg": 0,
+  "defaultScale": 1,
+  "compiledAt": "2026-07-27T21:19:30.337Z",
+  "sourceFormat": "glb",
+  "sourceFile": "entrance_fhgenkan_1_d45edff3.glb",
+  "glbFile": "interior_842_entrance_fhgenkan_1_d45edff3.glb",
+  "modelFile": "interior_842_entrance_fhgenkan_1_d45edff3.glb",
+  "modelByteSize": 25612,
+  "modelHash": "3fad855022956796",
+  "footprintTiles": {
+    "w": 2,
+    "d": 1,
+    "h": 1
+  },
+  "renderFootprintTiles": {
+    "w": 2,
+    "d": 1,
+    "h": 1
+  },
+  "authoringFootprintTiles": {
+    "w": 2,
+    "d": 1,
+    "h": 1
+  },
+  "collisionFootprintTiles": {
+    "w": 2,
+    "d": 1,
+    "h": 1
+  },
+  "previewOffsetTiles": {
+    "x": 0,
+    "y": 0
+  },
+  "aabb": {
+    "min": [
+      -16,
+      2,
+      -8
+    ],
+    "max": [
+      16,
+      2,
+      8
+    ]
+  },
+  "vertexCount": 6,
+  "triangleCount": 4,
+  "materials": [
+    "fhgenkan_1"
+  ],
+  "textureCount": 1
+}

@@ -39,6 +39,23 @@ void CharacterController::setTerrainQuery(std::shared_ptr<CharacterTerrainQuery>
     motor_.setTerrainQuery(std::move(terrain_query));
 }
 
+bool CharacterController::teleportToTile(
+    int tile_x, int tile_y, FacingDirection facing, bool allow_outside) {
+    stop();
+    facing_ = facing;
+    return motor_.teleportToTile(tile_x, tile_y, allow_outside);
+}
+
+void CharacterController::offsetWorldPosition(float x, float z) {
+    motor_.offsetWorldPosition(x, z);
+}
+
+void CharacterController::face(FacingDirection facing) {
+    stop();
+    facing_ = facing;
+    pending_turn_facing_ = facing;
+}
+
 CharacterController::MovementSegment CharacterController::movementSegment() const {
     return MovementSegment{
         motor_.moving(),

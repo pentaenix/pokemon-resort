@@ -12,6 +12,7 @@
 #include "gameplay/world3d/dialogue/OverworldTextboxConfig.hpp"
 #include "gameplay/world3d/dialogue/OverworldTextboxController.hpp"
 #include "gameplay/world3d/dialogue/OverworldTextboxRenderer.hpp"
+#include "gameplay/world3d/doors/DoorTravel.hpp"
 #include "gameplay/world3d/interactions/InteractionSequence.hpp"
 #include "gameplay/world3d/interactions/InteractionText.hpp"
 #include "gameplay/world3d/npc/NpcActorDriver.hpp"
@@ -74,9 +75,13 @@ private:
     void initializeSceneState();
     void reloadFollowCameraPresetConfig();
     std::vector<gameplay::world3d::characters::LoadedWorldChunk> buildLoadedWorldChunks() const;
+    void rebuildActiveWorldChunks();
+    bool activateWorldMap(const gameplay::world3d::characters::LoadedWorldChunk& chunk);
     std::vector<gameplay::world3d::rendering::bgfx_backend::OverworldBgfxRenderer::StaticMapChunk>
     buildStaticRenderChunks() const;
     void reloadWorldTerrainQueries();
+    bool beginDoorSequenceForStep(int dx, int dy);
+    void updateDoorSequence(double dt);
     void logLoadedWorldChunks() const;
     gameplay::world3d::dialogue::OverworldTextboxController::Target findInteractionTarget() const;
     bool lockInteractionTarget(const gameplay::world3d::dialogue::OverworldTextboxController::Target& target);
@@ -144,6 +149,17 @@ private:
     gameplay::world3d::dialogue::OverworldTextboxController::Target active_interaction_target_{};
     std::optional<gameplay::attend::AttendLaunchContext> pending_attend_launch_context_;
     gameplay::world3d::scripts::ScriptCatalog interaction_script_catalog_{};
+    std::vector<gameplay::world3d::characters::LoadedWorldChunk> loaded_world_chunks_{};
+    std::vector<gameplay::world3d::characters::LoadedWorldChunk> active_world_chunks_{};
+    std::string active_world_map_id_{};
+    gameplay::world3d::doors::DoorSequenceController door_sequence_{};
+    gameplay::world3d::doors::DoorTravelConfig door_travel_config_{};
+    gameplay::world3d::doors::DoorDestinationTuning active_door_destination_tuning_{};
+    float door_forced_move_speed_ = 64.0f;
+    double door_animation_wait_seconds_ = 0.0;
+    bool door_waiting_for_close_ = false;
+    bool door_waiting_for_open_ = false;
+    gameplay::world3d::doors::ForcedDoorMoveController door_forced_move_{};
     gameplay::world3d::scripts::ScriptCooldowns interaction_script_cooldowns_{};
     gameplay::world3d::interactions::InteractionSequenceController interaction_sequence_{};
     gameplay::world3d::interactions::InteractionTextCatalog interaction_text_catalog_{};

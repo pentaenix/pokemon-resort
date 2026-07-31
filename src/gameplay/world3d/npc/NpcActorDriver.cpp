@@ -1,4 +1,5 @@
 #include "gameplay/world3d/npc/NpcActorDriver.hpp"
+#include "gameplay/world3d/npc/NpcPopulationPolicy.hpp"
 
 #include "gameplay/world3d/interactions/InteractionSequence.hpp"
 
@@ -184,6 +185,10 @@ void NpcActorDriver::initializeDefaultSceneActors(const camera::Vec3& player_pos
     reserved_tiles_.push_back({
         static_cast<int>(std::floor(player_position.x / tile_size)),
         static_cast<int>(std::floor(player_position.z / tile_size))});
+
+    if (!allowsGlobalDefaultPopulation(*scene_)) {
+        return;
+    }
 
     const std::vector<NpcActorDefinition> testing_actors = loadTestingActorDefinitions();
     std::vector<std::size_t> owner_indices;

@@ -18,6 +18,8 @@ public:
 
     void setTerrainQuery(std::shared_ptr<CharacterTerrainQuery> terrain_query);
     void resetToTile(int tx, int ty, const camera::Vec3& position);
+    bool teleportToTile(int tx, int ty, bool allow_outside = false);
+    void offsetWorldPosition(float x, float z);
     void setMoveSpeedUnitsPerSecond(float speed);
 
     StepResult tryStartStep(

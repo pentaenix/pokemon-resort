@@ -237,6 +237,37 @@ struct TileLayersConfig {
     std::vector<TileLayerConfig> layers;
 };
 
+struct MapAnchorConfig {
+    std::string id;
+    int tile_x = 0;
+    int tile_y = 0;
+    FacingDirection facing = FacingDirection::South;
+};
+
+struct MapLinkConfig {
+    std::string id;
+    std::string destination_map_id;
+    std::string destination_anchor_id;
+};
+
+struct DoorVisualTileConfig {
+    bool enabled = false;
+    std::string map_id;
+    std::string layer_id;
+    int tile_x = 0;
+    int tile_y = 0;
+};
+
+struct DoorTriggerConfig {
+    std::string id;
+    int tile_x = 0;
+    int tile_y = 0;
+    std::vector<FacingDirection> allowed_directions;
+    DoorVisualTileConfig visual;
+    std::string link_id;
+    std::string script_id = "door_enter_default";
+};
+
 // Gameplay-facing identity of the visible tile surface at one logical map cell.
 // `surface` comes from the tile's single `surface.*` tag; the remaining tags are
 // retained so scripts can opt into more specific behavior without changing OWMAP.
@@ -269,8 +300,31 @@ struct PlayerSpawnConfig {
     FacingDirection facing = FacingDirection::South;
 };
 
+struct MapEnvironmentConfig {
+    std::string space;
+    TerrainColor clear_color{150, 191, 224, 255};
+    bool render_other_spaces = true;
+};
+
+struct InteriorOpeningConfig {
+    std::string edge;
+    int from = 0;
+    int to = 0;
+};
+
+struct InteriorMapConfig {
+    std::string shell_model_id;
+    float floor_datum = 0.0f;
+    int grid_origin_x = 0;
+    int grid_origin_y = 0;
+    std::vector<InteriorOpeningConfig> openings;
+};
+
 struct SceneConfig {
     std::string id;
+    std::string map_type = "exterior";
+    MapEnvironmentConfig environment;
+    InteriorMapConfig interior;
     std::string camera_preset;
     std::string lighting_preset;
     float camera_distance = 0.0f;
@@ -324,6 +378,9 @@ struct SceneConfig {
     std::vector<ModelPlacementConfig> models;
     TilePackageConfig tile_package;
     TileLayersConfig tile_layers;
+    std::vector<MapAnchorConfig> anchors;
+    std::vector<MapLinkConfig> links;
+    std::vector<DoorTriggerConfig> door_triggers;
     TileSurfaceGrid tile_surfaces;
     std::vector<NpcConfig> characters;
     PlayerSpawnConfig player;

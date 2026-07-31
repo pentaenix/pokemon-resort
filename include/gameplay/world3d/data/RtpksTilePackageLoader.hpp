@@ -46,6 +46,12 @@ struct RtpksMaterialRange {
     int quad_count = 0;
 };
 
+struct RtpksVertexAnimationClip {
+    std::string name;
+    int frame_time_ms = 100;
+    std::vector<std::vector<float>> frames;
+};
+
 struct RtpksTileMesh {
     int resort_tile_id = -1;
     int width = 1;
@@ -59,12 +65,18 @@ struct RtpksTileMesh {
     std::vector<float> colors_tri;
     std::vector<float> colors_quad;
     std::vector<RtpksMaterialRange> material_ranges;
+    std::vector<RtpksVertexAnimationClip> vertex_animations;
     std::string name;
     std::vector<std::string> tags;
     std::string collision_mode = "none";
     bool collision_auto_apply = false;
     bool collision_clear_on_erase = false;
     std::vector<std::vector<bool>> collision_mask;
+    bool triggerable_door = false;
+    std::string door_front = "south";
+    std::string door_open_animation = "open";
+    std::string door_close_animation = "reverse_open";
+    std::string door_close_clip;
 };
 
 struct RtpksTilePackage {

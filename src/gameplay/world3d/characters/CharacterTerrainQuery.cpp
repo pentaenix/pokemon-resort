@@ -339,6 +339,27 @@ private:
 
 } // namespace
 
+std::vector<LoadedWorldChunk> selectActiveWorldChunks(
+    const std::vector<LoadedWorldChunk>& catalog,
+    const std::string& active_map_id) {
+    const auto active = std::find_if(catalog.begin(), catalog.end(), [&](const LoadedWorldChunk& chunk) {
+        return chunk.id == active_map_id || chunk.scene.id == active_map_id;
+    });
+    if (active == catalog.end()) return {};
+
+    std::vector<LoadedWorldChunk> selected;
+    for (const LoadedWorldChunk& chunk : catalog) {
+        const bool is_active = &chunk == &*active;
+        const bool shares_space = chunk.scene.environment.space == active->scene.environment.space;
+        if (!is_active && (!active->scene.environment.render_other_spaces || !shares_space)) continue;
+        LoadedWorldChunk rebased = chunk;
+        rebased.origin_tile_x -= active->origin_tile_x;
+        rebased.origin_tile_y -= active->origin_tile_y;
+        selected.push_back(std::move(rebased));
+    }
+    return selected;
+}
+
 std::shared_ptr<CharacterTerrainQuery> makeLocalCharacterTerrainQuery(const SceneConfig& scene) {
     return std::make_shared<LocalCharacterTerrainQuery>(scene);
 }

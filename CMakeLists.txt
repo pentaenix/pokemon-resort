@@ -182,6 +182,7 @@ add_executable(title_screen_demo
     src/gameplay/world3d/npc/ResortPokemonSpawnConfig.cpp
     src/gameplay/world3d/npc/NpcActorDriver.cpp
     src/gameplay/world3d/scripts/OverworldScript.cpp
+    src/gameplay/world3d/doors/DoorTravel.cpp
     src/gameplay/world3d/dialogue/OverworldTextboxConfig.cpp
     src/gameplay/world3d/dialogue/OverworldTextboxController.cpp
     src/gameplay/world3d/dialogue/OverworldTextboxRenderer.cpp
@@ -645,6 +646,15 @@ target_compile_definitions(rtpks_ocean_tile_tests PRIVATE PR_SOURCE_DIR="${CMAKE
 target_link_libraries(rtpks_ocean_tile_tests PRIVATE world3d_bgfx_renderer)
 add_test(NAME rtpks_ocean_tile_tests COMMAND rtpks_ocean_tile_tests)
 
+add_executable(rtpks_door_tile_tests
+    tests/native/world3d/rtpks_door_tile_tests.cpp
+    src/core/config/Json.cpp
+)
+target_include_directories(rtpks_door_tile_tests PRIVATE include)
+target_compile_definitions(rtpks_door_tile_tests PRIVATE PR_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(rtpks_door_tile_tests PRIVATE world3d_bgfx_renderer)
+add_test(NAME rtpks_door_tile_tests COMMAND rtpks_door_tile_tests)
+
 add_executable(overworld_textbox_tests
     tests/native/world3d/overworld_textbox_tests.cpp
     src/core/config/Json.cpp
@@ -671,6 +681,15 @@ add_executable(interaction_system_tests
 target_include_directories(interaction_system_tests PRIVATE include)
 target_link_libraries(interaction_system_tests PRIVATE SDL2::SDL2)
 add_test(NAME interaction_system_tests COMMAND interaction_system_tests)
+
+add_executable(door_travel_tests
+    tests/native/world3d/door_travel_tests.cpp
+    src/core/config/Json.cpp
+    src/gameplay/world3d/doors/DoorTravel.cpp
+)
+target_include_directories(door_travel_tests PRIVATE include)
+target_compile_features(door_travel_tests PRIVATE cxx_std_20)
+add_test(NAME door_travel_tests COMMAND door_travel_tests)
 
 add_executable(transfer_box_edits_store_tests
     tests/native/core/transfer_box_edits_store_tests.cpp
