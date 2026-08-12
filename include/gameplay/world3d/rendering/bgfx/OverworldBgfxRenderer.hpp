@@ -50,6 +50,12 @@ public:
     void setAttendButtonOverlay(std::string icon_path, SDL_Rect logical_rect, bool visible);
     void setBlackIrisTransition(float logical_x, float logical_y, float closed_amount,
         bool visible, int circle_segments, float max_radius_scale);
+    double playDoorTileAnimation(
+        const std::string& map_id,
+        const std::string& layer_id,
+        int tile_x,
+        int tile_y,
+        bool reverse);
 
     void render(
         const camera::Gen4FollowCamera& camera,

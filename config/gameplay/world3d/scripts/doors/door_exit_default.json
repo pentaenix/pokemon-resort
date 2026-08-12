@@ -1,0 +1,17 @@
+{
+  "id": "door_exit_default",
+  "kind": "door",
+  "targetGates": ["DOOR"],
+  "trigger": "MOVE_TOWARD",
+  "priority": 0,
+  "weight": 1,
+  "cooldownSeconds": 0,
+  "when": {},
+  "actions": [
+    { "action": "TRANSITION_CLOSE" },
+    { "action": "TELEPORT_TO_LINK" },
+    { "action": "TRANSITION_OPEN" },
+    { "action": "MOVE_PLAYER", "direction": "south", "tiles": 1, "durationSeconds": 0.25 },
+    { "action": "PLAY_TILE_ANIMATION", "value": "close" }
+  ]
+}

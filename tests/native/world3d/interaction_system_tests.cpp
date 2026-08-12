@@ -234,6 +234,36 @@ void testScriptCatalogLoadsIndividualJsonFiles() {
     fs::remove_all(root);
 }
 
+void testDoorScriptActionsLoadFromCatalog() {
+    namespace fs = std::filesystem;
+    using namespace pr::gameplay::world3d::scripts;
+    const fs::path root = fs::temp_directory_path() / "pokemon_resort_door_script_catalog_test";
+    fs::remove_all(root);
+    const fs::path scripts = root / "config" / "gameplay" / "world3d" / "scripts" / "doors";
+    fs::create_directories(scripts);
+    {
+        std::ofstream index(scripts.parent_path() / "script_catalog.json");
+        index << R"({"scripts":[{"path":"doors/enter.json"}]})";
+        std::ofstream script(scripts / "enter.json");
+        script << R"({"id":"door_enter","kind":"door","targetGates":["DOOR"],"trigger":"MOVE_TOWARD","actions":[{"action":"PLAY_TILE_ANIMATION","value":"open"},{"action":"TRANSITION_CLOSE"},{"action":"TELEPORT_TO_LINK"},{"action":"TRANSITION_OPEN"},{"action":"MOVE_PLAYER","direction":"forward","tiles":1,"durationSeconds":0.4}]})";
+    }
+    std::vector<ScriptValidationIssue> issues;
+    const ScriptCatalog catalog = loadScriptCatalog(root.string(), &issues);
+    expect(issues.empty(), "valid door script should load without validation issues");
+    expect(catalog.scripts.size() == 1 && catalog.scripts.front().kind == ScriptKind::Door,
+        "catalog should preserve the door script kind");
+    const auto& actions = catalog.scripts.front().actions;
+    expect(actions.size() == 5 &&
+            actions[0].kind == ScriptActionKind::PlayTileAnimation &&
+            actions[1].kind == ScriptActionKind::TransitionClose &&
+            actions[2].kind == ScriptActionKind::TeleportToLink &&
+            actions[3].kind == ScriptActionKind::TransitionOpen &&
+            actions[4].kind == ScriptActionKind::MovePlayer && actions[4].tiles == 1 &&
+            actions[4].use_current_facing && actions[4].duration_seconds == 0.4,
+        "door script should preserve its ordered travel action vocabulary");
+    fs::remove_all(root);
+}
+
 void testInteractionSourceSplitAndFallbacks() {
     using namespace pr::gameplay::world3d::interactions;
     using namespace pr::gameplay::world3d::scripts;
@@ -356,6 +386,7 @@ int main() {
         testResortPokemonSpawnConfigCapsTheWholeRoster();
         testScriptSelectionUsesTagsPriorityWeightAndCooldown();
         testScriptCatalogLoadsIndividualJsonFiles();
+        testDoorScriptActionsLoadFromCatalog();
         testInteractionSourceSplitAndFallbacks();
         testRuntimeScriptPrecedenceAndCharbinCompatibility();
         testReusableBlackIrisTransitionLifecycle();

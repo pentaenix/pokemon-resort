@@ -55,6 +55,52 @@ Grid axes in the game: `tile_x` → world +X (east), `tile_y` → world +Z (sout
   - automatic clearing on tile erase is opt-in (`clearOnErase`) so an artist's
     manually authored collision is not removed accidentally
 
+## Interior maps and isolated spaces
+
+`type` defaults to `"exterior"` for existing maps. An interior map uses
+`"interior"` and may declare its rendering environment and imported room-shell
+alignment without changing the version-1 binary envelope:
+
+```json
+{
+  "id": "house_test",
+  "type": "interior",
+  "environment": {
+    "space": "interior:house_test",
+    "clearColor": [0, 0, 0, 255],
+    "renderOtherSpaces": false
+  },
+  "interior": {
+    "shellModelId": "interiors/house_test.glb",
+    "floorDatum": -2.5,
+    "gridOrigin": [-16, 32],
+    "openings": [
+      { "edge": "south", "from": 4, "to": 6 }
+    ]
+  }
+}
+```
+
+- `environment.space` groups maps that may be rendered and queried together.
+  If omitted it defaults to `"world"` for exterior maps and the map ID for
+  interior maps.
+- Interior defaults are a black clear color and `renderOtherSpaces: false`.
+  Exterior defaults retain the existing sky clear color and render linked maps.
+- `shellModelId` identifies the complete imported room shell; it does not replace
+  normal `models[]` placement data. Its authored floor, walls, and entrance do
+  replace procedural terrain visually, preventing fallback geometry from leaking
+  or flickering through the shell. Interiors without a shell retain the default
+  buildable grid.
+- `floorDatum` is the source-model world-space floor elevation used during import.
+- `gridOrigin` is the source-model X/Z position corresponding to OWMAP tile `[0,0]`.
+- Boundary openings use inclusive tile spans. The common Gen V presentation omits
+  the south wall and declares only the doorway span needed for collision and
+  generated-shell authoring.
+
+These fields are metadata, so older OWMAP v1 readers ignore them. Runtime travel
+activates the destination space before applying its anchor coordinate; a halo
+door trigger may still sit outside the stored grid.
+
 ## RTPKS decoration layers
 
 `metaJson.tilePackage` binds the RTPKS package. `metaJson.tileLayers.layers[]`
@@ -64,11 +110,64 @@ stores visible decoration layers whose `cells[y][x]` values are stable
 - palette tab membership and smart-path grids for editor organization
 - namespaced gameplay tags and typed properties
 - footprint or mask-based automatic collision authoring rules
-- frame animation metadata and runtime texture frames
+- frame/material animation metadata, runtime texture frames, and baked named
+  vertex clips for imported skeletal tiles
 
 The map does not duplicate these definitions. Renaming tabs, changing tags, or
 adding animation therefore updates the package without rewriting every `.owmap`
 that uses the same stable IDs.
+
+A door is deliberately split across two authoring records:
+
+- The visible door is an RTPKS tile tagged `interaction.door`, with
+  `interaction.kind: door`, `door.front`, and trigger-phase animation metadata.
+- The behavior is an OWMAP `doorTriggers[]` entry. It activates when movement
+  approaches its coordinate from an allowed direction and references a map link,
+  a door script, and optionally the RTPKS tile that should animate.
+
+This split also represents invisible doors: omit `visual` and retain the movement
+trigger. Trigger coordinates may be one cell outside the stored grid, such as
+`[x, -1]`, so walking north through a doorway can activate an exterior halo tile
+before the normal bounds check rejects the step.
+
+The Admin GLB compiler preserves door node/skinning animation by sampling named
+clips into each tile mesh. `door.animation.open` selects the forward clip;
+`door.animation.close: named` plus `door.animation.closeClip` selects a separate
+close clip. Texture-motion doors store the opening timeline once and play it in
+reverse when closing. Playback state belongs to the addressed map/layer/cell,
+not to the shared tile definition.
+
+```json
+{
+  "anchors": [
+    { "id": "inside_entry", "tile": [4, 7], "facing": "north" }
+  ],
+  "links": [
+    {
+      "id": "house_entry",
+      "destinationMapId": "house_interior",
+      "destinationAnchorId": "inside_entry"
+    }
+  ],
+  "doorTriggers": [
+    {
+      "id": "house_front_door",
+      "kind": "door",
+      "tile": [12, 8],
+      "activation": "move_toward",
+      "allowedDirections": ["north"],
+      "visual": { "mapId": "", "layerId": "buildings", "tile": [12, 8] },
+      "linkId": "house_entry",
+      "scriptId": "door_enter_default"
+    }
+  ]
+}
+```
+
+`anchors[].tile` is the exact teleport coordinate. `anchors[].facing` becomes the
+player facing after teleport. `visual.mapId` is optional and defaults to the map
+that owns the trigger; setting it allows an interior return trigger to close the
+exterior door after teleporting back.
 
 Only the anchor cell stores a multi-cell tile ID. Editor hit testing resolves
 every covered cell back to that anchor: erasing or eyedropping any part affects
@@ -88,10 +187,26 @@ clicked cell, so 1x3 and 3x3 pieces cannot silently overlap.
 Both loaders produce the same `SceneConfig` shape:
 - `include/gameplay/world3d/Overworld3DConfig.hpp`
 
+Door link resolution and ordered door-script state live in
+`gameplay/world3d/doors/DoorTravel`, while the screen adapter owns transitions,
+teleport application, forced exit movement, and RTPKS animation commands.
+
 ## Runtime default map
 
 Current 3D test default:
-- `assets/overworld/maps/testing.owmap`
+- `assets/overworld/maps/0.owmap`
+
+The current test loop enters `interior_842.owmap` through the animated RTPKS
+door at exterior tile `[16, 15]`. The interior exit lives at `[6, 10]`, one
+cell beyond its 14×10 south edge, and uses `door_exit_default` to return, step
+the player south, and close the exterior door.
+
+RAE interior sidecars may provide an inferred `heightStep` and `heightMask`.
+Map Studio writes the step as `terrainVisual.floorHeightScale`; the native
+metadata parser applies it per map as `TerrainConfig::height_per_floor`.
+Because OWMAP stores one height per X/Z cell, vertically overlapping source
+floors must be split into separate interior maps. RAE reports those cells rather
+than discarding that limitation silently.
 
 ## Validation implemented
 

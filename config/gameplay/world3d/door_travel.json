@@ -1,0 +1,40 @@
+{
+  "_guide": "Landing offsets are relative to the character's destination facing. Positive forward moves into that facing; positive right moves to the character's right. MOVE_PLAYER durationSeconds in a door script overrides movementSecondsPerTile.",
+  "tileAnimation": {
+    "fallbackDurationSeconds": 0.28
+  },
+  "destinations": {
+    "interior": {
+      "landingOffsetPixels": {
+        "right": 0,
+        "forward": 0
+      },
+      "movementSecondsPerTile": 0.25
+    },
+    "exterior": {
+      "landingOffsetPixels": {
+        "right": 0,
+        "forward": 0
+      },
+      "movementSecondsPerTile": 0.25
+    }
+  },
+  "maps": {
+    "interior_842": {
+      "destinationType": "interior",
+      "landingOffsetPixels": {
+        "right": 0,
+        "forward": 0
+      },
+      "movementSecondsPerTile": 0.25
+    },
+    "0": {
+      "destinationType": "exterior",
+      "landingOffsetPixels": {
+        "right": 0,
+        "forward": 0
+      },
+      "movementSecondsPerTile": 0.25
+    }
+  }
+}

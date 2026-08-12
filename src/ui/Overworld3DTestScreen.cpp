@@ -9,11 +9,13 @@
 #include "gameplay/world3d/data/GlbModelLoader.hpp"
 #include "gameplay/world3d/data/JsonOverworldLoader.hpp"
 #include "gameplay/world3d/dialogue/OverworldTextboxConfig.hpp"
+#include "gameplay/world3d/doors/DoorAnimationPolicy.hpp"
 #include "gameplay/world3d/followers/NatureIdleConfig.hpp"
 #include "gameplay/world3d/interactions/InteractionSequence.hpp"
 #include "gameplay/world3d/interactions/InteractionText.hpp"
 #include "gameplay/world3d/npc/NpcActorDriver.hpp"
 #include "gameplay/world3d/rendering/FallbackTerrainRenderer.hpp"
+#include "gameplay/world3d/rendering/InteriorRenderPolicy.hpp"
 #include "ui/overlay/OverlayCanvas.hpp"
 
 #include <SDL.h>
@@ -87,6 +89,10 @@ int jsonIntOr(const JsonValue* value, int fallback) {
 
 std::string jsonStringOr(const JsonValue* value, const std::string& fallback) {
     return value && value->isString() ? value->asString() : fallback;
+}
+
+bool jsonBoolOr(const JsonValue* value, bool fallback) {
+    return value && value->isBool() ? value->asBool() : fallback;
 }
 
 // Map screen-oriented input (up/down/left/right) to world grid steps using the Gen 4 camera basis on XZ.
@@ -226,10 +232,14 @@ void Overworld3DTestScreen::initializeSceneState() {
             project_root_,
             scene_,
             gameplay::world3d::effects::loadProceduralWaterParticleConfig(project_root_));
+    loaded_world_chunks_ = buildLoadedWorldChunks();
+    active_world_map_id_ = scene_.id.empty() ? std::string{"testing"} : scene_.id;
+    rebuildActiveWorldChunks();
     reloadWorldTerrainQueries();
     npc_actor_driver_->initializeDefaultSceneActors(player_.position());
     textbox_config_ = gameplay::world3d::dialogue::loadOverworldTextboxConfig(project_root_);
     transition_config_ = transitions::loadOverworldTransitionConfig(project_root_);
+    door_travel_config_ = gameplay::world3d::doors::loadDoorTravelConfig(project_root_);
     textbox_controller_.hide();
     textbox_renderer_ =
         std::make_unique<gameplay::world3d::dialogue::OverworldTextboxRenderer>(project_root_, textbox_config_);
@@ -239,6 +249,11 @@ void Overworld3DTestScreen::initializeSceneState() {
     active_interaction_target_ = {};
     pending_attend_launch_context_.reset();
     interaction_sequence_.cancel();
+    door_sequence_.cancel();
+    door_animation_wait_seconds_ = 0.0;
+    door_waiting_for_close_ = false;
+    door_waiting_for_open_ = false;
+    door_forced_move_.cancel();
     interaction_exit_requested_ = false;
     interaction_pokemon_session_started_ = false;
     interaction_time_seconds_ = 0.0;
@@ -384,6 +399,7 @@ std::vector<gameplay::world3d::characters::LoadedWorldChunk> Overworld3DTestScre
         std::string file;
         int grid_x = 0;
         int grid_y = 0;
+        bool linked = true;
         gameplay::world3d::SceneConfig scene;
     };
 
@@ -404,6 +420,7 @@ std::vector<gameplay::world3d::characters::LoadedWorldChunk> Overworld3DTestScre
             entry.file = jsonStringOr(item.get("file"), "");
             entry.grid_x = jsonIntOr(item.get("gridX"), 0);
             entry.grid_y = jsonIntOr(item.get("gridY"), 0);
+            entry.linked = jsonBoolOr(item.get("linked"), true);
             if (entry.file.empty()) {
                 continue;
             }
@@ -462,23 +479,95 @@ std::vector<gameplay::world3d::characters::LoadedWorldChunk> Overworld3DTestScre
         return origin;
     };
 
+    int isolated_index = 0;
     for (MapEntry& entry : entries) {
+        const int origin_x = entry.linked
+            ? origin_for_axis(entry.grid_x, column_widths)
+            : 4096 * (++isolated_index);
+        const int origin_y = entry.linked
+            ? origin_for_axis(entry.grid_y, row_heights)
+            : 0;
         chunks.push_back(gameplay::world3d::characters::LoadedWorldChunk{
             entry.id,
             std::move(entry.scene),
-            origin_for_axis(entry.grid_x, column_widths),
-            origin_for_axis(entry.grid_y, row_heights)});
+            origin_x,
+            origin_y});
     }
 
     return chunks;
+}
+
+void Overworld3DTestScreen::rebuildActiveWorldChunks() {
+    active_world_chunks_ = gameplay::world3d::characters::selectActiveWorldChunks(
+        loaded_world_chunks_, active_world_map_id_);
+    if (active_world_chunks_.empty() && !loaded_world_chunks_.empty()) {
+        active_world_map_id_ = loaded_world_chunks_.front().id;
+        active_world_chunks_ = gameplay::world3d::characters::selectActiveWorldChunks(
+            loaded_world_chunks_, active_world_map_id_);
+    }
+}
+
+bool Overworld3DTestScreen::activateWorldMap(
+    const gameplay::world3d::characters::LoadedWorldChunk& chunk) {
+    active_world_map_id_ = chunk.id.empty() ? chunk.scene.id : chunk.id;
+    scene_ = chunk.scene;
+    rebuildActiveWorldChunks();
+    if (active_world_chunks_.empty()) return false;
+
+    map_ = gameplay::world3d::rendering::OverworldMapRenderer(scene_);
+    map_loaded_ = map_.load();
+    placed_models_.clear();
+    for (const auto& model : scene_.models) {
+        if (model.glb_path.empty()) continue;
+        std::string load_error;
+        gameplay::world3d::data::GlbMesh mesh =
+            gameplay::world3d::data::loadGlbModel(model.glb_path, &load_error);
+        if (!mesh.valid) {
+            std::cerr << "[Overworld3D] Skipping model '" << model.id
+                      << "' while activating " << active_world_map_id_ << ": "
+                      << load_error << '\n';
+            continue;
+        }
+        placed_models_.push_back(std::make_unique<gameplay::world3d::rendering::GlbModelRenderer>(
+            std::move(mesh), model.x, model.y, model.z, model.yaw_deg, model.scale));
+    }
+
+    gameplay::world3d::camera::Gen4CameraPreset preset =
+        gameplay::world3d::camera::loadGen4PresetById(scene_.camera_preset.c_str());
+    if (scene_.camera_distance > 0.0f) preset.distance = scene_.camera_distance;
+    preset.pitch_deg = scene_.camera_pitch_deg;
+    preset.yaw_deg = scene_.camera_yaw_deg;
+    preset.roll_deg = scene_.camera_roll_deg;
+    preset.near_clip = scene_.camera_near_clip;
+    preset.far_clip = scene_.camera_far_clip;
+    preset.aspect_width = scene_.camera_aspect_width;
+    preset.aspect_height = scene_.camera_aspect_height;
+    preset.fov_y_deg = scene_.camera_fov_y_deg;
+    gameplay::world3d::rendering::applySceneCameraScaleToCameraPreset(preset, scene_);
+    follow_camera_base_preset_ = preset;
+    camera_ = gameplay::world3d::camera::Gen4FollowCamera(preset);
+    reloadFollowCameraPresetConfig();
+
+    npc_actor_driver_ = std::make_unique<gameplay::world3d::npc::NpcActorDriver>(project_root_, scene_);
+    follower_controller_ = std::make_unique<gameplay::world3d::followers::FollowerController>(
+        project_root_, scene_, follower_summon_config_, follower_session_config_);
+    follower_controller_->initializeResources();
+    water_particle_system_ = std::make_unique<gameplay::world3d::effects::ProceduralWaterParticleSystem>(
+        project_root_, scene_, gameplay::world3d::effects::loadProceduralWaterParticleConfig(project_root_));
+    reloadWorldTerrainQueries();
+    sprite_renderer_.reset();
+    shutdownBgfx();
+    std::cerr << "[Overworld3D] Activated map " << active_world_map_id_
+              << " in space " << scene_.environment.space << '\n';
+    return true;
 }
 
 std::vector<gameplay::world3d::rendering::bgfx_backend::OverworldBgfxRenderer::StaticMapChunk>
 Overworld3DTestScreen::buildStaticRenderChunks() const {
     std::vector<gameplay::world3d::rendering::bgfx_backend::OverworldBgfxRenderer::StaticMapChunk> out;
     const float tile_size = std::max(1.0f, scene_.grid.tile_size);
-    for (const gameplay::world3d::characters::LoadedWorldChunk& chunk : buildLoadedWorldChunks()) {
-        if (chunk.origin_tile_x == 0 && chunk.origin_tile_y == 0) {
+    for (const gameplay::world3d::characters::LoadedWorldChunk& chunk : active_world_chunks_) {
+        if (chunk.id == active_world_map_id_ || chunk.scene.id == active_world_map_id_) {
             continue;
         }
         out.push_back({
@@ -492,7 +581,7 @@ Overworld3DTestScreen::buildStaticRenderChunks() const {
 
 void Overworld3DTestScreen::reloadWorldTerrainQueries() {
     std::shared_ptr<gameplay::world3d::characters::CharacterTerrainQuery> terrain_query =
-        gameplay::world3d::characters::makeLoadedWorldCharacterTerrainQuery(buildLoadedWorldChunks());
+        gameplay::world3d::characters::makeLoadedWorldCharacterTerrainQuery(active_world_chunks_);
     player_.setTerrainQuery(terrain_query);
     if (follower_controller_) {
         follower_controller_->setTerrainQuery(terrain_query);
@@ -503,9 +592,8 @@ void Overworld3DTestScreen::reloadWorldTerrainQueries() {
 }
 
 void Overworld3DTestScreen::logLoadedWorldChunks() const {
-    const std::vector<gameplay::world3d::characters::LoadedWorldChunk> chunks = buildLoadedWorldChunks();
-    std::cerr << "[Overworld3D] Loaded " << chunks.size() << " world chunks\n";
-    for (const gameplay::world3d::characters::LoadedWorldChunk& chunk : chunks) {
+    std::cerr << "[Overworld3D] Loaded " << loaded_world_chunks_.size() << " world chunks\n";
+    for (const gameplay::world3d::characters::LoadedWorldChunk& chunk : loaded_world_chunks_) {
         std::cerr << "[Overworld3D] chunk id=" << chunk.id
                   << " originTile=(" << chunk.origin_tile_x << ',' << chunk.origin_tile_y << ')'
                   << " size=" << chunk.scene.grid.width << 'x' << chunk.scene.grid.height
@@ -513,11 +601,165 @@ void Overworld3DTestScreen::logLoadedWorldChunks() const {
     }
 }
 
+bool Overworld3DTestScreen::beginDoorSequenceForStep(int dx, int dy) {
+    if (dx == 0 && dy == 0 || door_sequence_.active() || door_animation_wait_seconds_ > 0.0 ||
+        door_waiting_for_close_ || door_waiting_for_open_ || door_forced_move_.active()) {
+        return false;
+    }
+    const auto hit = gameplay::world3d::doors::findDoorTrigger(
+        active_world_chunks_,
+        player_.tileX(),
+        player_.tileY(),
+        player_.tileX() + dx,
+        player_.tileY() + dy,
+        dx,
+        dy);
+    if (!hit) return false;
+    const auto* script = gameplay::world3d::doors::findDoorScript(
+        interaction_script_catalog_, hit->trigger->script_id);
+    if (!script || !door_sequence_.start(script, *hit)) {
+        std::cerr << "[Overworld3D] Door trigger '" << hit->trigger->id
+                  << "' references unavailable script '" << hit->trigger->script_id << "'\n";
+        return true;
+    }
+    player_.face(gameplay::world3d::doors::directionForStep(dx, dy));
+    animator_.setFacing(player_.facing());
+    player_.stop();
+    updateDoorSequence(0.0);
+    return true;
+}
+
+void Overworld3DTestScreen::updateDoorSequence(double dt) {
+    door_animation_wait_seconds_ = std::max(0.0, door_animation_wait_seconds_ - dt);
+    if (door_animation_wait_seconds_ > 0.0 || door_waiting_for_close_ || door_waiting_for_open_) return;
+
+    if (door_forced_move_.active()) {
+        if (player_.moving()) {
+            player_.moveInput(0, 0, dt);
+        } else if (door_forced_move_.shouldRequestStep(false)) {
+            const auto [dx, dy] = stepForFacing(door_forced_move_.direction());
+            const auto result = player_.moveInput(dx, dy, dt);
+            if (result.attempted_step) {
+                door_forced_move_.reportStepAttempt(result.blocked);
+                if (result.blocked) {
+                    std::cerr << "[Overworld3D] Forced door-exit movement was blocked\n";
+                }
+            }
+        }
+        door_forced_move_.reportMovementState(player_.moving());
+        if (door_forced_move_.active()) return;
+    }
+
+    while (const auto* action = door_sequence_.currentAction()) {
+        using gameplay::world3d::scripts::ScriptActionKind;
+        switch (action->kind) {
+            case ScriptActionKind::Wait:
+                door_animation_wait_seconds_ = action->duration_seconds;
+                door_sequence_.advance();
+                return;
+            case ScriptActionKind::PlayTileAnimation:
+                if (const auto& hit = door_sequence_.hit();
+                    bgfx_renderer_ && hit.chunk && hit.trigger && hit.trigger->visual.enabled) {
+                    std::string visual_map_id = hit.trigger->visual.map_id.empty()
+                        ? hit.chunk->scene.id
+                        : hit.trigger->visual.map_id;
+                    const auto visual_chunk = std::find_if(
+                        loaded_world_chunks_.begin(), loaded_world_chunks_.end(),
+                        [&](const gameplay::world3d::characters::LoadedWorldChunk& chunk) {
+                            return chunk.id == visual_map_id || chunk.scene.id == visual_map_id;
+                        });
+                    if (visual_chunk != loaded_world_chunks_.end()) visual_map_id = visual_chunk->scene.id;
+                    door_animation_wait_seconds_ = bgfx_renderer_->playDoorTileAnimation(
+                        visual_map_id,
+                        hit.trigger->visual.layer_id,
+                        hit.trigger->visual.tile_x,
+                        hit.trigger->visual.tile_y,
+                        lower(action->value) == "close");
+                }
+                // Preserve ordering in the non-bgfx fallback and for a door tile
+                // whose package has no duration metadata.
+                if (door_animation_wait_seconds_ <= 0.0) {
+                    door_animation_wait_seconds_ = door_travel_config_.fallback_tile_animation_seconds;
+                }
+                door_sequence_.advance();
+                return;
+            case ScriptActionKind::TransitionClose:
+                door_waiting_for_close_ = true;
+                transition_.startClosing(transition_config_.attend);
+                return;
+            case ScriptActionKind::TransitionOpen:
+                door_waiting_for_open_ = true;
+                transition_.startOpening(transition_config_.attend);
+                door_sequence_.advance();
+                return;
+            case ScriptActionKind::TeleportToLink: {
+                const auto destination = gameplay::world3d::doors::resolveDoorDestination(
+                    loaded_world_chunks_, door_sequence_.hit());
+                if (!destination || !destination->chunk) {
+                    std::cerr << "[Overworld3D] Door link could not resolve a destination anchor\n";
+                    door_sequence_.cancel();
+                    return;
+                }
+                const int local_tile_x = destination->world_tile_x - destination->chunk->origin_tile_x;
+                const int local_tile_y = destination->world_tile_y - destination->chunk->origin_tile_y;
+                const bool destination_is_halo = gameplay::world3d::doors::isCardinalHaloTile(
+                    destination->chunk->scene.grid.width,
+                    destination->chunk->scene.grid.height,
+                    local_tile_x,
+                    local_tile_y);
+                if (!activateWorldMap(*destination->chunk) || !player_.teleportToTile(
+                        local_tile_x, local_tile_y, destination->facing, destination_is_halo)) {
+                    std::cerr << "[Overworld3D] Door link could not resolve a reachable destination anchor\n";
+                    door_sequence_.cancel();
+                    return;
+                }
+                active_door_destination_tuning_ = door_travel_config_.destination(
+                    destination->chunk->scene.id,
+                    destination->chunk->scene.map_type);
+                const auto [landing_offset_x, landing_offset_z] =
+                    gameplay::world3d::doors::landingWorldOffset(
+                        destination->facing, active_door_destination_tuning_);
+                player_.offsetWorldPosition(landing_offset_x, landing_offset_z);
+                if (npc_actor_driver_) {
+                    npc_actor_driver_->initializeDefaultSceneActors(player_.position());
+                }
+                camera_.setTarget(player_.position());
+                door_sequence_.advance();
+                break;
+            }
+            case ScriptActionKind::MovePlayer:
+                door_forced_move_speed_ = gameplay::world3d::doors::forcedMovementSpeed(
+                    scene_.grid.tile_size,
+                    action->tiles,
+                    action->duration_seconds,
+                    active_door_destination_tuning_);
+                door_forced_move_.start(
+                    action->use_current_facing ? player_.facing() : action->direction,
+                    action->tiles);
+                door_sequence_.advance();
+                return;
+            default:
+                std::cerr << "[Overworld3D] Ignoring non-door action in door script\n";
+                door_sequence_.advance();
+                break;
+        }
+    }
+}
+
 
 void Overworld3DTestScreen::update(double dt) {
     transition_.update(dt);
     interaction_wait_remaining_ = std::max(0.0, interaction_wait_remaining_ - dt);
-    if (transition_.consumeClosed()) open_attend_requested_ = true;
+    if (transition_.consumeClosed()) {
+        if (door_waiting_for_close_) {
+            door_waiting_for_close_ = false;
+            door_sequence_.advance();
+        } else {
+            open_attend_requested_ = true;
+        }
+    }
+    if (door_waiting_for_open_ && !transition_.active()) door_waiting_for_open_ = false;
+    updateDoorSequence(dt);
     interaction_time_seconds_ += dt;
     if (blocked_movement_repeat_seconds_ > 0.0) {
         blocked_movement_repeat_seconds_ = std::max(0.0, blocked_movement_repeat_seconds_ - dt);
@@ -542,21 +784,29 @@ void Overworld3DTestScreen::update(double dt) {
 
         const bool run_held = anyBindingPressed(keys, app_config_.input.run_keys);
         player_running = character_.has_run && (run_held || run_toggle_active_);
-        player_.setMoveSpeedUnitsPerSecond(player_running
-            ? movement_config_.runSpeed()
-            : movement_config_.walkSpeed());
+        player_.setMoveSpeedUnitsPerSecond(door_forced_move_.active()
+            ? door_forced_move_speed_
+            : player_running
+                ? movement_config_.runSpeed()
+                : movement_config_.walkSpeed());
 
-        auto [grid_dx, grid_dy] = interactionActive()
+        const bool door_busy = door_sequence_.active() || door_animation_wait_seconds_ > 0.0 ||
+            door_waiting_for_close_ || door_waiting_for_open_ || door_forced_move_.active();
+        auto [grid_dx, grid_dy] = (interactionActive() || door_busy)
             ? std::pair<int, int>{0, 0}
             : gridStepFromCameraInput(camera_, input_dx_, input_dy_);
-        const auto move_result = player_.moveInput(
-            grid_dx,
-            grid_dy,
-            dt,
-            [this](int from_tx, int from_ty, int to_tx, int to_ty) {
-                return !npc_actor_driver_ ||
-                       npc_actor_driver_->canPlayerEnterTile(from_tx, from_ty, to_tx, to_ty);
-            });
+        const bool door_started = !door_busy && beginDoorSequenceForStep(grid_dx, grid_dy);
+        const bool door_controls_player_animation = door_started || door_busy;
+        const auto move_result = door_started || door_busy
+            ? gameplay::world3d::characters::CharacterController::MoveInputResult{}
+            : player_.moveInput(
+                grid_dx,
+                grid_dy,
+                dt,
+                [this](int from_tx, int from_ty, int to_tx, int to_ty) {
+                    return !npc_actor_driver_ ||
+                           npc_actor_driver_->canPlayerEnterTile(from_tx, from_ty, to_tx, to_ty);
+                });
         blocked_movement_attempt = move_result.blocked;
         if (input_dx_ == 0 && input_dy_ == 0) {
             player_.stop();
@@ -575,7 +825,9 @@ void Overworld3DTestScreen::update(double dt) {
             blocked_movement_repeat_seconds_ = 0.0;
         }
 
-        animator_.setMoving(player_.moving() || (blocked_movement_attempt && !player_swimming));
+        animator_.setMoving(gameplay::world3d::doors::playerUsesMovementAnimation(
+            door_controls_player_animation,
+            player_.moving() || (blocked_movement_attempt && !player_swimming)));
         animator_.update(dt);
 
         camera_.setTarget(player_.position());
@@ -708,12 +960,17 @@ void Overworld3DTestScreen::render(SDL_Renderer* renderer) {
     SDL_RenderClear(renderer);
 
     SDL_Rect sky{0, 0, w, h / 2};
-    SDL_SetRenderDrawColor(renderer, 150, 191, 224, 255);
+    SDL_SetRenderDrawColor(
+        renderer,
+        scene_.environment.clear_color.r,
+        scene_.environment.clear_color.g,
+        scene_.environment.clear_color.b,
+        scene_.environment.clear_color.a);
     SDL_RenderFillRect(renderer, &sky);
 
     if (map_loaded_) {
         map_.render(renderer, camera_, w, h);
-    } else {
+    } else if (gameplay::world3d::rendering::shouldRenderFallbackTerrain(scene_)) {
         gameplay::world3d::rendering::renderFallbackTerrain(
             renderer,
             camera_,

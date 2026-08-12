@@ -51,6 +51,23 @@ void GridActorMotor::resetToTile(int tx, int ty, const camera::Vec3& position) {
     moving_ = false;
 }
 
+bool GridActorMotor::teleportToTile(int tx, int ty, bool allow_outside) {
+    if (!terrain_query_ || (!allow_outside && !terrain_query_->containsTile(tx, ty))) return false;
+    camera::Vec3 position{};
+    position.x = (static_cast<float>(tx) + 0.5f) * tile_size_;
+    position.z = (static_cast<float>(ty) + 0.5f) * tile_size_;
+    position.y = terrain_query_->bindActorStanding(tx, ty, position.x, position.z).simulation_y;
+    resetToTile(tx, ty, position);
+    return true;
+}
+
+void GridActorMotor::offsetWorldPosition(float x, float z) {
+    pos_.x += x;
+    pos_.z += z;
+    move_start_ = pos_;
+    move_target_ = pos_;
+}
+
 void GridActorMotor::setMoveSpeedUnitsPerSecond(float speed) {
     move_speed_units_per_second_ = std::max(1.0f, speed);
 }

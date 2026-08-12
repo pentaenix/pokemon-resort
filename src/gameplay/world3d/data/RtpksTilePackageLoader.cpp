@@ -97,9 +97,32 @@ RtpksTileMesh parseTileMesh(int resort_tile_id, const JsonValue& root, const Jso
     out.tex_coords_quad = floatArray(root.get("texCoordsQuad"));
     out.colors_tri = floatArray(root.get("colorsTri"));
     out.colors_quad = floatArray(root.get("colorsQuad"));
+    if (const JsonValue* animations = root.get("vertexAnimations"); animations && animations->isArray()) {
+        for (const JsonValue& animation_value : animations->asArray()) {
+            if (!animation_value.isObject()) continue;
+            RtpksVertexAnimationClip clip;
+            clip.name = strOr(animation_value.get("name"), "");
+            clip.frame_time_ms = std::max(16, intOr(animation_value.get("frameDurationMs"), 100));
+            if (const JsonValue* frames = animation_value.get("frames"); frames && frames->isArray()) {
+                for (const JsonValue& frame : frames->asArray()) {
+                    std::vector<float> positions = floatArray(&frame);
+                    if (positions.size() == out.triangles.size()) clip.frames.push_back(std::move(positions));
+                }
+            }
+            if (!clip.name.empty() && !clip.frames.empty()) out.vertex_animations.push_back(std::move(clip));
+        }
+    }
     if (definition && definition->isObject()) {
         out.name = strOr(definition->get("name"), "");
         out.tags = stringArray(definition->get("tags"));
+        out.triggerable_door = std::find(out.tags.begin(), out.tags.end(), "interaction.door") != out.tags.end();
+        if (const JsonValue* properties = definition->get("properties"); properties && properties->isObject()) {
+            out.triggerable_door = out.triggerable_door || strOr(properties->get("interaction.kind"), "") == "door";
+            out.door_front = strOr(properties->get("door.front"), out.door_front);
+            out.door_open_animation = strOr(properties->get("door.animation.open"), out.door_open_animation);
+            out.door_close_animation = strOr(properties->get("door.animation.close"), out.door_close_animation);
+            out.door_close_clip = strOr(properties->get("door.animation.closeClip"), "");
+        }
         if (const JsonValue* collision = definition->get("collision"); collision && collision->isObject()) {
             out.collision_mode = strOr(collision->get("mode"), "none");
             out.collision_auto_apply = boolOr(collision->get("autoApply"), false);
@@ -220,6 +243,7 @@ RtpksTilePackage loadRtpksTilePackage(const std::string& path, std::string* erro
                         std::vector<std::uint8_t> frame = extractZipEntry(zip, "runtime/textures/" + frame_name);
                         if (!frame.empty()) material.animation_frame_bytes.push_back(std::move(frame));
                     }
+                    material.animation_loop = boolOr(animation->get("loop"), true);
                 } else if (animation && animation->isObject() &&
                     strOr(animation->get("type"), "") == "materialMotion") {
                     material.animation_frame_time_ms = std::max(16, intOr(animation->get("frameDurationMs"), 100));
@@ -303,6 +327,14 @@ RtpksTilePackage loadRtpksTileSemantics(const std::string& path, std::string* er
                 tile.height = std::max(1, intOr(tile_value.get("height"), 1));
                 tile.name = strOr(tile_value.get("name"), "");
                 tile.tags = stringArray(tile_value.get("tags"));
+                tile.triggerable_door = std::find(tile.tags.begin(), tile.tags.end(), "interaction.door") != tile.tags.end();
+                if (const JsonValue* properties = tile_value.get("properties"); properties && properties->isObject()) {
+                    tile.triggerable_door = tile.triggerable_door || strOr(properties->get("interaction.kind"), "") == "door";
+                    tile.door_front = strOr(properties->get("door.front"), tile.door_front);
+                    tile.door_open_animation = strOr(properties->get("door.animation.open"), tile.door_open_animation);
+                    tile.door_close_animation = strOr(properties->get("door.animation.close"), tile.door_close_animation);
+                    tile.door_close_clip = strOr(properties->get("door.animation.closeClip"), "");
+                }
                 out.tiles.push_back(std::move(tile));
             }
         }

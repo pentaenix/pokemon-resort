@@ -7,6 +7,8 @@
 #include "gameplay/world3d/rendering/SpriteShadowDecal.hpp"
 #include "gameplay/world3d/data/GlbModelLoader.hpp"
 #include "gameplay/world3d/data/RtpksTilePackageLoader.hpp"
+#include "gameplay/world3d/doors/DoorAnimationPolicy.hpp"
+#include "gameplay/world3d/rendering/InteriorRenderPolicy.hpp"
 #include "gameplay/world3d/rendering/bgfx/BgfxBackend.hpp"
 #include "gameplay/world3d/rendering/bgfx/RampTerrainRender.hpp"
 #include "gameplay/world3d/terrain/TerrainSurface.hpp"
@@ -286,6 +288,12 @@ public:
     void setAttendButtonOverlay(std::string icon_path, SDL_Rect logical_rect, bool visible);
     void setBlackIrisTransition(float logical_x, float logical_y, float closed_amount,
         bool visible, int circle_segments, float max_radius_scale);
+    double playDoorTileAnimation(
+        const std::string& map_id,
+        const std::string& layer_id,
+        int tile_x,
+        int tile_y,
+        bool reverse);
     void render(
         const camera::Gen4FollowCamera& camera,
         const camera::Vec3& player_pos,
@@ -365,15 +373,36 @@ private:
         float alpha_cutoff = 0.5f;
         bool depth_prepass = false;
         int render_order = 0;
+        int source_material_id = -1;
     };
 
     struct MaterialRange {
+        struct VertexClip {
+            std::string name;
+            int frame_time_ms = 100;
+            std::vector<std::vector<Vertex>> frames;
+        };
+
         std::uint32_t start_index = 0;
         std::uint32_t index_count = 0;
         int material = -1;
         MaterialClass material_class = MaterialClass::Opaque;
         bool depth_prepass = false;
         int render_order = 0;
+        bool trigger_phase = false;
+        bool trigger_active = false;
+        bool trigger_reverse = false;
+        std::int64_t trigger_started_ms = 0;
+        std::string trigger_layer_id;
+        int trigger_tile_x = 0;
+        int trigger_tile_y = 0;
+        std::uint32_t vertex_start = 0;
+        std::uint32_t vertex_count = 0;
+        std::string trigger_clip_name;
+        std::string trigger_open_clip;
+        std::string trigger_close_clip;
+        bool trigger_close_reverses = true;
+        std::vector<VertexClip> vertex_clips;
     };
 
     struct MeshGpuResource {
@@ -382,6 +411,8 @@ private:
         bgfx::IndexBufferHandle ibh = BGFX_INVALID_HANDLE;
         std::vector<MaterialRange> ranges;
         std::vector<MaterialGpuResource> materials;
+        std::vector<Vertex> source_vertices;
+        std::vector<Vertex> animated_vertices;
         bool owns_material_textures = true;
         bool destroy();
         bool valid() const { return (bgfx::isValid(vbh) || bgfx::isValid(dynamic_vbh)) && bgfx::isValid(ibh); }
@@ -484,6 +515,7 @@ private:
     bool buildTileLayers();
     bool buildModels();
     void updateModelAnimation(ModelGpuResource& model) const;
+    void updateDoorTileAnimations(MeshGpuResource& mesh) const;
     bool buildStaticMapChunks();
     bool buildPlayerTexture();
     bool buildShadowTexture();
@@ -600,6 +632,8 @@ bool OverworldBgfxRenderer::Impl::MeshGpuResource::destroy() {
     }
     ranges.clear();
     materials.clear();
+    source_vertices.clear();
+    animated_vertices.clear();
     owns_material_textures = true;
     return true;
 }
@@ -666,6 +700,15 @@ void OverworldBgfxRenderer::setBlackIrisTransition(
     bool visible, int circle_segments, float max_radius_scale) {
     if (impl_) impl_->setBlackIrisTransition(logical_x, logical_y, closed_amount,
         visible, circle_segments, max_radius_scale);
+}
+
+double OverworldBgfxRenderer::playDoorTileAnimation(
+    const std::string& map_id,
+    const std::string& layer_id,
+    int tile_x,
+    int tile_y,
+    bool reverse) {
+    return impl_ ? impl_->playDoorTileAnimation(map_id, layer_id, tile_x, tile_y, reverse) : 0.0;
 }
 
 void OverworldBgfxRenderer::render(
@@ -754,6 +797,97 @@ void OverworldBgfxRenderer::Impl::setBlackIrisTransition(
     iris_visible_ = visible;
     iris_segments_ = std::clamp(circle_segments, 16, 192);
     iris_max_radius_scale_ = std::max(1.0f, max_radius_scale);
+}
+
+double OverworldBgfxRenderer::Impl::playDoorTileAnimation(
+    const std::string& map_id,
+    const std::string& layer_id,
+    int tile_x,
+    int tile_y,
+    bool reverse) {
+    SceneConfig* target_scene = nullptr;
+    MeshGpuResource* target_mesh = nullptr;
+    if (map_id.empty() || map_id == scene_.id) {
+        target_scene = &scene_;
+        target_mesh = &tile_layer_mesh_;
+    } else {
+        const auto chunk = std::find_if(static_chunks_.begin(), static_chunks_.end(), [&](const StaticChunkGpuResource& item) {
+            return item.scene.id == map_id;
+        });
+        if (chunk != static_chunks_.end()) {
+            target_scene = &chunk->scene;
+            target_mesh = &chunk->tile_layer_mesh;
+        }
+    }
+    if (!target_scene || !target_mesh) return 0.0;
+
+    const auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count();
+    double duration_seconds = 0.0;
+    for (MaterialRange& range : target_mesh->ranges) {
+        if (!range.trigger_phase || range.trigger_layer_id != layer_id ||
+            range.trigger_tile_x != tile_x || range.trigger_tile_y != tile_y ||
+            range.material < 0 || range.material >= static_cast<int>(target_mesh->materials.size())) continue;
+        range.trigger_active = true;
+        range.trigger_clip_name = reverse && !range.trigger_close_clip.empty()
+            ? range.trigger_close_clip
+            : range.trigger_open_clip;
+        range.trigger_started_ms = now_ms;
+        const auto vertex_clip = std::find_if(
+            range.vertex_clips.begin(), range.vertex_clips.end(), [&](const MaterialRange::VertexClip& clip) {
+                return clip.name == range.trigger_clip_name;
+            });
+        range.trigger_reverse = reverse && (
+            range.trigger_close_reverses || vertex_clip == range.vertex_clips.end());
+        if (vertex_clip != range.vertex_clips.end()) {
+            duration_seconds = std::max(
+                duration_seconds,
+                static_cast<double>(vertex_clip->frames.size() * std::max(16, vertex_clip->frame_time_ms)) / 1000.0);
+        }
+        const MaterialGpuResource& material = target_mesh->materials[static_cast<std::size_t>(range.material)];
+        const int frames = std::max({
+            1,
+            material.animation_frame_count,
+            static_cast<int>(material.animation_frames.size())});
+        const int frame_ms = material.animation_frame_time_ms > 0 ? material.animation_frame_time_ms : 100;
+        duration_seconds = std::max(duration_seconds, static_cast<double>(frames * frame_ms) / 1000.0);
+    }
+    return duration_seconds;
+}
+
+void OverworldBgfxRenderer::Impl::updateDoorTileAnimations(MeshGpuResource& mesh) const {
+    if (!bgfx::isValid(mesh.dynamic_vbh) || mesh.source_vertices.empty()) return;
+    mesh.animated_vertices = mesh.source_vertices;
+    const auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count();
+    for (const MaterialRange& range : mesh.ranges) {
+        if (!range.trigger_phase || range.vertex_clips.empty()) continue;
+        auto selected = std::find_if(
+            range.vertex_clips.begin(), range.vertex_clips.end(), [&](const MaterialRange::VertexClip& clip) {
+                return clip.name == range.trigger_clip_name;
+            });
+        if (selected == range.vertex_clips.end()) selected = range.vertex_clips.begin();
+        if (selected->frames.empty()) continue;
+        const std::int64_t elapsed = range.trigger_active
+            ? std::max<std::int64_t>(0, now_ms - range.trigger_started_ms)
+            : 0;
+        std::size_t frame_index = std::min<std::size_t>(
+            selected->frames.size() - 1,
+            static_cast<std::size_t>(elapsed / std::max(16, selected->frame_time_ms)));
+        if (range.trigger_reverse) frame_index = selected->frames.size() - 1 - frame_index;
+        const std::vector<Vertex>& frame = selected->frames[frame_index];
+        const std::size_t count = std::min<std::size_t>(
+            {frame.size(), range.vertex_count, mesh.animated_vertices.size() - std::min<std::size_t>(range.vertex_start, mesh.animated_vertices.size())});
+        for (std::size_t index = 0; index < count; ++index) {
+            Vertex& target = mesh.animated_vertices[range.vertex_start + index];
+            target.x = frame[index].x;
+            target.y = frame[index].y;
+            target.z = frame[index].z;
+        }
+    }
+    bgfx::update(mesh.dynamic_vbh, 0, bgfx::copy(
+        mesh.animated_vertices.data(),
+        static_cast<std::uint32_t>(mesh.animated_vertices.size() * sizeof(Vertex))));
 }
 
 bool OverworldBgfxRenderer::Impl::initialize(
@@ -1139,6 +1273,15 @@ bool OverworldBgfxRenderer::Impl::buildTileLayers() {
         std::vector<Vertex> vertices;
         std::vector<std::uint32_t> indices;
         MaterialClass material_class = MaterialClass::MaskCutout;
+        int material_index = 0;
+        bool trigger_phase = false;
+        std::string trigger_layer_id;
+        int trigger_tile_x = 0;
+        int trigger_tile_y = 0;
+        std::string trigger_open_clip;
+        std::string trigger_close_clip;
+        bool trigger_close_reverses = true;
+        std::vector<MaterialRange::VertexClip> vertex_clips;
     };
 
     // A pack can contain thousands of authored materials while a map only uses a
@@ -1174,6 +1317,7 @@ bool OverworldBgfxRenderer::Impl::buildTileLayers() {
     for (const data::RtpksMaterial& src : tile_package_->materials) {
         if (!used_material_ids.contains(src.material_id)) continue;
         MaterialGpuResource material;
+        material.source_material_id = src.material_id;
         material.base_color[3] = std::clamp(static_cast<float>(src.alpha) / 31.0f, 0.0f, 1.0f);
         if (!src.image_bytes.empty()) {
             // Admin's THREE.TextureLoader presents RTPKS PNGs with a vertical
@@ -1251,6 +1395,7 @@ bool OverworldBgfxRenderer::Impl::buildTileLayers() {
     std::vector<Bucket> buckets(tile_layer_mesh_.materials.size());
     for (std::size_t i = 0; i < buckets.size(); ++i) {
         buckets[i].material_class = tile_layer_mesh_.materials[i].material_class;
+        buckets[i].material_index = static_cast<int>(i);
     }
 
     const float tile_size = std::max(1.0f, scene_.grid.tile_size);
@@ -1338,8 +1483,7 @@ bool OverworldBgfxRenderer::Impl::buildTileLayers() {
                           0.0f,
                           1.0f);
     };
-    const auto append_vertex = [&](Bucket& bucket,
-                                   const data::RtpksTileMesh& mesh,
+    const auto make_vertex = [&](const data::RtpksTileMesh& mesh,
                                    const std::vector<float>& positions,
                                    const std::vector<float>& uvs,
                                    const std::vector<float>& colors,
@@ -1401,13 +1545,13 @@ bool OverworldBgfxRenderer::Impl::buildTileLayers() {
         const float source_v = read_float(uvs, ui + 1U, 0.0f) + (material.world_uv
             ? static_cast<float>(tile_x) * material.v_per_tile[0] + static_cast<float>(tile_y) * material.v_per_tile[1]
             : 0.0f);
-        bucket.vertices.push_back(Vertex{
+        return Vertex{
             world_x,
             y,
             world_z,
             color,
             source_u,
-            source_v});
+            source_v};
     };
     const auto append_tri = [&](Bucket& bucket,
                                 const data::RtpksTileMesh& mesh,
@@ -1423,9 +1567,33 @@ bool OverworldBgfxRenderer::Impl::buildTileLayers() {
                                 float seam_overlap_tiles) {
         const std::uint32_t base = static_cast<std::uint32_t>(bucket.vertices.size());
         const std::size_t first = static_cast<std::size_t>(std::max(0, tri_index)) * 3U;
-        append_vertex(bucket, mesh, mesh.triangles, mesh.tex_coords_tri, mesh.colors_tri, first + 0U, tile_x, tile_y, base_y, layer_lift, conform_to_terrain, material, seam_center_x, seam_center_y, seam_overlap_tiles);
-        append_vertex(bucket, mesh, mesh.triangles, mesh.tex_coords_tri, mesh.colors_tri, first + 1U, tile_x, tile_y, base_y, layer_lift, conform_to_terrain, material, seam_center_x, seam_center_y, seam_overlap_tiles);
-        append_vertex(bucket, mesh, mesh.triangles, mesh.tex_coords_tri, mesh.colors_tri, first + 2U, tile_x, tile_y, base_y, layer_lift, conform_to_terrain, material, seam_center_x, seam_center_y, seam_overlap_tiles);
+        for (std::size_t corner = 0; corner < 3U; ++corner) {
+            bucket.vertices.push_back(make_vertex(mesh, mesh.triangles, mesh.tex_coords_tri, mesh.colors_tri,
+                first + corner, tile_x, tile_y, base_y, layer_lift, conform_to_terrain, material,
+                seam_center_x, seam_center_y, seam_overlap_tiles));
+        }
+        if (!mesh.vertex_animations.empty()) {
+            if (bucket.vertex_clips.empty()) {
+                for (const data::RtpksVertexAnimationClip& source : mesh.vertex_animations) {
+                    MaterialRange::VertexClip clip;
+                    clip.name = source.name;
+                    clip.frame_time_ms = source.frame_time_ms;
+                    clip.frames.resize(source.frames.size());
+                    bucket.vertex_clips.push_back(std::move(clip));
+                }
+            }
+            for (std::size_t clip_index = 0; clip_index < mesh.vertex_animations.size(); ++clip_index) {
+                const data::RtpksVertexAnimationClip& source = mesh.vertex_animations[clip_index];
+                for (std::size_t frame_index = 0; frame_index < source.frames.size(); ++frame_index) {
+                    for (std::size_t corner = 0; corner < 3U; ++corner) {
+                        bucket.vertex_clips[clip_index].frames[frame_index].push_back(make_vertex(
+                            mesh, source.frames[frame_index], mesh.tex_coords_tri, mesh.colors_tri,
+                            first + corner, tile_x, tile_y, base_y, layer_lift, conform_to_terrain, material,
+                            seam_center_x, seam_center_y, seam_overlap_tiles));
+                    }
+                }
+            }
+        }
         bucket.indices.insert(bucket.indices.end(), {base, base + 1U, base + 2U});
     };
     const auto append_quad = [&](Bucket& bucket,
@@ -1442,13 +1610,14 @@ bool OverworldBgfxRenderer::Impl::buildTileLayers() {
                                  float seam_overlap_tiles) {
         const std::uint32_t base = static_cast<std::uint32_t>(bucket.vertices.size());
         const std::size_t first = static_cast<std::size_t>(std::max(0, quad_index)) * 4U;
-        append_vertex(bucket, mesh, mesh.quads, mesh.tex_coords_quad, mesh.colors_quad, first + 0U, tile_x, tile_y, base_y, layer_lift, conform_to_terrain, material, seam_center_x, seam_center_y, seam_overlap_tiles);
-        append_vertex(bucket, mesh, mesh.quads, mesh.tex_coords_quad, mesh.colors_quad, first + 1U, tile_x, tile_y, base_y, layer_lift, conform_to_terrain, material, seam_center_x, seam_center_y, seam_overlap_tiles);
-        append_vertex(bucket, mesh, mesh.quads, mesh.tex_coords_quad, mesh.colors_quad, first + 2U, tile_x, tile_y, base_y, layer_lift, conform_to_terrain, material, seam_center_x, seam_center_y, seam_overlap_tiles);
-        append_vertex(bucket, mesh, mesh.quads, mesh.tex_coords_quad, mesh.colors_quad, first + 3U, tile_x, tile_y, base_y, layer_lift, conform_to_terrain, material, seam_center_x, seam_center_y, seam_overlap_tiles);
+        for (std::size_t corner = 0; corner < 4U; ++corner) {
+            bucket.vertices.push_back(make_vertex(mesh, mesh.quads, mesh.tex_coords_quad, mesh.colors_quad,
+                first + corner, tile_x, tile_y, base_y, layer_lift, conform_to_terrain, material,
+                seam_center_x, seam_center_y, seam_overlap_tiles));
+        }
         bucket.indices.insert(bucket.indices.end(), {base, base + 1U, base + 2U, base, base + 2U, base + 3U});
     };
-    const auto append_tile = [&](int tile_id, int x, int y, std::size_t layer_index) -> bool {
+    const auto append_tile = [&](int tile_id, int x, int y, std::size_t layer_index, const std::string& layer_id) -> bool {
         if (tile_id < 0) return false;
         const data::RtpksTileMesh* mesh = tile_package_->tileById(tile_id);
         if (!mesh) return false;
@@ -1461,9 +1630,25 @@ bool OverworldBgfxRenderer::Impl::buildTileLayers() {
         for (const data::RtpksMaterialRange& range : mesh->material_ranges) {
             const auto slot_it = material_slot_by_id.find(range.material_id);
             const int slot = slot_it == material_slot_by_id.end() ? 0 : slot_it->second;
-            Bucket& bucket = buckets[static_cast<std::size_t>(std::clamp(slot, 0, static_cast<int>(buckets.size()) - 1))];
             const std::size_t material_index = static_cast<std::size_t>(std::clamp(slot, 0, static_cast<int>(tile_layer_mesh_.materials.size()) - 1));
-            const MaterialGpuResource& material = tile_layer_mesh_.materials[material_index];
+            MaterialGpuResource& material = tile_layer_mesh_.materials[material_index];
+            Bucket* bucket = nullptr;
+            if (mesh->triggerable_door) {
+                buckets.push_back(Bucket{});
+                Bucket& placed = buckets.back();
+                placed.material_class = material.material_class;
+                placed.material_index = static_cast<int>(material_index);
+                placed.trigger_phase = true;
+                placed.trigger_layer_id = layer_id;
+                placed.trigger_tile_x = x;
+                placed.trigger_tile_y = y;
+                placed.trigger_open_clip = mesh->door_open_animation;
+                placed.trigger_close_clip = mesh->door_close_clip;
+                placed.trigger_close_reverses = mesh->door_close_animation != "named" || mesh->door_close_clip.empty();
+                bucket = &placed;
+            } else {
+                bucket = &buckets[material_index];
+            }
             float seam_center_x = 0.0f;
             float seam_center_y = 0.0f;
             float seam_overlap_tiles = 0.0f;
@@ -1502,10 +1687,10 @@ bool OverworldBgfxRenderer::Impl::buildTileLayers() {
                 }
             }
             for (int i = 0; i < range.tri_count; ++i) {
-                append_tri(bucket, *mesh, range.tri_start + i, x, y, base_y, layer_lift, conform_to_terrain, material, seam_center_x, seam_center_y, seam_overlap_tiles);
+                append_tri(*bucket, *mesh, range.tri_start + i, x, y, base_y, layer_lift, conform_to_terrain, material, seam_center_x, seam_center_y, seam_overlap_tiles);
             }
             for (int i = 0; i < range.quad_count; ++i) {
-                append_quad(bucket, *mesh, range.quad_start + i, x, y, base_y, layer_lift, conform_to_terrain, material, seam_center_x, seam_center_y, seam_overlap_tiles);
+                append_quad(*bucket, *mesh, range.quad_start + i, x, y, base_y, layer_lift, conform_to_terrain, material, seam_center_x, seam_center_y, seam_overlap_tiles);
             }
         }
         return true;
@@ -1518,16 +1703,17 @@ bool OverworldBgfxRenderer::Impl::buildTileLayers() {
         for (int y = 0; y < static_cast<int>(layer.cells.size()); ++y) {
             const auto& row = layer.cells[static_cast<std::size_t>(y)];
             for (int x = 0; x < static_cast<int>(row.size()); ++x) {
-                if (append_tile(row[static_cast<std::size_t>(x)], x, y, layer_index)) ++placed_tiles;
+                if (append_tile(row[static_cast<std::size_t>(x)], x, y, layer_index, layer.id)) ++placed_tiles;
             }
         }
     }
 
     std::vector<Vertex> vertices;
     std::vector<std::uint32_t> indices;
-    for (std::size_t material_index = 0; material_index < buckets.size(); ++material_index) {
-        const Bucket& bucket = buckets[material_index];
+    for (const Bucket& bucket : buckets) {
         if (bucket.vertices.empty() || bucket.indices.empty()) continue;
+        const std::size_t material_index = static_cast<std::size_t>(std::clamp(
+            bucket.material_index, 0, static_cast<int>(tile_layer_mesh_.materials.size()) - 1));
         const std::uint32_t vertex_base = static_cast<std::uint32_t>(vertices.size());
         const std::uint32_t index_start = static_cast<std::uint32_t>(indices.size());
         vertices.insert(vertices.end(), bucket.vertices.begin(), bucket.vertices.end());
@@ -1540,7 +1726,21 @@ bool OverworldBgfxRenderer::Impl::buildTileLayers() {
             static_cast<int>(material_index),
             bucket.material_class,
             tile_layer_mesh_.materials[material_index].depth_prepass,
-            tile_layer_mesh_.materials[material_index].render_order});
+            tile_layer_mesh_.materials[material_index].render_order,
+            bucket.trigger_phase,
+            false,
+            false,
+            0,
+            bucket.trigger_layer_id,
+            bucket.trigger_tile_x,
+            bucket.trigger_tile_y});
+        MaterialRange& placed_range = tile_layer_mesh_.ranges.back();
+        placed_range.vertex_start = vertex_base;
+        placed_range.vertex_count = static_cast<std::uint32_t>(bucket.vertices.size());
+        placed_range.trigger_open_clip = bucket.trigger_open_clip;
+        placed_range.trigger_close_clip = bucket.trigger_close_clip;
+        placed_range.trigger_close_reverses = bucket.trigger_close_reverses;
+        placed_range.vertex_clips = bucket.vertex_clips;
     }
     std::stable_sort(
         tile_layer_mesh_.ranges.begin(),
@@ -1550,9 +1750,23 @@ bool OverworldBgfxRenderer::Impl::buildTileLayers() {
         });
 
     if (!vertices.empty() && !indices.empty()) {
-        const bgfx::Memory* vb_mem = bgfx::copy(vertices.data(), static_cast<std::uint32_t>(vertices.size() * sizeof(Vertex)));
         const bgfx::Memory* ib_mem = bgfx::copy(indices.data(), static_cast<std::uint32_t>(indices.size() * sizeof(std::uint32_t)));
-        tile_layer_mesh_.vbh = bgfx::createVertexBuffer(vb_mem, layout_);
+        const bool has_vertex_animation = std::any_of(
+            tile_layer_mesh_.ranges.begin(), tile_layer_mesh_.ranges.end(),
+            [](const MaterialRange& range) { return !range.vertex_clips.empty(); });
+        if (has_vertex_animation) {
+            tile_layer_mesh_.source_vertices = vertices;
+            tile_layer_mesh_.animated_vertices = vertices;
+            tile_layer_mesh_.dynamic_vbh = bgfx::createDynamicVertexBuffer(
+                static_cast<std::uint32_t>(vertices.size()), layout_);
+            if (bgfx::isValid(tile_layer_mesh_.dynamic_vbh)) {
+                bgfx::update(tile_layer_mesh_.dynamic_vbh, 0, bgfx::copy(
+                    vertices.data(), static_cast<std::uint32_t>(vertices.size() * sizeof(Vertex))));
+            }
+        } else {
+            const bgfx::Memory* vb_mem = bgfx::copy(vertices.data(), static_cast<std::uint32_t>(vertices.size() * sizeof(Vertex)));
+            tile_layer_mesh_.vbh = bgfx::createVertexBuffer(vb_mem, layout_);
+        }
         tile_layer_mesh_.ibh = bgfx::createIndexBuffer(ib_mem, BGFX_BUFFER_INDEX32);
         if (!tile_layer_mesh_.valid()) {
             last_error_ = "Could not upload RTPKS tile layer mesh";
@@ -1565,6 +1779,13 @@ bool OverworldBgfxRenderer::Impl::buildTileLayers() {
 }
 
 bool OverworldBgfxRenderer::Impl::buildTerrain() {
+    terrain_flat_top_mesh_.destroy();
+    terrain_slope_top_mesh_.destroy();
+    terrain_wall_mesh_.destroy();
+    if (!shouldRenderFallbackTerrain(scene_)) {
+        return true;
+    }
+
     std::vector<Vertex> flat_top_vertices;
     std::vector<std::uint32_t> flat_top_indices;
     std::vector<Vertex> slope_top_vertices;
@@ -2058,12 +2279,22 @@ void OverworldBgfxRenderer::Impl::submitMesh(
         float uv_offset[4] = {0.0f, 0.0f, 0.0f, 0.0f};
         const auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::steady_clock::now().time_since_epoch()).count();
-        const double animation_time_ms = static_cast<double>(now_ms) *
-            static_cast<double>(scene_.environment_animation_speed);
+        const double animation_time_ms = range.trigger_phase
+            ? (range.trigger_active
+                ? static_cast<double>(std::max<std::int64_t>(0, now_ms - range.trigger_started_ms))
+                : 0.0)
+            : static_cast<double>(now_ms) * static_cast<double>(scene_.environment_animation_speed);
         if (material && !material->animation_frames.empty() && material->animation_frame_time_ms > 0) {
-            const std::size_t frame_index = static_cast<std::size_t>(
-                animation_time_ms / static_cast<double>(material->animation_frame_time_ms)) %
-                material->animation_frames.size();
+            const AnimationCursor frame_cursor = animationCursor(
+                doors::animationSample(
+                    range.trigger_phase,
+                    animation_time_ms / static_cast<double>(material->animation_frame_time_ms),
+                    static_cast<int>(material->animation_frames.size())),
+                static_cast<int>(material->animation_frames.size()),
+                range.trigger_phase ? false : material->animation_loop);
+            const std::size_t frame_index = static_cast<std::size_t>(range.trigger_phase && range.trigger_reverse
+                ? static_cast<int>(material->animation_frames.size()) - 1 - frame_cursor.frame
+                : frame_cursor.frame);
             if (material->animation_frames[frame_index].valid()) selected_texture = &material->animation_frames[frame_index];
         }
         if (material && material->animation_frame_time_ms > 0 && material->animation_frame_count > 0) {
@@ -2073,20 +2304,30 @@ void OverworldBgfxRenderer::Impl::submitMesh(
             const double scroll_speed = material->water_animation
                 ? static_cast<double>(scene_.water_scroll_speed)
                 : 1.0;
-            const double scroll_raw_sample = animation_time_ms * timebase_hz * scroll_speed / 1000.0;
+            const double forward_raw_sample = doors::animationSample(
+                range.trigger_phase,
+                animation_time_ms * timebase_hz * scroll_speed / 1000.0,
+                material->animation_frame_count);
+            const double scroll_raw_sample = range.trigger_phase && range.trigger_reverse
+                ? std::max(0.0, static_cast<double>(material->animation_frame_count - 1) - forward_raw_sample)
+                : forward_raw_sample;
             const double wave_raw_sample = material->shoreline_animation
                 ? waveSampleWithWait(
                     animation_time_ms,
                     timebase_hz,
                     material->shoreline_cycle_frame_count,
-                    material->animation_loop,
+                    doors::animationLoops(range.trigger_phase, material->animation_loop),
                     static_cast<double>(scene_.water_wave_speed),
                     static_cast<double>(scene_.water_wave_wait_seconds))
                 : scroll_raw_sample;
             const AnimationCursor scroll_cursor = animationCursor(
-                scroll_raw_sample, material->animation_frame_count, material->animation_loop);
+                scroll_raw_sample,
+                material->animation_frame_count,
+                doors::animationLoops(range.trigger_phase, material->animation_loop));
             const AnimationCursor wave_cursor = animationCursor(
-                wave_raw_sample, material->animation_frame_count, material->animation_loop);
+                wave_raw_sample,
+                material->animation_frame_count,
+                doors::animationLoops(range.trigger_phase, material->animation_loop));
             if (!material->animation_uv_offsets.empty()) {
                 const auto& scroll_offset = material->animation_uv_offsets[
                     static_cast<std::size_t>(scroll_cursor.frame) % material->animation_uv_offsets.size()];
@@ -2100,14 +2341,13 @@ void OverworldBgfxRenderer::Impl::submitMesh(
                     (material->water_animation && scene_.water_smooth_uv_motion);
                 const float scroll_amount = smooth_uv ? scroll_cursor.fraction : 0.0f;
                 const float wave_amount = smooth_uv ? wave_cursor.fraction : 0.0f;
-                // Nitro material motion translates the texture matrix; the
-                // resulting visual scroll samples in the opposite direction.
-                // Apply the inverse on both axes instead of treating the
-                // exported matrix translation as a direct shader UV offset.
-                uv_offset[0] = -wrappedUvLerp(
-                    scroll_offset[0], next_scroll_offset[0], scroll_amount, material->uv_wrap_period[0]);
-                uv_offset[1] = -wrappedUvLerp(
-                    wave_offset[1], next_wave_offset[1], wave_amount, material->uv_wrap_period[1]);
+                // Ambient Nitro material matrices use inverse sampling. A
+                // scripted door instead advances into its transparent texture
+                // region and clamps there, producing one inward slide.
+                uv_offset[0] = doors::animationUvOffset(range.trigger_phase, wrappedUvLerp(
+                    scroll_offset[0], next_scroll_offset[0], scroll_amount, material->uv_wrap_period[0]));
+                uv_offset[1] = doors::animationUvOffset(range.trigger_phase, wrappedUvLerp(
+                    wave_offset[1], next_wave_offset[1], wave_amount, material->uv_wrap_period[1]));
             }
             if (!material->animation_image_keyframes.empty()) {
                 const int image_frame_count = std::max(1, material->animation_image_frame_count);
@@ -2143,7 +2383,11 @@ void OverworldBgfxRenderer::Impl::submitMesh(
         if (bgfx::isValid(mesh.dynamic_vbh)) bgfx::setVertexBuffer(0, mesh.dynamic_vbh);
         else bgfx::setVertexBuffer(0, mesh.vbh);
         bgfx::setIndexBuffer(mesh.ibh, range.start_index, range.index_count);
-        bgfx::setTexture(0, tex_uniform_, texture.handle, material ? material->sampler_flags : samplerFlags());
+        std::uint64_t texture_sampler_flags = material ? material->sampler_flags : samplerFlags();
+        if (doors::clampsTextureEdges(range.trigger_phase)) {
+            texture_sampler_flags |= BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP;
+        }
+        bgfx::setTexture(0, tex_uniform_, texture.handle, texture_sampler_flags);
         bgfx::setUniform(tint_cutoff_uniform_, tint);
         bgfx::setUniform(color_adjust_uniform_, adjust);
         bgfx::setUniform(texture_blur_uniform_, texture_blur);
@@ -2172,12 +2416,22 @@ void OverworldBgfxRenderer::Impl::submitAlphaDepthPrepass(
         float uv_offset[4] = {0.0f, 0.0f, 0.0f, 0.0f};
         const auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::steady_clock::now().time_since_epoch()).count();
-        const double animation_time_ms = static_cast<double>(now_ms) *
-            static_cast<double>(scene_.environment_animation_speed);
+        const double animation_time_ms = range.trigger_phase
+            ? (range.trigger_active
+                ? static_cast<double>(std::max<std::int64_t>(0, now_ms - range.trigger_started_ms))
+                : 0.0)
+            : static_cast<double>(now_ms) * static_cast<double>(scene_.environment_animation_speed);
         if (material && !material->animation_frames.empty() && material->animation_frame_time_ms > 0) {
-            const std::size_t frame_index = static_cast<std::size_t>(
-                animation_time_ms / static_cast<double>(material->animation_frame_time_ms)) %
-                material->animation_frames.size();
+            const AnimationCursor frame_cursor = animationCursor(
+                doors::animationSample(
+                    range.trigger_phase,
+                    animation_time_ms / static_cast<double>(material->animation_frame_time_ms),
+                    static_cast<int>(material->animation_frames.size())),
+                static_cast<int>(material->animation_frames.size()),
+                range.trigger_phase ? false : material->animation_loop);
+            const std::size_t frame_index = static_cast<std::size_t>(range.trigger_phase && range.trigger_reverse
+                ? static_cast<int>(material->animation_frames.size()) - 1 - frame_cursor.frame
+                : frame_cursor.frame);
             if (material->animation_frames[frame_index].valid()) selected_texture = &material->animation_frames[frame_index];
         }
         if (material && material->animation_frame_time_ms > 0 && material->animation_frame_count > 0) {
@@ -2187,20 +2441,30 @@ void OverworldBgfxRenderer::Impl::submitAlphaDepthPrepass(
             const double scroll_speed = material->water_animation
                 ? static_cast<double>(scene_.water_scroll_speed)
                 : 1.0;
-            const double scroll_raw_sample = animation_time_ms * timebase_hz * scroll_speed / 1000.0;
+            const double forward_raw_sample = doors::animationSample(
+                range.trigger_phase,
+                animation_time_ms * timebase_hz * scroll_speed / 1000.0,
+                material->animation_frame_count);
+            const double scroll_raw_sample = range.trigger_phase && range.trigger_reverse
+                ? std::max(0.0, static_cast<double>(material->animation_frame_count - 1) - forward_raw_sample)
+                : forward_raw_sample;
             const double wave_raw_sample = material->shoreline_animation
                 ? waveSampleWithWait(
                     animation_time_ms,
                     timebase_hz,
                     material->shoreline_cycle_frame_count,
-                    material->animation_loop,
+                    doors::animationLoops(range.trigger_phase, material->animation_loop),
                     static_cast<double>(scene_.water_wave_speed),
                     static_cast<double>(scene_.water_wave_wait_seconds))
                 : scroll_raw_sample;
             const AnimationCursor scroll_cursor = animationCursor(
-                scroll_raw_sample, material->animation_frame_count, material->animation_loop);
+                scroll_raw_sample,
+                material->animation_frame_count,
+                doors::animationLoops(range.trigger_phase, material->animation_loop));
             const AnimationCursor wave_cursor = animationCursor(
-                wave_raw_sample, material->animation_frame_count, material->animation_loop);
+                wave_raw_sample,
+                material->animation_frame_count,
+                doors::animationLoops(range.trigger_phase, material->animation_loop));
             if (!material->animation_uv_offsets.empty()) {
                 const auto& scroll_offset = material->animation_uv_offsets[
                     static_cast<std::size_t>(scroll_cursor.frame) % material->animation_uv_offsets.size()];
@@ -2214,10 +2478,10 @@ void OverworldBgfxRenderer::Impl::submitAlphaDepthPrepass(
                     (material->water_animation && scene_.water_smooth_uv_motion);
                 const float scroll_amount = smooth_uv ? scroll_cursor.fraction : 0.0f;
                 const float wave_amount = smooth_uv ? wave_cursor.fraction : 0.0f;
-                uv_offset[0] = -wrappedUvLerp(
-                    scroll_offset[0], next_scroll_offset[0], scroll_amount, material->uv_wrap_period[0]);
-                uv_offset[1] = -wrappedUvLerp(
-                    wave_offset[1], next_wave_offset[1], wave_amount, material->uv_wrap_period[1]);
+                uv_offset[0] = doors::animationUvOffset(range.trigger_phase, wrappedUvLerp(
+                    scroll_offset[0], next_scroll_offset[0], scroll_amount, material->uv_wrap_period[0]));
+                uv_offset[1] = doors::animationUvOffset(range.trigger_phase, wrappedUvLerp(
+                    wave_offset[1], next_wave_offset[1], wave_amount, material->uv_wrap_period[1]));
             }
             if (!material->animation_image_keyframes.empty()) {
                 const int image_frame_count = std::max(1, material->animation_image_frame_count);
@@ -2244,7 +2508,11 @@ void OverworldBgfxRenderer::Impl::submitAlphaDepthPrepass(
         if (bgfx::isValid(mesh.dynamic_vbh)) bgfx::setVertexBuffer(0, mesh.dynamic_vbh);
         else bgfx::setVertexBuffer(0, mesh.vbh);
         bgfx::setIndexBuffer(mesh.ibh, range.start_index, range.index_count);
-        bgfx::setTexture(0, tex_uniform_, texture.handle, material ? material->sampler_flags : samplerFlags());
+        std::uint64_t texture_sampler_flags = material ? material->sampler_flags : samplerFlags();
+        if (doors::clampsTextureEdges(range.trigger_phase)) {
+            texture_sampler_flags |= BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP;
+        }
+        bgfx::setTexture(0, tex_uniform_, texture.handle, texture_sampler_flags);
         bgfx::setUniform(tint_cutoff_uniform_, tint);
         bgfx::setUniform(color_adjust_uniform_, adjust);
         bgfx::setUniform(texture_blur_uniform_, texture_blur);
@@ -2872,7 +3140,12 @@ void OverworldBgfxRenderer::Impl::render(
         world_frame_buffer = pixel_world_target_.frame_buffer;
     }
 
-    backend_.beginFrame(150.0f / 255.0f, 191.0f / 255.0f, 224.0f / 255.0f, 1.0f);
+    const TerrainColor clear = scene_.environment.clear_color;
+    backend_.beginFrame(
+        static_cast<float>(clear.r) / 255.0f,
+        static_cast<float>(clear.g) / 255.0f,
+        static_cast<float>(clear.b) / 255.0f,
+        static_cast<float>(clear.a) / 255.0f);
 
     const auto pose = camera.pose();
     float view[16];
@@ -2895,7 +3168,12 @@ void OverworldBgfxRenderer::Impl::render(
         0,
         static_cast<std::uint16_t>(world_view_w),
         static_cast<std::uint16_t>(world_view_h));
-    bgfx::setViewClear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x96bfe0ff, 1.0f, 0);
+    const std::uint32_t clear_rgba =
+        (static_cast<std::uint32_t>(clear.r) << 24U) |
+        (static_cast<std::uint32_t>(clear.g) << 16U) |
+        (static_cast<std::uint32_t>(clear.b) << 8U) |
+        static_cast<std::uint32_t>(clear.a);
+    bgfx::setViewClear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, clear_rgba, 1.0f, 0);
     bgfx::setViewTransform(1, view, proj);
     bgfx::setViewFrameBuffer(1, world_frame_buffer);
     bgfx::setViewRect(
@@ -2910,8 +3188,10 @@ void OverworldBgfxRenderer::Impl::render(
     float ident[16];
     identity(ident);
     for (ModelGpuResource& model : models_) updateModelAnimation(model);
+    updateDoorTileAnimations(tile_layer_mesh_);
     for (StaticChunkGpuResource& chunk : static_chunks_) {
         for (ModelGpuResource& model : chunk.models) updateModelAnimation(model);
+        updateDoorTileAnimations(chunk.tile_layer_mesh);
     }
     submitMesh(terrain_flat_top_mesh_, ident, world_program_, MaterialClass::Opaque, 0.0f, stateFor(MaterialClass::Opaque));
     submitMesh(terrain_slope_top_mesh_, ident, world_program_, MaterialClass::Opaque, 0.0f, stateFor(MaterialClass::Opaque));

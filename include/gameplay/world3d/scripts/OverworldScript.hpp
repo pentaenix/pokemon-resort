@@ -10,10 +10,11 @@
 
 namespace pr::gameplay::world3d::scripts {
 
-enum class ScriptKind { Idle, Interaction, Npc };
+enum class ScriptKind { Idle, Interaction, Npc, Door };
 enum class ScriptActionKind {
     Wait, Face, Move, Wander, Jump, TextLiteral, TextFree, PokemonInteractionSession,
-    DisableAttend, EnableAttend, ExitInteraction, Cry, Emoticon
+    DisableAttend, EnableAttend, ExitInteraction, Cry, Emoticon,
+    PlayTileAnimation, TransitionClose, TransitionOpen, TeleportToLink, MovePlayer
 };
 
 struct ScriptCondition {
@@ -30,6 +31,7 @@ struct ScriptAction {
     int tiles = 0;
     int height_pixels = 0;
     double duration_seconds = 0.0;
+    bool use_current_facing = false;
 };
 
 struct OverworldScript {

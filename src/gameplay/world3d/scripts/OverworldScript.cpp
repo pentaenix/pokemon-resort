@@ -30,6 +30,7 @@ ScriptKind kindFromString(const std::string& value) {
     const std::string tag = normalizeScriptTag(value);
     if (tag == "IDLE") return ScriptKind::Idle;
     if (tag == "NPC") return ScriptKind::Npc;
+    if (tag == "DOOR") return ScriptKind::Door;
     return ScriptKind::Interaction;
 }
 
@@ -69,7 +70,9 @@ OverworldScript parseScript(const JsonValue& root, std::vector<ScriptValidationI
             bool known = false;
             ScriptAction action{};
             action.kind = scriptActionKindFromString(strOr(node.get("action")), &known);
-            action.direction = directionFromString(strOr(node.get("direction")));
+            const std::string direction_tag = normalizeScriptTag(strOr(node.get("direction")));
+            action.use_current_facing = direction_tag == "FORWARD" || direction_tag == "FACING";
+            action.direction = directionFromString(direction_tag);
             action.value = strOr(node.get("value"), strOr(node.get("text"), normalizeScriptTag(strOr(node.get("action")))));
             action.tiles = std::max(0, intOr(node.get("tiles"), 0));
             action.height_pixels = std::max(0, intOr(node.get("heightPixels"), 0));
@@ -113,6 +116,11 @@ ScriptActionKind scriptActionKindFromString(const std::string& value, bool* know
     if (tag == "EXIT_INTERACTION") return ScriptActionKind::ExitInteraction;
     if (tag == "CRY") return ScriptActionKind::Cry;
     if (tag == "EMOTICON") return ScriptActionKind::Emoticon;
+    if (tag == "PLAY_TILE_ANIMATION") return ScriptActionKind::PlayTileAnimation;
+    if (tag == "TRANSITION_CLOSE") return ScriptActionKind::TransitionClose;
+    if (tag == "TRANSITION_OPEN") return ScriptActionKind::TransitionOpen;
+    if (tag == "TELEPORT_TO_LINK") return ScriptActionKind::TeleportToLink;
+    if (tag == "MOVE_PLAYER") return ScriptActionKind::MovePlayer;
     if (known) *known = false;
     return ScriptActionKind::Wait;
 }
@@ -127,6 +135,11 @@ std::string scriptActionKindName(ScriptActionKind kind) {
         case ScriptActionKind::EnableAttend: return "ENABLE_ATTEND";
         case ScriptActionKind::ExitInteraction: return "EXIT_INTERACTION";
         case ScriptActionKind::Cry: return "CRY"; case ScriptActionKind::Emoticon: return "EMOTICON";
+        case ScriptActionKind::PlayTileAnimation: return "PLAY_TILE_ANIMATION";
+        case ScriptActionKind::TransitionClose: return "TRANSITION_CLOSE";
+        case ScriptActionKind::TransitionOpen: return "TRANSITION_OPEN";
+        case ScriptActionKind::TeleportToLink: return "TELEPORT_TO_LINK";
+        case ScriptActionKind::MovePlayer: return "MOVE_PLAYER";
     }
     return "WAIT";
 }
@@ -162,6 +175,9 @@ std::vector<ScriptValidationIssue> validateScriptCatalog(const ScriptCatalog& ca
         if (!ids.insert(script.id).second) issues.push_back({script.id, "Duplicate script id"});
         if (!script.valid) issues.push_back({script.id, "Script contains an invalid or unavailable action"});
         if (script.actions.empty()) issues.push_back({script.id, "Script needs at least one action"});
+        if (script.kind == ScriptKind::Door && script.trigger != "MOVE_TOWARD") {
+            issues.push_back({script.id, "Door scripts must use the MOVE_TOWARD trigger"});
+        }
         for (const ScriptAction& action : script.actions) {
             if (!actionAvailable(action.kind)) issues.push_back({script.id, scriptActionKindName(action.kind) + " has no runtime adapter"});
         }

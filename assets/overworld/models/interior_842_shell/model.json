@@ -1,0 +1,64 @@
+{
+  "manifestVersion": 1,
+  "storageFormat": "glb",
+  "id": "interior_842_shell",
+  "displayName": "Black 2 Interior 842 shell",
+  "defaultYawDeg": 0,
+  "defaultScale": 1,
+  "compiledAt": "2026-07-29T19:00:46.514Z",
+  "sourceFormat": "glb",
+  "sourceFile": "map_0842_interior.glb",
+  "glbFile": "interior_842_shell.glb",
+  "modelFile": "interior_842_shell.glb",
+  "modelByteSize": 39312,
+  "modelHash": "ceebcde4e3bbd6e2",
+  "footprintTiles": {
+    "w": 15,
+    "d": 11,
+    "h": 4
+  },
+  "renderFootprintTiles": {
+    "w": 15,
+    "d": 11,
+    "h": 4
+  },
+  "authoringFootprintTiles": {
+    "w": 15,
+    "d": 11,
+    "h": 4
+  },
+  "collisionFootprintTiles": {
+    "w": 15,
+    "d": 11,
+    "h": 4
+  },
+  "previewOffsetTiles": {
+    "x": 0,
+    "y": 0
+  },
+  "aabb": {
+    "min": [
+      -259,
+      -2.5,
+      -250
+    ],
+    "max": [
+      -29,
+      46,
+      -80
+    ]
+  },
+  "vertexCount": 291,
+  "triangleCount": 245,
+  "materials": [
+    "fhgenkan_1",
+    "m_h01_06_1",
+    "hshiki_lm1",
+    "fhkabe2_1",
+    "fhkabe_1",
+    "fhkabe3_1",
+    "rae_interior_wall_top_black__fhkabe3_1",
+    "fhyuka_1"
+  ],
+  "textureCount": 7
+}

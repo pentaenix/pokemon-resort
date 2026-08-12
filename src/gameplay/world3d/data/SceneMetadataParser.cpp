@@ -105,6 +105,53 @@ void applyColor(TerrainColor& out, const JsonValue* color) {
     if (arr.size() > 3 && arr[3].isNumber()) out.a = static_cast<std::uint8_t>(std::clamp(intOr(&arr[3], out.a), 0, 255));
 }
 
+void applyMapEnvironmentConfig(SceneConfig& out, const JsonValue& root) {
+    out.map_type = strOr(root.get("type"), "exterior");
+    if (out.map_type != "interior") out.map_type = "exterior";
+    if (out.map_type == "interior") {
+        out.environment.clear_color = TerrainColor{0, 0, 0, 255};
+        out.environment.render_other_spaces = false;
+    }
+    if (const JsonValue* environment = root.get("environment"); environment && environment->isObject()) {
+        out.environment.space = strOr(environment->get("space"), out.environment.space);
+        applyColor(out.environment.clear_color, environment->get("clearColor"));
+        out.environment.render_other_spaces =
+            boolOr(environment->get("renderOtherSpaces"), out.environment.render_other_spaces);
+    }
+    if (out.environment.space.empty()) {
+        out.environment.space = out.map_type == "interior" ? out.id : "world";
+    }
+
+    if (const JsonValue* interior = root.get("interior"); interior && interior->isObject()) {
+        out.interior.shell_model_id = strOr(interior->get("shellModelId"), "");
+        out.interior.floor_datum =
+            static_cast<float>(numOr(interior->get("floorDatum"), out.interior.floor_datum));
+        if (const JsonValue* origin = interior->get("gridOrigin"); origin && origin->isArray()) {
+            const auto& values = origin->asArray();
+            if (!values.empty() && values[0].isNumber()) {
+                out.interior.grid_origin_x = static_cast<int>(values[0].asNumber());
+            }
+            if (values.size() > 1U && values[1].isNumber()) {
+                out.interior.grid_origin_y = static_cast<int>(values[1].asNumber());
+            }
+        }
+        if (const JsonValue* openings = interior->get("openings"); openings && openings->isArray()) {
+            for (const JsonValue& value : openings->asArray()) {
+                if (!value.isObject()) continue;
+                InteriorOpeningConfig opening;
+                opening.edge = strOr(value.get("edge"), "");
+                opening.from = intOr(value.get("from"), 0);
+                opening.to = intOr(value.get("to"), opening.from);
+                if (opening.edge == "north" || opening.edge == "east" ||
+                    opening.edge == "south" || opening.edge == "west") {
+                    if (opening.to < opening.from) std::swap(opening.from, opening.to);
+                    out.interior.openings.push_back(std::move(opening));
+                }
+            }
+        }
+    }
+}
+
 FacingDirection parseFacing(const std::string& value) {
     if (value == "north") return FacingDirection::North;
     if (value == "west") return FacingDirection::West;
@@ -283,6 +330,9 @@ void applyWaterTerrainConfig(WaterTerrainConfig& out, const JsonValue* water) {
 
 void applyTerrainVisualConfig(TerrainConfig& out, const JsonValue* visual) {
     if (!visual || !visual->isObject()) return;
+    out.height_per_floor = std::max(
+        0.001f,
+        static_cast<float>(numOr(visual->get("floorHeightScale"), out.height_per_floor)));
     if (const JsonValue* readability = visual->get("rampReadability"); readability && readability->isObject()) {
         out.textured_ramp_readability_enabled =
             boolOr(readability->get("enabled"), out.textured_ramp_readability_enabled);
@@ -365,6 +415,64 @@ void applyTileLayersConfig(SceneConfig& out, const JsonValue* tile_layers) {
     }
 }
 
+void readTilePair(const JsonValue* value, int& x, int& y) {
+    if (!value || !value->isArray()) return;
+    const auto& values = value->asArray();
+    if (!values.empty() && values[0].isNumber()) x = static_cast<int>(values[0].asNumber());
+    if (values.size() > 1U && values[1].isNumber()) y = static_cast<int>(values[1].asNumber());
+}
+
+void applyDoorTravelConfig(SceneConfig& out, const JsonValue& root) {
+    out.anchors.clear();
+    if (const JsonValue* anchors = root.get("anchors"); anchors && anchors->isArray()) {
+        for (const JsonValue& value : anchors->asArray()) {
+            if (!value.isObject()) continue;
+            MapAnchorConfig anchor;
+            anchor.id = strOr(value.get("id"), "");
+            readTilePair(value.get("tile"), anchor.tile_x, anchor.tile_y);
+            anchor.facing = parseFacing(strOr(value.get("facing"), "south"));
+            if (!anchor.id.empty()) out.anchors.push_back(std::move(anchor));
+        }
+    }
+    out.links.clear();
+    if (const JsonValue* links = root.get("links"); links && links->isArray()) {
+        for (const JsonValue& value : links->asArray()) {
+            if (!value.isObject()) continue;
+            MapLinkConfig link;
+            link.id = strOr(value.get("id"), "");
+            link.destination_map_id = strOr(value.get("destinationMapId"), "");
+            link.destination_anchor_id = strOr(value.get("destinationAnchorId"), "");
+            if (!link.id.empty()) out.links.push_back(std::move(link));
+        }
+    }
+    out.door_triggers.clear();
+    if (const JsonValue* triggers = root.get("doorTriggers"); triggers && triggers->isArray()) {
+        for (const JsonValue& value : triggers->asArray()) {
+            if (!value.isObject()) continue;
+            DoorTriggerConfig trigger;
+            trigger.id = strOr(value.get("id"), "");
+            trigger.link_id = strOr(value.get("linkId"), "");
+            trigger.script_id = strOr(value.get("scriptId"), trigger.script_id);
+            readTilePair(value.get("tile"), trigger.tile_x, trigger.tile_y);
+            if (const JsonValue* directions = value.get("allowedDirections"); directions && directions->isArray()) {
+                for (const JsonValue& direction : directions->asArray()) {
+                    if (direction.isString()) trigger.allowed_directions.push_back(parseFacing(direction.asString()));
+                }
+            }
+            if (trigger.allowed_directions.empty()) trigger.allowed_directions.push_back(FacingDirection::North);
+            if (const JsonValue* visual = value.get("visual"); visual && visual->isObject()) {
+                trigger.visual.enabled = true;
+                trigger.visual.map_id = strOr(visual->get("mapId"), "");
+                trigger.visual.layer_id = strOr(visual->get("layerId"), "");
+                trigger.visual.tile_x = trigger.tile_x;
+                trigger.visual.tile_y = trigger.tile_y;
+                readTilePair(visual->get("tile"), trigger.visual.tile_x, trigger.visual.tile_y);
+            }
+            if (!trigger.id.empty()) out.door_triggers.push_back(std::move(trigger));
+        }
+    }
+}
+
 } // namespace
 
 SceneConfig parseSceneMetadata(
@@ -392,6 +500,7 @@ SceneConfig parseSceneMetadata(
     }
 
     out.id = strOr(root.get("id"), out.id);
+    applyMapEnvironmentConfig(out, root);
 
     const JsonValue* visual = root.get("visual");
     if (!visual || !visual->isObject()) {
@@ -411,6 +520,7 @@ SceneConfig parseSceneMetadata(
     applyGridConfig(out.grid, root.get("grid"));
     applyTilePackageConfig(out, root.get("tilePackage"), project_root);
     applyTileLayersConfig(out, root.get("tileLayers"));
+    applyDoorTravelConfig(out, root);
 
     const JsonValue* player = root.get("player");
     if (!player || !player->isObject()) {
