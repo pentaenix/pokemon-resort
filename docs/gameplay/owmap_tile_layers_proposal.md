@@ -11,6 +11,8 @@ The Operations Desk Map Editor is the current RTPKS authoring surface. Its
 **Edit tile pack…** modal can rename and reorder palette tabs, create smart path
 sets, import textured GLB or image tiles, slice spritesheets into animation
 frames, edit tags/properties, and configure automatic collision painting.
+It also resolves metadata-defined eight-neighbor terrain families into ordinary
+stable tile IDs as the author paints; the runtime does not repeat that work.
 
 ## Goal
 

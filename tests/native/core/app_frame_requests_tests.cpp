@@ -1,4 +1,5 @@
 #include "core/app/frame/AppFrameRequests.hpp"
+#include "core/app/frame/FrameTiming.hpp"
 
 #include <cstdlib>
 #include <exception>
@@ -48,12 +49,22 @@ void testUserSettingsSaveRequestConsumesOnce() {
            "settings save should be one-shot after consumption");
 }
 
+void testSimulationDeltaDoesNotConsumeResourceStalls() {
+    expect(pr::clampSimulationDeltaSeconds(0.016) == 0.016,
+           "normal frame deltas should pass through unchanged");
+    expect(pr::clampSimulationDeltaSeconds(2.0) == 0.1,
+           "resource stalls should be capped before transition simulation");
+    expect(pr::clampSimulationDeltaSeconds(-1.0) == 0.0,
+           "negative frame deltas should be rejected");
+}
+
 } // namespace
 
 int main() {
     try {
         testSfxRequestsAccumulateAndConsumeOnce();
         testUserSettingsSaveRequestConsumesOnce();
+        testSimulationDeltaDoesNotConsumeResourceStalls();
         std::cout << "app_frame_requests_tests: OK\n";
         return EXIT_SUCCESS;
     } catch (const TestFailure& ex) {

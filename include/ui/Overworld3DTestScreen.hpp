@@ -68,11 +68,13 @@ public:
     bool consumeOpenAttendRequested();
     std::optional<gameplay::attend::AttendLaunchContext> consumeAttendLaunchContext();
     void resumeFromAttend();
+    void prepareForLaunch();
     void shutdownBgfx();
     void resetForNextLaunch();
 
 private:
     void initializeSceneState();
+    void ensurePlacedModelsLoaded();
     void reloadFollowCameraPresetConfig();
     std::vector<gameplay::world3d::characters::LoadedWorldChunk> buildLoadedWorldChunks() const;
     void rebuildActiveWorldChunks();
@@ -116,6 +118,7 @@ private:
     gameplay::world3d::characters::SpriteSheetAnimator animator_;
     gameplay::world3d::rendering::OverworldMapRenderer map_;
     std::vector<std::unique_ptr<gameplay::world3d::rendering::GlbModelRenderer>> placed_models_;
+    bool placed_models_load_attempted_ = false;
     std::unique_ptr<gameplay::world3d::rendering::bgfx_backend::OverworldBgfxRenderer> bgfx_renderer_;
 
     int input_dx_ = 0;
@@ -169,6 +172,8 @@ private:
     bool interaction_exit_requested_ = false;
     bool interaction_pokemon_session_started_ = false;
     bool after_pokemon_attend_context_ = false;
+    bool pending_post_attend_interaction_ = false;
+    bool post_attend_open_frame_presented_ = false;
     double interaction_wait_remaining_ = 0.0;
 
     bool map_loaded_ = false;

@@ -117,6 +117,32 @@ The map does not duplicate these definitions. Renaming tabs, changing tags, or
 adding animation therefore updates the package without rewriting every `.owmap`
 that uses the same stable IDs.
 
+### Terrain transition families
+
+Map Studio supports RTPKS-authored eight-neighbor terrain families. A palette
+brush tile names `transition.brushFamily`; every member names the same
+`transition.family` and a normalized `transition.mask`. The low four mask bits
+are north, east, south, and west. The high four are northwest, northeast,
+southeast, and southwest; a diagonal bit is ignored unless both adjacent
+cardinal bits are set. This produces the standard 47 blob shapes.
+
+Painting or erasing a family member resolves that cell and its eight neighbors,
+then stores the selected member's ordinary stable `resortTileId`. Runtime code
+does not infer the topology. The shipped `sand-grass` family uses Black 2 sand
+tile 103 and grass body 3322. Its 46 edge/corner meshes reuse the existing sand
+and grass materials, while body 3322 is the non-redundant fully surrounded case.
+The boundary is hard pixel-stepped geometry rather than a color or alpha
+gradient.
+
+```json
+{
+  "transition.family": "sand-grass",
+  "transition.mask": 70,
+  "transition.baseTileId": 103,
+  "transition.overlayTileId": 3322
+}
+```
+
 A door is deliberately split across two authoring records:
 
 - The visible door is an RTPKS tile tagged `interaction.door`, with

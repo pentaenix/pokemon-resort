@@ -17,6 +17,7 @@ The current codebase is no longer just a title-screen demo. Treat this README as
 - [`docs/PKHEX_BRIDGE.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/PKHEX_BRIDGE.md) is the canonical PKHeX bridge contract.
 - [`docs/assets/pokesprite_subsystem.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/assets/pokesprite_subsystem.md) documents Pokemon, item, and misc icon asset resolution.
 - [`docs/backend/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/backend/README.md) documents canonical Resort storage, import, export, and backend-facing services.
+- [`tools/map_maker/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/tools/map_maker/README.md) is the build, usage, recovery, diagnostics, and extension guide for the standalone native map editor.
 
 ## Current Runtime Flows
 
@@ -51,6 +52,15 @@ cmake --build build
 ./build/title_screen_demo
 ```
 
+Build and run the standalone native map editor:
+
+```bash
+cmake --build build --target pokemon_resort_map_maker
+./build/pokemon_resort_map_maker
+```
+
+See [`tools/map_maker/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/tools/map_maker/README.md) for project selection, shortcuts, headless validation, recovery files, and logs.
+
 Run with a custom title config path:
 
 ```bash
@@ -79,6 +89,7 @@ Use this map before changing code:
 - **PokeSprite assets:** `src/core/assets/PokeSpriteAssets.cpp` owns Pokemon, item, and misc icon path resolution plus texture caching.
 - **Pokemon cry assets:** `src/core/assets/PokemonCryAssets.cpp` owns reusable Pokemon cry asset lookup by species id. `src/core/app/audio/PokemonCryPlayer.cpp` turns resolved cries into app one-shot SFX requests for Attend and future UI/gameplay callers.
 - **Resort backend:** `src/resort/` and `include/resort/` own canonical Pokemon storage, import/export services, repositories, and SQLite persistence.
+- **Native map authoring:** `tools/map_maker/` owns lossless OWMAP documents, project/source reuse, commands, selection, validation, the ImGui editor shell, and the exact-game preview adapter. It is a standalone tool; shipping runtime code must not depend on it.
 
 ## Config Sources Of Truth
 

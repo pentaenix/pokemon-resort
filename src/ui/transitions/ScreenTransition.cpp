@@ -39,6 +39,7 @@ void ScreenTransition::startClosing(const TransitionStyle& style) {
     style_ = style;
     amount_ = 0.0;
     closed_event_ = false;
+    closed_event_emitted_ = false;
     phase_ = Phase::Closing;
 }
 
@@ -46,6 +47,7 @@ void ScreenTransition::startOpening(const TransitionStyle& style) {
     style_ = style;
     amount_ = 1.0;
     closed_event_ = false;
+    closed_event_emitted_ = false;
     phase_ = Phase::Opening;
 }
 
@@ -53,7 +55,14 @@ void ScreenTransition::update(double dt) {
     const double step = std::max(0.0, dt) / std::max(0.01, style_.duration_seconds);
     if (phase_ == Phase::Closing) {
         amount_ = std::min(1.0, amount_ + step);
-        if (amount_ >= 1.0) { phase_ = Phase::Closed; closed_event_ = true; }
+        // Do not emit the scene-switch event in the same update that reaches
+        // fully closed. The app updates before it renders, so doing that skips
+        // the first completely black frame and exposes a visible iris hole at
+        // the scene boundary. Hold Closed until the next update instead.
+        if (amount_ >= 1.0) phase_ = Phase::Closed;
+    } else if (phase_ == Phase::Closed && !closed_event_emitted_) {
+        closed_event_ = true;
+        closed_event_emitted_ = true;
     } else if (phase_ == Phase::Opening) {
         amount_ = std::max(0.0, amount_ - step);
         if (amount_ <= 0.0) phase_ = Phase::Idle;

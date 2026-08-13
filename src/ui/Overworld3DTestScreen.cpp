@@ -30,6 +30,7 @@
 #include <new>
 #include <optional>
 #include <stdexcept>
+#include <unordered_map>
 #include <vector>
 
 namespace pr {
@@ -256,6 +257,9 @@ void Overworld3DTestScreen::initializeSceneState() {
     door_forced_move_.cancel();
     interaction_exit_requested_ = false;
     interaction_pokemon_session_started_ = false;
+    after_pokemon_attend_context_ = false;
+    pending_post_attend_interaction_ = false;
+    post_attend_open_frame_presented_ = false;
     interaction_time_seconds_ = 0.0;
     logLoadedWorldChunks();
     gameplay::world3d::camera::Gen4CameraPreset preset =
@@ -277,20 +281,10 @@ void Overworld3DTestScreen::initializeSceneState() {
     reloadFollowCameraPresetConfig();
     map_loaded_ = map_.load();
     placed_models_.clear();
-    for (const auto& model : scene_.models) {
-        if (model.glb_path.empty()) {
-            continue;
-        }
-        std::string load_error;
-        gameplay::world3d::data::GlbMesh mesh =
-            gameplay::world3d::data::loadGlbModel(model.glb_path, &load_error);
-        if (!mesh.valid) {
-            std::cerr << "[Overworld3D] Skipping model '" << model.id << "': " << load_error << std::endl;
-            continue;
-        }
-        placed_models_.push_back(std::make_unique<gameplay::world3d::rendering::GlbModelRenderer>(
-            std::move(mesh), model.x, model.y, model.z, model.yaw_deg, model.scale));
-    }
+    placed_models_load_attempted_ = false;
+    // GLBs for the SDL fallback are loaded lazily by render(). The configured
+    // bgfx path owns its own meshes, so eagerly decoding both representations
+    // doubled CPU work and allocations before the first 3D frame.
     freecam_pos_ = initialFreecamPosition(scene_, player_.position());
     input_dx_ = 0;
     input_dy_ = 0;
@@ -311,6 +305,25 @@ void Overworld3DTestScreen::initializeSceneState() {
     initialized_renderer_ = false;
 }
 
+void Overworld3DTestScreen::ensurePlacedModelsLoaded() {
+    if (placed_models_load_attempted_ || scene_.models.empty()) return;
+    placed_models_load_attempted_ = true;
+    for (const auto& model : scene_.models) {
+        if (model.glb_path.empty()) {
+            continue;
+        }
+        std::string load_error;
+        gameplay::world3d::data::GlbMesh mesh =
+            gameplay::world3d::data::loadGlbModel(model.glb_path, &load_error);
+        if (!mesh.valid) {
+            std::cerr << "[Overworld3D] Skipping model '" << model.id << "': " << load_error << std::endl;
+            continue;
+        }
+        placed_models_.push_back(std::make_unique<gameplay::world3d::rendering::GlbModelRenderer>(
+            std::move(mesh), model.x, model.y, model.z, model.yaw_deg, model.scale));
+    }
+}
+
 void Overworld3DTestScreen::shutdownBgfx() {
     if (bgfx_renderer_) {
         bgfx_renderer_->shutdown();
@@ -323,6 +336,15 @@ void Overworld3DTestScreen::resetForNextLaunch() {
     SDL_SetRelativeMouseMode(SDL_FALSE);
     shutdownBgfx();
     initializeSceneState();
+}
+
+void Overworld3DTestScreen::prepareForLaunch() {
+    // The screen is constructed and its CPU-side scene is loaded while the app
+    // starts. Preserve that prepared session instead of synchronously parsing
+    // every map, model, NPC, and follower configuration again on entry.
+    return_to_title_requested_ = false;
+    open_attend_requested_ = false;
+    SDL_SetRelativeMouseMode(SDL_FALSE);
 }
 
 void Overworld3DTestScreen::reloadFollowCameraPresetConfig() {
@@ -411,6 +433,7 @@ std::vector<gameplay::world3d::characters::LoadedWorldChunk> Overworld3DTestScre
             throw std::runtime_error("map project has no maps array");
         }
         const fs::path maps_dir = fs::path(project_root_) / "assets" / "overworld" / "maps";
+        std::unordered_map<std::string, gameplay::world3d::SceneConfig> scenes_by_file;
         for (const JsonValue& item : maps->asArray()) {
             if (!item.isObject()) {
                 continue;
@@ -430,10 +453,21 @@ std::vector<gameplay::world3d::characters::LoadedWorldChunk> Overworld3DTestScre
                           << map_path << '\n';
                 continue;
             }
-            entry.scene = gameplay::world3d::data::loadSceneConfig(project_root_, map_path.string());
+            const std::string source_key = fs::weakly_canonical(map_path).string();
+            const auto cached = scenes_by_file.find(source_key);
+            if (cached != scenes_by_file.end()) {
+                entry.scene = cached->second;
+            } else {
+                entry.scene = gameplay::world3d::data::loadSceneConfig(project_root_, map_path.string());
+                scenes_by_file.emplace(source_key, entry.scene);
+            }
             if (entry.id.empty()) {
                 entry.id = entry.scene.id.empty() ? entry.file : entry.scene.id;
             }
+            // Project entries are map instances. Multiple entries may point at
+            // one reusable .owmap source while retaining distinct runtime IDs,
+            // positions, animation state, anchors, and teleport destinations.
+            entry.scene.id = entry.id;
             entries.push_back(std::move(entry));
         }
     } catch (const std::exception& ex) {
@@ -517,20 +551,7 @@ bool Overworld3DTestScreen::activateWorldMap(
     map_ = gameplay::world3d::rendering::OverworldMapRenderer(scene_);
     map_loaded_ = map_.load();
     placed_models_.clear();
-    for (const auto& model : scene_.models) {
-        if (model.glb_path.empty()) continue;
-        std::string load_error;
-        gameplay::world3d::data::GlbMesh mesh =
-            gameplay::world3d::data::loadGlbModel(model.glb_path, &load_error);
-        if (!mesh.valid) {
-            std::cerr << "[Overworld3D] Skipping model '" << model.id
-                      << "' while activating " << active_world_map_id_ << ": "
-                      << load_error << '\n';
-            continue;
-        }
-        placed_models_.push_back(std::make_unique<gameplay::world3d::rendering::GlbModelRenderer>(
-            std::move(mesh), model.x, model.y, model.z, model.yaw_deg, model.scale));
-    }
+    placed_models_load_attempted_ = false;
 
     gameplay::world3d::camera::Gen4CameraPreset preset =
         gameplay::world3d::camera::loadGen4PresetById(scene_.camera_preset.c_str());
@@ -556,6 +577,7 @@ bool Overworld3DTestScreen::activateWorldMap(
         project_root_, scene_, gameplay::world3d::effects::loadProceduralWaterParticleConfig(project_root_));
     reloadWorldTerrainQueries();
     sprite_renderer_.reset();
+    initialized_renderer_ = false;
     shutdownBgfx();
     std::cerr << "[Overworld3D] Activated map " << active_world_map_id_
               << " in space " << scene_.environment.space << '\n';
@@ -759,6 +781,30 @@ void Overworld3DTestScreen::update(double dt) {
         }
     }
     if (door_waiting_for_open_ && !transition_.active()) door_waiting_for_open_ = false;
+    if (pending_post_attend_interaction_ && !transition_.active()) {
+        if (!post_attend_open_frame_presented_) {
+            // Present the restored overworld at its exact idle pose once before
+            // advancing an authored post-Attend animation such as a jump.
+            post_attend_open_frame_presented_ = true;
+        } else {
+            pending_post_attend_interaction_ = false;
+            const auto target = active_interaction_target_;
+            if (interactionTargetKind(target) !=
+                gameplay::world3d::interactions::InteractionTargetKind::Pokemon) {
+                finishInteraction();
+            } else {
+                textbox_controller_.hide();
+                interaction_sequence_.cancel();
+                if (lockInteractionTarget(target)) {
+                    after_pokemon_attend_context_ = true;
+                    beginInteraction(target, interaction_pokemon_session_started_);
+                    after_pokemon_attend_context_ = false;
+                } else {
+                    finishInteraction();
+                }
+            }
+        }
+    }
     updateDoorSequence(dt);
     interaction_time_seconds_ += dt;
     if (blocked_movement_repeat_seconds_ > 0.0) {
@@ -933,6 +979,7 @@ void Overworld3DTestScreen::render(SDL_Renderer* renderer) {
         return;
     }
     if (!initialized_renderer_) {
+        ensurePlacedModelsLoaded();
         sprite_renderer_ = std::make_unique<gameplay::world3d::rendering::BillboardSpriteRenderer>(
             renderer,
             scene_,
@@ -1380,21 +1427,14 @@ Overworld3DTestScreen::buildAttendLaunchContext() const {
 }
 
 void Overworld3DTestScreen::resumeFromAttend() {
-    const auto target = active_interaction_target_;
     transition_.startOpening(transition_config_.attend);
-    if (interactionTargetKind(target) != gameplay::world3d::interactions::InteractionTargetKind::Pokemon) {
-        finishInteraction();
-        return;
-    }
-    // Preserve the player's interaction stay pose until the returned script reaches
-    // its authored EXIT_INTERACTION step.
+    // Start the return script only after the opening iris has finished and one
+    // fully visible overworld frame has been presented. Otherwise short actions
+    // can be half over before the player can see them.
     textbox_controller_.hide();
     interaction_sequence_.cancel();
-    if (lockInteractionTarget(target)) {
-        after_pokemon_attend_context_ = true;
-        beginInteraction(target, interaction_pokemon_session_started_);
-        after_pokemon_attend_context_ = false;
-    }
+    pending_post_attend_interaction_ = true;
+    post_attend_open_frame_presented_ = false;
 }
 
 SDL_Rect Overworld3DTestScreen::attendButtonRect() const {
@@ -1519,7 +1559,8 @@ bool Overworld3DTestScreen::lockInteractionTarget(
 bool Overworld3DTestScreen::interactionActive() const {
     return textbox_controller_.active() ||
         interaction_sequence_.active() ||
-        interaction_exit_requested_;
+        interaction_exit_requested_ ||
+        pending_post_attend_interaction_;
 }
 
 gameplay::world3d::interactions::InteractionTargetKind
@@ -1667,6 +1708,11 @@ std::string Overworld3DTestScreen::characterDialogueForTarget(
 void Overworld3DTestScreen::updateInteractionSequence() {
     namespace interactions = gameplay::world3d::interactions;
     using TargetKind = gameplay::world3d::dialogue::OverworldTextboxController::TargetKind;
+    // resumeFromAttend deliberately cancels the old sequence while the opening
+    // iris is visible. Do not interpret that temporary empty sequence as an
+    // interaction exit: the target and Pokemon activity session must survive
+    // until the AFTER_POKEMON_ATTEND script starts on a visible frame.
+    if (pending_post_attend_interaction_) return;
     if (interaction_wait_remaining_ > 0.0) return;
     if (interaction_exit_requested_) {
         if (animator_.activityFinished()) {

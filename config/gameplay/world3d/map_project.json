@@ -1,0 +1,108 @@
+{
+  "version": 1,
+  "id": "default",
+  "name": "Pokemon Resort",
+  "maps": [
+    {
+      "id": "0",
+      "name": "Resort",
+      "file": "0.owmap",
+      "gridX": 0,
+      "gridY": 0,
+      "linked": true
+    },
+    {
+      "id": "0_south",
+      "name": "Resort South",
+      "file": "0_south.owmap",
+      "gridX": 0,
+      "gridY": 1,
+      "linked": true
+    },
+    {
+      "id": "interior_842",
+      "name": "Black 2 Interior 842",
+      "file": "interior_842.owmap",
+      "gridX": 0,
+      "gridY": 0,
+      "linked": false
+    }
+  ],
+  "tilePackages": [
+    {
+      "id": "map_tiles",
+      "file": "maptiles.rtpks",
+      "name": "Map Tiles"
+    }
+  ],
+  "defaultTilePackageId": "map_tiles",
+  "pathSets": [],
+  "interiorKits": [
+    {
+      "id": "interior_842_kit",
+      "source": {
+        "rom": "Pokemon Black 2",
+        "virtualPath": "a/0/0/8/file_0842.bin#carved_0x14.nsbmd",
+        "mapFileIndex": 842,
+        "areaDataIndex": 284
+      },
+      "parts": [
+        {
+          "id": "entrance_fhgenkan_1_d45edff3",
+          "role": "entrance",
+          "sourceMaterial": "fhgenkan_1",
+          "modelId": "interior_842_entrance_fhgenkan_1_d45edff3",
+          "mapPlacement": [104, 0, 152],
+          "footprint": [2, 1],
+          "collisionHint": "walkable"
+        },
+        {
+          "id": "wall_fhkabe2_1_d5abd33b",
+          "role": "wall",
+          "sourceMaterial": "fhkabe2_1",
+          "modelId": "interior_842_wall_fhkabe2_1_d5abd33b",
+          "mapPlacement": [112, 0, 75],
+          "footprint": [15, 9],
+          "collisionHint": "blocked"
+        },
+        {
+          "id": "wall_fhkabe3_1_58c84bcb",
+          "role": "wall",
+          "sourceMaterial": "fhkabe3_1",
+          "modelId": "interior_842_wall_fhkabe3_1_58c84bcb",
+          "mapPlacement": [112, 0, 75],
+          "footprint": [15, 11],
+          "collisionHint": "blocked"
+        },
+        {
+          "id": "wall_fhkabe_1_0c3a3847",
+          "role": "wall",
+          "sourceMaterial": "fhkabe_1",
+          "modelId": "interior_842_wall_fhkabe_1_0c3a3847",
+          "mapPlacement": [112, 0, 75],
+          "footprint": [13, 9],
+          "collisionHint": "blocked"
+        },
+        {
+          "id": "floor_fhyuka_1_740ac0e1",
+          "role": "floor",
+          "sourceMaterial": "fhyuka_1",
+          "modelId": "interior_842_floor_fhyuka_1_740ac0e1",
+          "mapPlacement": [112, 0, 82.5],
+          "footprint": [13, 10],
+          "collisionHint": "walkable"
+        }
+      ]
+    }
+  ],
+  "editor": {
+    "activeMapId": "0",
+    "viewMode": "3d",
+    "zoom": 1,
+    "overlays": {
+      "values": false,
+      "neighbors": true
+    }
+  },
+  "export": {}
+}

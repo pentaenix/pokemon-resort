@@ -324,6 +324,8 @@ endif()
 
 enable_testing()
 
+add_subdirectory(tools/map_maker)
+
 add_executable(resort_storage_tests
     tests/native/resort/storage_import_tests.cpp
     src/core/config/Json.cpp
@@ -654,6 +656,15 @@ target_include_directories(rtpks_door_tile_tests PRIVATE include)
 target_compile_definitions(rtpks_door_tile_tests PRIVATE PR_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(rtpks_door_tile_tests PRIVATE world3d_bgfx_renderer)
 add_test(NAME rtpks_door_tile_tests COMMAND rtpks_door_tile_tests)
+
+add_executable(rtpks_terrain_transition_tests
+    tests/native/world3d/rtpks_terrain_transition_tests.cpp
+    src/core/config/Json.cpp
+)
+target_include_directories(rtpks_terrain_transition_tests PRIVATE include)
+target_compile_definitions(rtpks_terrain_transition_tests PRIVATE PR_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(rtpks_terrain_transition_tests PRIVATE world3d_bgfx_renderer)
+add_test(NAME rtpks_terrain_transition_tests COMMAND rtpks_terrain_transition_tests)
 
 add_executable(overworld_textbox_tests
     tests/native/world3d/overworld_textbox_tests.cpp

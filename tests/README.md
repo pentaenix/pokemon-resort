@@ -19,6 +19,7 @@ This repository now uses a top-level [`tests`](/Users/vanta/Desktop/title_screen
 - **Native attend:** split Pokemon/Alola-map/sky attend config, species-name model resolution, initial auto-focus camera config, large-Pokemon face-view gate config, weighted mouse edge-look config, simple shadow config, pet eye-close delay/cooldown, eye-expression frame config, semantic animation slot config, pet-happy reaction combo config, shared overlay coverage, raw Pokemon GLB and lossless GLBZ asset loading, skinning animation sampling, Violet eye-mask material coverage, and RAE Gen 1-7/3DS material-policy coverage for render class, sampler wrap, eye sheets, and mesh draw metadata.
 - **Native transfer flow/ticket:** transfer selection mapping, pure transfer-flow controller behavior, transfer-ticket list controller behavior, and transfer-ticket Unicode rendering harness coverage.
 - **Native transfer system:** `game_transfer.json` parsing, info banner presentation, top-level transfer UI state, game box browser/dropdown/Box Space behavior, Pokemon action-menu behavior, multi-Pokemon move layout rules, focus-graph topology, and SDL harness coverage for keyboard/controller/pointer flows including Box Space, dropdown activation, speech-bubble visibility, Pokemon moves, multi-select moves, and held item move/swap/cancel behavior.
+- **Native map maker:** lossless OWMAP v1 parsing/serialization, no-op byte identity, atomic save/backup recovery, normalized reusable map sources, project discovery, undo/redo transactions, whole-document commands, path-local tile/model/door edits, universal deletion, selection and project/door/link/anchor validation, exact terrain picking, lazy RTPKS/model catalogs, autosave snapshots, structured log rotation, and frame/input metrics.
 
 Current native CTest targets:
 
@@ -57,6 +58,17 @@ title_screen_headless_smoke
 title_screen_flow_harness_tests
 transfer_system_flow_harness_tests
 transfer_ticket_unicode_harness_tests
+autosave_recovery_tests
+command_stack_tests
+document_commands_tests
+editor_asset_catalog_tests
+frame_metrics_tests
+map_metadata_editing_tests
+map_project_document_tests
+owmap_document_tests
+selection_validation_tests
+structured_logger_tests
+world_picker_tests
 ```
 
 ## Regression Strategy For Humans And AI Agents
@@ -77,6 +89,7 @@ Use the test pyramid before and after refactors:
 - Native integration tests should prove authored JSON still connects to runtime behavior, especially controls. If an input test fails, inspect `pokemon-resort/config/app.json`, `InputConfig` in `Types.hpp`, `ConfigLoader.cpp`, `InputBindings.cpp`, and `InputRouter.cpp` in that order.
 - Transfer-select cache tests use a fake bridge executable through `PKHEX_BRIDGE_EXECUTABLE`, so they validate real `SaveLibrary` cache decisions without depending on .NET. If those fail, inspect `SaveLibrary.cpp` cache key/hash/staleness logic and the diagnostics fields `used_cache`, `bridge_result.bridge_path`, and `bridge_result.command`.
 - Smoke tests should only prove that the executable boots far enough to enter the app loop. They intentionally do not replace focused unit/integration tests.
+- The standalone map editor's pure contracts live under [`tests/native/mapmaker`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/tests/native/mapmaker). Use `ctest --test-dir build -L map_maker --output-on-failure` for a focused pass, then run the complete native suite after changes to OWMAP encoding, world loading, RTPKS assets, the exact renderer seam, or bgfx lifecycle. Use `pokemon_resort_map_maker --validate-project` for authored-content diagnostics and `pokemon_resort_map_maker --smoke-test` for the bounded real native window/render loop; neither replaces the pure contract tests.
 - Native harness tests are the SDL equivalent of Playwright-style user flows. They run in a separate test executable, use real config plus `InputRouter`, and may enable test-only read access with `PR_ENABLE_TEST_HOOKS`. Do not define that macro for the shipping player target.
 - Transfer-system harness coverage now lives in [`transfer_system_flow_harness_tests.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/tests/e2e/native/transfer_system_flow_harness_tests.cpp). Use it for keyboard/controller/pointer regressions that depend on real SDL screen wiring, especially Box Space, dropdown activation, speech-bubble visibility on focused valid targets, temporary Pokemon move/pickup/drop flows, and other focus-driven behavior that pure controllers cannot catch alone.
 - Ticket Unicode coverage now lives in [`transfer_ticket_unicode_harness_tests.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/tests/e2e/native/transfer_ticket_unicode_harness_tests.cpp). Use it when changing transfer-ticket text rendering, transfer font loading, or save-name/title text paths.

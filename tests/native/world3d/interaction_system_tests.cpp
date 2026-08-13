@@ -367,7 +367,12 @@ void testReusableBlackIrisTransitionLifecycle() {
     expect(transition.closedAmount() > 0.4 && transition.closedAmount() < 0.6,
         "black iris should close according to configured duration");
     transition.update(0.1);
-    expect(transition.consumeClosed(), "transition should emit one closed event before scene switching");
+    expect(!transition.consumeClosed() && transition.closedAmount() == 1.0,
+        "black iris should hold one fully closed presentation frame before scene switching");
+    transition.update(0.0);
+    expect(transition.consumeClosed(), "transition should emit one closed event after its fully closed frame");
+    transition.update(0.1);
+    expect(!transition.consumeClosed(), "a held closed transition should not repeat its scene-switch event");
     transition.startOpening(style);
     transition.update(0.2);
     expect(!transition.active() && transition.closedAmount() == 0.0,

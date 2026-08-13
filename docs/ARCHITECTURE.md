@@ -74,6 +74,10 @@ Detailed authoring and extension guidance lives in [`docs/gameplay/overworld_int
 
 ### Overworld Tile Packages
 
+Map project entries are runtime instances. Multiple entries may point to one shared `.owmap` source while retaining distinct project ids and layout positions. The overworld loader caches decoded sources by canonical file path and assigns the entry id to each copied scene. This keeps repeated ocean/background chunks out of storage without merging their runtime identity.
+
+Overworld and Attend share one process-wide bgfx device while moving directly between those two 3D screens. The overworld renderer and its GPU resources remain resident during Attend, so returning restores the existing scene instead of rebuilding terrain, RTPKS tiles, buildings, shaders, and character textures. Attend may alter shared backbuffer state, so resume invalidates and recreates only the overworld's small offscreen presentation target; cached world resources remain intact. Backbuffer reset is skipped while its dimensions are unchanged. Individual screen renderers still release their resources when leaving the 3D presentation path; `App.cpp` shuts down the shared device before destroying the Metal view or returning to SDL UI. The main loop caps simulation delta after a blocking upload so animations and transitions do not consume a wall-clock stall in one update.
+
 `.owmap` metadata binds one RTPKS package and stores stable `resortTileId`
 placements in decoration layers. [`RtpksTilePackageLoader.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/gameplay/world3d/data/RtpksTilePackageLoader.cpp)
 loads meshes, materials, frame animation assets, exact material-motion timelines,
@@ -99,8 +103,29 @@ The Operations Desk Map Editor owns RTPKS authoring. Its Tile Pack Editor may
 reorganize tabs and smart paths or append assets, but must never renumber an
 existing stable tile id. Automatic tile collision is applied to the `.owmap`
 terrain collision grid while painting; it is not a second runtime collision
-source. See [`docs/gameplay/owmap_format.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/gameplay/owmap_format.md)
+source. Eight-neighbor terrain transitions are an editor concern: RTPKS metadata
+identifies a transition family and mask, Map Studio resolves the stable tile id
+when painting, and the native runtime renders the stored id without topology
+inference. See [`docs/gameplay/owmap_format.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/gameplay/owmap_format.md)
 and [`docs/gameplay/owmap_tile_layers_proposal.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/gameplay/owmap_tile_layers_proposal.md).
+
+### Native Pokemon Resort Map Maker
+
+[`tools/map_maker`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/tools/map_maker) owns the standalone `pokemon_resort_map_maker` executable. It is an authoring consumer of the game data/rendering contracts, never a production runtime dependency. Its detailed build, usage, recovery, logging, and extension guide is [`tools/map_maker/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/tools/map_maker/README.md); the boundary decision is recorded in [`ADR 0001`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/architecture/adrs/0001-native-map-maker.md).
+
+The editor is split by responsibility:
+
+- `document/` owns lossless OWMAP v1 decoding, mutation, validation, byte-preserving no-op serialization, and verified atomic saves;
+- `project/` and `app/ProjectWorkspace` own project discovery, runtime-compatible path resolution, and one loaded document/command stack per normalized reusable source;
+- `commands/`, `selection/`, and `validation/` own pure undoable editing contracts and door/link/anchor/project diagnostics;
+- `assets/` projects RTPKS sidecar metadata and model manifests, keeping thousands of preview PNGs compressed until visible;
+- `interaction/WorldPicker` intersects the same terrain triangles submitted by the world renderer without allocating in the pointer-hover path;
+- `preview/ExactWorldPreview` loads runtime scene data and delegates to `OverworldBgfxRenderer::renderEmbeddedViewport`;
+- `ui/EditorShell` consumes a UI model and emits editing intentions; it does not own document mutation.
+
+The embedded renderer returns its renderer-owned pixel-target texture without backbuffer composition or `bgfx::frame()`. The editor renders ImGui on a later view and owns the process's single frame advance. Preview animations use an explicit deterministic time and remain frozen by default. Pointer hover, selection, pan, zoom, and UI animation must not rebuild the world scene; rebuilds occur between ImGui frames after a document gesture commits.
+
+Unknown OWMAP metadata, collision spare bits, and trailing bytes must survive editor changes. Reused map entries retain separate project identity while sharing the same source document and history. Smart-object features must compile to normal runtime OWMAP/RTPKS data instead of adding editor logic to `gameplay/world3d`.
 
 ### Overworld Script Engine
 

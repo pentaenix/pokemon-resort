@@ -44,6 +44,12 @@ Loader policy:
 - `.owmap` is the primary runtime format.
 - `.map.json` scene loading is removed from runtime.
 
+### Reusable map instances
+
+The Map Studio project is a placement catalog, not a one-file-per-placement rule. Two or more project map entries may reference the same `.owmap` in their `file` field. Each entry keeps its own unique `id`, `gridX`, `gridY`, and `linked` state, while the terrain, tiles, and models are read from the shared source file. Map Studio creates one from the layout map context menu with **Reuse map**; the new separated instance can then be dragged and snapped into the connected layout.
+
+At runtime the shared source is decoded once per world load and copied into instance records. The project entry id replaces the source scene id for that instance, so animation state, anchors, and teleport destinations remain addressable per placement. Door links should target the project instance id. Editing any instance edits the shared `.owmap` source by design.
+
 ## OWMAP Binary Format (Runtime)
 Primary runtime map format is `.owmap`:
 - Header: magic/version/width/height/tileSize/metaLen
@@ -243,7 +249,9 @@ Textbox text presentation is data-driven under `textbox.text`: `fontPath`, `font
 
 The top-right Attend shortcut is authored in the same file under `attendButton`: `enabled`, `iconPath`, `topPx`, `rightPx`, `widthPx`, and `heightPx`. It is visible only while a Pokemon interaction textbox is active. Clicking it or pressing the app-level `input.attend_keys` binding (default `X`) opens Attend without resetting the overworld screen. Attend Back or its top-left return button returns to the same overworld instance, preserving player position and runtime state.
 
-Overworld screen changes use reusable controllers under `ui/transitions`. `config/gameplay/world3d/transitions.json` selects the Attend transition type and owns `durationSeconds`, `circleSegments`, and `maxRadiusScale`. The first type, `black_iris`, runs a four-stage handoff: close around the projected player in the overworld, open over Attend, close over Attend on return, then open over the restored overworld. The active interaction textbox is closed and its target unlocked on return.
+Overworld screen changes use reusable controllers under `ui/transitions`. `config/gameplay/world3d/transitions.json` selects the Attend transition type and owns `durationSeconds`, `circleSegments`, and `maxRadiusScale`. The first type, `black_iris`, runs a four-stage handoff: close around the projected player in the overworld, open over Attend, close over Attend on return, then open over the restored overworld. A scene handoff occurs only after one fully closed frame has been presented. On return, the restored overworld presents one fully open idle frame before its post-Attend script begins, so short actions are visible from their first frame.
+
+The direct Overworld/Attend handoff keeps the overworld bgfx renderer resident and shares the active GPU device between both 3D scenes. Returning therefore does not reload the map, tile package, buildings, shaders, or player textures. The small offscreen world presentation target is recreated after Attend so its framebuffer cannot retain stale shared-backbuffer state. Device shutdown happens only when the app leaves 3D presentation for a 2D screen. Frame delta is capped after synchronous resource stalls so the opening iris still advances over visible frames rather than completing during a load pause.
 
 - `textbox.visibleMode`: `enabled` or `disabled`.
 - `textbox.selectedSkinIndex`: choose skin `0` through `12`; visual order goes down the left column first, then down the right column. The 14th bottom-right sheet cell is empty and ignored.

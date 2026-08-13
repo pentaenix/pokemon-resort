@@ -309,6 +309,21 @@ public:
         const std::vector<rendering::CharacterBillboardDraw>& character_draws,
         const std::vector<rendering::TextureBillboardDraw>& texture_draws,
         const std::string& debug_frame_counter_label);
+    OverworldBgfxRenderer::EmbeddedViewportTexture renderEmbeddedViewport(
+        const camera::Gen4FollowCamera& camera,
+        const camera::Vec3& player_pos,
+        const SDL_Rect& player_source_rect,
+        const std::string& player_activity_id,
+        bool player_use_run_texture,
+        bool player_draw_shadow,
+        const terrain::ActorTerrainBinding& player_binding,
+        int logical_w,
+        int logical_h,
+        int framebuffer_w,
+        int framebuffer_h,
+        const std::vector<rendering::CharacterBillboardDraw>& character_draws,
+        const std::vector<rendering::TextureBillboardDraw>& texture_draws,
+        const OverworldBgfxRenderer::EmbeddedViewportOptions& options);
     void queueScreenshot(const std::string& output_path);
 
 private:
@@ -458,6 +473,13 @@ private:
         bool valid() const { return bgfx::isValid(frame_buffer); }
     };
 
+    struct RenderOptions {
+        bool embedded_viewport = false;
+        bool override_animation_clock = false;
+        bool animations_enabled = true;
+        double animation_time_seconds = 0.0;
+    };
+
     std::string project_root_;
     SceneConfig scene_;
     CharacterSpriteDefinition character_;
@@ -508,6 +530,9 @@ private:
     std::vector<OverworldBgfxRenderer::StaticMapChunk> pending_static_chunks_;
     std::vector<StaticChunkGpuResource> static_chunks_;
     PixelWorldTarget pixel_world_target_;
+    bool override_animation_clock_ = false;
+    bool animations_enabled_ = true;
+    double animation_time_seconds_ = 0.0;
 
     bool createPrograms();
     bool loadTilePackage();
@@ -542,6 +567,22 @@ private:
     bool ensureTextboxTexture();
     bool ensureTextboxTextTexture(int wrap_width);
     bool ensureAttendButtonTexture();
+    OverworldBgfxRenderer::EmbeddedViewportTexture renderInternal(
+        const camera::Gen4FollowCamera& camera,
+        const camera::Vec3& player_pos,
+        const SDL_Rect& player_source_rect,
+        const std::string& player_activity_id,
+        bool player_use_run_texture,
+        bool player_draw_shadow,
+        const terrain::ActorTerrainBinding& player_binding,
+        int logical_w,
+        int logical_h,
+        int framebuffer_w,
+        int framebuffer_h,
+        const std::vector<rendering::CharacterBillboardDraw>& character_draws,
+        const std::vector<rendering::TextureBillboardDraw>& texture_draws,
+        const std::string& debug_frame_counter_label,
+        const RenderOptions& options);
 
     void submitMesh(
         const MeshGpuResource& mesh,
@@ -745,6 +786,39 @@ void OverworldBgfxRenderer::render(
     }
 }
 
+OverworldBgfxRenderer::EmbeddedViewportTexture OverworldBgfxRenderer::renderEmbeddedViewport(
+    const camera::Gen4FollowCamera& camera,
+    const camera::Vec3& player_pos,
+    const SDL_Rect& player_source_rect,
+    const std::string& player_activity_id,
+    bool player_use_run_texture,
+    bool player_draw_shadow,
+    const terrain::ActorTerrainBinding& player_binding,
+    int logical_w,
+    int logical_h,
+    int framebuffer_w,
+    int framebuffer_h,
+    const std::vector<rendering::CharacterBillboardDraw>& character_draws,
+    const std::vector<rendering::TextureBillboardDraw>& texture_draws,
+    const EmbeddedViewportOptions& options) {
+    if (!impl_) return {};
+    return impl_->renderEmbeddedViewport(
+        camera,
+        player_pos,
+        player_source_rect,
+        player_activity_id,
+        player_use_run_texture,
+        player_draw_shadow,
+        player_binding,
+        logical_w,
+        logical_h,
+        framebuffer_w,
+        framebuffer_h,
+        character_draws,
+        texture_draws,
+        options);
+}
+
 void OverworldBgfxRenderer::queueScreenshot(const std::string& output_path) {
     if (impl_) {
         impl_->queueScreenshot(output_path);
@@ -868,9 +942,13 @@ void OverworldBgfxRenderer::Impl::updateDoorTileAnimations(MeshGpuResource& mesh
             });
         if (selected == range.vertex_clips.end()) selected = range.vertex_clips.begin();
         if (selected->frames.empty()) continue;
-        const std::int64_t elapsed = range.trigger_active
-            ? std::max<std::int64_t>(0, now_ms - range.trigger_started_ms)
-            : 0;
+        const std::int64_t elapsed = override_animation_clock_
+            ? (animations_enabled_ && range.trigger_active
+                ? static_cast<std::int64_t>(std::max(0.0, animation_time_seconds_) * 1000.0)
+                : 0)
+            : (range.trigger_active
+                ? std::max<std::int64_t>(0, now_ms - range.trigger_started_ms)
+                : 0);
         std::size_t frame_index = std::min<std::size_t>(
             selected->frames.size() - 1,
             static_cast<std::size_t>(elapsed / std::max(16, selected->frame_time_ms)));
@@ -1626,7 +1704,9 @@ bool OverworldBgfxRenderer::Impl::buildTileLayers() {
         const float floor_base_y = std::min(std::min(corners[0], corners[1]), std::min(corners[2], corners[3]));
         const bool conform_to_terrain = mesh_vertical_range(*mesh) <= 0.02f;
         const float base_y = conform_to_terrain ? 0.0f : floor_base_y;
-        const float layer_lift = static_cast<float>(layer_index) * kLayerLift;
+        // Keep even the base RTPKS layer above the fallback heightfield. A zero
+        // lift made coplanar terrain tiles depth-fight or disappear by backend.
+        const float layer_lift = static_cast<float>(layer_index + 1U) * kLayerLift;
         for (const data::RtpksMaterialRange& range : mesh->material_ranges) {
             const auto slot_it = material_slot_by_id.find(range.material_id);
             const int slot = slot_it == material_slot_by_id.end() ? 0 : slot_it->second;
@@ -2047,9 +2127,12 @@ bool OverworldBgfxRenderer::Impl::buildModels() {
 
 void OverworldBgfxRenderer::Impl::updateModelAnimation(ModelGpuResource& model) const {
     if (!bgfx::isValid(model.mesh.dynamic_vbh) || model.source_vertices.empty()) return;
-    const double time_seconds = std::chrono::duration<double>(
-        std::chrono::steady_clock::now().time_since_epoch()).count() *
-        static_cast<double>(scene_.environment_animation_speed);
+    const double time_seconds = override_animation_clock_
+        ? (animations_enabled_ ? std::max(0.0, animation_time_seconds_) : 0.0) *
+            static_cast<double>(scene_.environment_animation_speed)
+        : std::chrono::duration<double>(
+            std::chrono::steady_clock::now().time_since_epoch()).count() *
+            static_cast<double>(scene_.environment_animation_speed);
     const std::vector<std::vector<float>> weights =
         data::sampleGlbMorphWeights(model.animation_mesh, time_seconds);
     if (weights.empty()) return;
@@ -2279,11 +2362,18 @@ void OverworldBgfxRenderer::Impl::submitMesh(
         float uv_offset[4] = {0.0f, 0.0f, 0.0f, 0.0f};
         const auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::steady_clock::now().time_since_epoch()).count();
-        const double animation_time_ms = range.trigger_phase
-            ? (range.trigger_active
-                ? static_cast<double>(std::max<std::int64_t>(0, now_ms - range.trigger_started_ms))
-                : 0.0)
-            : static_cast<double>(now_ms) * static_cast<double>(scene_.environment_animation_speed);
+        const double animation_time_ms = override_animation_clock_
+            ? (range.trigger_phase
+                ? (animations_enabled_ && range.trigger_active
+                    ? std::max(0.0, animation_time_seconds_) * 1000.0
+                    : 0.0)
+                : (animations_enabled_ ? std::max(0.0, animation_time_seconds_) * 1000.0 : 0.0) *
+                    static_cast<double>(scene_.environment_animation_speed))
+            : (range.trigger_phase
+                ? (range.trigger_active
+                    ? static_cast<double>(std::max<std::int64_t>(0, now_ms - range.trigger_started_ms))
+                    : 0.0)
+                : static_cast<double>(now_ms) * static_cast<double>(scene_.environment_animation_speed));
         if (material && !material->animation_frames.empty() && material->animation_frame_time_ms > 0) {
             const AnimationCursor frame_cursor = animationCursor(
                 doors::animationSample(
@@ -2416,11 +2506,18 @@ void OverworldBgfxRenderer::Impl::submitAlphaDepthPrepass(
         float uv_offset[4] = {0.0f, 0.0f, 0.0f, 0.0f};
         const auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::steady_clock::now().time_since_epoch()).count();
-        const double animation_time_ms = range.trigger_phase
-            ? (range.trigger_active
-                ? static_cast<double>(std::max<std::int64_t>(0, now_ms - range.trigger_started_ms))
-                : 0.0)
-            : static_cast<double>(now_ms) * static_cast<double>(scene_.environment_animation_speed);
+        const double animation_time_ms = override_animation_clock_
+            ? (range.trigger_phase
+                ? (animations_enabled_ && range.trigger_active
+                    ? std::max(0.0, animation_time_seconds_) * 1000.0
+                    : 0.0)
+                : (animations_enabled_ ? std::max(0.0, animation_time_seconds_) * 1000.0 : 0.0) *
+                    static_cast<double>(scene_.environment_animation_speed))
+            : (range.trigger_phase
+                ? (range.trigger_active
+                    ? static_cast<double>(std::max<std::int64_t>(0, now_ms - range.trigger_started_ms))
+                    : 0.0)
+                : static_cast<double>(now_ms) * static_cast<double>(scene_.environment_animation_speed));
         if (material && !material->animation_frames.empty() && material->animation_frame_time_ms > 0) {
             const AnimationCursor frame_cursor = animationCursor(
                 doors::animationSample(
@@ -2722,6 +2819,11 @@ void OverworldBgfxRenderer::Impl::submitTextboxOverlay(
         static_cast<std::uint16_t>(std::max(1, framebuffer_w)),
         static_cast<std::uint16_t>(std::max(1, framebuffer_h)));
     bgfx::setViewFrameBuffer(kTextboxView, BGFX_INVALID_HANDLE);
+    // View state is process-global in bgfx and survives the Attend renderer.
+    // Attend uses view 4 as its backbuffer compositor with a black clear, while
+    // the overworld reuses view 4 for the textbox. Always remove that inherited
+    // clear or opening post-Attend dialogue erases the world behind the box.
+    bgfx::setViewClear(kTextboxView, BGFX_CLEAR_NONE);
     bgfx::setViewMode(kTextboxView, bgfx::ViewMode::Sequential);
 
     submitOverlaySlice(
@@ -2778,6 +2880,7 @@ void OverworldBgfxRenderer::Impl::submitAttendButtonOverlay(
         static_cast<std::uint16_t>(std::max(1, framebuffer_w)),
         static_cast<std::uint16_t>(std::max(1, framebuffer_h)));
     bgfx::setViewFrameBuffer(kAttendButtonView, BGFX_INVALID_HANDLE);
+    bgfx::setViewClear(kAttendButtonView, BGFX_CLEAR_NONE);
     bgfx::setViewMode(kAttendButtonView, bgfx::ViewMode::Sequential);
     const SDL_Rect src{0, 0, attend_button_texture_.width, attend_button_texture_.height};
     const SDL_Rect dst{
@@ -2823,6 +2926,7 @@ void OverworldBgfxRenderer::Impl::submitBlackIrisTransition(
     bgfx::setViewTransform(view_id, view, proj);
     bgfx::setViewRect(view_id, 0, 0, static_cast<uint16_t>(framebuffer_w), static_cast<uint16_t>(framebuffer_h));
     bgfx::setViewFrameBuffer(view_id, BGFX_INVALID_HANDLE);
+    bgfx::setViewClear(view_id, BGFX_CLEAR_NONE);
     bgfx::setTransform(model); bgfx::setVertexBuffer(0, &tvb); bgfx::setIndexBuffer(&tib);
     bgfx::setTexture(0, tex_uniform_, white_texture_.handle, samplerFlags());
     const float tint[4]={1,1,1,0}, adjust[4]={1,1,1,0}, zero[4]={0,0,0,0}, light[4]={0,1,0,0}, params[4]={1,0,0,0};
@@ -3115,15 +3219,91 @@ void OverworldBgfxRenderer::Impl::render(
     const std::vector<rendering::CharacterBillboardDraw>& character_draws,
     const std::vector<rendering::TextureBillboardDraw>& texture_draws,
     const std::string& debug_frame_counter_label) {
-    if (!valid()) return;
+    (void)renderInternal(
+        camera,
+        player_pos,
+        player_source_rect,
+        player_activity_id,
+        player_use_run_texture,
+        player_draw_shadow,
+        player_binding,
+        logical_w,
+        logical_h,
+        framebuffer_w,
+        framebuffer_h,
+        character_draws,
+        texture_draws,
+        debug_frame_counter_label,
+        RenderOptions{});
+}
+
+OverworldBgfxRenderer::EmbeddedViewportTexture
+OverworldBgfxRenderer::Impl::renderEmbeddedViewport(
+    const camera::Gen4FollowCamera& camera,
+    const camera::Vec3& player_pos,
+    const SDL_Rect& player_source_rect,
+    const std::string& player_activity_id,
+    bool player_use_run_texture,
+    bool player_draw_shadow,
+    const terrain::ActorTerrainBinding& player_binding,
+    int logical_w,
+    int logical_h,
+    int framebuffer_w,
+    int framebuffer_h,
+    const std::vector<rendering::CharacterBillboardDraw>& character_draws,
+    const std::vector<rendering::TextureBillboardDraw>& texture_draws,
+    const OverworldBgfxRenderer::EmbeddedViewportOptions& options) {
+    RenderOptions render_options;
+    render_options.embedded_viewport = true;
+    render_options.override_animation_clock = true;
+    render_options.animations_enabled = options.animations_enabled;
+    render_options.animation_time_seconds = options.animation_time_seconds;
+    return renderInternal(
+        camera,
+        player_pos,
+        player_source_rect,
+        player_activity_id,
+        player_use_run_texture,
+        player_draw_shadow,
+        player_binding,
+        logical_w,
+        logical_h,
+        framebuffer_w,
+        framebuffer_h,
+        character_draws,
+        texture_draws,
+        {},
+        render_options);
+}
+
+OverworldBgfxRenderer::EmbeddedViewportTexture OverworldBgfxRenderer::Impl::renderInternal(
+    const camera::Gen4FollowCamera& camera,
+    const camera::Vec3& player_pos,
+    const SDL_Rect& player_source_rect,
+    const std::string& player_activity_id,
+    bool player_use_run_texture,
+    bool player_draw_shadow,
+    const terrain::ActorTerrainBinding& player_binding,
+    int logical_w,
+    int logical_h,
+    int framebuffer_w,
+    int framebuffer_h,
+    const std::vector<rendering::CharacterBillboardDraw>& character_draws,
+    const std::vector<rendering::TextureBillboardDraw>& texture_draws,
+    const std::string& debug_frame_counter_label,
+    const RenderOptions& options) {
+    if (!valid()) return {};
     backend_.reset(framebuffer_w, framebuffer_h);
     const int base_w = rendering::worldViewportBaseWidth(scene_);
     const int base_h = rendering::worldViewportBaseHeight(scene_);
     const int internal_scale = rendering::worldViewportInternalScale(scene_);
     const int render_w = rendering::worldViewportRenderWidth(scene_);
     const int render_h = rendering::worldViewportRenderHeight(scene_);
-    bool pixel_world_enabled = scene_.world_viewport.enabled;
+    bool pixel_world_enabled = scene_.world_viewport.enabled || options.embedded_viewport;
     if (pixel_world_enabled && !ensurePixelWorldTarget(render_w, render_h)) {
+        if (options.embedded_viewport) {
+            return {};
+        }
         std::cerr << "[OverworldBgfx] Pixel-perfect target unavailable, rendering direct: "
                   << last_error_ << std::endl;
         pixel_world_enabled = false;
@@ -3141,11 +3321,13 @@ void OverworldBgfxRenderer::Impl::render(
     }
 
     const TerrainColor clear = scene_.environment.clear_color;
-    backend_.beginFrame(
-        static_cast<float>(clear.r) / 255.0f,
-        static_cast<float>(clear.g) / 255.0f,
-        static_cast<float>(clear.b) / 255.0f,
-        static_cast<float>(clear.a) / 255.0f);
+    if (!options.embedded_viewport) {
+        backend_.beginFrame(
+            static_cast<float>(clear.r) / 255.0f,
+            static_cast<float>(clear.g) / 255.0f,
+            static_cast<float>(clear.b) / 255.0f,
+            static_cast<float>(clear.a) / 255.0f);
+    }
 
     const auto pose = camera.pose();
     float view[16];
@@ -3174,6 +3356,11 @@ void OverworldBgfxRenderer::Impl::render(
         (static_cast<std::uint32_t>(clear.b) << 8U) |
         static_cast<std::uint32_t>(clear.a);
     bgfx::setViewClear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, clear_rgba, 1.0f, 0);
+    if (options.embedded_viewport) {
+        // beginFrame() normally guarantees a view-0 clear by touching it. The
+        // embedding host owns frame boundaries, so keep that guarantee local.
+        bgfx::touch(0);
+    }
     bgfx::setViewTransform(1, view, proj);
     bgfx::setViewFrameBuffer(1, world_frame_buffer);
     bgfx::setViewRect(
@@ -3184,6 +3371,13 @@ void OverworldBgfxRenderer::Impl::render(
         static_cast<std::uint16_t>(world_view_h));
     bgfx::setViewClear(1, BGFX_CLEAR_STENCIL, 0, 1.0f, 0);
     bgfx::setViewMode(1, bgfx::ViewMode::Sequential);
+
+    const bool previous_override_animation_clock = override_animation_clock_;
+    const bool previous_animations_enabled = animations_enabled_;
+    const double previous_animation_time_seconds = animation_time_seconds_;
+    override_animation_clock_ = options.override_animation_clock;
+    animations_enabled_ = options.animations_enabled;
+    animation_time_seconds_ = options.animation_time_seconds;
 
     float ident[16];
     identity(ident);
@@ -3314,6 +3508,21 @@ void OverworldBgfxRenderer::Impl::render(
         }
     }
 
+    override_animation_clock_ = previous_override_animation_clock;
+    animations_enabled_ = previous_animations_enabled;
+    animation_time_seconds_ = previous_animation_time_seconds;
+
+    if (options.embedded_viewport) {
+        const bgfx::TextureHandle color = bgfx::getTexture(pixel_world_target_.frame_buffer, 0);
+        if (!bgfx::isValid(color)) return {};
+        OverworldBgfxRenderer::EmbeddedViewportTexture texture;
+        texture.texture_handle_idx = color.idx;
+        texture.width = pixel_world_target_.width;
+        texture.height = pixel_world_target_.height;
+        texture.origin_bottom_left = backend_.originBottomLeft();
+        return texture;
+    }
+
     if (pixel_world_enabled) {
         submitPixelWorldToBackbuffer(framebuffer_w, framebuffer_h, render_w, render_h);
     }
@@ -3359,6 +3568,7 @@ void OverworldBgfxRenderer::Impl::render(
     }
 
     backend_.endFrame();
+    return {};
 }
 
 } // namespace pr::gameplay::world3d::rendering::bgfx_backend

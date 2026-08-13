@@ -20,6 +20,10 @@ public:
         const std::string& renderer_preference,
         void* sdl_metal_view = nullptr);
     void shutdown();
+    // Ends the process-wide bgfx device after every screen has released its
+    // resources. Individual screen shutdowns intentionally keep it alive so
+    // adjacent 3D scenes can hand off without reinitializing Metal.
+    static void shutdownGlobal();
     void reset(int width, int height);
     void beginFrame(float clear_r, float clear_g, float clear_b, float clear_a);
     void endFrame();

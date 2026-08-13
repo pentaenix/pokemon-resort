@@ -10,7 +10,8 @@ void AppScreenCoordinator::updateOverworld3D(double dt) {
     overworld3d_test_.update(dt);
     if (overworld3d_test_.consumeOpenAttendRequested()) {
         const auto launch_context = overworld3d_test_.consumeAttendLaunchContext();
-        overworld3d_test_.shutdownBgfx();
+        // Keep the overworld GPU scene resident. Attend shares the active bgfx
+        // device, and returning can resume this exact renderer immediately.
         attend_return_target_ = AttendReturnTarget::Overworld3D;
         if (launch_context) {
             attend_test_.beginFromOverworld(*launch_context);
@@ -22,7 +23,6 @@ void AppScreenCoordinator::updateOverworld3D(double dt) {
     }
     if (overworld3d_test_.consumeReturnToTitleRequested()) {
         overworld3d_test_.shutdownBgfx();
-        overworld3d_test_.resetForNextLaunch();
         title_screen_.returnToMainMenuFromResort();
         active_screen_ = ActiveScreen::Title;
     }

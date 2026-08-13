@@ -7,6 +7,7 @@
 - `transfer`: save movement, OpenHome identity, transfer orchestration.
 - `ui`: presentation and screen-level adapters, including reusable logical-coordinate overlays under `ui/overlay`.
 - `data`: authored configs and content packs.
+- `tools/map_maker`: standalone map-authoring application. Its pure document/project/command/selection/validation core owns edits; its preview adapter consumes the game world loader and renderer without becoming a runtime dependency.
 
 ## Dependency Direction
 - `engine` -> no dependency on `gameplay`, `transfer`, `ui`.
@@ -15,6 +16,7 @@
 - `transfer` -> owns save adapters and persistence; exports app-facing contracts.
 - `ui` -> may compose `engine`, `gameplay`, and `transfer/contracts`.
 - `ui/overlay` -> shared SDL overlay primitives only; consuming screens own semantic actions such as weather, tutorials, or overworld controls.
+- `tools/map_maker` -> may consume `core/config` JSON and public `gameplay/world3d` data, camera, terrain, and rendering seams. Production `engine`, `gameplay`, `transfer`, `ui`, and `resort` modules must not consume `mapmaker/*`.
 
 ## Contracts
 - `transfer/contracts/TransferContracts.hpp`
@@ -22,6 +24,8 @@
   - `PartySnapshotProvider`
 - `gameplay/contracts/WorldEventBus.hpp`
   - `WorldEventBus`
+- `gameplay/world3d/rendering/bgfx/OverworldBgfxRenderer::renderEmbeddedViewport`
+  - submits exact world passes and returns a non-owning renderer texture; the tool host owns final composition and the single `bgfx::frame()` call
 
 ## Migration Intent
 This structure is introduced as groundwork. Existing production code remains functional while incremental migrations move responsibilities into domain-aligned folders.

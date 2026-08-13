@@ -36,6 +36,7 @@ private:
     Phase phase_ = Phase::Idle;
     double amount_ = 0.0;
     bool closed_event_ = false;
+    bool closed_event_emitted_ = false;
 };
 
 } // namespace pr::transitions

@@ -1,8 +1,12 @@
 #include "core/config/Json.hpp"
 
 #include <cctype>
+#include <cmath>
 #include <cstdint>
 #include <fstream>
+#include <iomanip>
+#include <limits>
+#include <locale>
 #include <sstream>
 #include <stdexcept>
 #include <variant>
@@ -55,15 +59,32 @@ bool JsonValue::isString() const { return std::holds_alternative<std::string>(va
 bool JsonValue::isNumber() const { return std::holds_alternative<double>(value_); }
 bool JsonValue::isBool() const { return std::holds_alternative<bool>(value_); }
 bool JsonValue::isNull() const { return std::holds_alternative<std::nullptr_t>(value_); }
+JsonValue::Object& JsonValue::asObject() { return std::get<Object>(value_); }
 const JsonValue::Object& JsonValue::asObject() const { return std::get<Object>(value_); }
+JsonValue::Array& JsonValue::asArray() { return std::get<Array>(value_); }
 const JsonValue::Array& JsonValue::asArray() const { return std::get<Array>(value_); }
+std::string& JsonValue::asString() { return std::get<std::string>(value_); }
 const std::string& JsonValue::asString() const { return std::get<std::string>(value_); }
 double JsonValue::asNumber() const { return std::get<double>(value_); }
 bool JsonValue::asBool() const { return std::get<bool>(value_); }
+JsonValue* JsonValue::get(const std::string& key) {
+    if (!isObject()) return nullptr;
+    auto it = asObject().find(key);
+    return it == asObject().end() ? nullptr : &it->second;
+}
 const JsonValue* JsonValue::get(const std::string& key) const {
     if (!isObject()) return nullptr;
     auto it = asObject().find(key);
     return it == asObject().end() ? nullptr : &it->second;
+}
+JsonValue& JsonValue::operator[](const std::string& key) {
+    if (isNull()) {
+        value_ = Object{};
+    }
+    if (!isObject()) {
+        throw std::runtime_error("JSON value is not an object");
+    }
+    return asObject()[key];
 }
 
 class Parser {
@@ -165,6 +186,9 @@ private:
                     default: throw std::runtime_error("Unsupported JSON escape");
                 }
             } else {
+                if (static_cast<unsigned char>(c) < 0x20U) {
+                    throw std::runtime_error("Unescaped control character in JSON string");
+                }
                 out.push_back(c);
             }
         }
@@ -174,17 +198,34 @@ private:
     double parseNumber() {
         std::size_t start = pos_;
         if (text_[pos_] == '-') ++pos_;
-        while (pos_ < text_.size() && std::isdigit(static_cast<unsigned char>(text_[pos_]))) ++pos_;
+        if (pos_ >= text_.size()) throw std::runtime_error("Invalid JSON number");
+        if (text_[pos_] == '0') {
+            ++pos_;
+            if (pos_ < text_.size() && std::isdigit(static_cast<unsigned char>(text_[pos_]))) {
+                throw std::runtime_error("Invalid JSON number with leading zero");
+            }
+        } else {
+            if (!std::isdigit(static_cast<unsigned char>(text_[pos_]))) {
+                throw std::runtime_error("Invalid JSON number");
+            }
+            while (pos_ < text_.size() && std::isdigit(static_cast<unsigned char>(text_[pos_]))) ++pos_;
+        }
         if (pos_ < text_.size() && text_[pos_] == '.') {
             ++pos_;
+            const std::size_t fraction_start = pos_;
             while (pos_ < text_.size() && std::isdigit(static_cast<unsigned char>(text_[pos_]))) ++pos_;
+            if (fraction_start == pos_) throw std::runtime_error("Invalid JSON number fraction");
         }
         if (pos_ < text_.size() && (text_[pos_] == 'e' || text_[pos_] == 'E')) {
             ++pos_;
-            if (text_[pos_] == '+' || text_[pos_] == '-') ++pos_;
+            if (pos_ < text_.size() && (text_[pos_] == '+' || text_[pos_] == '-')) ++pos_;
+            const std::size_t exponent_start = pos_;
             while (pos_ < text_.size() && std::isdigit(static_cast<unsigned char>(text_[pos_]))) ++pos_;
+            if (exponent_start == pos_) throw std::runtime_error("Invalid JSON number exponent");
         }
-        return std::stod(text_.substr(start, pos_ - start));
+        const double value = std::stod(text_.substr(start, pos_ - start));
+        if (!std::isfinite(value)) throw std::runtime_error("JSON number is outside the finite range");
+        return value;
     }
 
     JsonValue parseLiteral(const std::string& literal, JsonValue value) {
@@ -220,6 +261,106 @@ JsonValue parseJsonFile(const std::string& path) {
 
 JsonValue parseJsonText(const std::string& text) {
     return Parser(text).parse();
+}
+
+namespace {
+
+void appendIndent(std::string& out, std::size_t depth, std::size_t indent_size) {
+    out.append(depth * indent_size, ' ');
+}
+
+void appendEscapedString(std::string& out, const std::string& value) {
+    static constexpr char kHex[] = "0123456789abcdef";
+    out.push_back('"');
+    for (const unsigned char c : value) {
+        switch (c) {
+            case '"': out += "\\\""; break;
+            case '\\': out += "\\\\"; break;
+            case '\b': out += "\\b"; break;
+            case '\f': out += "\\f"; break;
+            case '\n': out += "\\n"; break;
+            case '\r': out += "\\r"; break;
+            case '\t': out += "\\t"; break;
+            default:
+                if (c < 0x20U) {
+                    out += "\\u00";
+                    out.push_back(kHex[(c >> 4U) & 0x0FU]);
+                    out.push_back(kHex[c & 0x0FU]);
+                } else {
+                    out.push_back(static_cast<char>(c));
+                }
+                break;
+        }
+    }
+    out.push_back('"');
+}
+
+void appendJson(
+    std::string& out,
+    const JsonValue& value,
+    JsonStyle style,
+    std::size_t indent_size,
+    std::size_t depth) {
+    const bool pretty = style == JsonStyle::Pretty;
+    if (value.isNull()) {
+        out += "null";
+    } else if (value.isBool()) {
+        out += value.asBool() ? "true" : "false";
+    } else if (value.isNumber()) {
+        const double number = value.asNumber();
+        if (!std::isfinite(number)) {
+            throw std::runtime_error("Cannot serialize a non-finite JSON number");
+        }
+        std::ostringstream number_stream;
+        number_stream.imbue(std::locale::classic());
+        number_stream << std::setprecision(std::numeric_limits<double>::max_digits10) << number;
+        out += number_stream.str();
+    } else if (value.isString()) {
+        appendEscapedString(out, value.asString());
+    } else if (value.isArray()) {
+        const auto& array = value.asArray();
+        if (array.empty()) {
+            out += "[]";
+            return;
+        }
+        out.push_back('[');
+        if (pretty) out.push_back('\n');
+        for (std::size_t i = 0; i < array.size(); ++i) {
+            if (pretty) appendIndent(out, depth + 1U, indent_size);
+            appendJson(out, array[i], style, indent_size, depth + 1U);
+            if (i + 1U < array.size()) out.push_back(',');
+            if (pretty) out.push_back('\n');
+        }
+        if (pretty) appendIndent(out, depth, indent_size);
+        out.push_back(']');
+    } else {
+        const auto& object = value.asObject();
+        if (object.empty()) {
+            out += "{}";
+            return;
+        }
+        out.push_back('{');
+        if (pretty) out.push_back('\n');
+        std::size_t index = 0;
+        for (const auto& [key, item] : object) {
+            if (pretty) appendIndent(out, depth + 1U, indent_size);
+            appendEscapedString(out, key);
+            out += pretty ? ": " : ":";
+            appendJson(out, item, style, indent_size, depth + 1U);
+            if (++index < object.size()) out.push_back(',');
+            if (pretty) out.push_back('\n');
+        }
+        if (pretty) appendIndent(out, depth, indent_size);
+        out.push_back('}');
+    }
+}
+
+} // namespace
+
+std::string serializeJsonValue(const JsonValue& value, JsonStyle style, std::size_t indent_size) {
+    std::string out;
+    appendJson(out, value, style, indent_size, 0);
+    return out;
 }
 
 } // namespace pr

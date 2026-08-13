@@ -15,6 +15,10 @@ namespace pr::gameplay::world3d::rendering::bgfx_backend {
 
 namespace {
 
+bool g_bgfx_initialized = false;
+int g_backbuffer_width = 0;
+int g_backbuffer_height = 0;
+
 std::string lower(std::string value) {
     std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
         return static_cast<char>(std::tolower(c));
@@ -90,6 +94,27 @@ bool BgfxBackend::initialize(
         return true;
     }
 
+    if (g_bgfx_initialized) {
+        initialized_ = true;
+        width_ = std::max(1, width);
+        height_ = std::max(1, height);
+        renderer_type_ = static_cast<int>(bgfx::getRendererType());
+        homogeneous_depth_ = bgfx::getCaps()->homogeneousDepth;
+        origin_bottom_left_ = bgfx::getCaps()->originBottomLeft;
+        if (g_backbuffer_width != width_ || g_backbuffer_height != height_) {
+            bgfx::reset(
+                static_cast<std::uint32_t>(width_),
+                static_cast<std::uint32_t>(height_),
+                BGFX_RESET_VSYNC);
+            g_backbuffer_width = width_;
+            g_backbuffer_height = height_;
+        }
+        std::cerr << "[BgfxBackend] Reusing renderer="
+                  << bgfx::getRendererName(static_cast<bgfx::RendererType::Enum>(renderer_type_))
+                  << " size=" << width_ << "x" << height_ << '\n';
+        return true;
+    }
+
     bgfx::NativeWindowHandleType::Enum window_type = bgfx::NativeWindowHandleType::Default;
     void* ndt = nullptr;
     void* nwh = nullptr;
@@ -125,6 +150,9 @@ bool BgfxBackend::initialize(
         return false;
     }
 
+    g_bgfx_initialized = true;
+    g_backbuffer_width = std::max(1, width);
+    g_backbuffer_height = std::max(1, height);
     initialized_ = true;
     width_ = std::max(1, width);
     height_ = std::max(1, height);
@@ -150,17 +178,28 @@ void BgfxBackend::shutdown() {
     // bgfx's renderer-shutdown sequence; otherwise Metal aborts while releasing an
     // encoder that never received endEncoding(). This is also safe for the normal
     // shutdown path and drains resource-destroy commands queued by the owner.
-    bgfx::frame();
-    bgfx::shutdown();
+    if (g_bgfx_initialized) bgfx::frame();
     initialized_ = false;
     renderer_type_ = static_cast<int>(bgfx::RendererType::Noop);
+}
+
+void BgfxBackend::shutdownGlobal() {
+    if (!g_bgfx_initialized) return;
+    bgfx::frame();
+    bgfx::shutdown();
+    g_bgfx_initialized = false;
+    g_backbuffer_width = 0;
+    g_backbuffer_height = 0;
 }
 
 void BgfxBackend::reset(int width, int height) {
     if (!initialized_) return;
     width_ = std::max(1, width);
     height_ = std::max(1, height);
+    if (g_backbuffer_width == width_ && g_backbuffer_height == height_) return;
     bgfx::reset(static_cast<std::uint32_t>(width_), static_cast<std::uint32_t>(height_), BGFX_RESET_VSYNC);
+    g_backbuffer_width = width_;
+    g_backbuffer_height = height_;
 }
 
 void BgfxBackend::beginFrame(float clear_r, float clear_g, float clear_b, float clear_a) {

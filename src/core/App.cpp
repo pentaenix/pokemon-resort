@@ -11,10 +11,12 @@
 #include "core/app/AppPaths.hpp"
 #include "core/app/screen/AppScreenCoordinator.hpp"
 #include "core/app/persistence/UserSettingsPersistence.hpp"
+#include "core/app/frame/FrameTiming.hpp"
 #include "resort/services/PokemonResortService.hpp"
 #include "ui/Screen.hpp"
 #include "ui/AttendTestScreen.hpp"
 #include "ui/Overworld3DTestScreen.hpp"
+#include "gameplay/world3d/rendering/bgfx/BgfxBackend.hpp"
 #include "ui/TransferFlowCoordinator.hpp"
 #include "ui/TitleScreen.hpp"
 #include "core/assets/Font.hpp"
@@ -669,7 +671,12 @@ int runApplication(const char* argv0, const char* config_path_override) {
         }
 
         Uint64 now = SDL_GetPerformanceCounter();
-        double dt = static_cast<double>(now - last_counter) / static_cast<double>(SDL_GetPerformanceFrequency());
+        const double raw_dt = static_cast<double>(now - last_counter) /
+            static_cast<double>(SDL_GetPerformanceFrequency());
+        // Resource uploads can occasionally block a presentation frame. Never
+        // feed that wall-clock stall into gameplay/transition simulation or a
+        // newly opened iris can complete before its first visible frame.
+        const double dt = clampSimulationDeltaSeconds(raw_dt);
         last_counter = now;
 
         input_router.update(dt, screen_coordinator.activeInput());
@@ -716,6 +723,11 @@ int runApplication(const char* argv0, const char* config_path_override) {
                 }
             }
         } else if (presentation == WindowPresentation::Bgfx3D) {
+            // Both 3D screens may own resources on the shared bgfx device.
+            // Release them before the Metal layer and global device go away.
+            overworld3d_test.shutdownBgfx();
+            attend_test.shutdownBgfx();
+            gameplay::world3d::rendering::bgfx_backend::BgfxBackend::shutdownGlobal();
 #if defined(__APPLE__)
             if (sdl_metal_view) {
                 SDL_Metal_DestroyView(sdl_metal_view);
@@ -790,6 +802,9 @@ int runApplication(const char* argv0, const char* config_path_override) {
                     sdl_metal_view);
             }
             if (!bgfx_frame_presented && presentation == WindowPresentation::Bgfx3D) {
+                overworld3d_test.shutdownBgfx();
+                attend_test.shutdownBgfx();
+                gameplay::world3d::rendering::bgfx_backend::BgfxBackend::shutdownGlobal();
 #if defined(__APPLE__)
                 if (sdl_metal_view) {
                     SDL_Metal_DestroyView(sdl_metal_view);
@@ -867,6 +882,7 @@ int runApplication(const char* argv0, const char* config_path_override) {
     // while one of the presenters is active.
     overworld3d_test.shutdownBgfx();
     attend_test.shutdownBgfx();
+    gameplay::world3d::rendering::bgfx_backend::BgfxBackend::shutdownGlobal();
 
 #if defined(__APPLE__)
     if (sdl_metal_view) {
