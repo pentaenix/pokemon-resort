@@ -193,6 +193,47 @@ void testPlacementAndClearCell() {
         "universal clear must remove only the model centered on its cell");
 }
 
+void testLayerLifecyclePreservesCellsAndActiveIdentity() {
+    auto map = document();
+    expect(pr::mapmaker::addTileLayer(map, "details", "Details"),
+        "a second authoring layer should be addable");
+    auto layers = pr::mapmaker::projectTileLayers(map);
+    expect(layers.size() == 2 && layers[1].cells.size() == map.height() &&
+        layers[1].cells[0].size() == map.width(),
+        "new layer cells must match the OWMAP grid");
+    expect(pr::mapmaker::setTileLayerCell(map, 1, 1, 0, 99),
+        "new layer should be immediately paintable");
+    expect(pr::mapmaker::renameTileLayer(map, 1, "Roof"), "layer should be renameable");
+    expect(pr::mapmaker::setTileLayerVisible(map, 1, false), "layer visibility should be editable");
+    expect(pr::mapmaker::moveTileLayer(map, 1, 0), "layer should be reorderable");
+    layers = pr::mapmaker::projectTileLayers(map);
+    expect(layers[0].id == "details" && layers[0].name == "Roof" && !layers[0].visible &&
+        layers[0].cells[0][1] == 99,
+        "reordering must preserve the complete layer and painted cells");
+    const auto* tile_layers = map.metadata().get("tileLayers");
+    expect(tile_layers && tile_layers->get("activeLayer") &&
+        static_cast<int>(tile_layers->get("activeLayer")->asNumber()) == 0,
+        "active layer identity should follow a reordered layer");
+    expect(pr::mapmaker::eraseTileLayer(map, 0), "a non-final layer should be deletable");
+    expect(!pr::mapmaker::eraseTileLayer(map, 0), "the final layer must not be deletable");
+    expect(!pr::mapmaker::addTileLayer(map, "base", "Duplicate"),
+        "duplicate layer IDs must be rejected");
+}
+
+void testReadableObjectIdsReserveDoorLinks() {
+    auto map = document();
+    expect(pr::mapmaker::uniqueMapObjectId(map, "new_house") == "new_house",
+        "an unused readable object id should not gain a random suffix");
+    expect(pr::mapmaker::addModel(map, "new_house", "house.glb", 0, 0, 0, 0, 1),
+        "model fixture should be addable");
+    expect(pr::mapmaker::uniqueMapObjectId(map, "new_house") == "new_house_2",
+        "existing object ids should receive deterministic numeric suffixes");
+    expect(pr::mapmaker::addOrUpdateLink(map, "gate_link", "outside", "entry"),
+        "link fixture should be addable");
+    expect(pr::mapmaker::uniqueMapObjectId(map, "gate") == "gate_2",
+        "a generated door id must reserve its automatically generated link id");
+}
+
 } // namespace
 
 int main() {
@@ -204,6 +245,8 @@ int main() {
         testCoherentDoorMoveKeepsRemoteAndInvisibleVisualsValid();
         testCoherentDoorDeleteClearsVisualAndOnlyUnreferencedLink();
         testDoorCreationAcceptsOnlyRuntimeCardinalHalo();
+        testLayerLifecyclePreservesCellsAndActiveIdentity();
+        testReadableObjectIdsReserveDoorLinks();
         std::cout << "map_metadata_editing_tests: PASS\n";
         return 0;
     } catch (const std::exception& error) {

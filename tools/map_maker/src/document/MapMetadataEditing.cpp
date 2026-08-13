@@ -1,9 +1,30 @@
 #include "mapmaker/document/MapMetadataEditing.hpp"
 
 #include <algorithm>
+#include <unordered_set>
 #include <cmath>
 
 namespace pr::mapmaker {
+
+std::string uniqueMapObjectId(const OwmapDocument& document, const std::string& prefix) {
+    std::unordered_set<std::string> used;
+    for (const TileLayerProjection& layer : projectTileLayers(document)) used.insert(layer.id);
+    for (const ModelPlacementProjection& model : projectModels(document)) used.insert(model.id);
+    const MapValidationProjection projected = projectValidation(document, {});
+    for (const DoorProjection& door : projected.doors) used.insert(door.id);
+    for (const LinkProjection& link : projected.links) used.insert(link.id);
+    for (const AnchorProjection& anchor : projected.anchors) used.insert(anchor.id);
+
+    const std::string base = prefix.empty() ? "object" : prefix;
+    const auto available = [&](const std::string& id) {
+        return !used.contains(id) && !used.contains(id + "_link");
+    };
+    if (available(base)) return base;
+    for (std::size_t suffix = 2; ; ++suffix) {
+        const std::string candidate = base + "_" + std::to_string(suffix);
+        if (available(candidate)) return candidate;
+    }
+}
 namespace {
 
 std::string stringOr(const JsonValue* value, std::string fallback = {}) {

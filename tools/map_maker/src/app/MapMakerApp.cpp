@@ -128,7 +128,13 @@ struct ImGuiRuntime {
         ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
         applyMapMakerStyle();
     }
-    ~ImGuiRuntime() { imguiDestroy(); }
+    ~ImGuiRuntime() { shutdown(); }
+    void shutdown() {
+        if (!active) return;
+        imguiDestroy();
+        active = false;
+    }
+    bool active = true;
 };
 
 struct TextInputRuntime {
@@ -183,14 +189,24 @@ int runWindow(const MapMakerOptions& options) {
     int width = 0;
     int height = 0;
     SDL_GetWindowSizeInPixels(window.get(), &width, &height);
+    gameplay::world3d::rendering::bgfx_backend::BgfxBackend host_backend;
+    if (!host_backend.initialize(window.get(), width, height, options.renderer, metal_view.view)) {
+        throw std::runtime_error(host_backend.lastError());
+    }
     ExactWorldPreview preview(options.resort_root);
     if (!preview.initialize(window.get(), width, height, options.renderer, metal_view.view)) {
         throw std::runtime_error(preview.lastError());
     }
-    const OpenMapSource* initial_source = workspace.activeSource();
-    if (!initial_source || !preview.loadMap(initial_source->path)) {
-        throw std::runtime_error(preview.lastError().empty()
-            ? "No active map source" : preview.lastError());
+    // Normal authoring starts without constructing the heavyweight game scene.
+    // The exact renderer is loaded on demand when Game Preview is selected.
+    // Smoke mode still exercises that integration seam explicitly.
+    if (options.smoke_test) {
+        const OpenMapSource* initial_source = workspace.activeSource();
+        if (!initial_source || !preview.loadMap(initial_source->path)) {
+            throw std::runtime_error(preview.lastError().empty()
+                ? "No active map source" : preview.lastError());
+        }
+        preview.setAnimationsEnabled(true);
     }
 
     ImGuiRuntime imgui;
@@ -227,7 +243,9 @@ int runWindow(const MapMakerOptions& options) {
         int logical_height = 0;
         SDL_GetWindowSize(window.get(), &logical_width, &logical_height);
         SDL_GetWindowSizeInPixels(window.get(), &width, &height);
-        const auto texture = preview.render(width, height, delta);
+        const auto texture = (options.smoke_test || controller.gamePreviewVisible())
+            ? preview.render(width, height, delta)
+            : ExactWorldPreview::ViewportTexture{};
         configureBackbuffer(width, height);
         input.beginFrame(logical_width, logical_height, 255);
         thumbnails.beginFrame();
@@ -238,7 +256,7 @@ int runWindow(const MapMakerOptions& options) {
         bgfx::frame();
 
         controller.handle(ui_events);
-        (void)controller.reloadPreview();
+        if (controller.gamePreviewVisible()) (void)controller.reloadPreview();
         controller.tickRecovery();
         const auto finished = std::chrono::steady_clock::now();
         metrics.recordFrame(std::chrono::duration<double, std::milli>(finished - now).count());
@@ -263,7 +281,16 @@ int runWindow(const MapMakerOptions& options) {
         ? "Smoke test completed after " + std::to_string(frames) + " frames"
         : "Editor closed");
     logger.flush();
-    return options.smoke_test && !preview.ready() ? 1 : 0;
+    const bool smoke_ready = preview.ready();
+    // Destroy editor and exact-preview GPU resources while bgfx is still live,
+    // then drain deferred destruction before the process-global backend exits.
+    thumbnails.clear();
+    preview.shutdown();
+    imgui.shutdown();
+    host_backend.shutdown();
+    bgfx::frame();
+    bgfx::frame();
+    return options.smoke_test && !smoke_ready ? 1 : 0;
 }
 
 } // namespace

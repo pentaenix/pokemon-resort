@@ -17,6 +17,7 @@ add_library(pokemon_resort_map_maker_core STATIC
     src/document/DocumentCommands.cpp
     src/document/DoorMetadataEditing.cpp
     src/document/MapMetadataEditing.cpp
+    src/document/TileLayerEditing.cpp
     src/document/OwmapDocument.cpp
     src/logging/StructuredLogger.cpp
     src/project/MapProjectDocument.cpp
@@ -99,6 +100,8 @@ add_library(pokemon_resort_map_maker_ui STATIC
     src/app/SdlImGuiInputBridge.cpp
     src/assets/BgfxThumbnailCache.cpp
     src/ui/EditorShell.cpp
+    src/ui/EditorShellAssets.cpp
+    src/ui/EditorShellTopDown.cpp
     src/ui/EditorShellDoor.cpp
     src/ui/EditorShellTravel.cpp
 )
@@ -121,7 +124,9 @@ foreach(PR_MAP_MAKER_APPLICATION_SOURCE
         src/main.cpp
         src/app/MapMakerApp.cpp
         src/app/EditorController.cpp
+        src/app/EditorControllerEditing.cpp
         src/app/EditorControllerPersistence.cpp
+        src/app/EditorControllerTopDown.cpp
         src/app/EditorControllerTravel.cpp
         src/app/EditorControllerUi.cpp)
     if(EXISTS ${PR_MAP_MAKER_ROOT}/${PR_MAP_MAKER_APPLICATION_SOURCE})
@@ -222,3 +227,17 @@ pr_add_map_maker_test(structured_logger_tests
 pr_add_map_maker_test(world_picker_tests
     tests/native/mapmaker/world_picker_tests.cpp
     pokemon_resort_map_maker_runtime)
+
+add_custom_target(pokemon_resort_map_maker_tests
+    DEPENDS
+        autosave_recovery_tests
+        command_stack_tests
+        document_commands_tests
+        editor_asset_catalog_tests
+        frame_metrics_tests
+        map_metadata_editing_tests
+        map_project_document_tests
+        owmap_document_tests
+        selection_validation_tests
+        structured_logger_tests
+        world_picker_tests)

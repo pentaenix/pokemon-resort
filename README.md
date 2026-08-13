@@ -55,9 +55,11 @@ cmake --build build
 Build and run the standalone native map editor:
 
 ```bash
-cmake --build build --target pokemon_resort_map_maker
-./build/pokemon_resort_map_maker
+./pkr mapbuilder
 ```
+
+The editor is excluded from normal game builds and is compiled only when its
+explicit target (or `pkr mapbuilder`) is requested.
 
 See [`tools/map_maker/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/tools/map_maker/README.md) for project selection, shortcuts, headless validation, recovery files, and logs.
 

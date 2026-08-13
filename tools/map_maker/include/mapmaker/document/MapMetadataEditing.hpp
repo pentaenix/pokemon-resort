@@ -34,6 +34,10 @@ std::vector<ModelPlacementProjection> projectModels(const OwmapDocument& documen
 MapValidationProjection projectValidation(
     const OwmapDocument& document,
     std::string source_file);
+// Returns a readable id that does not collide with any model, door, link,
+// anchor, or tile layer in this document. The associated `<id>_link` name is
+// reserved too so callers can safely create a door and link as one operation.
+std::string uniqueMapObjectId(const OwmapDocument& document, const std::string& prefix);
 
 // Patch-local edits preserve every unrelated metadata member and null value.
 bool setTileLayerCell(
@@ -42,6 +46,14 @@ bool setTileLayerCell(
     int x,
     int y,
     std::optional<int> resort_tile_id);
+bool addTileLayer(
+    OwmapDocument& document,
+    const std::string& id,
+    const std::string& name);
+bool renameTileLayer(OwmapDocument& document, std::size_t layer_index, const std::string& name);
+bool setTileLayerVisible(OwmapDocument& document, std::size_t layer_index, bool visible);
+bool moveTileLayer(OwmapDocument& document, std::size_t from_index, std::size_t to_index);
+bool eraseTileLayer(OwmapDocument& document, std::size_t layer_index);
 bool moveModel(
     OwmapDocument& document,
     std::size_t metadata_index,

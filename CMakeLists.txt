@@ -324,7 +324,10 @@ endif()
 
 enable_testing()
 
-add_subdirectory(tools/map_maker)
+# Keep the standalone authoring application out of the normal game build.  The
+# target still exists and can be built explicitly by `./pkr mapbuilder`, but a
+# regular `./pkr build` neither compiles nor links editor-only ImGui/tool code.
+add_subdirectory(tools/map_maker EXCLUDE_FROM_ALL)
 
 add_executable(resort_storage_tests
     tests/native/resort/storage_import_tests.cpp

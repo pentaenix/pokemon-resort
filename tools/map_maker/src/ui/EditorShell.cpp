@@ -5,9 +5,7 @@
 #include <imgui/imgui.h>
 
 #include <algorithm>
-#include <cctype>
 #include <cmath>
-#include <cstring>
 
 namespace pr::mapmaker {
 namespace {
@@ -17,29 +15,6 @@ constexpr float kMapTabsHeight = 35.0f;
 constexpr float kStatusHeight = 26.0f;
 constexpr float kSplitterWidth = 5.0f;
 constexpr float kContextHeight = 41.0f;
-
-bool containsInsensitive(const std::string& value, const char* filter) {
-    if (!filter || !*filter) return true;
-    std::string haystack = value;
-    std::string needle = filter;
-    std::transform(haystack.begin(), haystack.end(), haystack.begin(), [](unsigned char c) {
-        return static_cast<char>(std::tolower(c));
-    });
-    std::transform(needle.begin(), needle.end(), needle.begin(), [](unsigned char c) {
-        return static_cast<char>(std::tolower(c));
-    });
-    return haystack.find(needle) != std::string::npos;
-}
-
-const char* assetKindLabel(AssetKind kind) {
-    switch (kind) {
-        case AssetKind::Tile: return "Tiles";
-        case AssetKind::Door: return "Doors";
-        case AssetKind::Model: return "Objects";
-        case AssetKind::SmartSet: return "Smart";
-    }
-    return "Assets";
-}
 
 const char* selectionKindLabel(InspectorSelectionKind kind) {
     switch (kind) {
@@ -120,7 +95,8 @@ EditorUiEvents EditorShell::draw(EditorUiModel& model) {
 
     const float center_width = std::max(200.0f,
         ImGui::GetContentRegionAvail().x - right_panel_width_ - kSplitterWidth);
-    ImGui::BeginChild("##center", ImVec2(center_width, content_height), true);
+    ImGui::BeginChild("##center", ImVec2(center_width, content_height), true,
+        ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     drawContextBar(model, events);
     drawViewport(model, events);
     ImGui::EndChild();
@@ -149,6 +125,14 @@ EditorUiEvents EditorShell::draw(EditorUiModel& model) {
         ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_D)) events.duplicate_selection = true;
     if (model.selection.kind != InspectorSelectionKind::None &&
         ImGui::Shortcut(ImGuiKey_F)) events.focus_selection = true;
+    if (!ImGui::GetIO().WantTextInput) {
+        if (ImGui::Shortcut(ImGuiKey_Q)) events.activate_tool = EditorTool::Select;
+        if (ImGui::Shortcut(ImGuiKey_B)) events.activate_tool = EditorTool::Paint;
+        if (ImGui::Shortcut(ImGuiKey_E)) events.activate_tool = EditorTool::EraseLayer;
+        if (ImGui::Shortcut(ImGuiKey_C)) events.activate_tool = EditorTool::ClearCell;
+        if (ImGui::Shortcut(ImGuiKey_H)) events.activate_tool = EditorTool::Height;
+        if (ImGui::Shortcut(ImGuiKey_X)) events.activate_tool = EditorTool::Collision;
+    }
     ImGui::End();
     return events;
 }
@@ -159,9 +143,7 @@ void EditorShell::drawHeader(EditorUiModel& model, EditorUiEvents& events) {
     ImGui::TextUnformatted("POKEMON RESORT");
     ImGui::SameLine();
     ImGui::TextDisabled("Map Maker  /  %s%s", model.project_name.c_str(), model.dirty ? "  *" : "");
-    ImGui::SameLine(ImGui::GetWindowWidth() - 486.0f);
-    if (ImGui::Button("Open")) events.open_project = true;
-    ImGui::SameLine();
+    ImGui::SameLine(ImGui::GetWindowWidth() - 420.0f);
     ImGui::BeginDisabled(!model.can_undo);
     if (ImGui::Button("Undo")) events.undo = true;
     ImGui::EndDisabled();
@@ -193,132 +175,78 @@ void EditorShell::drawMapTabs(EditorUiModel& model, EditorUiEvents& events) {
     ImGui::EndChild();
 }
 
-void EditorShell::drawAssetBrowser(
-    EditorUiModel& model, EditorUiEvents& events, float) {
-    ImGui::TextUnformatted("Assets");
-    ImGui::SetNextItemWidth(-1.0f);
-    ImGui::InputTextWithHint("##asset_search", "Search tiles, objects, doors...", search_, sizeof(search_));
-
-    bool first_kind = true;
-    for (AssetKind kind : {AssetKind::Tile, AssetKind::Door, AssetKind::Model, AssetKind::SmartSet}) {
-        if (!first_kind) ImGui::SameLine();
-        first_kind = false;
-        if (model.active_asset_kind == kind) {
-            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.17f, 0.46f, 0.63f, 1.0f));
-        }
-        if (ImGui::Button(assetKindLabel(kind))) events.activate_asset_kind = kind;
-        if (model.active_asset_kind == kind) ImGui::PopStyleColor();
-    }
-
-    if ((model.active_asset_kind == AssetKind::Tile || model.active_asset_kind == AssetKind::Door) &&
-        !model.tile_categories.empty()) {
-        ImGui::SetNextItemWidth(-1.0f);
-        if (ImGui::BeginCombo("##category", model.active_category.empty() ? "All tile sets" : model.active_category.c_str())) {
-            if (ImGui::Selectable("All tile sets", model.active_category.empty())) {
-                events.activate_category = std::string{};
-            }
-            for (const std::string& category : model.tile_categories) {
-                if (ImGui::Selectable(category.c_str(), model.active_category == category)) {
-                    events.activate_category = category;
-                }
-            }
-            ImGui::EndCombo();
-        }
-    }
-    ImGui::Separator();
-
-    std::vector<const AssetView*> filtered;
-    filtered.reserve(model.assets.size());
-    for (const AssetView& asset : model.assets) {
-        if (asset.kind != model.active_asset_kind) continue;
-        if (!model.active_category.empty() && asset.category != model.active_category) continue;
-        if (!containsInsensitive(asset.name, search_) && !containsInsensitive(asset.id, search_)) continue;
-        filtered.push_back(&asset);
-    }
-
-    constexpr float card_width = 76.0f;
-    constexpr float card_height = 100.0f;
-    const int columns = std::max(1, static_cast<int>(ImGui::GetContentRegionAvail().x / card_width));
-    const int rows = static_cast<int>((filtered.size() + static_cast<std::size_t>(columns) - 1U) /
-        static_cast<std::size_t>(columns));
-    ImGuiListClipper clipper;
-    clipper.Begin(rows, card_height);
-    while (clipper.Step()) {
-        for (int row = clipper.DisplayStart; row < clipper.DisplayEnd; ++row) {
-            for (int column = 0; column < columns; ++column) {
-                const std::size_t index = static_cast<std::size_t>(row * columns + column);
-                if (index >= filtered.size()) break;
-                if (column > 0) ImGui::SameLine();
-                const AssetView& asset = *filtered[index];
-                ImGui::PushID(asset.id.c_str());
-                ImGui::BeginGroup();
-                const bool selected = model.active_asset_id == asset.id;
-                if (selected) ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.17f, 0.46f, 0.63f, 1.0f));
-                std::uint16_t texture = UINT16_MAX;
-                if ((asset.kind == AssetKind::Tile || asset.kind == AssetKind::Door) &&
-                    model.tile_thumbnail) {
-                    texture = model.tile_thumbnail(asset.tile_id);
-                }
-                bool clicked = false;
-                if (texture != UINT16_MAX) {
-                    bgfx::TextureHandle handle{texture};
-                    clicked = ImGui::ImageButton(handle, ImVec2(60.0f, 60.0f));
-                } else {
-                    const std::string badge = asset.door ? "DOOR" : asset.kind == AssetKind::Model ? "OBJ" : "SMART";
-                    clicked = ImGui::Button(badge.c_str(), ImVec2(60.0f, 60.0f));
-                }
-                if (selected) ImGui::PopStyleColor();
-                if (clicked) events.activate_asset_id = asset.id;
-                const std::string short_name = asset.name.size() > 12 ? asset.name.substr(0, 11) + "..." : asset.name;
-                ImGui::TextUnformatted(short_name.c_str());
-                ImGui::EndGroup();
-                if (ImGui::IsItemHovered()) {
-                    ImGui::SetTooltip("%s\n%d x %d%s", asset.name.c_str(), asset.footprint_width,
-                        asset.footprint_height, asset.door ? "\nAnimated door" : "");
-                }
-                ImGui::PopID();
-            }
-        }
-    }
-}
-
 void EditorShell::drawContextBar(EditorUiModel& model, EditorUiEvents& events) {
     ImGui::BeginChild("##context", ImVec2(0.0f, kContextHeight), false);
     ImGui::AlignTextToFramePadding();
-    if (ImGui::Button("Select / move")) events.inspect_mode = true;
-    ImGui::SameLine();
-    ImGui::Text("%s", model.active_tool_text.c_str());
-    ImGui::SameLine();
-    ImGui::TextDisabled("Click to select / drag to move / choose a tile to paint");
-    if (!model.layers.empty()) {
-        ImGui::SameLine();
-        const auto active = std::find_if(model.layers.begin(), model.layers.end(),
-            [](const LayerView& layer) { return layer.active; });
-        const char* preview = active == model.layers.end() ? "Layer" : active->name.c_str();
-        ImGui::SetNextItemWidth(126.0f);
-        if (ImGui::BeginCombo("##active_layer", preview)) {
-            for (const LayerView& layer : model.layers) {
-                const std::string label = layer.name + (layer.visible ? "" : " (hidden)") +
-                    "##" + std::to_string(layer.index);
-                if (ImGui::Selectable(label.c_str(), layer.active)) {
-                    events.activate_layer_index = layer.index;
-                }
-            }
-            ImGui::EndCombo();
+    const auto toolButton = [&](const char* label, EditorTool tool) {
+        if (model.active_tool == tool) {
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.17f, 0.46f, 0.63f, 1.0f));
         }
+        if (ImGui::Button(label, ImVec2(58.0f, 0.0f))) events.activate_tool = tool;
+        if (model.active_tool == tool) ImGui::PopStyleColor();
+        ImGui::SameLine();
+    };
+    toolButton("Select", EditorTool::Select);
+    toolButton("Paint", EditorTool::Paint);
+    toolButton("Erase", EditorTool::EraseLayer);
+    toolButton("Clear", EditorTool::ClearCell);
+    toolButton("Height", EditorTool::Height);
+    toolButton("Block", EditorTool::Collision);
+
+    if (model.active_tool == EditorTool::Height) {
+        int height = model.height_brush_value;
+        ImGui::SetNextItemWidth(74.0f);
+        if (ImGui::InputInt("##height_brush", &height, 1, 4)) {
+            events.height_brush_value = std::clamp(height, 0, 255);
+        }
+        ImGui::SameLine();
+    } else if (model.active_tool == EditorTool::Collision) {
+        bool blocked = model.collision_brush_value;
+        if (ImGui::Checkbox("Blocked", &blocked)) events.collision_brush_value = blocked;
+        ImGui::SameLine();
     }
-    ImGui::SameLine(ImGui::GetWindowWidth() - 390.0f);
-    if (ImGui::Button("Focus")) events.focus_selection = true;
+
+    ImGui::SameLine(ImGui::GetWindowWidth() - 248.0f);
+    const auto modeButton = [&](const char* label, EditorViewMode mode, float width) {
+        if (model.view_mode == mode) {
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.17f, 0.46f, 0.63f, 1.0f));
+        }
+        if (ImGui::Button(label, ImVec2(width, 0.0f))) events.view_mode = mode;
+        if (model.view_mode == mode) ImGui::PopStyleColor();
+    };
+    modeButton("Top down", EditorViewMode::TopDown, 88.0f);
     ImGui::SameLine();
-    if (ImGui::Button(model.grid_overlay ? "Grid on" : "Grid off")) events.toggle_grid = true;
-    ImGui::SameLine();
-    if (ImGui::Button(model.collision_overlay ? "Collision on" : "Collision off")) events.toggle_collision = true;
-    ImGui::SameLine();
-    if (ImGui::Button(model.animations_enabled ? "Pause" : "Preview")) events.toggle_animations = true;
+    modeButton(model.preview_stale ? "Game preview *" : "Game preview",
+        EditorViewMode::GamePreview, 116.0f);
     ImGui::EndChild();
 }
 
 void EditorShell::drawViewport(EditorUiModel& model, EditorUiEvents& events) {
+    if (model.view_mode == EditorViewMode::TopDown) drawTopDownViewport(model, events);
+    else drawGameViewport(model, events);
+}
+
+void EditorShell::drawGameViewport(EditorUiModel& model, EditorUiEvents& events) {
+    if (ImGui::Button(model.animations_enabled ? "Pause animation" : "Play animation")) {
+        events.toggle_animations = true;
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Restart")) events.restart_animation = true;
+    ImGui::SameLine();
+    if (ImGui::Button(model.preview_stale ? "Refresh *" : "Refresh")) events.refresh_preview = true;
+    ImGui::SameLine();
+    if (ImGui::Button(model.grid_overlay ? "Grid on" : "Grid off")) events.toggle_grid = true;
+    ImGui::SameLine();
+    if (ImGui::Button(model.collision_overlay ? "Collision on" : "Collision off")) {
+        events.toggle_collision = true;
+    }
+    double animation_time = model.animation_time_seconds;
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(std::max(80.0f, ImGui::GetContentRegionAvail().x));
+    if (ImGui::DragScalar("##animation_time", ImGuiDataType_Double, &animation_time,
+        0.02f, nullptr, nullptr, "%.2f s")) {
+        events.animation_time_seconds = std::max(0.0, animation_time);
+    }
     const ImVec2 available = ImGui::GetContentRegionAvail();
     const float source_width = static_cast<float>(std::max(1, model.viewport_texture_width));
     const float source_height = static_cast<float>(std::max(1, model.viewport_texture_height));
@@ -384,6 +312,37 @@ void EditorShell::drawInspector(EditorUiModel& model, EditorUiEvents& events, fl
         ImGui::SameLine();
         if (ImGui::Button("Delete", ImVec2(80.0f, 0.0f))) events.delete_selection = true;
         ImGui::Separator();
+        if (model.selection.terrain_editable) {
+            int height = model.selection.height;
+            bool collision = model.selection.collision;
+            ImGui::SetNextItemWidth(-1.0f);
+            if (ImGui::InputInt("Height", &height, 1, 4)) {
+                events.set_cell_height = std::clamp(height, 0, 255);
+            }
+            constexpr std::array<std::pair<int, const char*>, 13> specials{{
+                {0, "Flat"}, {2, "Ramp north"}, {3, "Ramp east"},
+                {4, "Ramp south"}, {5, "Ramp west"}, {6, "Convex NE"},
+                {7, "Convex SE"}, {8, "Convex SW"}, {9, "Convex NW"},
+                {10, "Concave NE"}, {11, "Concave SE"}, {12, "Concave SW"},
+                {13, "Concave NW"}}};
+            const auto current_special = std::find_if(specials.begin(), specials.end(),
+                [&](const auto& value) { return value.first == model.selection.special; });
+            const char* special_label = current_special == specials.end()
+                ? "Unknown" : current_special->second;
+            ImGui::SetNextItemWidth(-1.0f);
+            if (ImGui::BeginCombo("Special", special_label)) {
+                for (const auto& [value, label] : specials) {
+                    if (ImGui::Selectable(label, value == model.selection.special)) {
+                        events.set_cell_special = value;
+                    }
+                }
+                ImGui::EndCombo();
+            }
+            if (ImGui::Checkbox("Collision blocked", &collision)) {
+                events.set_cell_collision = collision;
+            }
+            ImGui::Separator();
+        }
         if (ImGui::BeginTable("##properties", 2,
             ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_SizingStretchProp)) {
             ImGui::TableSetupColumn("Property", ImGuiTableColumnFlags_WidthFixed, 105.0f);

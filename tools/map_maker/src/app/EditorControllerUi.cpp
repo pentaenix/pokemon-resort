@@ -118,6 +118,7 @@ std::optional<std::size_t> EditorController::placedModelIndex(const SelectionIte
 
 EditorUiModel EditorController::buildUiModel(const FrameMetrics& metrics) {
     EditorUiModel model;
+    rebuildTopDownCache();
     model.project_name = workspace_->project().name();
     model.assets = asset_views_;
     model.tile_categories = tile_categories_;
@@ -128,11 +129,12 @@ EditorUiModel EditorController::buildUiModel(const FrameMetrics& metrics) {
             source && source->commands.isDirty(), workspace_->project().isReusedMap(entry.id)});
     }
     if (active_source) {
-        const auto layers = projectTileLayers(active_source->document);
-        if (!layers.empty()) active_layer_index_ = std::min(active_layer_index_, layers.size() - 1U);
-        for (std::size_t index = 0; index < layers.size(); ++index) {
-            model.layers.push_back({index, layers[index].id, layers[index].name,
-                index == active_layer_index_, layers[index].visible});
+        if (!cached_layers_.empty()) {
+            active_layer_index_ = std::min(active_layer_index_, cached_layers_.size() - 1U);
+        }
+        for (std::size_t index = 0; index < cached_layers_.size(); ++index) {
+            model.layers.push_back({index, cached_layers_[index].id, cached_layers_[index].name,
+                index == active_layer_index_, cached_layers_[index].visible});
         }
         model.can_undo = active_source->commands.canUndo();
         model.can_redo = active_source->commands.canRedo();
@@ -161,9 +163,15 @@ EditorUiModel EditorController::buildUiModel(const FrameMetrics& metrics) {
     model.active_asset_kind = active_asset_kind_;
     model.active_asset_id = active_asset_id_;
     model.active_category = active_category_;
-    model.active_tool_text = active_asset_id_.empty() ? "Move / inspect" : "Place " + active_asset_id_;
+    model.active_tool_text = active_asset_id_.empty() ? "Select" : "Place " + active_asset_id_;
+    model.active_tool = active_tool_;
+    model.view_mode = view_mode_;
+    model.height_brush_value = height_brush_value_;
+    model.collision_brush_value = collision_brush_value_;
     model.dirty = workspace_->dirty();
     model.animations_enabled = preview_->animationsEnabled();
+    model.animation_time_seconds = preview_->animationTimeSeconds();
+    model.preview_stale = preview_reload_pending_;
     model.grid_overlay = grid_overlay_;
     model.collision_overlay = collision_overlay_;
     model.fps = metrics.fps();
@@ -176,6 +184,19 @@ EditorUiModel EditorController::buildUiModel(const FrameMetrics& metrics) {
     model.viewport_origin_bottom_left = viewport_texture_.origin_bottom_left;
     model.status_text = status_;
     model.tile_thumbnail = [this](int tile_id) { return thumbnails_->textureForTile(tile_id); };
+    if (active_source) {
+        model.top_down.map_id = workspace_->activeMapId();
+        model.top_down.width = active_source->document.width();
+        model.top_down.height = active_source->document.height();
+        model.top_down.composed_tiles = composed_tiles_;
+        model.top_down.heights = active_source->document.heights();
+        model.top_down.specials = active_source->document.specials();
+        model.top_down.collision = active_source->document.collision();
+        model.top_down.markers = top_down_markers_;
+        model.top_down.focus_tile_x = top_down_focus_x_;
+        model.top_down.focus_tile_y = top_down_focus_y_;
+        model.top_down.focus_serial = top_down_focus_serial_;
+    }
     for (const ValidationDiagnostic& diagnostic : diagnostics_) {
         model.validation.push_back({severityName(diagnostic.severity), diagnostic.code,
             diagnostic.message});
@@ -191,6 +212,25 @@ EditorUiModel EditorController::buildUiModel(const FrameMetrics& metrics) {
             : InspectorSelectionKind::TerrainCell;
         model.selection.fields.push_back({"Map", primary->map_id, false});
         model.selection.fields.push_back({"Layer", std::to_string(primary->layer), false});
+        if (primary->kind == SelectionKind::TerrainCell && active_source &&
+            primary->tile_x >= 0 && primary->tile_y >= 0 &&
+            primary->tile_x < active_source->document.width() &&
+            primary->tile_y < active_source->document.height()) {
+            const auto x = static_cast<std::uint16_t>(primary->tile_x);
+            const auto y = static_cast<std::uint16_t>(primary->tile_y);
+            model.selection.terrain_editable = true;
+            model.selection.height = active_source->document.heightAt(x, y);
+            model.selection.special = active_source->document.specialAt(x, y);
+            model.selection.collision = active_source->document.collisionAt(x, y) != 0U;
+            int tile_id = -1;
+            if (active_layer_index_ < cached_layers_.size() &&
+                y < cached_layers_[active_layer_index_].cells.size() &&
+                x < cached_layers_[active_layer_index_].cells[y].size()) {
+                tile_id = cached_layers_[active_layer_index_].cells[y][x];
+            }
+            model.selection.fields.push_back({"Tile",
+                tile_id < 0 ? std::string("Empty") : std::to_string(tile_id), false});
+        }
         if (primary->kind == SelectionKind::DoorTrigger && active_source) {
             const MapValidationProjection projected = projectValidation(
                 active_source->document, active_source->key);

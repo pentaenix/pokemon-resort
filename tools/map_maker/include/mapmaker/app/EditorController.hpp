@@ -5,6 +5,7 @@
 #include "mapmaker/app/ProjectWorkspace.hpp"
 #include "mapmaker/assets/EditorAssetCatalog.hpp"
 #include "mapmaker/document/DocumentCommands.hpp"
+#include "mapmaker/document/MapMetadataEditing.hpp"
 #include "mapmaker/logging/StructuredLogger.hpp"
 #include "mapmaker/preview/ExactWorldPreview.hpp"
 #include "mapmaker/selection/SelectionModel.hpp"
@@ -37,6 +38,7 @@ public:
 
     bool previewReloadPending() const { return preview_reload_pending_; }
     bool reloadPreview();
+    bool gamePreviewVisible() const { return view_mode_ == EditorViewMode::GamePreview; }
     bool quitRequested() const { return quit_requested_; }
     const std::string& status() const { return status_; }
 
@@ -82,9 +84,20 @@ private:
     float previous_middle_y_ = 0.0f;
     bool middle_was_down_ = false;
     bool preview_reload_pending_ = false;
-    bool grid_overlay_ = false;
+    bool top_down_cache_dirty_ = true;
+    bool grid_overlay_ = true;
     bool collision_overlay_ = false;
     bool quit_requested_ = false;
+    EditorTool active_tool_ = EditorTool::Select;
+    EditorViewMode view_mode_ = EditorViewMode::TopDown;
+    int height_brush_value_ = 0;
+    bool collision_brush_value_ = true;
+    std::vector<int> composed_tiles_;
+    std::vector<TileLayerProjection> cached_layers_;
+    std::vector<TopDownMarkerView> top_down_markers_;
+    int top_down_focus_x_ = 0;
+    int top_down_focus_y_ = 0;
+    std::uint64_t top_down_focus_serial_ = 0;
     std::string status_ = "Ready";
 
     const AssetView* activeAsset(const std::vector<AssetView>& assets) const;
@@ -95,6 +108,8 @@ private:
     std::optional<std::pair<int, int>> pickCell(const ViewportGesture& gesture) const;
     SelectionItem selectionAt(int tile_x, int tile_y) const;
     void handleViewport(const ViewportGesture& gesture);
+    void handleLayerEvents(const EditorUiEvents& events);
+    void handleTerrainInspectorEvents(const EditorUiEvents& events);
     void handleTravelEvents(const EditorUiEvents& events);
     void commitPaint();
     void commitDrag();
@@ -105,6 +120,7 @@ private:
     void executeMutation(const std::string& label, OwmapMutationCommand::Mutation mutation);
     void refreshDiagnostics();
     void requestPreviewReload();
+    void rebuildTopDownCache();
     std::filesystem::path previewPath() const;
     void log(LogLevel level, const std::string& category, const std::string& message);
 };

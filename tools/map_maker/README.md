@@ -33,8 +33,12 @@ cmake --build build --target pokemon_resort_map_maker
 Launch the default project:
 
 ```bash
-./build/pokemon_resort_map_maker
+./pkr mapbuilder
 ```
+
+The map-maker subdirectory is `EXCLUDE_FROM_ALL`: `./pkr build` and the shipping
+game executable do not compile or link editor-only code. `./pkr mapbuilder`
+builds only the explicit standalone target and forwards additional arguments.
 
 The project is discovered in this order:
 
@@ -78,8 +82,8 @@ The window deliberately has one editing shell:
 
 - the top row owns project actions, undo/redo, validation, and save;
 - map tabs switch the focused map immediately;
-- the left browser searches tiles, objects, doors, and smart-set seeds;
-- the center is the exact game viewport plus a compact contextual toolbar;
+- the left browser owns tile layers plus searchable tiles, objects, doors, and smart sets;
+- the center switches between a fast top-down authoring grid and an exact game preview;
 - the right inspector describes the current selection and validation state;
 - the bottom status row exposes frame, input-latency, and rebuild metrics.
 
@@ -90,16 +94,22 @@ the file is loaded and saved only once.
 The normal interaction model is direct:
 
 - click a terrain cell, model, or door to inspect it;
-- drag a selected movable object or door to a snapped destination;
-- choose a tile asset, then drag in the viewport to paint;
-- middle-drag the viewport to pan and use the wheel to zoom;
-- use **Focus** (or `F`) to frame the current selection;
-- use **Preview/Pause** to opt into animation playback. Animations are frozen by
-  default so editing remains responsive and screenshots are deterministic.
+- drag models, doors, and anchors directly on the top-down grid;
+- choose a tile asset, then click-drag to paint on the active layer;
+- use **Erase** to clear only the active layer or **Clear** to remove everything
+  bound to a cell across terrain, layers, doors, and models;
+- use **Height** and **Block** brushes for elevation and collision; selecting a
+  cell also exposes exact height, ramp/corner special, and collision values;
+- create, rename, show/hide, reorder, and delete layers in the left panel;
+- middle-drag to pan and use the wheel to zoom only the hovered viewport;
+- use the visible one-cell halo around the map for cardinal outside door triggers;
+- switch to **Game preview** for the production renderer. It is read-only,
+  plays authored animation by default, and includes pause, restart, and time scrub.
 
-One pointer gesture produces one undo entry. Pointer hover and camera movement
-do not rebuild the scene; a committed data edit does. RTPKS thumbnails remain
-compressed until their cards are visible in the asset browser.
+One pointer gesture produces one undo entry. Top-down map switches and edits do
+not build a game scene. RTPKS thumbnails remain compressed until visible, tile
+composition is cached until the document changes, and only visible grid cells
+are drawn. Entering Game preview explicitly refreshes the production scene.
 
 ## Shortcuts
 
@@ -107,13 +117,19 @@ The primary modifier is Command on macOS and Ctrl on other platforms.
 
 | Action | Shortcut |
 | --- | --- |
-| Save active source | Primary+S |
+| Save all changed map sources | Primary+S |
 | Undo | Primary+Z |
 | Redo | Primary+Shift+Z or Primary+Y |
 | Duplicate selection | Primary+D |
 | Delete selection | Delete |
 | Focus selection | F |
 | Performance diagnostics | Primary+Shift+D |
+| Select | Q |
+| Paint selected asset | B |
+| Erase active layer | E |
+| Clear whole cell | C |
+| Paint height | H |
+| Paint collision | X |
 
 The **Delete** action is selection-driven rather than layer-driven: deleting a
 door or model does not require changing tools first. Project validation remains
@@ -144,8 +160,8 @@ build/map-maker-state/recovery/<map-id>.recovery.owmap
 
 These recovery files never silently replace authored maps. If a crash occurs,
 preserve the damaged source first, inspect the recovery copy, and promote it
-manually only after validation. A successful normal save removes the recovery
-copy for that source.
+manually only after validation. A successful project save removes the recovery
+copies for every source it saved.
 
 ## Logs And Diagnostics
 
@@ -181,7 +197,7 @@ Focused editor tests are registered with CTest from
 Run the tool tests through the normal suite:
 
 ```bash
-cmake --build build
+cmake --build build --target pokemon_resort_map_maker_tests
 ctest --test-dir build -L map_maker --output-on-failure
 ```
 

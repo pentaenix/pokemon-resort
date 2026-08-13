@@ -123,7 +123,18 @@ The editor is split by responsibility:
 - `preview/ExactWorldPreview` loads runtime scene data and delegates to `OverworldBgfxRenderer::renderEmbeddedViewport`;
 - `ui/EditorShell` consumes a UI model and emits editing intentions; it does not own document mutation.
 
-The embedded renderer returns its renderer-owned pixel-target texture without backbuffer composition or `bgfx::frame()`. The editor renders ImGui on a later view and owns the process's single frame advance. Preview animations use an explicit deterministic time and remain frozen by default. Pointer hover, selection, pan, zoom, and UI animation must not rebuild the world scene; rebuilds occur between ImGui frames after a document gesture commits.
+The default authoring surface is a cached, clipped top-down grid; it edits OWMAP
+cells without loading or resubmitting a 3D scene. The embedded renderer is a
+separate read-only game-preview mode and returns its renderer-owned pixel-target
+texture without backbuffer composition or `bgfx::frame()`. Preview animations
+use the same renderer and authored animation clocks as the game, with play,
+pause, restart, and time scrubbing in the editor. Map changes return to top-down
+mode immediately, and a game-preview scene is rebuilt only when that mode needs
+fresh data.
+
+`tools/map_maker` is added to CMake with `EXCLUDE_FROM_ALL`. Normal game builds
+do not compile editor-only ImGui, document, or UI targets; `./pkr mapbuilder`
+builds the explicit editor target and launches it.
 
 Unknown OWMAP metadata, collision spare bits, and trailing bytes must survive editor changes. Reused map entries retain separate project identity while sharing the same source document and history. Smart-object features must compile to normal runtime OWMAP/RTPKS data instead of adding editor logic to `gameplay/world3d`.
 

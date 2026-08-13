@@ -43,6 +43,8 @@ usage() {
         pkr run --openhome   Build (same as pkr run), then launch OpenHome UI instead of the game (see pkr openhome)
         pkr dev              Same as pkr run
         pkr build            Incremental CMake build only
+        pkr mapbuilder       Build and launch the standalone native map editor
+                             (extra arguments are passed to the editor)
         pkr build --bridge   CMake build, then PKHeX publish + OpenHome resort-bridge build
         pkr build --all      Full clean rebuild (removes build/, reconfigure, rebuild all)
         pkr build --all --bridge   Clean rebuild game + both bridges
@@ -300,6 +302,21 @@ pkr_build_all() {
     cmake -S "$PR_DIR" -B "$BUILD_DIR"
     echo "pkr: building all targets"
     cmake --build "$BUILD_DIR" "$(cmake_jobs)"
+}
+
+pkr_mapbuilder() {
+    ensure_pr_dir
+    warn_if_stray_repo_root_build
+    configure_if_needed
+    echo "pkr: building standalone Pokemon Resort Map Maker"
+    cmake --build "$BUILD_DIR" --target pokemon_resort_map_maker "$(cmake_jobs)"
+    local exe="$BUILD_DIR/pokemon_resort_map_maker"
+    if [[ ! -x "$exe" && ! -f "$exe" ]]; then
+        echo "pkr: expected map builder executable not found: $exe" >&2
+        exit 1
+    fi
+    echo "pkr: running $exe"
+    (cd "$PR_DIR" && exec "$exe" "$@")
 }
 
 # Same path resolution as SaveLibrary::savesDirectory() (project root parent / saves).
@@ -695,6 +712,10 @@ case "$cmd" in
             pkr_bridge
             pkr_bridge_openhome
         fi
+        ;;
+    mapbuilder|map-builder)
+        shift
+        pkr_mapbuilder "$@"
         ;;
     bridge-openhome)
         shift
