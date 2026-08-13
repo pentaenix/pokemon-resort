@@ -285,6 +285,8 @@ void EditorShell::drawAssetBrowser(
 void EditorShell::drawContextBar(EditorUiModel& model, EditorUiEvents& events) {
     ImGui::BeginChild("##context", ImVec2(0.0f, kContextHeight), false);
     ImGui::AlignTextToFramePadding();
+    if (ImGui::Button("Select / move")) events.inspect_mode = true;
+    ImGui::SameLine();
     ImGui::Text("%s", model.active_tool_text.c_str());
     ImGui::SameLine();
     ImGui::TextDisabled("Click to select / drag to move / choose a tile to paint");
@@ -398,7 +400,10 @@ void EditorShell::drawInspector(EditorUiModel& model, EditorUiEvents& events, fl
             ImGui::EndTable();
         }
         if (model.door_editor.active) drawDoorEditor(model, events);
+        drawSelectionPosition(model, events);
     }
+
+    drawTravelObjects(model, events);
 
     ImGui::Spacing();
     ImGui::SeparatorText("Validation");

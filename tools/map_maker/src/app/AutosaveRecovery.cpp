@@ -33,10 +33,9 @@ bool AutosaveRecovery::writeIfDue(
     bool dirty,
     std::string* error) {
     if (!dirty) return false;
-    const auto [found, inserted] = next_write_by_map_.try_emplace(
-        map_id, std::chrono::steady_clock::now() + interval_);
-    if (inserted) return false;
-    if (std::chrono::steady_clock::now() < found->second) return false;
+    const auto now = std::chrono::steady_clock::now();
+    const auto found = next_write_by_map_.try_emplace(map_id, now + interval_).first;
+    if (now < found->second) return false;
     return writeNow(map_id, document, error);
 }
 
