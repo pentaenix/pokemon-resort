@@ -90,6 +90,18 @@ struct RtpksTilePackage {
 };
 
 RtpksTilePackage loadRtpksTilePackage(const std::string& path, std::string* error = nullptr);
+// Loads only the authored meshes used by the requested stable resort tile ids,
+// plus the transitive material/texture resources required by those meshes.
+RtpksTilePackage loadRtpksTilePackageForTiles(
+    const std::string& path,
+    const std::vector<int>& resort_tile_ids,
+    std::string* error = nullptr);
+// Same selection as loadRtpksTilePackageForTiles, but skips image payloads.
+// This is intended for systems which only need authored animation metadata.
+RtpksTilePackage loadRtpksTileMetadataForTiles(
+    const std::string& path,
+    const std::vector<int>& resort_tile_ids,
+    std::string* error = nullptr);
 // Reads only runtime/manifest.json. Intended for gameplay tag/footprint queries;
 // it deliberately avoids decoding mesh JSON and texture/image payloads.
 RtpksTilePackage loadRtpksTileSemantics(const std::string& path, std::string* error = nullptr);

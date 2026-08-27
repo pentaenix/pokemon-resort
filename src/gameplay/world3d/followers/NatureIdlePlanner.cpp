@@ -1,5 +1,7 @@
 #include "gameplay/world3d/followers/NatureIdlePlanner.hpp"
 
+#include "gameplay/world3d/interiors/DefaultRoom.hpp"
+
 #include "gameplay/world3d/terrain/TerrainSurface.hpp"
 
 #include <algorithm>
@@ -117,7 +119,9 @@ struct Navigator {
         return static_cast<int>(scene.terrain.specials[static_cast<std::size_t>(y)][static_cast<std::size_t>(x)]);
     }
     bool blocked(int x, int y) const {
-        if (!inBounds(x, y) || scene.terrain.collision.empty()) return false;
+        if (!inBounds(x, y)) return false;
+        if (interiors::boundaryCellBlocked(scene, x, y)) return true;
+        if (scene.terrain.collision.empty()) return false;
         return scene.terrain.collision[static_cast<std::size_t>(y)][static_cast<std::size_t>(x)] != 0;
     }
     bool occupiedByNpc(int x, int y) const {

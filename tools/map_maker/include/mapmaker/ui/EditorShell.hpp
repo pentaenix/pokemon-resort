@@ -1,5 +1,7 @@
 #pragma once
 
+#include "mapmaker/interaction/PlayInputCapture.hpp"
+
 #include <array>
 #include <cstdint>
 #include <functional>
@@ -13,9 +15,37 @@ namespace pr::mapmaker {
 
 enum class AssetKind { Tile, Door, Model, SmartSet };
 enum class InspectorSelectionKind { None, TerrainCell, Tile, Model, Door, Anchor, Trigger };
-enum class EditorTool { Select, Paint, EraseLayer, ClearCell, Height, Collision };
-enum class EditorViewMode { TopDown, GamePreview };
+enum class EditorTool {
+    Select, Hand, Paint, EraseLayer, ClearCell, Height, Collision,
+    Objects, Doors, Anchors, Regions, SmartObjects, Eyedropper, Chunks,
+};
+enum class EditorViewMode { World, TopDown, GamePreview };
 enum class TopDownMarkerKind { Model, Door, Anchor };
+
+struct WorldMapNodeView {
+    std::string id;
+    std::string name;
+    std::string type;
+    int grid_x = 0;
+    int grid_y = 0;
+    int width = 0;
+    int height = 0;
+    int door_count = 0;
+    int error_count = 0;
+    bool active = false;
+    bool dirty = false;
+    bool shared_source = false;
+    bool linked = true;
+};
+
+struct WorldConnectionView {
+    std::string source_map_id;
+    std::string source_door_id;
+    std::string destination_map_id;
+    std::string destination_anchor_id;
+    bool broken = false;
+    bool reciprocal = false;
+};
 
 struct MapTabView {
     std::string id;
@@ -58,7 +88,10 @@ struct SelectionView {
     int tile_y = -1;
     int height = 0;
     int special = 0;
+    std::string spawn_tile_use;
+    std::string anchor_facing;
     bool collision = false;
+    bool automatic_collision = false;
     bool terrain_editable = false;
     std::vector<InspectorField> fields;
 };
@@ -69,6 +102,17 @@ struct TopDownMarkerView {
     int tile_x = 0;
     int tile_y = 0;
     bool selected = false;
+    float center_tile_x = 0.5f;
+    float center_tile_y = 0.5f;
+    float projected_width_tiles = 0.0f;
+    float projected_depth_tiles = 0.0f;
+    std::vector<std::array<float, 2>> model_outline_tiles;
+};
+
+struct TopDownOpeningView {
+    std::string edge;
+    int from = 0;
+    int to = 0;
 };
 
 struct TopDownMapView {
@@ -76,10 +120,19 @@ struct TopDownMapView {
     int width = 0;
     int height = 0;
     std::span<const int> composed_tiles;
+    std::span<const int> active_layer_tiles;
     std::span<const std::uint8_t> heights;
     std::span<const std::uint8_t> specials;
     std::span<const std::uint8_t> collision;
+    std::span<const std::uint8_t> automatic_collision;
     std::span<const TopDownMarkerView> markers;
+    bool default_interior_room = false;
+    float default_wall_height_tiles = 4.0f;
+    int default_room_inset_tiles = 1;
+    float default_wall_offset_tiles = 0.5f;
+    float default_entry_extension_depth_tiles = 0.0f;
+    bool default_room_black_top_cap = true;
+    std::vector<TopDownOpeningView> interior_openings;
     int focus_tile_x = 0;
     int focus_tile_y = 0;
     std::uint64_t focus_serial = 0;
@@ -97,6 +150,8 @@ struct DoorEditorView {
     std::string destination_anchor_id;
     std::string direction;
     std::string script_id;
+    bool automatic_arrival = false;
+    std::string automatic_arrival_label;
     std::vector<ChoiceView> map_choices;
     std::vector<ChoiceView> anchor_choices;
     std::vector<ChoiceView> script_choices;
@@ -135,6 +190,8 @@ struct EditorUiModel {
     std::vector<TravelObjectView> placed_anchors;
     std::vector<ValidationView> validation;
     TopDownMapView top_down;
+    std::vector<WorldMapNodeView> world_maps;
+    std::vector<WorldConnectionView> world_connections;
 
     std::uint16_t viewport_texture = UINT16_MAX;
     int viewport_texture_width = 0;
@@ -162,10 +219,34 @@ struct EditorUiModel {
     int height_brush_value = 0;
     bool collision_brush_value = true;
     EditorTool active_tool = EditorTool::Select;
-    EditorViewMode view_mode = EditorViewMode::TopDown;
+    EditorViewMode view_mode = EditorViewMode::World;
 
     // Called only for visible tile cards, enabling lazy thumbnail decode/upload.
     std::function<std::uint16_t(int)> tile_thumbnail;
+};
+
+struct MapMoveRequest {
+    std::string map_id;
+    int grid_x = 0;
+    int grid_y = 0;
+};
+
+struct MapResizeRequest {
+    int width = 1;
+    int height = 1;
+};
+
+struct NewMapRequest {
+    std::string source_map_id;
+    std::string id;
+    std::string name;
+    std::string type = "exterior";
+    int direction_x = 0;
+    int direction_y = 0;
+    int width = 32;
+    int height = 32;
+    std::string reuse_source_map_id;
+    bool linked = true;
 };
 
 struct ViewportGesture {
@@ -188,6 +269,7 @@ struct ViewportGesture {
 
 struct EditorUiEvents {
     std::optional<std::string> activate_map_id;
+    std::optional<std::string> select_world_map_id;
     std::optional<std::string> activate_asset_id;
     std::optional<AssetKind> activate_asset_kind;
     std::optional<std::string> activate_category;
@@ -198,6 +280,7 @@ struct EditorUiEvents {
     std::optional<bool> collision_brush_value;
     std::optional<int> set_cell_height;
     std::optional<int> set_cell_special;
+    std::optional<std::string> set_spawn_tile_use;
     std::optional<bool> set_cell_collision;
     std::optional<double> animation_time_seconds;
     std::optional<std::pair<std::size_t, std::string>> rename_layer;
@@ -206,9 +289,13 @@ struct EditorUiEvents {
     std::optional<std::string> door_destination_anchor_id;
     std::optional<std::string> door_direction;
     std::optional<std::string> door_script_id;
+    std::optional<std::string> anchor_facing;
     std::optional<std::string> select_door_id;
     std::optional<std::string> select_anchor_id;
     std::optional<std::pair<int, int>> move_selection_tile;
+    std::optional<MapMoveRequest> move_map;
+    std::optional<MapResizeRequest> resize_map;
+    std::optional<NewMapRequest> create_map;
     bool save = false;
     bool undo = false;
     bool redo = false;
@@ -228,6 +315,12 @@ struct EditorUiEvents {
     bool refresh_preview = false;
     bool restart_animation = false;
     bool add_anchor_at_selection = false;
+    bool add_south_entry_anchors = false;
+    bool play_reset = false;
+    bool play_start_from_selection = false;
+    bool play_focus_player = false;
+    int play_move_x = 0;
+    int play_move_y = 0;
     ViewportGesture viewport;
 };
 
@@ -236,8 +329,8 @@ public:
     EditorUiEvents draw(EditorUiModel& model);
 
 private:
-    float left_panel_width_ = 286.0f;
-    float right_panel_width_ = 318.0f;
+    float right_panel_width_ = 390.0f;
+    float inspector_split_ = 0.58f;
     char search_[128]{};
     bool diagnostics_open_ = false;
     bool validation_open_ = false;
@@ -247,14 +340,45 @@ private:
     bool top_down_pan_initialized_ = false;
     std::string top_down_map_id_;
     std::uint64_t top_down_focus_serial_ = 0;
+    std::string resize_map_id_;
+    int resize_width_ = 1;
+    int resize_height_ = 1;
+    int resize_observed_width_ = 0;
+    int resize_observed_height_ = 0;
     std::array<char, 96> layer_name_{};
     std::size_t layer_name_index_ = static_cast<std::size_t>(-1);
+    float world_zoom_ = 1.0f;
+    float world_pan_x_ = 0.0f;
+    float world_pan_y_ = 0.0f;
+    bool world_initialized_ = false;
+    std::string world_drag_map_id_;
+    int world_drag_start_x_ = 0;
+    int world_drag_start_y_ = 0;
+    int world_drag_current_x_ = 0;
+    int world_drag_current_y_ = 0;
+    bool create_map_popup_ = false;
+    NewMapRequest pending_new_map_;
+    std::array<char, 96> new_map_id_{};
+    std::array<char, 128> new_map_name_{};
+    std::array<char, 128> world_search_{};
+    PlayInputCapture play_input_;
 
     void drawHeader(EditorUiModel& model, EditorUiEvents& events);
     void drawMapTabs(EditorUiModel& model, EditorUiEvents& events);
     void drawAssetBrowser(EditorUiModel& model, EditorUiEvents& events, float height);
+    void drawToolRail(EditorUiModel& model, EditorUiEvents& events, float height);
+    void drawToolPanel(EditorUiModel& model, EditorUiEvents& events, float height);
+    void drawSelectionInspector(EditorUiModel& model, EditorUiEvents& events, float height);
     void drawContextBar(EditorUiModel& model, EditorUiEvents& events);
     void drawViewport(EditorUiModel& model, EditorUiEvents& events);
+    void drawWorldViewport(EditorUiModel& model, EditorUiEvents& events);
+    void beginWorldMapCreation(
+        const EditorUiModel& model,
+        std::string source_map_id = {},
+        int direction_x = 0,
+        int direction_y = 0,
+        const char* direction_name = nullptr);
+    void drawWorldMapCreationModal(EditorUiModel& model, EditorUiEvents& events);
     void drawTopDownViewport(EditorUiModel& model, EditorUiEvents& events);
     void drawGameViewport(EditorUiModel& model, EditorUiEvents& events);
     void drawInspector(EditorUiModel& model, EditorUiEvents& events, float height);

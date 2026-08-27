@@ -31,6 +31,16 @@ DoorDestinationTuning parseDestinationTuning(
     return fallback;
 }
 
+FacingDirection opposite(FacingDirection direction) {
+    switch (direction) {
+        case FacingDirection::North: return FacingDirection::South;
+        case FacingDirection::South: return FacingDirection::North;
+        case FacingDirection::East: return FacingDirection::West;
+        case FacingDirection::West: return FacingDirection::East;
+    }
+    return FacingDirection::South;
+}
+
 } // namespace
 
 FacingDirection directionForStep(int dx, int dy) {
@@ -158,20 +168,59 @@ std::optional<DoorDestination> resolveDoorDestination(
     const auto link = std::find_if(hit.chunk->scene.links.begin(), hit.chunk->scene.links.end(), [&](const MapLinkConfig& item) {
         return item.id == hit.trigger->link_id;
     });
-    if (link == hit.chunk->scene.links.end()) return std::nullopt;
+    if (link == hit.chunk->scene.links.end() || link->destination_map_id.empty()) {
+        return std::nullopt;
+    }
     const auto destination_chunk = std::find_if(chunks.begin(), chunks.end(), [&](const characters::LoadedWorldChunk& item) {
         return item.id == link->destination_map_id || item.scene.id == link->destination_map_id;
     });
     if (destination_chunk == chunks.end()) return std::nullopt;
-    const auto anchor = std::find_if(destination_chunk->scene.anchors.begin(), destination_chunk->scene.anchors.end(), [&](const MapAnchorConfig& item) {
+    auto anchor = std::find_if(destination_chunk->scene.anchors.begin(), destination_chunk->scene.anchors.end(), [&](const MapAnchorConfig& item) {
         return item.id == link->destination_anchor_id;
     });
-    if (anchor == destination_chunk->scene.anchors.end()) return std::nullopt;
+    if (anchor == destination_chunk->scene.anchors.end() &&
+        destination_chunk->scene.anchors.size() == 1U) {
+        anchor = destination_chunk->scene.anchors.begin();
+    }
+    if (anchor != destination_chunk->scene.anchors.end()) {
+        const bool inside = anchor->tile_x >= 0 && anchor->tile_y >= 0 &&
+        anchor->tile_x < destination_chunk->scene.grid.width &&
+        anchor->tile_y < destination_chunk->scene.grid.height;
+        if (!inside && !isCardinalHaloTile(
+            destination_chunk->scene.grid.width,
+            destination_chunk->scene.grid.height,
+            anchor->tile_x,
+            anchor->tile_y)) {
+            return std::nullopt;
+        }
+        return DoorDestination{
+            &*destination_chunk,
+            destination_chunk->origin_tile_x + anchor->tile_x,
+            destination_chunk->origin_tile_y + anchor->tile_y,
+            anchor->facing};
+    }
+
+    // A map with one doorway has an unambiguous arrival even when the author did
+    // not create a redundant anchor. Arrive on the trigger and face back into the
+    // map, ready for the script's one-tile forced movement.
+    if (destination_chunk->scene.door_triggers.size() != 1U) return std::nullopt;
+    const DoorTriggerConfig& door = destination_chunk->scene.door_triggers.front();
+    if (door.allowed_directions.size() != 1U) return std::nullopt;
+    const bool inside = door.tile_x >= 0 && door.tile_y >= 0 &&
+        door.tile_x < destination_chunk->scene.grid.width &&
+        door.tile_y < destination_chunk->scene.grid.height;
+    if (!inside && !isCardinalHaloTile(
+        destination_chunk->scene.grid.width,
+        destination_chunk->scene.grid.height,
+        door.tile_x,
+        door.tile_y)) {
+        return std::nullopt;
+    }
     return DoorDestination{
         &*destination_chunk,
-        destination_chunk->origin_tile_x + anchor->tile_x,
-        destination_chunk->origin_tile_y + anchor->tile_y,
-        anchor->facing};
+        destination_chunk->origin_tile_x + door.tile_x,
+        destination_chunk->origin_tile_y + door.tile_y,
+        opposite(door.allowed_directions.front())};
 }
 
 const scripts::OverworldScript* findDoorScript(
@@ -183,8 +232,14 @@ const scripts::OverworldScript* findDoorScript(
     return script == catalog.scripts.end() ? nullptr : &*script;
 }
 
-bool DoorSequenceController::start(const scripts::OverworldScript* script, DoorTriggerHit hit) {
-    if (!script || script->kind != scripts::ScriptKind::Door || !hit.trigger || !hit.chunk) return false;
+bool DoorSequenceController::start(
+    const scripts::OverworldScript* script,
+    DoorTriggerHit hit,
+    const std::vector<characters::LoadedWorldChunk>& chunks) {
+    if (!script || script->kind != scripts::ScriptKind::Door || !hit.trigger || !hit.chunk ||
+        !resolveDoorDestination(chunks, hit)) {
+        return false;
+    }
     script_ = script;
     hit_chunk_ = *hit.chunk;
     hit_trigger_ = *hit.trigger;

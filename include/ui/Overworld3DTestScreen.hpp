@@ -16,6 +16,9 @@
 #include "gameplay/world3d/interactions/InteractionSequence.hpp"
 #include "gameplay/world3d/interactions/InteractionText.hpp"
 #include "gameplay/world3d/npc/NpcActorDriver.hpp"
+#include "gameplay/world3d/aquarium/AquariumConfig.hpp"
+#include "gameplay/world3d/aquarium/AquariumInspectionCamera.hpp"
+#include "gameplay/world3d/aquarium/AquariumSimulation.hpp"
 #include "gameplay/world3d/rendering/BillboardSpriteRenderer.hpp"
 #include "gameplay/world3d/rendering/GlbModelRenderer.hpp"
 #include "gameplay/world3d/rendering/OverworldMapRenderer.hpp"
@@ -29,6 +32,7 @@
 #include <memory>
 #include <optional>
 #include <random>
+#include <future>
 #include <string>
 #include <vector>
 
@@ -68,14 +72,16 @@ public:
     bool consumeOpenAttendRequested();
     std::optional<gameplay::attend::AttendLaunchContext> consumeAttendLaunchContext();
     void resumeFromAttend();
+    void beginBackgroundPreload();
     void prepareForLaunch();
     void shutdownBgfx();
     void resetForNextLaunch();
 
 private:
-    void initializeSceneState();
+    void initializeSceneState(bool reload_primary_scene = true);
     void ensurePlacedModelsLoaded();
     void reloadFollowCameraPresetConfig();
+    void captureFreeCameraPose();
     std::vector<gameplay::world3d::characters::LoadedWorldChunk> buildLoadedWorldChunks() const;
     void rebuildActiveWorldChunks();
     bool activateWorldMap(const gameplay::world3d::characters::LoadedWorldChunk& chunk);
@@ -145,7 +151,13 @@ private:
     std::unique_ptr<gameplay::world3d::followers::FollowerController> follower_controller_;
     std::unique_ptr<gameplay::world3d::effects::LandingDustSystem> landing_dust_system_;
     std::unique_ptr<gameplay::world3d::effects::ProceduralWaterParticleSystem> water_particle_system_;
+    std::future<gameplay::world3d::SceneConfig> scene_preload_{};
+    bool scene_initialized_ = false;
     std::unique_ptr<gameplay::world3d::npc::NpcActorDriver> npc_actor_driver_;
+    gameplay::world3d::aquarium::AquariumCatalog aquarium_catalog_{};
+    std::unique_ptr<gameplay::world3d::aquarium::AquariumSimulation> aquarium_simulation_;
+    std::unique_ptr<gameplay::world3d::aquarium::AquariumInspectionCamera>
+        aquarium_inspection_camera_;
     gameplay::world3d::dialogue::OverworldTextboxConfig textbox_config_{};
     gameplay::world3d::dialogue::OverworldTextboxController textbox_controller_{};
     std::unique_ptr<gameplay::world3d::dialogue::OverworldTextboxRenderer> textbox_renderer_;

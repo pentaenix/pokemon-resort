@@ -28,6 +28,18 @@ void EditorController::handleTravelEvents(const EditorUiEvents& events) {
     if (!source) return;
 
     auto projection = projectValidation(source->document, source->key);
+    if (events.add_south_entry_anchors) {
+        executeMutation("Add south entry anchors", [](OwmapDocument& document) {
+            (void)addSouthEntryAnchors(document);
+        });
+        projection = projectValidation(source->document, source->key);
+        const auto center = std::find_if(projection.anchors.begin(), projection.anchors.end(),
+            [](const AnchorProjection& anchor) { return anchor.id == "entry"; });
+        if (center != projection.anchors.end()) {
+            selection_.select({SelectionKind::Anchor, workspace_->activeMapId(), center->id,
+                center->tile_x, center->tile_y, static_cast<int>(active_layer_index_)});
+        }
+    }
     if (events.select_door_id) {
         const auto found = std::find_if(projection.doors.begin(), projection.doors.end(),
             [&](const DoorProjection& door) { return door.id == *events.select_door_id; });
@@ -61,6 +73,18 @@ void EditorController::handleTravelEvents(const EditorUiEvents& events) {
             [&](const AnchorProjection& anchor) { return anchor.id == id; })) {
             selection_.select({SelectionKind::Anchor, workspace_->activeMapId(), id, x, y,
                 static_cast<int>(active_layer_index_)});
+        }
+    }
+
+    if (events.anchor_facing) {
+        const auto selected = selection_.primary();
+        if (selected && selected->kind == SelectionKind::Anchor) {
+            executeMutation("Set anchor facing",
+                [id = selected->object_id, facing = *events.anchor_facing](
+                    OwmapDocument& document) {
+                    (void)setAnchorFacing(document, id, facing);
+                });
+            projection = projectValidation(source->document, source->key);
         }
     }
 

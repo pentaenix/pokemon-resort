@@ -94,6 +94,10 @@ struct UvVert {
     float depth = 0.0f;
     float u = 0.0f;
     float v = 0.0f;
+    float r = 1.0f;
+    float g = 1.0f;
+    float b = 1.0f;
+    float a = 1.0f;
 };
 
 UvVert lerpVert(const UvVert& a, const UvVert& b, float t) {
@@ -103,6 +107,10 @@ UvVert lerpVert(const UvVert& a, const UvVert& b, float t) {
         a.depth + (b.depth - a.depth) * t,
         a.u + (b.u - a.u) * t,
         a.v + (b.v - a.v) * t,
+        a.r + (b.r - a.r) * t,
+        a.g + (b.g - a.g) * t,
+        a.b + (b.b - a.b) * t,
+        a.a + (b.a - a.a) * t,
     };
 }
 
@@ -331,10 +339,6 @@ void GlbModelRenderer::render(
     ensureTextures(renderer);
 
     const float br = std::max(0.0f, brightness);
-    const Uint8 cr = toByte(tint_r * br);
-    const Uint8 cg = toByte(tint_g * br);
-    const Uint8 cb = toByte(tint_b * br);
-
     struct DrawTri {
         SDL_Vertex v[3];
         float depth = 0.0f;
@@ -349,12 +353,13 @@ void GlbModelRenderer::render(
         std::chrono::steady_clock::now().time_since_epoch()).count();
     const std::vector<std::vector<float>> morph_weights =
         data::sampleGlbMorphWeights(mesh_, animation_time);
+    const std::vector<std::array<float, 4>> node_rotations =
+        data::sampleGlbNodeRotations(mesh_, animation_time);
 
     const auto project = [&](const data::GlbVertex& vtx, float& sx, float& sy, float& depth) -> bool {
         // model space -> scale -> yaw(+Y) -> translate(placement)
-        const std::array<float, 3> position = morph_weights.empty()
-            ? std::array<float, 3>{vtx.x, vtx.y, vtx.z}
-            : data::sampleGlbMorphPosition(vtx, morph_weights);
+        const std::array<float, 3> position = data::sampleGlbAnimatedPosition(
+            mesh_, vtx, morph_weights, node_rotations);
         const float lx = position[0] * scale_;
         const float ly = position[1] * scale_;
         const float lz = position[2] * scale_;
@@ -376,18 +381,17 @@ void GlbModelRenderer::render(
             const data::GlbMaterial& mat = mesh_.materials[static_cast<std::size_t>(tri.material)];
             uniform_decal = mat.render_class == data::GlbMaterial::RenderClass::UniformDecal;
         }
-        Uint8 mr = cr;
-        Uint8 mg = cg;
-        Uint8 mb = cb;
-        Uint8 ma = 255;
+        float material_r = 1.0f;
+        float material_g = 1.0f;
+        float material_b = 1.0f;
+        float material_a = 1.0f;
         if (tri.material >= 0 && tri.material < static_cast<int>(mesh_.materials.size())) {
             const data::GlbMaterial& mat = mesh_.materials[static_cast<std::size_t>(tri.material)];
-            mr = toByte(tint_r * br * mat.base_color[0]);
-            mg = toByte(tint_g * br * mat.base_color[1]);
-            mb = toByte(tint_b * br * mat.base_color[2]);
-            ma = toByte(mat.base_color[3]);
+            material_r = mat.base_color[0];
+            material_g = mat.base_color[1];
+            material_b = mat.base_color[2];
+            material_a = mat.base_color[3];
         }
-        const SDL_Color color{mr, mg, mb, ma};
 
         // SDL_RenderGeometry CLAMPS texcoords to [0,1]; it does NOT honour the glTF sampler's
         // REPEAT wrap. DS-ripped UVs routinely run outside [0,1] (a roof at v=1.15 that should
@@ -395,9 +399,9 @@ void GlbModelRenderer::render(
         // samples the wrong edge texel (black stains, smeared seams). We emulate REPEAT exactly
         // by clipping each triangle against the integer UV grid and re-basing every resulting
         // piece into [0,1): each piece lives in a single texture tile, so the clamp is a no-op.
-        const UvVert va{x0, y0, d0, tri.a.u, tri.a.v};
-        const UvVert vb{x1, y1, d1, tri.b.u, tri.b.v};
-        const UvVert vc{x2, y2, d2, tri.c.u, tri.c.v};
+        const UvVert va{x0, y0, d0, tri.a.u, tri.a.v, tri.a.r, tri.a.g, tri.a.b, tri.a.a};
+        const UvVert vb{x1, y1, d1, tri.b.u, tri.b.v, tri.b.r, tri.b.g, tri.b.b, tri.b.a};
+        const UvVert vc{x2, y2, d2, tri.c.u, tri.c.v, tri.c.r, tri.c.g, tri.c.b, tri.c.a};
         const int cuMin = static_cast<int>(std::floor(std::min({va.u, vb.u, vc.u})));
         const int cuMax = static_cast<int>(std::floor(std::max({va.u, vb.u, vc.u}) - 1e-4f));
         const int cvMin = static_cast<int>(std::floor(std::min({va.v, vb.v, vc.v})));
@@ -415,9 +419,16 @@ void GlbModelRenderer::render(
                 const float u2 = p2.u - ou;
                 const float v2 = p2.v - ov;
                 DrawTri dt;
-                dt.v[0] = SDL_Vertex{{p0.sx, p0.sy}, color, {u0, v0}};
-                dt.v[1] = SDL_Vertex{{p1.sx, p1.sy}, color, {u1, v1}};
-                dt.v[2] = SDL_Vertex{{p2.sx, p2.sy}, color, {u2, v2}};
+                const auto color = [&](const UvVert& point) {
+                    return SDL_Color{
+                        toByte(tint_r * br * material_r * point.r),
+                        toByte(tint_g * br * material_g * point.g),
+                        toByte(tint_b * br * material_b * point.b),
+                        toByte(material_a * point.a)};
+                };
+                dt.v[0] = SDL_Vertex{{p0.sx, p0.sy}, color(p0), {u0, v0}};
+                dt.v[1] = SDL_Vertex{{p1.sx, p1.sy}, color(p1), {u1, v1}};
+                dt.v[2] = SDL_Vertex{{p2.sx, p2.sy}, color(p2), {u2, v2}};
                 dt.depth = (p0.depth + p1.depth + p2.depth) / 3.0f;
                 dt.material = tri.material;
                 dt.cutout = cutout;

@@ -1,5 +1,8 @@
 #include "gameplay/world3d/rendering/FallbackTerrainRenderer.hpp"
 
+#include "gameplay/world3d/interiors/DefaultRoomGeometry.hpp"
+#include "gameplay/world3d/interiors/InteriorFloorCutout.hpp"
+#include "gameplay/world3d/rendering/InteriorDefaultRoom.hpp"
 #include "gameplay/world3d/terrain/TerrainSurface.hpp"
 
 #include <SDL.h>
@@ -7,6 +10,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <string_view>
 #include <vector>
 
 namespace pr::gameplay::world3d::rendering {
@@ -157,6 +161,7 @@ void renderFallbackTerrain(
         const float z0w = static_cast<float>(z) * tile_size;
         const float x1w = x0w + tile_size;
         const float z1w = z0w + tile_size;
+        const auto clip = interiors::clipDefaultRoomFloorCell(scene, x, z, tile_size);
         const int special = tile_special(x, z);
         const int auto_corner_mode = corner_curve_mode_for_auto_ramp(x, z);
         const int curve_mode = (special == 6 || special == 7) ? special : auto_corner_mode;
@@ -173,11 +178,17 @@ void renderFallbackTerrain(
             const float sign = (curve_mode == 6) ? 1.0f : -1.0f;
             constexpr int kSubdiv = 4;
             for (int iz = 0; iz < kSubdiv; ++iz) {
-                const float v0 = static_cast<float>(iz) / static_cast<float>(kSubdiv);
-                const float v1 = static_cast<float>(iz + 1) / static_cast<float>(kSubdiv);
+                const float v0 = std::max(clip.v0,
+                    static_cast<float>(iz) / static_cast<float>(kSubdiv));
+                const float v1 = std::min(clip.v1,
+                    static_cast<float>(iz + 1) / static_cast<float>(kSubdiv));
+                if (v1 <= v0) continue;
                 for (int ix = 0; ix < kSubdiv; ++ix) {
-                    const float u0 = static_cast<float>(ix) / static_cast<float>(kSubdiv);
-                    const float u1 = static_cast<float>(ix + 1) / static_cast<float>(kSubdiv);
+                    const float u0 = std::max(clip.u0,
+                        static_cast<float>(ix) / static_cast<float>(kSubdiv));
+                    const float u1 = std::min(clip.u1,
+                        static_cast<float>(ix + 1) / static_cast<float>(kSubdiv));
+                    if (u1 <= u0) continue;
                     const auto bilerp = [&](float u, float v) -> float {
                         const float a = corners[0] + ((corners[1] - corners[0]) * u);
                         const float b = corners[3] + ((corners[2] - corners[3]) * u);
@@ -200,22 +211,33 @@ void renderFallbackTerrain(
                 }
             }
         } else {
-            corner_heights(x, z, corners);
+            const float y00 = terrain::heightAtWorldPositionOnTile(
+                scene, clip.x0, clip.z0, x, z, true);
+            const float y10 = terrain::heightAtWorldPositionOnTile(
+                scene, clip.x1, clip.z0, x, z, true);
+            const float y11 = terrain::heightAtWorldPositionOnTile(
+                scene, clip.x1, clip.z1, x, z, true);
+            const float y01 = terrain::heightAtWorldPositionOnTile(
+                scene, clip.x0, clip.z1, x, z, true);
             push_quad_face(
-                x0w, corners[0], z0w,
-                x1w, corners[1], z0w,
-                x1w, corners[2], z1w,
-                x0w, corners[3], z1w,
+                clip.x0, y00, clip.z0,
+                clip.x1, y10, clip.z0,
+                clip.x1, y11, clip.z1,
+                clip.x0, y01, clip.z1,
                 color,
                 wire);
         }
     };
 
+    const bool default_interior_room = shouldRenderDefaultInteriorRoom(scene);
+    const auto& room = scene.interior.default_room;
     for (int z = 0; z < grid_h; ++z) {
         for (int x = 0; x < grid_w; ++x) {
             const bool checker = ((x + z) & 1) == 0;
             const bool slope = terrain::isSlopeSpecial(tile_special(x, z));
-            SDL_Color color = checker ? toSdlColor(scene.terrain.floor_color_a) : toSdlColor(scene.terrain.floor_color_b);
+            SDL_Color color = checker
+                ? toSdlColor(default_interior_room ? room.floor_color_a : scene.terrain.floor_color_a)
+                : toSdlColor(default_interior_room ? room.floor_color_b : scene.terrain.floor_color_b);
             if (scene.terrain.floor_height_recolor_enabled && tile_h(x, z) == 1) {
                 color = checker
                     ? toSdlColor(scene.terrain.first_non_base_floor_color_a)
@@ -224,11 +246,44 @@ void renderFallbackTerrain(
             if (slope && scene.terrain.ramp_recolor_enabled) {
                 color = checker ? toSdlColor(scene.terrain.ramp_color_a) : toSdlColor(scene.terrain.ramp_color_b);
             }
-            emit_tile_top(x, z, color, false);
+            if (default_interior_room && !scene.interior.floor_cutouts.empty() &&
+                !terrain::isSlopeSpecial(tile_special(x, z))) {
+                for (const auto& triangle :
+                     interiors::clipFloorCellAgainstCutouts(scene, x, z, tile_size)) {
+                    const float y0 = terrain::heightAtWorldPositionOnTile(
+                        scene, triangle[0].x, triangle[0].z, x, z, true);
+                    const float y1 = terrain::heightAtWorldPositionOnTile(
+                        scene, triangle[1].x, triangle[1].z, x, z, true);
+                    const float y2 = terrain::heightAtWorldPositionOnTile(
+                        scene, triangle[2].x, triangle[2].z, x, z, true);
+                    push_quad_face(
+                        triangle[0].x, y0, triangle[0].z,
+                        triangle[1].x, y1, triangle[1].z,
+                        triangle[2].x, y2, triangle[2].z,
+                        triangle[2].x, y2, triangle[2].z,
+                        color, false);
+                }
+            } else {
+                emit_tile_top(x, z, color, false);
+            }
         }
     }
-    const SDL_Color wall_color_ns = toSdlColor(scene.terrain.wall_color_ns);
-    const SDL_Color wall_color_ew = toSdlColor(scene.terrain.wall_color_ew);
+    for (const auto& quad : interiors::buildDefaultRoomFloorApron(scene, tile_size)) {
+        const auto& p = quad.points;
+        const SDL_Color color = toSdlColor(
+            ((quad.source_tile_x + quad.source_tile_y) & 1) == 0
+                ? room.floor_color_a : room.floor_color_b);
+        push_quad_face(
+            p[0].x, p[0].y, p[0].z,
+            p[1].x, p[1].y, p[1].z,
+            p[2].x, p[2].y, p[2].z,
+            p[3].x, p[3].y, p[3].z,
+            color, false);
+    }
+    const SDL_Color wall_color_ns = toSdlColor(
+        default_interior_room ? room.wall_color_ns : scene.terrain.wall_color_ns);
+    const SDL_Color wall_color_ew = toSdlColor(
+        default_interior_room ? room.wall_color_ew : scene.terrain.wall_color_ew);
     for (int z = 0; z < grid_h; ++z) {
         for (int x = 0; x < grid_w; ++x) {
             float c[4]{};
@@ -255,6 +310,94 @@ void renderFallbackTerrain(
                 } else if (n[0] > c[3] || n[1] > c[2]) {
                     push_quad_face(x0w, c[3], z1w, x1w, c[2], z1w, x1w, n[1], z1w, x0w, n[0], z1w, wall_color_ns, false);
                 }
+            }
+        }
+    }
+
+    if (default_interior_room) {
+        const SDL_Color trim_color = toSdlColor(room.trim_color);
+        const SDL_Color baseboard_color = toSdlColor(room.baseboard_color);
+        const SDL_Color top_cap_color = toSdlColor(room.top_cap_color);
+        const auto push_wall_segment = [&](std::string_view edge,
+                                           float ax, float az, float ay,
+                                           float bx, float bz, float by,
+                                           float height_tiles,
+                                           SDL_Color body_color) {
+            const float height = std::max(0.0f, height_tiles) * tile_size;
+            if (height <= 0.001f) return;
+            const auto [normal_x, normal_z] =
+                interiors::wallOutwardNormal(edge);
+            const auto line = interiors::placeDefaultRoomWallLine(
+                scene, edge, tile_size, ax, az, bx, bz);
+            ax = line.ax;
+            az = line.az;
+            bx = line.bx;
+            bz = line.bz;
+            const float band = std::min(
+                std::max(0.0f, room.trim_height_tiles) * tile_size,
+                height * 0.35f);
+            if (band > 0.001f) {
+                push_quad_face(
+                    ax, ay, az, bx, by, bz, bx, by + band, bz, ax, ay + band, az,
+                    baseboard_color, false);
+            }
+            if (height > band * 2.0f + 0.001f) {
+                push_quad_face(
+                    ax, ay + band, az, bx, by + band, bz,
+                    bx, by + height - band, bz, ax, ay + height - band, az,
+                    body_color, false);
+            }
+            if (band > 0.001f) {
+                push_quad_face(
+                    ax, ay + height - band, az, bx, by + height - band, bz,
+                    bx, by + height, bz, ax, ay + height, az,
+                    trim_color, false);
+            }
+            const float cap_depth =
+                std::max(0.0f, room.top_cap_depth_tiles) * tile_size;
+            if (room.black_top_cap && cap_depth > 0.001f) {
+                push_quad_face(
+                    ax, ay + height, az,
+                    bx, by + height, bz,
+                    bx + normal_x * cap_depth, by + height, bz + normal_z * cap_depth,
+                    ax + normal_x * cap_depth, ay + height, az + normal_z * cap_depth,
+                    top_cap_color, false);
+            }
+        };
+        for (int x = 0; x < grid_w; ++x) {
+            float north[4]{};
+            corner_heights(x, 0, north);
+            if (!defaultInteriorOpeningCovers(scene, "north", x)) {
+                push_wall_segment("north",
+                    x * tile_size, 0.0f, north[0],
+                    (x + 1) * tile_size, 0.0f, north[1],
+                    defaultInteriorWallHeightTiles(scene, "north"), wall_color_ns);
+            }
+            float south[4]{};
+            corner_heights(x, grid_h - 1, south);
+            if (!defaultInteriorOpeningCovers(scene, "south", x)) {
+                push_wall_segment("south",
+                    (x + 1) * tile_size, grid_h * tile_size, south[2],
+                    x * tile_size, grid_h * tile_size, south[3],
+                    defaultInteriorWallHeightTiles(scene, "south"), wall_color_ns);
+            }
+        }
+        for (int z = 0; z < grid_h; ++z) {
+            float west[4]{};
+            corner_heights(0, z, west);
+            if (!defaultInteriorOpeningCovers(scene, "west", z)) {
+                push_wall_segment("west",
+                    0.0f, (z + 1) * tile_size, west[3],
+                    0.0f, z * tile_size, west[0],
+                    defaultInteriorWallHeightTiles(scene, "west"), wall_color_ew);
+            }
+            float east[4]{};
+            corner_heights(grid_w - 1, z, east);
+            if (!defaultInteriorOpeningCovers(scene, "east", z)) {
+                push_wall_segment("east",
+                    grid_w * tile_size, z * tile_size, east[1],
+                    grid_w * tile_size, (z + 1) * tile_size, east[2],
+                    defaultInteriorWallHeightTiles(scene, "east"), wall_color_ew);
             }
         }
     }

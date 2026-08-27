@@ -33,6 +33,7 @@ public:
         int viewport_h,
         int sheet_w,
         int sheet_h);
+    static SDL_Point measureWrappedText(TTF_Font* font, const std::string& text, int wrap_width);
 
 private:
     std::string project_root_;

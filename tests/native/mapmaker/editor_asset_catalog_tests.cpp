@@ -1,6 +1,8 @@
 #include "mapmaker/assets/EditorAssetCatalog.hpp"
 
 #include <filesystem>
+#include <algorithm>
+#include <cmath>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -41,6 +43,20 @@ void testModelCatalog() {
         root() / "assets/overworld/models", &warnings);
     expect(models.size() >= 10, "model browser should discover usable model manifests");
     expect(std::filesystem::exists(models.front().glb_path), "catalog model GLB should exist");
+    const auto aquarium = std::find_if(models.begin(), models.end(), [](const auto& model) {
+        return model.id == "aquarium";
+    });
+    expect(aquarium != models.end(), "aquarium model manifest should be visible in the editor");
+    expect(std::abs(aquarium->default_scale - 1.0f) < 0.0001f &&
+            aquarium->footprint_width == 10 && aquarium->footprint_depth == 5,
+        "aquarium editor footprint should preserve one authored metre per map cell");
+    const auto cylinder = std::find_if(models.begin(), models.end(), [](const auto& model) {
+        return model.id == "aquarium_c";
+    });
+    expect(cylinder != models.end(), "cylinder aquarium must be a separate placeable editor asset");
+    expect(std::abs(cylinder->default_scale - 1.0f) < 0.0001f &&
+            cylinder->footprint_width == 4 && cylinder->footprint_depth == 4,
+        "cylinder aquarium editor footprint should conservatively cover its authored dimensions");
 }
 
 } // namespace

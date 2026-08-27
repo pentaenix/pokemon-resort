@@ -1,0 +1,37 @@
+{
+  "manifestVersion": 1,
+  "storageFormat": "glb",
+  "id": "aquarium_c",
+  "displayName": "Aquarium (cylinder)",
+  "defaultYawDeg": 0,
+  "defaultScale": 1,
+  "sourceFormat": "glb",
+  "sourceFile": "../aquarium/aquarium_c.glb",
+  "glbFile": "../aquarium/aquarium_c.glb",
+  "modelFile": "../aquarium/aquarium_c.glb",
+  "footprintTiles": {
+    "w": 4,
+    "d": 4,
+    "h": 5
+  },
+  "renderFootprintTiles": {
+    "w": 4,
+    "d": 4,
+    "h": 5
+  },
+  "authoringFootprintTiles": {
+    "w": 4,
+    "d": 4,
+    "h": 5
+  },
+  "collisionFootprintTiles": {
+    "w": 4,
+    "d": 4,
+    "h": 5
+  },
+  "aabb": {
+    "min": [-25.6, 0, -25.6],
+    "max": [25.6, 66.4, 25.6]
+  },
+  "navigationFile": "../aquarium/aquarium_c.navigation.json"
+}

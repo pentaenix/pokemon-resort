@@ -81,6 +81,24 @@ void EditorShell::drawSelectionPosition(EditorUiModel& model, EditorUiEvents& ev
         events.move_selection_tile = std::pair<int, int>{tile[0], tile[1]};
     }
     ImGui::TextDisabled("Drag in the viewport or enter X, Y here.");
+    if (model.selection.kind == InspectorSelectionKind::Anchor) {
+        constexpr std::array<const char*, 4> directions{
+            "north", "east", "south", "west"};
+        ImGui::TextDisabled("Facing after arrival");
+        ImGui::SetNextItemWidth(-1.0f);
+        const char* current = model.selection.anchor_facing.empty()
+            ? "north" : model.selection.anchor_facing.c_str();
+        if (ImGui::BeginCombo("##anchor_facing", current)) {
+            for (const char* direction : directions) {
+                if (ImGui::Selectable(direction,
+                    model.selection.anchor_facing == direction)) {
+                    events.anchor_facing = direction;
+                }
+            }
+            ImGui::EndCombo();
+        }
+        ImGui::TextDisabled("Delete removes this node. Doors can be retargeted from their inspector.");
+    }
 }
 
 } // namespace pr::mapmaker

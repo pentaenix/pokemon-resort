@@ -17,9 +17,10 @@ This repository now uses a top-level [`tests`](/Users/vanta/Desktop/title_screen
 - **Native core/config/assets:** app transition state, frame-request aggregation, config loading contracts, config-driven input routing, input router behavior, shared overlay canvas layout/hit testing, PokeSprite Pokemon/item/misc asset resolution, Pokemon cry asset resolution, save-bridge failure message formatting (stdout JSON / stderr fallbacks), and save-library cache generation/hit/miss/staleness behavior.
 - **Native title:** main menu, Resort submenu, options, placeholder section controllers, Resort loading-transition state, headless boot smoke, and title-flow harness coverage for key navigation plus music/SFX event contracts.
 - **Native attend:** split Pokemon/Alola-map/sky attend config, species-name model resolution, initial auto-focus camera config, large-Pokemon face-view gate config, weighted mouse edge-look config, simple shadow config, pet eye-close delay/cooldown, eye-expression frame config, semantic animation slot config, pet-happy reaction combo config, shared overlay coverage, raw Pokemon GLB and lossless GLBZ asset loading, skinning animation sampling, Violet eye-mask material coverage, and RAE Gen 1-7/3DS material-policy coverage for render class, sampler wrap, eye sheets, and mesh draw metadata.
+- **Native aquarium/world props:** Aquarium Maker navigation layers and holes, shared Pokémon scale, roaming and stationary actors, tank-facing inspection camera behavior, exact polygon floor cutouts with stable cell UVs, GLB vertex colors, morph animation, and node-rotation plant animation.
 - **Native transfer flow/ticket:** transfer selection mapping, pure transfer-flow controller behavior, transfer-ticket list controller behavior, and transfer-ticket Unicode rendering harness coverage.
 - **Native transfer system:** `game_transfer.json` parsing, info banner presentation, top-level transfer UI state, game box browser/dropdown/Box Space behavior, Pokemon action-menu behavior, multi-Pokemon move layout rules, focus-graph topology, and SDL harness coverage for keyboard/controller/pointer flows including Box Space, dropdown activation, speech-bubble visibility, Pokemon moves, multi-select moves, and held item move/swap/cancel behavior.
-- **Native map maker:** lossless OWMAP v1 parsing/serialization, no-op byte identity, atomic save/backup recovery, normalized reusable map sources, project discovery, undo/redo transactions, whole-document commands, path-local tile/model/door edits, universal deletion, selection and project/door/link/anchor validation, exact terrain picking, lazy RTPKS/model catalogs, autosave snapshots, structured log rotation, and frame/input metrics.
+- **Native map maker:** lossless OWMAP v1 and project parsing/serialization, no-op byte identity, atomic save/backup recovery, normalized reusable map sources, spatial project moves, deferred map creation with undo/redo, project discovery, whole-document commands, path-local tile/model/door edits, universal deletion, selection and project/door/link/anchor validation, exact terrain picking, lazy RTPKS/model catalogs, autosave snapshots, structured log rotation, frame/input metrics, Play input capture, and semantic canvas-lens colors.
 
 Current native CTest targets:
 
@@ -63,9 +64,12 @@ command_stack_tests
 document_commands_tests
 editor_asset_catalog_tests
 frame_metrics_tests
+canvas_lens_tests
 map_metadata_editing_tests
 map_project_document_tests
 owmap_document_tests
+play_input_capture_tests
+project_workspace_tests
 selection_validation_tests
 structured_logger_tests
 world_picker_tests

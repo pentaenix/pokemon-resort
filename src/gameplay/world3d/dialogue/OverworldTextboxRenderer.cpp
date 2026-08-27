@@ -24,11 +24,17 @@ fs::path resolvePath(const std::string& project_root, const std::string& configu
 
 } // namespace
 
+SDL_Surface* renderWrappedSurface(TTF_Font* font, const std::string& text, int wrap_width) {
+    if (!font || text.empty() || wrap_width <= 0) return nullptr;
+    const SDL_Color color{32, 32, 32, 255};
+    return TTF_RenderUTF8_Solid_Wrapped(
+        font, text.c_str(), color, static_cast<Uint32>(wrap_width));
+}
+
 TextureHandle renderWrappedText(
     SDL_Renderer* renderer, TTF_Font* font, const std::string& text, int wrap_width) {
     if (!renderer || !font || text.empty() || wrap_width <= 0) return {};
-    const SDL_Color color{32, 32, 32, 255};
-    SDL_Surface* surface = TTF_RenderUTF8_Solid(font, text.c_str(), color);
+    SDL_Surface* surface = renderWrappedSurface(font, text, wrap_width);
     if (!surface) return {};
     SDL_Texture* raw = SDL_CreateTextureFromSurface(renderer, surface);
     TextureHandle out{};
@@ -39,6 +45,15 @@ TextureHandle renderWrappedText(
     }
     SDL_FreeSurface(surface);
     return out;
+}
+
+SDL_Point OverworldTextboxRenderer::measureWrappedText(
+    TTF_Font* font, const std::string& text, int wrap_width) {
+    SDL_Surface* surface = renderWrappedSurface(font, text, wrap_width);
+    if (!surface) return {};
+    const SDL_Point size{surface->w, surface->h};
+    SDL_FreeSurface(surface);
+    return size;
 }
 
 OverworldTextboxRenderer::OverworldTextboxRenderer(std::string project_root, OverworldTextboxConfig config)

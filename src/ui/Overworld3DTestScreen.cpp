@@ -163,18 +163,19 @@ std::pair<int, int> stepForFacing(gameplay::world3d::FacingDirection facing) {
 
 Overworld3DTestScreen::Overworld3DTestScreen(const std::string& project_root)
     : project_root_(project_root),
-      scene_(gameplay::world3d::data::loadSceneConfig(project_root, kDefaultScenePath)),
-      character_(gameplay::world3d::data::loadCharacterDefinition(project_root, scene_.player.character_path)),
-      camera_(gameplay::world3d::camera::loadGen4PresetById(scene_.camera_preset.c_str())),
+      scene_(),
+      character_(),
+      camera_(gameplay::world3d::camera::loadGen4PresetById(
+          "gen4_platinum_default_exterior")),
       player_(scene_),
       animator_(character_),
-      map_(scene_) {
-    initializeSceneState();
-}
+      map_(scene_) {}
 
-void Overworld3DTestScreen::initializeSceneState() {
+void Overworld3DTestScreen::initializeSceneState(bool reload_primary_scene) {
     app_config_ = loadAppConfigFromJson((fs::path(project_root_) / "config" / "app.json").string());
-    scene_ = gameplay::world3d::data::loadSceneConfig(project_root_, kDefaultScenePath);
+    if (reload_primary_scene) {
+        scene_ = gameplay::world3d::data::loadSceneConfig(project_root_, kDefaultScenePath);
+    }
     movement_config_ = gameplay::world3d::characters::loadCharacterMovementConfig(project_root_);
     character_ = gameplay::world3d::data::loadCharacterDefinition(project_root_, scene_.player.character_path);
     player_ = gameplay::world3d::characters::CharacterController(
@@ -187,6 +188,13 @@ void Overworld3DTestScreen::initializeSceneState() {
     follower_summon_config_ = gameplay::world3d::followers::loadFollowerSummonConfig(project_root_);
     follower_session_config_ = gameplay::world3d::followers::loadFollowerSessionConfig(project_root_);
     npc_actor_driver_ = std::make_unique<gameplay::world3d::npc::NpcActorDriver>(project_root_, scene_);
+    aquarium_catalog_ = gameplay::world3d::aquarium::loadAquariumCatalog(project_root_);
+    aquarium_simulation_ = std::make_unique<gameplay::world3d::aquarium::AquariumSimulation>(
+        project_root_, scene_, gameplay::world3d::aquarium::aquariumMapConfig(
+            aquarium_catalog_, scene_.id));
+    aquarium_inspection_camera_ =
+        std::make_unique<gameplay::world3d::aquarium::AquariumInspectionCamera>(
+            aquarium_simulation_->tanks());
     const std::vector<gameplay::world3d::npc::ResortPokemonSpawnInfo> resort_pokemon =
         npc_actor_driver_->resortPokemonSpawnList();
     follower_session_config_.enabled = !resort_pokemon.empty();
@@ -228,11 +236,9 @@ void Overworld3DTestScreen::initializeSceneState() {
     if (landing_dust_system_) {
         landing_dust_system_->initializeResources();
     }
-    water_particle_system_ = std::make_unique<
-        gameplay::world3d::effects::ProceduralWaterParticleSystem>(
-            project_root_,
-            scene_,
-            gameplay::world3d::effects::loadProceduralWaterParticleConfig(project_root_));
+    // Authored water timing needs the large RTPKS runtime manifest. Defer that
+    // work until the splash has presented, then prime it on a worker thread.
+    water_particle_system_.reset();
     loaded_world_chunks_ = buildLoadedWorldChunks();
     active_world_map_id_ = scene_.id.empty() ? std::string{"testing"} : scene_.id;
     rebuildActiveWorldChunks();
@@ -303,6 +309,7 @@ void Overworld3DTestScreen::initializeSceneState() {
     cached_aib_label_.clear();
     debug_font_ = FontHandle{};
     initialized_renderer_ = false;
+    scene_initialized_ = true;
 }
 
 void Overworld3DTestScreen::ensurePlacedModelsLoaded() {
@@ -335,7 +342,16 @@ void Overworld3DTestScreen::shutdownBgfx() {
 void Overworld3DTestScreen::resetForNextLaunch() {
     SDL_SetRelativeMouseMode(SDL_FALSE);
     shutdownBgfx();
+    if (scene_preload_.valid()) scene_preload_.wait();
     initializeSceneState();
+}
+
+void Overworld3DTestScreen::beginBackgroundPreload() {
+    if (scene_initialized_ || scene_preload_.valid()) return;
+    const std::string project_root = project_root_;
+    scene_preload_ = std::async(std::launch::async, [project_root]() {
+        return gameplay::world3d::data::loadSceneConfig(project_root, kDefaultScenePath);
+    });
 }
 
 void Overworld3DTestScreen::prepareForLaunch() {
@@ -345,6 +361,21 @@ void Overworld3DTestScreen::prepareForLaunch() {
     return_to_title_requested_ = false;
     open_attend_requested_ = false;
     SDL_SetRelativeMouseMode(SDL_FALSE);
+    if (!scene_initialized_) {
+        if (scene_preload_.valid()) {
+            scene_ = scene_preload_.get();
+            initializeSceneState(false);
+        } else {
+            initializeSceneState();
+        }
+    }
+    if (!water_particle_system_) {
+        water_particle_system_ = std::make_unique<
+            gameplay::world3d::effects::ProceduralWaterParticleSystem>(
+                project_root_,
+                scene_,
+                gameplay::world3d::effects::loadProceduralWaterParticleConfig(project_root_));
+    }
 }
 
 void Overworld3DTestScreen::reloadFollowCameraPresetConfig() {
@@ -570,6 +601,12 @@ bool Overworld3DTestScreen::activateWorldMap(
     reloadFollowCameraPresetConfig();
 
     npc_actor_driver_ = std::make_unique<gameplay::world3d::npc::NpcActorDriver>(project_root_, scene_);
+    aquarium_simulation_ = std::make_unique<gameplay::world3d::aquarium::AquariumSimulation>(
+        project_root_, scene_, gameplay::world3d::aquarium::aquariumMapConfig(
+            aquarium_catalog_, active_world_map_id_));
+    aquarium_inspection_camera_ =
+        std::make_unique<gameplay::world3d::aquarium::AquariumInspectionCamera>(
+            aquarium_simulation_->tanks());
     follower_controller_ = std::make_unique<gameplay::world3d::followers::FollowerController>(
         project_root_, scene_, follower_summon_config_, follower_session_config_);
     follower_controller_->initializeResources();
@@ -639,10 +676,15 @@ bool Overworld3DTestScreen::beginDoorSequenceForStep(int dx, int dy) {
     if (!hit) return false;
     const auto* script = gameplay::world3d::doors::findDoorScript(
         interaction_script_catalog_, hit->trigger->script_id);
-    if (!script || !door_sequence_.start(script, *hit)) {
+    if (!script) {
         std::cerr << "[Overworld3D] Door trigger '" << hit->trigger->id
                   << "' references unavailable script '" << hit->trigger->script_id << "'\n";
         return true;
+    }
+    if (!door_sequence_.start(script, *hit, loaded_world_chunks_)) {
+        std::cerr << "[Overworld3D] Door trigger '" << hit->trigger->id
+                  << "' has no valid destination map and anchor; ignoring it\n";
+        return false;
     }
     player_.face(gameplay::world3d::doors::directionForStep(dx, dy));
     animator_.setFacing(player_.facing());
@@ -720,6 +762,8 @@ void Overworld3DTestScreen::updateDoorSequence(double dt) {
                 if (!destination || !destination->chunk) {
                     std::cerr << "[Overworld3D] Door link could not resolve a destination anchor\n";
                     door_sequence_.cancel();
+                    door_waiting_for_open_ = true;
+                    transition_.startOpening(transition_config_.attend);
                     return;
                 }
                 const int local_tile_x = destination->world_tile_x - destination->chunk->origin_tile_x;
@@ -733,6 +777,8 @@ void Overworld3DTestScreen::updateDoorSequence(double dt) {
                         local_tile_x, local_tile_y, destination->facing, destination_is_halo)) {
                     std::cerr << "[Overworld3D] Door link could not resolve a reachable destination anchor\n";
                     door_sequence_.cancel();
+                    door_waiting_for_open_ = true;
+                    transition_.startOpening(transition_config_.attend);
                     return;
                 }
                 active_door_destination_tuning_ = door_travel_config_.destination(
@@ -771,6 +817,7 @@ void Overworld3DTestScreen::updateDoorSequence(double dt) {
 
 void Overworld3DTestScreen::update(double dt) {
     transition_.update(dt);
+    if (aquarium_simulation_) aquarium_simulation_->update(dt);
     interaction_wait_remaining_ = std::max(0.0, interaction_wait_remaining_ - dt);
     if (transition_.consumeClosed()) {
         if (door_waiting_for_close_) {
@@ -817,7 +864,9 @@ void Overworld3DTestScreen::update(double dt) {
     bool blocked_movement_attempt = false;
     if (!freecam_enabled_) {
         const Uint8* keys = SDL_GetKeyboardState(nullptr);
-        if (!interactionActive()) {
+        const bool inspecting_aquarium =
+            aquarium_inspection_camera_ && aquarium_inspection_camera_->active();
+        if (!interactionActive() && !inspecting_aquarium) {
             if (keys[SDL_SCANCODE_LEFT] || keys[SDL_SCANCODE_A]) keyboard_dx -= 1;
             if (keys[SDL_SCANCODE_RIGHT] || keys[SDL_SCANCODE_D]) keyboard_dx += 1;
             if (keys[SDL_SCANCODE_UP] || keys[SDL_SCANCODE_W]) keyboard_dy -= 1;
@@ -838,7 +887,7 @@ void Overworld3DTestScreen::update(double dt) {
 
         const bool door_busy = door_sequence_.active() || door_animation_wait_seconds_ > 0.0 ||
             door_waiting_for_close_ || door_waiting_for_open_ || door_forced_move_.active();
-        auto [grid_dx, grid_dy] = (interactionActive() || door_busy)
+        auto [grid_dx, grid_dy] = (interactionActive() || door_busy || inspecting_aquarium)
             ? std::pair<int, int>{0, 0}
             : gridStepFromCameraInput(camera_, input_dx_, input_dy_);
         const bool door_started = !door_busy && beginDoorSequenceForStep(grid_dx, grid_dy);
@@ -876,7 +925,11 @@ void Overworld3DTestScreen::update(double dt) {
             player_.moving() || (blocked_movement_attempt && !player_swimming)));
         animator_.update(dt);
 
-        camera_.setTarget(player_.position());
+        if (inspecting_aquarium) {
+            aquarium_inspection_camera_->update(dt, camera_);
+        } else {
+            camera_.setTarget(player_.position());
+        }
     } else {
         const Uint8* keys = SDL_GetKeyboardState(nullptr);
         const float speed = static_cast<float>(dt) * scene_.freecam_move_speed;
@@ -1151,6 +1204,9 @@ bool Overworld3DTestScreen::renderBgfx(
                 scene_,
                 character_);
         bgfx_renderer_->setStaticMapChunks(buildStaticRenderChunks());
+        if (aquarium_simulation_) {
+            bgfx_renderer_->setAquariumPokemonActors(aquarium_simulation_->actors());
+        }
         if (!bgfx_renderer_->initialize(
                 window,
                 framebuffer_w,
@@ -1168,6 +1224,9 @@ bool Overworld3DTestScreen::renderBgfx(
     if (!pending_bgfx_screenshot_.empty()) {
         bgfx_renderer_->queueScreenshot(pending_bgfx_screenshot_);
         pending_bgfx_screenshot_.clear();
+    }
+    if (aquarium_simulation_) {
+        bgfx_renderer_->setAquariumPokemonActors(aquarium_simulation_->actors());
     }
     std::vector<gameplay::world3d::rendering::CharacterBillboardDraw> character_draws;
     const int world_view_w = scene_.world_viewport.enabled
@@ -1271,7 +1330,8 @@ void Overworld3DTestScreen::renderPresentationOverlay(SDL_Renderer* renderer) {
 }
 
 void Overworld3DTestScreen::onNavigate2d(int dx, int dy) {
-    if (freecam_enabled_ || interactionActive()) {
+    if (freecam_enabled_ || interactionActive() ||
+        (aquarium_inspection_camera_ && aquarium_inspection_camera_->active())) {
         return;
     }
     input_dx_ = dx;
@@ -1282,11 +1342,23 @@ void Overworld3DTestScreen::onAdvancePressed() {
     if (freecam_enabled_) {
         return;
     }
+    if (aquarium_inspection_camera_ && aquarium_inspection_camera_->active()) {
+        aquarium_inspection_camera_->close();
+        camera_.setTarget(player_.position());
+        return;
+    }
     if (textbox_controller_.active()) {
         closeInteractionText();
         return;
     }
     if (interactionActive()) {
+        return;
+    }
+
+    if (aquarium_inspection_camera_ && aquarium_inspection_camera_->tryBegin(
+            player_.position(), player_.facing(), scene_.grid.tile_size, camera_)) {
+        player_.stop();
+        animator_.setMoving(false);
         return;
     }
 
@@ -1343,6 +1415,11 @@ void Overworld3DTestScreen::onAttendPressed() {
 }
 
 void Overworld3DTestScreen::onBackPressed() {
+    if (aquarium_inspection_camera_ && aquarium_inspection_camera_->active()) {
+        aquarium_inspection_camera_->close();
+        camera_.setTarget(player_.position());
+        return;
+    }
     if (interactionActive()) {
         if (textbox_controller_.active()) {
             textbox_controller_.hide();
@@ -1461,7 +1538,13 @@ SDL_Point Overworld3DTestScreen::mapPointerToLogical(int x, int y) const {
 
 bool Overworld3DTestScreen::handleUnroutedSdlEvent(const SDL_Event& event) {
     if (event.type == SDL_KEYDOWN && event.key.repeat == 0) {
+        if (freecam_enabled_ &&
+            (event.key.keysym.sym == SDLK_2 || event.key.keysym.sym == SDLK_KP_2)) {
+            captureFreeCameraPose();
+            return true;
+        }
         if (event.key.keysym.sym == SDLK_q) {
+            if (aquarium_inspection_camera_ && aquarium_inspection_camera_->active()) return true;
             freecam_enabled_ = !freecam_enabled_;
             freecam_mouse_dragging_ = false;
             if (!freecam_enabled_) {
@@ -1469,7 +1552,16 @@ bool Overworld3DTestScreen::handleUnroutedSdlEvent(const SDL_Event& event) {
                 camera_.setTarget(player_.position());
             } else {
                 SDL_SetRelativeMouseMode(SDL_FALSE);
-                freecam_pos_ = initialFreecamPosition(scene_, player_.position());
+                const auto pose = camera_.pose();
+                freecam_pos_ = pose.position;
+                freecam_yaw_deg_ = std::atan2(pose.forward.x, pose.forward.z) *
+                    (180.0f / 3.1415926535f);
+                freecam_pitch_deg_ = std::asin(std::clamp(pose.forward.y, -1.0f, 1.0f)) *
+                    (180.0f / 3.1415926535f);
+                freecam_pitch_deg_ = std::clamp(
+                    freecam_pitch_deg_,
+                    scene_.freecam_pitch_min_deg,
+                    scene_.freecam_pitch_max_deg);
                 camera_.setManualPose(freecam_pos_, freecam_yaw_deg_, freecam_pitch_deg_);
             }
             return true;

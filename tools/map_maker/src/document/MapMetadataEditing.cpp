@@ -152,6 +152,21 @@ std::vector<ModelPlacementProjection> projectModels(const OwmapDocument& documen
     return result;
 }
 
+std::vector<SpawnTileProjection> projectSpawnTiles(const OwmapDocument& document) {
+    std::vector<SpawnTileProjection> result;
+    const JsonValue::Array* values = metadataArray(document, "spawnTiles");
+    if (!values) return result;
+    for (const JsonValue& value : *values) {
+        if (!value.isObject()) continue;
+        SpawnTileProjection spawn;
+        spawn.id = stringOr(value.get("id"));
+        std::tie(spawn.tile_x, spawn.tile_y) = tilePair(value.get("tile"));
+        spawn.allows = stringOr(value.get("allows"));
+        result.push_back(std::move(spawn));
+    }
+    return result;
+}
+
 MapValidationProjection projectValidation(
     const OwmapDocument& document,
     std::string source_file) {
@@ -160,6 +175,8 @@ MapValidationProjection projectValidation(
     projection.scene_id = sceneId(document);
     projection.width = document.width();
     projection.height = document.height();
+    const JsonValue* visual = document.metadata().get("visual");
+    projection.has_runtime_visual = visual && visual->isObject();
 
     if (const JsonValue::Array* anchors = metadataArray(document, "anchors")) {
         for (const JsonValue& value : *anchors) {
@@ -257,6 +274,28 @@ bool addAnchor(
     return true;
 }
 
+bool addSouthEntryAnchors(OwmapDocument& document) {
+    const int center_x = static_cast<int>(document.width()) / 2;
+    const int south_y = std::max(0, static_cast<int>(document.height()) - 1);
+    bool changed = false;
+    changed = addAnchor(document, "entry_left", center_x - 1, south_y, "north") || changed;
+    changed = addAnchor(document, "entry", center_x, south_y, "north") || changed;
+    changed = addAnchor(document, "entry_right", center_x + 1, south_y, "north") || changed;
+    return changed;
+}
+
+bool setAnchorFacing(
+    OwmapDocument& document, const std::string& id, const std::string& facing) {
+    if (facing != "north" && facing != "east" &&
+        facing != "south" && facing != "west") {
+        return false;
+    }
+    JsonValue* anchor = namedObject(document, "anchors", id);
+    if (!anchor) return false;
+    (*anchor)["facing"] = JsonValue(facing);
+    return true;
+}
+
 bool eraseAnchor(OwmapDocument& document, const std::string& id) {
     JsonValue::Array* anchors = metadataArray(document, "anchors");
     if (!anchors) return false;
@@ -273,6 +312,38 @@ bool eraseModel(OwmapDocument& document, std::size_t metadata_index) {
     if (!models || metadata_index >= models->size()) return false;
     models->erase(models->begin() + static_cast<std::ptrdiff_t>(metadata_index));
     return true;
+}
+
+bool setSpawnTile(OwmapDocument& document, int x, int y, const std::string& allows) {
+    static const std::unordered_set<std::string> supported{
+        "pokemon_random_from_boxes", "npc_with_partner", "npc_without_pokemon"};
+    if (x < 0 || y < 0 || x >= document.width() || y >= document.height() ||
+        !supported.contains(allows)) return false;
+    JsonValue::Array* values = metadataArray(document, "spawnTiles");
+    if (!values) return false;
+    for (JsonValue& value : *values) {
+        if (!value.isObject() || tilePair(value.get("tile")) != std::pair{x, y}) continue;
+        value["allows"] = JsonValue(allows);
+        document.specialAt(static_cast<std::uint16_t>(x), static_cast<std::uint16_t>(y)) = 14U;
+        return true;
+    }
+    JsonValue::Object spawn;
+    spawn.emplace("id", JsonValue("actor_spawn_" + std::to_string(x) + "_" + std::to_string(y)));
+    spawn.emplace("tile", tileValue(x, y));
+    spawn.emplace("allows", JsonValue(allows));
+    values->emplace_back(std::move(spawn));
+    document.specialAt(static_cast<std::uint16_t>(x), static_cast<std::uint16_t>(y)) = 14U;
+    return true;
+}
+
+bool eraseSpawnTile(OwmapDocument& document, int x, int y) {
+    JsonValue::Array* values = metadataArray(document, "spawnTiles");
+    if (!values) return false;
+    const auto before = values->size();
+    values->erase(std::remove_if(values->begin(), values->end(), [&](const JsonValue& value) {
+        return value.isObject() && tilePair(value.get("tile")) == std::pair{x, y};
+    }), values->end());
+    return values->size() != before;
 }
 
 bool addModel(
@@ -321,6 +392,13 @@ bool addOrUpdateLink(
     return true;
 }
 
+std::string proposedDestinationAnchorId(const std::vector<AnchorProjection>& anchors) {
+    const auto center = std::find_if(anchors.begin(), anchors.end(),
+        [](const AnchorProjection& anchor) { return anchor.id == "entry"; });
+    if (center != anchors.end()) return center->id;
+    return anchors.size() == 1U ? anchors.front().id : std::string{};
+}
+
 bool clearCell(OwmapDocument& document, int x, int y) {
     if (x < 0 || y < 0 || x >= document.width() || y >= document.height()) return false;
     bool changed = false;
@@ -332,6 +410,7 @@ bool clearCell(OwmapDocument& document, int x, int y) {
     document.heights()[index] = 0U;
     document.specials()[index] = 0U;
     document.collision()[index] = 0U;
+    changed = eraseSpawnTile(document, x, y) || changed;
 
     const auto layers = projectTileLayers(document);
     for (std::size_t layer = 0; layer < layers.size(); ++layer) {

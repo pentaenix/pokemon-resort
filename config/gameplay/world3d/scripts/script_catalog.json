@@ -36,6 +36,9 @@
     },
     {
       "path": "doors/door_exit_default.json"
+    },
+    {
+      "path": "doors/interior_exit_step_then_transfer.json"
     }
   ]
 }

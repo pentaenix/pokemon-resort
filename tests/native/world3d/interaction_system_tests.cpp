@@ -5,6 +5,7 @@
 #include "gameplay/world3d/scripts/OverworldScript.hpp"
 #include "ui/transitions/ScreenTransition.hpp"
 
+#include <algorithm>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -264,6 +265,39 @@ void testDoorScriptActionsLoadFromCatalog() {
     fs::remove_all(root);
 }
 
+void testRuntimeInteriorExitWalksBeforeTransfer() {
+    namespace fs = std::filesystem;
+    using namespace pr::gameplay::world3d::scripts;
+    fs::path root = fs::current_path();
+    if (!fs::exists(root / "config/gameplay/world3d/scripts/script_catalog.json")) {
+        root = root.parent_path();
+    }
+    std::vector<ScriptValidationIssue> issues;
+    const ScriptCatalog catalog = loadScriptCatalog(root.string(), &issues);
+    const auto own_issue = std::find_if(issues.begin(), issues.end(),
+        [](const ScriptValidationIssue& issue) {
+            return issue.script_id == "interior_exit_step_then_transfer";
+        });
+    expect(own_issue == issues.end(), own_issue == issues.end()
+        ? std::string{}
+        : "interior threshold exit script is invalid: " + own_issue->message);
+    const auto found = std::find_if(catalog.scripts.begin(), catalog.scripts.end(),
+        [](const OverworldScript& script) {
+            return script.id == "interior_exit_step_then_transfer";
+        });
+    expect(found != catalog.scripts.end() && found->valid,
+        "runtime catalog should expose the interior threshold exit script");
+    const auto& actions = found->actions;
+    expect(actions.size() == 6U &&
+            actions[0].kind == ScriptActionKind::MovePlayer &&
+            actions[0].tiles == 1 &&
+            actions[1].kind == ScriptActionKind::TransitionClose &&
+            actions[2].kind == ScriptActionKind::TeleportToLink &&
+            actions[3].kind == ScriptActionKind::TransitionOpen &&
+            actions[4].kind == ScriptActionKind::MovePlayer,
+        "interior exit should finish its south threshold step before closing the iris");
+}
+
 void testInteractionSourceSplitAndFallbacks() {
     using namespace pr::gameplay::world3d::interactions;
     using namespace pr::gameplay::world3d::scripts;
@@ -392,6 +426,7 @@ int main() {
         testScriptSelectionUsesTagsPriorityWeightAndCooldown();
         testScriptCatalogLoadsIndividualJsonFiles();
         testDoorScriptActionsLoadFromCatalog();
+        testRuntimeInteriorExitWalksBeforeTransfer();
         testInteractionSourceSplitAndFallbacks();
         testRuntimeScriptPrecedenceAndCharbinCompatibility();
         testReusableBlackIrisTransitionLifecycle();

@@ -92,12 +92,26 @@ uniform/texture alpha, height, sampler, and UV motion rather than becoming a
 baked flipbook. Tile geometry is emitted only for authored `.owmap` placements;
 the renderer never extends an ocean plane beyond its placed footprint.
 
-World model placements also accept self-contained GLBs with morph-target `weights`
-animation channels. [`GlbModelLoader.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/gameplay/world3d/data/GlbModelLoader.cpp)
-retains morph deltas and clip data, while [`GlbModelAnimation.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/gameplay/world3d/data/GlbModelAnimation.cpp)
-samples the first authored clip as a synchronized loop. Both the bgfx renderer and SDL
-fallback consume that contract, so animated props referenced by map/tile placements do not
-need scene-specific playback code.
+World model placements accept self-contained GLBs with morph-target `weights` and
+node `rotation` animation channels. [`GlbModelLoader.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/gameplay/world3d/data/GlbModelLoader.cpp)
+retains morph deltas, node pivots, vertex colors, and clip data, while
+[`GlbModelAnimation.cpp`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/src/gameplay/world3d/data/GlbModelAnimation.cpp)
+samples authored clips as synchronized loops. Both the bgfx renderer and SDL fallback
+consume that contract, so animated/vertex-colored props referenced by map placements do
+not need scene-specific playback code.
+
+Aquarium interiors use an optional module under `gameplay/world3d/aquarium`.
+The OWMAP remains the source of the placed tank transform, Aquarium Maker's
+navigation export remains the source of water volumes and obstacle holes, and
+`config/gameplay/world3d/aquariums.json` owns population, shared scale, movement,
+starting anchors, reusable behavior selection, and tank-inspection camera tuning.
+The pure simulation resolves Pokemon by name from the Attend catalog and derives
+navigation clearance from the selected form's rendered bounds. Its small bgfx
+adapter reuses Attend skeletal model data inside the existing world render pass;
+`AttendPokemonPresentation` is the shared CPU contract for form/material
+selection, facial UV sheets, and composed texture payloads. No aquarium config
+means no aquarium actors or per-frame work. See
+[`docs/gameplay/aquariums.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/gameplay/aquariums.md).
 
 The Operations Desk Map Editor owns RTPKS authoring. Its Tile Pack Editor may
 reorganize tabs and smart paths or append assets, but must never renumber an
@@ -112,31 +126,42 @@ and [`docs/gameplay/owmap_tile_layers_proposal.md`](/Users/vanta/Desktop/title_s
 ### Native Pokemon Resort Map Maker
 
 [`tools/map_maker`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/tools/map_maker) owns the standalone `pokemon_resort_map_maker` executable. It is an authoring consumer of the game data/rendering contracts, never a production runtime dependency. Its detailed build, usage, recovery, logging, and extension guide is [`tools/map_maker/README.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/tools/map_maker/README.md); the boundary decision is recorded in [`ADR 0001`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/architecture/adrs/0001-native-map-maker.md).
+Pure editor interaction state and semantic lens colors live below the ImGui shell,
+so Play capture and authoring visualization rules can be regression-tested without
+launching SDL. The native shell publishes the logical-to-framebuffer scale before
+each ImGui frame; the editor-local bgfx bridge renders UI view rectangles at the
+physical backbuffer size. These details remain inside the standalone target.
 
 The editor is split by responsibility:
 
 - `document/` owns lossless OWMAP v1 decoding, mutation, validation, byte-preserving no-op serialization, and verified atomic saves;
-- `project/` and `app/ProjectWorkspace` own project discovery, runtime-compatible path resolution, and one loaded document/command stack per normalized reusable source;
+- `project/` and `app/ProjectWorkspace` own project discovery, lossless world-graph mutation, runtime-compatible path resolution, and one loaded document/command stack per normalized reusable source;
 - `commands/`, `selection/`, and `validation/` own pure undoable editing contracts and door/link/anchor/project diagnostics;
 - `assets/` projects RTPKS sidecar metadata and model manifests, keeping thousands of preview PNGs compressed until visible;
 - `interaction/WorldPicker` intersects the same terrain triangles submitted by the world renderer without allocating in the pointer-hover path;
 - `preview/ExactWorldPreview` loads runtime scene data and delegates to `OverworldBgfxRenderer::renderEmbeddedViewport`;
 - `ui/EditorShell` consumes a UI model and emits editing intentions; it does not own document mutation.
 
-The default authoring surface is a cached, clipped top-down grid; it edits OWMAP
-cells without loading or resubmitting a 3D scene. The embedded renderer is a
-separate read-only game-preview mode and returns its renderer-owned pixel-target
-texture without backbuffer composition or `bgfx::frame()`. Preview animations
-use the same renderer and authored animation clocks as the game, with play,
-pause, restart, and time scrubbing in the editor. Map changes return to top-down
-mode immediately, and a game-preview scene is rebuilt only when that mode needs
-fresh data.
+The default authoring surface is a spatial World graph. It positions exterior
+maps, lays linked interiors out as satellites, renders door travel edges, and
+supports undoable project moves and adjacent-map creation. Opening a node enters
+the cached, clipped top-down Map workspace; cell edits do not load or resubmit a
+3D scene. The embedded renderer is a separate Play workspace and returns its
+renderer-owned pixel-target texture without backbuffer composition or
+`bgfx::frame()`. It uses the shipping character controller, terrain traversal,
+collision, water state, camera, sprite animation, renderer, and authored
+environment clocks. Switching maps remains immediate, and an exact scene is
+built only when Play needs a different or edited source.
 
 `tools/map_maker` is added to CMake with `EXCLUDE_FROM_ALL`. Normal game builds
 do not compile editor-only ImGui, document, or UI targets; `./pkr mapbuilder`
 builds the explicit editor target and launches it.
 
-Unknown OWMAP metadata, collision spare bits, and trailing bytes must survive editor changes. Reused map entries retain separate project identity while sharing the same source document and history. Smart-object features must compile to normal runtime OWMAP/RTPKS data instead of adding editor logic to `gameplay/world3d`.
+Unknown project fields, OWMAP metadata, collision spare bits, and trailing bytes
+must survive editor changes. Reused map entries retain separate project identity
+while sharing the same source document and history. Smart-object features must
+compile to normal runtime OWMAP/RTPKS data instead of adding editor logic to
+`gameplay/world3d`.
 
 ### Overworld Script Engine
 

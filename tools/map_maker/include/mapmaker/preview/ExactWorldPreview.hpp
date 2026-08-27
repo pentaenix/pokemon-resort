@@ -53,6 +53,12 @@ public:
     void setAnimationTimeSeconds(double seconds);
     double animationTimeSeconds() const;
 
+    // Play-test input uses the shipping grid motor and terrain traversal rules.
+    // Input is sampled once per editor frame and normalized to one cardinal axis.
+    void setMovementInput(int dx, int dy);
+    void resetPlayer();
+    bool startPlayerAtTile(int tile_x, int tile_y);
+
     void focusMap();
     void focusPlayer();
     void focusTile(int tile_x, int tile_y);

@@ -5,6 +5,7 @@
 #include "mapmaker/document/MapMetadataEditing.hpp"
 
 #include <algorithm>
+#include <cstdio>
 #include <limits>
 
 namespace pr::mapmaker {
@@ -17,6 +18,18 @@ std::string severityName(DiagnosticSeverity severity) {
         case DiagnosticSeverity::Error: return "error";
     }
     return "error";
+}
+
+std::string decimalPair(float first, float second, const char* suffix) {
+    char text[96]{};
+    std::snprintf(text, sizeof(text), "%.2f x %.2f %s", first, second, suffix);
+    return text;
+}
+
+std::string decimalValue(float value, const char* suffix) {
+    char text[64]{};
+    std::snprintf(text, sizeof(text), "%.2f%s", value, suffix);
+    return text;
 }
 
 bool tileOverlay(
@@ -69,7 +82,9 @@ void EditorController::rebuildAssetViews() {
     asset_views_.reserve(tile_catalog_->tiles().size() + model_catalog_.size() +
         tile_catalog_->smartSets().size());
     for (const TileAsset& tile : tile_catalog_->tiles()) {
-        asset_views_.push_back({tile.key, tile.name, tile.tab_id,
+        const std::string category = tile.interior_role.empty()
+            ? tile.tab_id : "interior_" + tile.interior_role;
+        asset_views_.push_back({tile.key, tile.name, category,
             tile.door ? AssetKind::Door : AssetKind::Tile, tile.resort_tile_id,
             tile.width, tile.height, tile.door});
     }
@@ -84,6 +99,12 @@ void EditorController::rebuildAssetViews() {
             std::max(1, smart.width), std::max(1, smart.height), false});
     }
     for (const TileAssetTab& tab : tile_catalog_->tabs()) tile_categories_.push_back(tab.id);
+    for (const TileAsset& tile : tile_catalog_->tiles()) {
+        if (tile.interior_role.empty()) continue;
+        const std::string category = "interior_" + tile.interior_role;
+        if (std::find(tile_categories_.begin(), tile_categories_.end(), category) ==
+            tile_categories_.end()) tile_categories_.push_back(category);
+    }
     tile_categories_.push_back("triggers");
 }
 
@@ -126,8 +147,9 @@ EditorUiModel EditorController::buildUiModel(const FrameMetrics& metrics) {
     for (const MapProjectEntry& entry : workspace_->project().maps()) {
         const OpenMapSource* source = workspace_->sourceForMap(entry.id);
         model.maps.push_back({entry.id, entry.name, entry.id == workspace_->activeMapId(),
-            source && source->commands.isDirty(), workspace_->project().isReusedMap(entry.id)});
+            source && source->dirty(), workspace_->project().isReusedMap(entry.id)});
     }
+    populateWorldUiModel(model);
     if (active_source) {
         if (!cached_layers_.empty()) {
             active_layer_index_ = std::min(active_layer_index_, cached_layers_.size() - 1U);
@@ -136,8 +158,10 @@ EditorUiModel EditorController::buildUiModel(const FrameMetrics& metrics) {
             model.layers.push_back({index, cached_layers_[index].id, cached_layers_[index].name,
                 index == active_layer_index_, cached_layers_[index].visible});
         }
-        model.can_undo = active_source->commands.canUndo();
-        model.can_redo = active_source->commands.canRedo();
+        model.can_undo = view_mode_ == EditorViewMode::World
+            ? workspace_->canUndoProject() : active_source->commands.canUndo();
+        model.can_redo = view_mode_ == EditorViewMode::World
+            ? workspace_->canRedoProject() : active_source->commands.canRedo();
 
         const auto projected = projectValidation(active_source->document, active_source->key);
         const auto primary = selection_.primary();
@@ -154,7 +178,9 @@ EditorUiModel EditorController::buildUiModel(const FrameMetrics& metrics) {
                     primary->object_id == door.id});
         }
         for (const AnchorProjection& anchor : projected.anchors) {
-            model.placed_anchors.push_back({anchor.id, "faces " + anchor.facing,
+            std::string summary = "faces " + anchor.facing;
+            if (anchor.id == "entry") summary += " • proposed door destination";
+            model.placed_anchors.push_back({anchor.id, std::move(summary),
                 anchor.tile_x, anchor.tile_y,
                 primary && primary->kind == SelectionKind::Anchor &&
                     primary->object_id == anchor.id});
@@ -164,6 +190,11 @@ EditorUiModel EditorController::buildUiModel(const FrameMetrics& metrics) {
     model.active_asset_id = active_asset_id_;
     model.active_category = active_category_;
     model.active_tool_text = active_asset_id_.empty() ? "Select" : "Place " + active_asset_id_;
+    if (active_tool_ == EditorTool::Height) {
+        model.active_tool_text = "Paint height " + std::to_string(height_brush_value_);
+    } else if (active_tool_ == EditorTool::Collision) {
+        model.active_tool_text = collision_brush_value_ ? "Paint blocked" : "Paint walkable";
+    }
     model.active_tool = active_tool_;
     model.view_mode = view_mode_;
     model.height_brush_value = height_brush_value_;
@@ -189,10 +220,24 @@ EditorUiModel EditorController::buildUiModel(const FrameMetrics& metrics) {
         model.top_down.width = active_source->document.width();
         model.top_down.height = active_source->document.height();
         model.top_down.composed_tiles = composed_tiles_;
+        model.top_down.active_layer_tiles = active_layer_tiles_;
         model.top_down.heights = active_source->document.heights();
         model.top_down.specials = active_source->document.specials();
         model.top_down.collision = active_source->document.collision();
+        model.top_down.automatic_collision = automatic_collision_;
         model.top_down.markers = top_down_markers_;
+        const InteriorRoomProjection interior = projectInteriorRoom(active_source->document);
+        model.top_down.default_interior_room = interior.default_room;
+        model.top_down.default_wall_height_tiles = interior.wall_height_tiles;
+        model.top_down.default_room_inset_tiles = interior.walkable_inset_tiles;
+        model.top_down.default_wall_offset_tiles = interior.wall_face_offset_tiles;
+        model.top_down.default_entry_extension_depth_tiles =
+            interior.entry_extension_depth_tiles;
+        model.top_down.default_room_black_top_cap = interior.black_top_cap;
+        for (const InteriorOpeningProjection& opening : interior.openings) {
+            model.top_down.interior_openings.push_back(
+                {opening.edge, opening.from, opening.to});
+        }
         model.top_down.focus_tile_x = top_down_focus_x_;
         model.top_down.focus_tile_y = top_down_focus_y_;
         model.top_down.focus_serial = top_down_focus_serial_;
@@ -212,6 +257,19 @@ EditorUiModel EditorController::buildUiModel(const FrameMetrics& metrics) {
             : InspectorSelectionKind::TerrainCell;
         model.selection.fields.push_back({"Map", primary->map_id, false});
         model.selection.fields.push_back({"Layer", std::to_string(primary->layer), false});
+        if (primary->kind == SelectionKind::Anchor && active_source) {
+            const auto anchors = projectValidation(
+                active_source->document, active_source->key).anchors;
+            const auto anchor = std::find_if(anchors.begin(), anchors.end(),
+                [&](const AnchorProjection& value) {
+                    return value.id == primary->object_id;
+                });
+            if (anchor != anchors.end()) {
+                model.selection.anchor_facing = anchor->facing;
+                model.selection.fields.push_back({"Role",
+                    anchor->id == "entry" ? "Default center entry" : "Arrival node", false});
+            }
+        }
         if (primary->kind == SelectionKind::TerrainCell && active_source &&
             primary->tile_x >= 0 && primary->tile_y >= 0 &&
             primary->tile_x < active_source->document.width() &&
@@ -222,6 +280,19 @@ EditorUiModel EditorController::buildUiModel(const FrameMetrics& metrics) {
             model.selection.height = active_source->document.heightAt(x, y);
             model.selection.special = active_source->document.specialAt(x, y);
             model.selection.collision = active_source->document.collisionAt(x, y) != 0U;
+            const std::size_t cell_index =
+                static_cast<std::size_t>(primary->tile_y) * active_source->document.width() + x;
+            model.selection.automatic_collision =
+                cell_index < automatic_collision_.size() && automatic_collision_[cell_index] != 0U;
+            if (model.selection.special == 14) {
+                const auto spawn_tiles = projectSpawnTiles(active_source->document);
+                const auto spawn = std::find_if(spawn_tiles.begin(), spawn_tiles.end(),
+                    [&](const SpawnTileProjection& value) {
+                        return value.tile_x == primary->tile_x && value.tile_y == primary->tile_y;
+                    });
+                model.selection.spawn_tile_use = spawn == spawn_tiles.end()
+                    ? "pokemon_random_from_boxes" : spawn->allows;
+            }
             int tile_id = -1;
             if (active_layer_index_ < cached_layers_.size() &&
                 y < cached_layers_[active_layer_index_].cells.size() &&
@@ -230,6 +301,29 @@ EditorUiModel EditorController::buildUiModel(const FrameMetrics& metrics) {
             }
             model.selection.fields.push_back({"Tile",
                 tile_id < 0 ? std::string("Empty") : std::to_string(tile_id), false});
+            if (model.selection.automatic_collision) {
+                model.selection.fields.push_back({"Runtime collision",
+                    "Blocked by default room wall", true});
+            }
+        }
+        if (primary->kind == SelectionKind::Model && active_source) {
+            const auto marker = std::find_if(top_down_markers_.begin(), top_down_markers_.end(),
+                [](const TopDownMarkerView& value) {
+                    return value.kind == TopDownMarkerKind::Model && value.selected;
+                });
+            if (marker != top_down_markers_.end()) {
+                model.selection.fields.push_back({"Top-down size", decimalPair(
+                    marker->projected_width_tiles, marker->projected_depth_tiles, "tiles"), false});
+            }
+            const auto placements = projectModels(active_source->document);
+            const auto placement = std::find_if(placements.begin(), placements.end(),
+                [&](const ModelPlacementProjection& value) {
+                    return value.metadata_index == primary->metadata_index;
+                });
+            if (placement != placements.end()) {
+                model.selection.fields.push_back({"Rotation", decimalValue(placement->yaw_deg, " deg"), false});
+                model.selection.fields.push_back({"Scale", decimalValue(placement->scale, "x"), false});
+            }
         }
         if (primary->kind == SelectionKind::DoorTrigger && active_source) {
             const MapValidationProjection projected = projectValidation(
@@ -258,8 +352,27 @@ EditorUiModel EditorController::buildUiModel(const FrameMetrics& metrics) {
                         model.door_editor.destination_map_id)) {
                         const auto destination_projection = projectValidation(
                             destination->document, destination->key);
+                        model.door_editor.automatic_arrival =
+                            hasAutomaticDoorArrival(destination_projection);
+                        if (model.door_editor.automatic_arrival) {
+                            model.door_editor.automatic_arrival_label =
+                                destination_projection.anchors.size() == 1U
+                                ? "Automatic — only arrival anchor"
+                                : "Automatic — only doorway";
+                            const bool explicit_anchor_exists = std::any_of(
+                                destination_projection.anchors.begin(),
+                                destination_projection.anchors.end(),
+                                [&](const AnchorProjection& anchor) {
+                                    return anchor.id == model.door_editor.destination_anchor_id;
+                                });
+                            if (!explicit_anchor_exists) {
+                                model.door_editor.destination_anchor_id.clear();
+                            }
+                        }
                         for (const AnchorProjection& anchor : destination_projection.anchors) {
-                            model.door_editor.anchor_choices.push_back({anchor.id, anchor.id});
+                            model.door_editor.anchor_choices.push_back({anchor.id,
+                                anchor.id == "entry"
+                                    ? "entry (default center)" : anchor.id});
                         }
                     }
                 }

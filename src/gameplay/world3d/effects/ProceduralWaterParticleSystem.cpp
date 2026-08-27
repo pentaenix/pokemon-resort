@@ -167,8 +167,21 @@ ProceduralWaterParticleSystem::ProceduralWaterParticleSystem(
     : scene_(scene), config_(std::move(config)) {
     particles_.resize(static_cast<std::size_t>(std::max(1, config_.max_particles)));
     if (!scene_.tile_package.path.empty()) {
+        std::vector<int> used_tile_ids;
+        std::unordered_set<int> unique_tile_ids;
+        for (const TileLayerConfig& layer : scene_.tile_layers.layers) {
+            if (!layer.visible) continue;
+            for (const auto& row : layer.cells) {
+                for (const int tile_id : row) {
+                    if (tile_id >= 0 && unique_tile_ids.insert(tile_id).second) {
+                        used_tile_ids.push_back(tile_id);
+                    }
+                }
+            }
+        }
         std::string error;
-        const data::RtpksTilePackage package = data::loadRtpksTilePackage(scene_.tile_package.path, &error);
+        const data::RtpksTilePackage package = data::loadRtpksTileMetadataForTiles(
+            scene_.tile_package.path, used_tile_ids, &error);
         std::unordered_set<int> used_material_ids;
         for (const TileLayerConfig& layer : scene_.tile_layers.layers) {
             if (!layer.visible) continue;

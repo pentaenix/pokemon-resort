@@ -161,6 +161,12 @@ RtpksEditorCatalog RtpksEditorCatalog::load(
                 if (const JsonValue* properties = value.get("properties");
                     properties && properties->isObject()) {
                     tile.door = tile.door || stringOr(properties->get("interaction.kind")) == "door";
+                    tile.interior_role = stringOr(properties->get("interior.role"));
+                }
+                if (tile.interior_role.empty()) {
+                    const auto tagged = std::find_if(tile.tags.begin(), tile.tags.end(),
+                        [](const std::string& tag) { return tag.starts_with("interior."); });
+                    if (tagged != tile.tags.end()) tile.interior_role = tagged->substr(9);
                 }
                 if (const JsonValue* preview = value.get("preview"); preview && preview->isObject()) {
                     tile.preview_path = stringOr(preview->get("image"));

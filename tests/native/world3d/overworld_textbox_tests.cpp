@@ -3,6 +3,7 @@
 #include "gameplay/world3d/dialogue/OverworldTextboxRenderer.hpp"
 
 #include <filesystem>
+#include <SDL_ttf.h>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -140,6 +141,20 @@ void testControllerTogglesActiveTarget() {
     expect(!closed && !controller.active(), "toggle should close when already active");
 }
 
+void testDialogueTextWrapsInsideConfiguredWidth() {
+    const fs::path font_path = repositoryRoot() / "assets" / "fonts" / "power clear.ttf";
+    expect(TTF_Init() == 0, std::string("SDL_ttf should initialize: ") + TTF_GetError());
+    TTF_Font* font = TTF_OpenFont(font_path.string().c_str(), 14);
+    expect(font != nullptr, std::string("textbox font should open: ") + TTF_GetError());
+    const SDL_Point size =
+        pr::gameplay::world3d::dialogue::OverworldTextboxRenderer::measureWrappedText(
+            font, "This dialogue contains enough short words to wrap onto several lines safely.", 90);
+    expect(size.x <= 90, "wrapped dialogue texture must remain inside the requested width");
+    expect(size.y > TTF_FontHeight(font), "long dialogue should occupy more than one line");
+    TTF_CloseFont(font);
+    TTF_Quit();
+}
+
 } // namespace
 
 int main() {
@@ -148,6 +163,7 @@ int main() {
         testSkinIndexUsesColumnFirstVisualOrder();
         testLayoutStretchesOnlyMiddleStrip();
         testControllerTogglesActiveTarget();
+        testDialogueTextWrapsInsideConfiguredWidth();
     } catch (const TestFailure& failure) {
         std::cerr << "[FAIL] " << failure.what() << '\n';
         return 1;

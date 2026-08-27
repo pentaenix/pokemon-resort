@@ -19,6 +19,7 @@ struct TileAsset {
     int preview_width = 0;
     int preview_height = 0;
     std::vector<std::string> tags;
+    std::string interior_role;
     bool door = false;
 };
 

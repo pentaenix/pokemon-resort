@@ -40,10 +40,26 @@ struct GlbMorphAnimationChannel {
     std::vector<float> out_tangents;
 };
 
+struct GlbRotationAnimationChannel {
+    enum class Interpolation { Linear, Step };
+
+    int target_node = -1;
+    Interpolation interpolation = Interpolation::Linear;
+    std::vector<float> times;
+    std::vector<std::array<float, 4>> rotations;
+};
+
+struct GlbNodeTransform {
+    std::array<float, 3> pivot_world{};
+    std::array<float, 4> parent_world_rotation{0.0f, 0.0f, 0.0f, 1.0f};
+    std::array<float, 4> base_local_rotation{0.0f, 0.0f, 0.0f, 1.0f};
+};
+
 struct GlbAnimation {
     std::string name;
     float duration_seconds = 0.0f;
     std::vector<GlbMorphAnimationChannel> morph_channels;
+    std::vector<GlbRotationAnimationChannel> rotation_channels;
 };
 
 struct GlbMaterial {
@@ -70,6 +86,14 @@ struct GlbMaterial {
     float base_color[4] = {1.0f, 1.0f, 1.0f, 1.0f};
 };
 
+// glTF defines the effective base-color alpha as COLOR_0.a multiplied by the
+// material's baseColorFactor.a. Keep this composition in one place so a
+// renderer cannot accidentally turn translucent glass or soft-shadow meshes
+// opaque when it starts preserving authored vertex colors.
+inline float compositeGlbAlpha(const GlbVertex& vertex, const GlbMaterial& material) {
+    return vertex.a * material.base_color[3];
+}
+
 struct GlbTriangle {
     GlbVertex a{};
     GlbVertex b{};
@@ -82,6 +106,7 @@ struct GlbMesh {
     std::vector<GlbMaterial> materials;
     std::vector<GlbAnimation> animations;
     std::vector<int> node_morph_target_counts;
+    std::vector<GlbNodeTransform> node_transforms;
     bool valid = false;
     float aabb_min[3] = {0.0f, 0.0f, 0.0f};
     float aabb_max[3] = {0.0f, 0.0f, 0.0f};
@@ -99,5 +124,14 @@ std::array<float, 3> sampleGlbMorphPosition(
     const GlbVertex& vertex,
     const std::vector<std::vector<float>>& node_weights);
 GlbVertex applyGlbMorphWeights(const GlbVertex& vertex, const std::vector<std::vector<float>>& node_weights);
+
+std::vector<std::array<float, 4>> sampleGlbNodeRotations(
+    const GlbMesh& mesh,
+    double time_seconds);
+std::array<float, 3> sampleGlbAnimatedPosition(
+    const GlbMesh& mesh,
+    const GlbVertex& vertex,
+    const std::vector<std::vector<float>>& node_weights,
+    const std::vector<std::array<float, 4>>& node_rotations);
 
 } // namespace pr::gameplay::world3d::data

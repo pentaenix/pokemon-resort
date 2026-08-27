@@ -156,13 +156,26 @@ void EditorController::handle(const EditorUiEvents& events) {
     if (events.activate_asset_id) {
         active_asset_id_ = active_asset_id_ == *events.activate_asset_id
             ? std::string{} : *events.activate_asset_id;
-        if (!active_asset_id_.empty()) active_tool_ = EditorTool::Paint;
+        if (!active_asset_id_.empty()) {
+            active_tool_ = active_asset_kind_ == AssetKind::Model ? EditorTool::Objects
+                : active_asset_kind_ == AssetKind::Door ? EditorTool::Doors
+                : active_asset_kind_ == AssetKind::SmartSet ? EditorTool::SmartObjects
+                : EditorTool::Paint;
+        }
         else active_tool_ = EditorTool::Select;
     }
     if (events.activate_tool) {
         active_tool_ = *events.activate_tool;
         paint_ = {};
         drag_ = {};
+        switch (active_tool_) {
+            case EditorTool::Paint: active_asset_kind_ = AssetKind::Tile; break;
+            case EditorTool::Objects: active_asset_kind_ = AssetKind::Model; break;
+            case EditorTool::Doors: active_asset_kind_ = AssetKind::Door; break;
+            case EditorTool::SmartObjects: active_asset_kind_ = AssetKind::SmartSet; break;
+            default: break;
+        }
+        if (!active_asset_id_.empty() && !activeAsset(assets())) active_asset_id_.clear();
     }
     if (events.height_brush_value) height_brush_value_ = *events.height_brush_value;
     if (events.collision_brush_value) collision_brush_value_ = *events.collision_brush_value;
@@ -172,8 +185,17 @@ void EditorController::handle(const EditorUiEvents& events) {
             active_tool_ = EditorTool::Select;
             active_asset_id_.clear();
             preview_->setAnimationsEnabled(true);
-            requestPreviewReload();
-            status_ = "Loading exact game preview";
+            const OpenMapSource* source = workspace_->activeSource();
+            if (!preview_->ready() || !source || preview_source_key_ != source->key) {
+                requestPreviewReload();
+                status_ = "Loading exact game preview";
+            } else {
+                status_ = "Play test ready";
+            }
+        } else if (view_mode_ == EditorViewMode::World) {
+            active_tool_ = EditorTool::Select;
+            active_asset_id_.clear();
+            status_ = "World workspace";
         } else {
             status_ = "Top-down authoring view";
         }
@@ -185,7 +207,19 @@ void EditorController::handle(const EditorUiEvents& events) {
         preview_->setAnimationsEnabled(false);
     }
     if (events.activate_category) active_category_ = *events.activate_category;
-    if (events.activate_layer_index) active_layer_index_ = *events.activate_layer_index;
+    if (events.activate_layer_index) {
+        active_layer_index_ = *events.activate_layer_index;
+        top_down_cache_dirty_ = true;
+    }
+    if (events.select_world_map_id && workspace_->activateMap(*events.select_world_map_id)) {
+        world_cache_dirty_ = true;
+        top_down_cache_dirty_ = true;
+        selection_.clear();
+        if (const OpenMapSource* selected = workspace_->activeSource()) {
+            active_layer_index_ = configuredLayer(selected->document);
+        }
+        status_ = "Selected " + *events.select_world_map_id;
+    }
     if (events.activate_map_id && workspace_->activateMap(*events.activate_map_id)) {
         view_mode_ = EditorViewMode::TopDown;
         selection_.clear();
@@ -196,20 +230,47 @@ void EditorController::handle(const EditorUiEvents& events) {
         requestPreviewReload();
         status_ = "Switched to " + *events.activate_map_id;
     }
+    handleWorldEvents(events);
     OpenMapSource* source = workspace_->activeSource();
-    if (source && events.undo && source->commands.undo()) {
-        refreshDiagnostics();
-        status_ = "Undo";
+    if (events.resize_map && source) {
+        const int width = std::clamp(events.resize_map->width, 1, 256);
+        const int height = std::clamp(events.resize_map->height, 1, 256);
+        executeMutation(
+            "Resize map to " + std::to_string(width) + " x " + std::to_string(height),
+            [width, height](OwmapDocument& document) {
+                (void)resizeMap(document, static_cast<std::uint16_t>(width),
+                    static_cast<std::uint16_t>(height));
+            });
+        selection_.clear();
+        paint_ = {};
+        drag_ = {};
+        hovered_cell_.reset();
     }
-    if (source && events.redo && source->commands.redo()) {
-        refreshDiagnostics();
-        status_ = "Redo";
+    if (events.undo) {
+        const bool changed = view_mode_ == EditorViewMode::World
+            ? workspace_->undoProject()
+            : (source && source->commands.undo());
+        if (changed) {
+            world_cache_dirty_ = true;
+            refreshDiagnostics();
+            status_ = "Undo";
+        }
+    }
+    if (events.redo) {
+        const bool changed = view_mode_ == EditorViewMode::World
+            ? workspace_->redoProject()
+            : (source && source->commands.redo());
+        if (changed) {
+            world_cache_dirty_ = true;
+            refreshDiagnostics();
+            status_ = "Redo";
+        }
     }
     if (events.save && source) {
         try {
             std::vector<std::string> saved_keys;
             for (const OpenMapSource* open_source : workspace_->sources()) {
-                if (open_source->commands.isDirty()) saved_keys.push_back(open_source->key);
+                if (open_source->dirty()) saved_keys.push_back(open_source->key);
             }
             workspace_->saveAll();
             for (const std::string& key : saved_keys) {
@@ -230,6 +291,16 @@ void EditorController::handle(const EditorUiEvents& events) {
     if (events.duplicate_selection) duplicateSelection();
     if (events.focus_selection) focusSelection();
     if (events.toggle_animations) preview_->setAnimationsEnabled(!preview_->animationsEnabled());
+    preview_->setMovementInput(events.play_move_x, events.play_move_y);
+    if (events.play_reset) preview_->resetPlayer();
+    if (events.play_focus_player) preview_->focusPlayer();
+    if (events.play_start_from_selection) {
+        if (const auto selected = selection_.primary()) {
+            if (!preview_->startPlayerAtTile(selected->tile_x, selected->tile_y)) {
+                status_ = "Selected cell is not a valid player position";
+            }
+        }
+    }
     if (events.toggle_grid) grid_overlay_ = !grid_overlay_;
     if (events.toggle_collision) collision_overlay_ = !collision_overlay_;
     if (events.validate) {
@@ -263,7 +334,7 @@ void EditorController::handle(const EditorUiEvents& events) {
                 if (const OpenMapSource* destination = workspace_->sourceForMap(
                     *events.door_destination_map_id)) {
                     const auto target = projectValidation(destination->document, destination->key);
-                    if (target.anchors.size() == 1U) default_anchor = target.anchors.front().id;
+                    default_anchor = proposedDestinationAnchorId(target.anchors);
                 }
                 executeMutation("Link door", [=](OwmapDocument& document) {
                     (void)addOrUpdateLink(document, door.link_id,
@@ -288,7 +359,7 @@ void EditorController::handle(const EditorUiEvents& events) {
             }
         }
     }
-    handleViewport(events.viewport);
+    if (view_mode_ != EditorViewMode::World) handleViewport(events.viewport);
 }
 
 void EditorController::handleViewport(const ViewportGesture& gesture) {
@@ -319,15 +390,41 @@ void EditorController::handleViewport(const ViewportGesture& gesture) {
         const bool inside = source && x >= 0 && y >= 0 &&
             x < source->document.width() && y < source->document.height();
         const AssetView* active_asset = activeAsset(assets());
-        const bool door_halo = active_tool_ == EditorTool::Paint && active_asset &&
+        const bool places_asset = active_tool_ == EditorTool::Paint ||
+            active_tool_ == EditorTool::Objects || active_tool_ == EditorTool::Doors ||
+            active_tool_ == EditorTool::SmartObjects;
+        const bool door_halo = places_asset && active_asset &&
             active_asset->kind == AssetKind::Door && active_asset->tile_id < 0;
-        const bool brush = active_tool_ == EditorTool::Paint ||
+        const bool brush = places_asset ||
             active_tool_ == EditorTool::EraseLayer || active_tool_ == EditorTool::ClearCell ||
             active_tool_ == EditorTool::Height || active_tool_ == EditorTool::Collision;
         if (brush && (inside || door_halo) &&
-            (active_tool_ != EditorTool::Paint || !active_asset_id_.empty())) {
+            (!places_asset || !active_asset_id_.empty())) {
             paint_.active = true;
             paint_.cells = {{x, y}};
+        } else if (inside && active_tool_ == EditorTool::Anchors) {
+            executeMutation("Add anchor", [x, y](OwmapDocument& document) {
+                (void)addAnchor(document, uniqueMapObjectId(document, "anchor"), x, y, "south");
+            });
+            selection_.select(selectionAt(x, y));
+        } else if (inside && active_tool_ == EditorTool::Eyedropper) {
+            if (active_layer_index_ < cached_layers_.size() &&
+                y < static_cast<int>(cached_layers_[active_layer_index_].cells.size()) &&
+                x < static_cast<int>(cached_layers_[active_layer_index_].cells[static_cast<std::size_t>(y)].size())) {
+                const int tile = cached_layers_[active_layer_index_].cells[static_cast<std::size_t>(y)]
+                    [static_cast<std::size_t>(x)];
+                const auto found = std::find_if(asset_views_.begin(), asset_views_.end(),
+                    [&](const AssetView& asset) {
+                        return asset.kind == AssetKind::Tile && asset.tile_id == tile;
+                    });
+                if (found != asset_views_.end()) {
+                    active_asset_kind_ = AssetKind::Tile;
+                    active_asset_id_ = found->id;
+                    active_category_ = found->category;
+                    active_tool_ = EditorTool::Paint;
+                    status_ = "Sampled " + found->name;
+                }
+            }
         } else if (active_tool_ == EditorTool::Select) {
             const SelectionItem item = selectionAt(x, y);
             selection_.select(item);
@@ -405,86 +502,6 @@ void EditorController::placeActiveAsset(int tile_x, int tile_y) {
             (void)addOrUpdateLink(document, link, {}, {});
         });
     }
-}
-
-void EditorController::deleteSelection() {
-    const auto primary = selection_.primary();
-    if (!primary) return;
-    if (primary->kind == SelectionKind::TerrainCell) {
-        executeMutation("Clear cell", [cell = *primary](OwmapDocument& document) {
-            (void)clearCell(document, cell.tile_x, cell.tile_y);
-        });
-    } else if (primary->kind == SelectionKind::DoorTrigger) {
-        const std::string map_id = workspace_->activeMapId();
-        executeMutation("Delete door", [id = primary->object_id, map_id](OwmapDocument& document) {
-            (void)eraseDoorWithVisual(document, id, map_id);
-        });
-    } else if (primary->kind == SelectionKind::Anchor) {
-        executeMutation("Delete anchor", [id = primary->object_id](OwmapDocument& document) {
-            (void)eraseAnchor(document, id);
-        });
-    } else if (primary->kind == SelectionKind::Model) {
-        if (const auto index = placedModelIndex(*primary)) {
-            executeMutation("Delete model", [index](OwmapDocument& document) {
-                (void)eraseModel(document, *index);
-            });
-        }
-    }
-    selection_.clear();
-}
-
-void EditorController::duplicateSelection() {
-    const auto primary = selection_.primary();
-    OpenMapSource* source = workspace_->activeSource();
-    if (!primary || !source || primary->kind != SelectionKind::Model) return;
-    const auto index = placedModelIndex(*primary);
-    if (!index) return;
-    const auto models = projectModels(source->document);
-    const auto found = std::find_if(models.begin(), models.end(),
-        [index](const ModelPlacementProjection& model) { return model.metadata_index == *index; });
-    if (found == models.end()) return;
-    const ModelPlacementProjection model = *found;
-    executeMutation("Duplicate model", [model](OwmapDocument& document) {
-        (void)addModel(document, uniqueMapObjectId(document, model.id), model.glb,
-            model.x + document.tileSize(), model.y, model.z,
-            model.yaw_deg, model.scale);
-    });
-}
-
-void EditorController::focusSelection() {
-    if (view_mode_ == EditorViewMode::TopDown) {
-        if (const auto primary = selection_.primary()) {
-            top_down_focus_x_ = primary->tile_x;
-            top_down_focus_y_ = primary->tile_y;
-            ++top_down_focus_serial_;
-            status_ = "Focused selected cell";
-        }
-        return;
-    }
-    if (const auto primary = selection_.primary()) {
-        preview_->focusTile(primary->tile_x, primary->tile_y);
-    } else {
-        preview_->focusMap();
-    }
-}
-
-void EditorController::executeMutation(
-    const std::string& label, OwmapMutationCommand::Mutation mutation) {
-    OpenMapSource* source = workspace_->activeSource();
-    if (!source) return;
-    auto command = makeOwmapMutationCommand(source->document, label, std::move(mutation),
-        [this] { requestPreviewReload(); });
-    if (source->commands.execute(std::move(command))) {
-        status_ = label;
-        refreshDiagnostics();
-        log(LogLevel::Info, "edit", label);
-    }
-}
-
-void EditorController::refreshDiagnostics() { diagnostics_ = workspace_->validate(); }
-void EditorController::requestPreviewReload() {
-    preview_reload_pending_ = true;
-    top_down_cache_dirty_ = true;
 }
 
 } // namespace pr::mapmaker

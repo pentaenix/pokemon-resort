@@ -234,6 +234,130 @@ void testReadableObjectIdsReserveDoorLinks() {
         "a generated door id must reserve its automatically generated link id");
 }
 
+void testActorSpawnTileMetadata() {
+    auto map = document();
+    expect(pr::mapmaker::setSpawnTile(map, 2, 1, "npc_with_partner"),
+        "actor spawn tile should accept a supported occupant kind");
+    expect(map.specialAt(2, 1) == 14, "actor spawn tile should use terrain special 14");
+    auto spawns = pr::mapmaker::projectSpawnTiles(map);
+    expect(spawns.size() == 1 && spawns[0].tile_x == 2 && spawns[0].tile_y == 1 &&
+        spawns[0].allows == "npc_with_partner", "actor spawn metadata should project losslessly");
+    expect(pr::mapmaker::setSpawnTile(map, 2, 1, "npc_without_pokemon"),
+        "actor spawn occupant kind should be editable");
+    expect(pr::mapmaker::projectSpawnTiles(map)[0].allows == "npc_without_pokemon",
+        "editing an actor spawn should not duplicate it");
+    expect(!pr::mapmaker::setSpawnTile(map, 0, 0, "unsupported"),
+        "unsupported actor spawn occupant kinds should be rejected");
+    expect(pr::mapmaker::clearCell(map, 2, 1), "universal clear should remove actor spawn");
+    expect(pr::mapmaker::projectSpawnTiles(map).empty() && map.specialAt(2, 1) == 0,
+        "universal clear should remove actor spawn metadata and terrain marker");
+}
+
+void testSouthEntryAnchorsAreEasyAndNonDestructive() {
+    auto map = pr::mapmaker::OwmapDocument::create(8, 6, 16.0f, pr::parseJsonText(R"({
+        "id":"entry_room","anchors":[]
+    })"));
+    expect(pr::mapmaker::addSouthEntryAnchors(map),
+        "south entry action should add a complete three-node entrance");
+    auto anchors = pr::mapmaker::projectValidation(map, "entry_room.owmap").anchors;
+    expect(anchors.size() == 3U &&
+        anchors[0].id == "entry_left" && anchors[0].tile_x == 3 && anchors[0].tile_y == 5 &&
+        anchors[1].id == "entry" && anchors[1].tile_x == 4 && anchors[1].tile_y == 5 &&
+        anchors[2].id == "entry_right" && anchors[2].tile_x == 5 && anchors[2].tile_y == 5,
+        "south entry nodes should be consecutive with entry in the middle");
+    expect(pr::mapmaker::proposedDestinationAnchorId(anchors) == "entry",
+        "door authoring should propose the middle entry anchor");
+
+    expect(pr::mapmaker::moveAnchor(map, "entry", 2, 4) &&
+        pr::mapmaker::setAnchorFacing(map, "entry", "east"),
+        "the proposed center entry should remain fully adjustable");
+    expect(!pr::mapmaker::setAnchorFacing(map, "entry", "diagonal"),
+        "anchor facing should remain cardinal");
+    expect(!pr::mapmaker::addSouthEntryAnchors(map),
+        "adding the set again should not reset existing nodes");
+    anchors = pr::mapmaker::projectValidation(map, "entry_room.owmap").anchors;
+    const auto center = std::find_if(anchors.begin(), anchors.end(),
+        [](const auto& anchor) { return anchor.id == "entry"; });
+    expect(center != anchors.end() && center->tile_x == 2 && center->tile_y == 4 &&
+        center->facing == "east",
+        "re-adding missing entry nodes must preserve center position and facing adjustments");
+
+    expect(pr::mapmaker::eraseAnchor(map, "entry_left") &&
+        pr::mapmaker::addSouthEntryAnchors(map),
+        "a removed entry node can be restored with one action");
+    anchors = pr::mapmaker::projectValidation(map, "entry_room.owmap").anchors;
+    expect(anchors.size() == 3U,
+        "restoring the missing node should not duplicate the remaining entrance nodes");
+
+    const std::vector<pr::mapmaker::AnchorProjection> legacy{{"legacy", 1, 1, "south"}};
+    expect(pr::mapmaker::proposedDestinationAnchorId(legacy) == "legacy",
+        "legacy maps with one anchor should still receive an automatic proposal");
+}
+
+void testInteriorProjectionAndResizePreserveAuthoringGrids() {
+    auto map = pr::mapmaker::OwmapDocument::create(3, 2, 16.0f, pr::parseJsonText(R"({
+        "id":"room","type":"interior",
+        "grid":{"width":3,"height":2,"tileSize":16},
+        "player":{"spawnTile":[2,1]},
+        "interior":{"shellModelId":"","defaultRoom":{"enabled":true,
+            "wallHeightTiles":4,"walkableInsetTiles":1,"wallFaceOffsetTiles":0.75,
+            "entryExtensionDepthTiles":0.5,
+            "blackTopCap":true},
+            "openings":[{"edge":"south","from":1,"to":2}]},
+        "tileLayers":{"version":1,"layers":[{"id":"base","name":"Base","visible":true,
+            "cells":[[null,null,null],[null,null,77]]}]},
+        "pathLayer":{"version":1,"cells":[[0,0,0],[0,0,1]]},
+        "spawnTiles":[{"id":"edge_spawn","tile":[2,1],"allows":"npc_without_pokemon"}]
+    })"));
+    auto room = pr::mapmaker::projectInteriorRoom(map);
+    expect(room.default_room && room.wall_height_tiles == 4.0f &&
+            room.walkable_inset_tiles == 1 && room.wall_face_offset_tiles == 0.75f &&
+            room.entry_extension_depth_tiles == 0.5f &&
+            room.black_top_cap &&
+            room.openings.size() == 1 && room.openings[0].to == 2,
+        "shell-less interior default room and openings should project");
+    expect(pr::mapmaker::interiorBoundaryCellBlocked(room, 3, 2, 0, 0) &&
+            !pr::mapmaker::interiorBoundaryCellBlocked(room, 3, 2, 1, 1),
+        "editor projection should expose automatic wall collision and doorway gaps");
+
+    auto halo_room = pr::mapmaker::OwmapDocument::create(4, 4, 16.0f,
+        pr::parseJsonText(R"({
+            "id":"halo_room","type":"interior",
+            "interior":{"shellModelId":"","defaultRoom":{"enabled":true},"openings":[]},
+            "doorTriggers":[{"id":"exit","tile":[2,4]}]
+        })"));
+    const auto halo_projection = pr::mapmaker::projectInteriorRoom(halo_room);
+    expect(halo_projection.walkable_inset_tiles == 1 &&
+            halo_projection.wall_face_offset_tiles == 0.5f &&
+            halo_projection.entry_extension_depth_tiles == 0.0f &&
+            halo_projection.openings.size() == 1U &&
+            halo_projection.openings[0].edge == "south" &&
+            halo_projection.openings[0].from == 2 &&
+            !pr::mapmaker::interiorBoundaryCellBlocked(halo_projection, 4, 4, 2, 3),
+        "editor should infer a visible and walkable opening from a cardinal-halo door");
+
+    expect(pr::mapmaker::resizeMap(map, 4, 3), "map resize should report a change");
+    auto layers = pr::mapmaker::projectTileLayers(map);
+    expect(map.width() == 4 && map.height() == 3 && layers[0].cells[1][2] == 77 &&
+        layers[0].cells[2][3] == -1,
+        "growing should preserve north-west tiles and initialize new cells empty");
+    expect(map.metadata().get("pathLayer")->get("cells")->asArray().size() == 3,
+        "path grid should grow with the map");
+
+    expect(pr::mapmaker::resizeMap(map, 2, 1), "shrinking should report a change");
+    layers = pr::mapmaker::projectTileLayers(map);
+    expect(layers[0].cells.size() == 1 && layers[0].cells[0].size() == 2,
+        "shrinking should trim tile-layer rows and columns");
+    const auto* spawn = map.metadata().get("player")->get("spawnTile");
+    expect(spawn->asArray()[0].asNumber() == 1 && spawn->asArray()[1].asNumber() == 0,
+        "player spawn should clamp into resized bounds");
+    expect(pr::mapmaker::projectSpawnTiles(map).empty(),
+        "spawn markers outside shrunken bounds should be removed");
+    room = pr::mapmaker::projectInteriorRoom(map);
+    expect(room.openings.size() == 1 && room.openings[0].from == 1 && room.openings[0].to == 1,
+        "interior doorway ranges should clip to the resized edge");
+}
+
 } // namespace
 
 int main() {
@@ -247,6 +371,9 @@ int main() {
         testDoorCreationAcceptsOnlyRuntimeCardinalHalo();
         testLayerLifecyclePreservesCellsAndActiveIdentity();
         testReadableObjectIdsReserveDoorLinks();
+        testActorSpawnTileMetadata();
+        testSouthEntryAnchorsAreEasyAndNonDestructive();
+        testInteriorProjectionAndResizePreserveAuthoringGrids();
         std::cout << "map_metadata_editing_tests: PASS\n";
         return 0;
     } catch (const std::exception& error) {

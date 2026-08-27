@@ -1,5 +1,7 @@
 #include "gameplay/world3d/terrain/TerrainSurface.hpp"
 
+#include "gameplay/world3d/interiors/DefaultRoom.hpp"
+
 #include <algorithm>
 #include <cmath>
 
@@ -40,6 +42,7 @@ int tileSpecial(const SceneConfig& scene, int tx, int ty) {
 }
 
 bool tileBlocked(const SceneConfig& scene, int tx, int ty) {
+    if (interiors::boundaryCellBlocked(scene, tx, ty)) return true;
     if (scene.terrain.collision.empty()) return false;
     if (ty < 0 || ty >= static_cast<int>(scene.terrain.collision.size())) return false;
     const auto& row = scene.terrain.collision[static_cast<std::size_t>(ty)];

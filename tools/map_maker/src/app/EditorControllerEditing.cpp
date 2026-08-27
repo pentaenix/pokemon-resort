@@ -187,18 +187,28 @@ void EditorController::handleLayerEvents(const EditorUiEvents& events) {
 void EditorController::handleTerrainInspectorEvents(const EditorUiEvents& events) {
     const auto primary = selection_.primary();
     if (!primary || primary->kind != SelectionKind::TerrainCell) return;
-    if (!events.set_cell_height && !events.set_cell_special && !events.set_cell_collision) return;
+    if (!events.set_cell_height && !events.set_cell_special && !events.set_cell_collision &&
+        !events.set_spawn_tile_use) return;
     const int x = primary->tile_x;
     const int y = primary->tile_y;
     const auto height = events.set_cell_height;
     const auto special = events.set_cell_special;
     const auto collision = events.set_cell_collision;
+    const auto spawn_tile_use = events.set_spawn_tile_use;
     executeMutation("Edit terrain cell", [=](OwmapDocument& document) {
         if (x < 0 || y < 0 || x >= document.width() || y >= document.height()) return;
         const auto tx = static_cast<std::uint16_t>(x);
         const auto ty = static_cast<std::uint16_t>(y);
         if (height) document.heightAt(tx, ty) = static_cast<std::uint8_t>(std::clamp(*height, 0, 255));
-        if (special) document.specialAt(tx, ty) = static_cast<std::uint8_t>(std::clamp(*special, 0, 255));
+        if (special) {
+            if (*special == 14) {
+                (void)setSpawnTile(document, x, y, "pokemon_random_from_boxes");
+            } else {
+                (void)eraseSpawnTile(document, x, y);
+                document.specialAt(tx, ty) = static_cast<std::uint8_t>(std::clamp(*special, 0, 255));
+            }
+        }
+        if (spawn_tile_use) (void)setSpawnTile(document, x, y, *spawn_tile_use);
         if (collision) document.collisionAt(tx, ty) = *collision ? 1U : 0U;
     });
 }

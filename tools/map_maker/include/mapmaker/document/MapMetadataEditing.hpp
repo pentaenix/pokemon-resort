@@ -28,9 +28,40 @@ struct ModelPlacementProjection {
     float scale = 1.0f;
 };
 
+struct SpawnTileProjection {
+    std::string id;
+    int tile_x = 0;
+    int tile_y = 0;
+    std::string allows;
+};
+
+struct InteriorOpeningProjection {
+    std::string edge;
+    int from = 0;
+    int to = 0;
+};
+
+struct InteriorRoomProjection {
+    bool default_room = false;
+    float wall_height_tiles = 4.0f;
+    int walkable_inset_tiles = 1;
+    float wall_face_offset_tiles = 0.5f;
+    float entry_extension_depth_tiles = 0.0f;
+    bool black_top_cap = true;
+    std::vector<InteriorOpeningProjection> openings;
+};
+
 std::string sceneId(const OwmapDocument& document);
 std::vector<TileLayerProjection> projectTileLayers(const OwmapDocument& document);
 std::vector<ModelPlacementProjection> projectModels(const OwmapDocument& document);
+std::vector<SpawnTileProjection> projectSpawnTiles(const OwmapDocument& document);
+InteriorRoomProjection projectInteriorRoom(const OwmapDocument& document);
+bool interiorBoundaryCellBlocked(
+    const InteriorRoomProjection& room,
+    int width,
+    int height,
+    int x,
+    int y);
 MapValidationProjection projectValidation(
     const OwmapDocument& document,
     std::string source_file);
@@ -38,6 +69,10 @@ MapValidationProjection projectValidation(
 // anchor, or tile layer in this document. The associated `<id>_link` name is
 // reserved too so callers can safely create a door and link as one operation.
 std::string uniqueMapObjectId(const OwmapDocument& document, const std::string& prefix);
+
+// Resize from the south-east corner. Terrain and metadata grids retain their
+// north-west overlap; player/spawn metadata and interior openings are kept valid.
+bool resizeMap(OwmapDocument& document, std::uint16_t width, std::uint16_t height);
 
 // Patch-local edits preserve every unrelated metadata member and null value.
 bool setTileLayerCell(
@@ -80,6 +115,11 @@ bool addAnchor(
     int x,
     int y,
     const std::string& facing = "south");
+// Adds any missing entry_left / entry / entry_right anchors along the south
+// row. Existing anchors are preserved so authored adjustments are never reset.
+bool addSouthEntryAnchors(OwmapDocument& document);
+bool setAnchorFacing(
+    OwmapDocument& document, const std::string& id, const std::string& facing);
 bool eraseAnchor(OwmapDocument& document, const std::string& id);
 bool eraseDoorTrigger(OwmapDocument& document, const std::string& id);
 // Deletes the trigger and its same-document visual cell. Its link is deleted
@@ -90,6 +130,8 @@ bool eraseDoorWithVisual(
     const std::string& id,
     const std::string& local_map_id = {});
 bool eraseModel(OwmapDocument& document, std::size_t metadata_index);
+bool setSpawnTile(OwmapDocument& document, int x, int y, const std::string& allows);
+bool eraseSpawnTile(OwmapDocument& document, int x, int y);
 
 bool addModel(
     OwmapDocument& document,
@@ -116,6 +158,10 @@ bool addOrUpdateLink(
     const std::string& id,
     const std::string& destination_map_id,
     const std::string& destination_anchor_id);
+
+// The conventional center entry wins when present. A legacy single anchor is
+// still proposed automatically; ambiguous sets require an explicit choice.
+std::string proposedDestinationAnchorId(const std::vector<AnchorProjection>& anchors);
 
 // Universal clear semantics used by the editor's Delete action: reset terrain
 // channels, clear every tile layer, and remove cell-bound objects/triggers.

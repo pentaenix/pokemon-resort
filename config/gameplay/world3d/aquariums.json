@@ -1,0 +1,87 @@
+{
+  "schemaVersion": 2,
+  "pokemonScale": 0.3,
+  "maps": [
+    {
+      "mapId": "aquarium12",
+      "tanks": [
+        {
+          "placementId": "aquarium",
+          "navigation": "assets/overworld/models/aquarium/aquarium.navigation.json",
+          "seed": 87,
+          "inspectionCamera": {
+            "enabled": true,
+            "positionOffsetTiles": [
+              0,
+              1.35,
+              1.15
+            ],
+            "lookAtOffsetMeters": [
+              0,
+              0.9,
+              0
+            ],
+            "interactionReachTiles": 1.5,
+            "smooth": 0
+          },
+          "pokemon": [
+            {
+              "id": "aquarium_dewgong",
+              "species": "dewgong",
+              "count": 1,
+              "animation": "idle_default",
+              "speedMetersPerSecond": 0.55,
+              "turnDegreesPerSecond": 120,
+              "bodyRadiusMeters": 0.04
+            }
+          ]
+        },
+        {
+          "placementId": "aquarium_c",
+          "navigation": "assets/overworld/models/aquarium/aquarium_c.navigation.json",
+          "seed": 366,
+          "inspectionCamera": {
+            "enabled": true,
+            "positionOffsetTiles": [
+              0,
+              1.2,
+              1
+            ],
+            "lookAtOffsetMeters": [
+              0,
+              1.8,
+              0
+            ],
+            "interactionReachTiles": 1.5,
+            "smooth": 0
+          },
+          "pokemon": [
+            {
+              "id": "aquarium_clamperl",
+              "species": "clamperl",
+              "count": 1,
+              "animation": "idle_default",
+              "behavior": "stationary",
+              "startingPositionMeters": [0, 0, 0],
+              "verticalAnchor": "bottom",
+              "speedMetersPerSecond": 0,
+              "turnDegreesPerSecond": 120,
+              "bodyRadiusMeters": 0.1
+            },
+            {
+              "id": "aquarium_wishiwashi_school",
+              "species": "wishiwashi",
+              "form": "00",
+              "count": 5,
+              "animation": "idle_default",
+              "behavior": "school",
+              "speedMetersPerSecond": 0.34,
+              "turnDegreesPerSecond": 180,
+              "bodyRadiusMeters": 0.03
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

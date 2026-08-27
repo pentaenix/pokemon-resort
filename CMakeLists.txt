@@ -108,6 +108,8 @@ add_library(world3d_bgfx_renderer STATIC
     src/gameplay/attend/rendering/AttendEyeSocketMask.cpp
     src/gameplay/attend/rendering/AttendPokemonMaterialPolicy.cpp
     src/gameplay/attend/rendering/AttendPokemonModel.cpp
+    src/gameplay/attend/rendering/AttendPokemonPresentation.cpp
+    src/gameplay/world3d/aquarium/rendering/AquariumPokemonBgfxRenderer.cpp
     src/gameplay/world3d/rendering/bgfx/BgfxBackend.cpp
     src/gameplay/world3d/rendering/bgfx/BillboardBgfxDrawer.cpp
     src/gameplay/world3d/rendering/bgfx/OverworldBgfxRenderer.cpp
@@ -159,6 +161,7 @@ add_executable(title_screen_demo
     src/gameplay/world3d/events/InMemoryWorldEventBus.cpp
     src/gameplay/world3d/camera/Gen4CameraPreset.cpp
     src/gameplay/world3d/camera/Gen4FollowCamera.cpp
+    src/gameplay/world3d/camera/FreeCameraCapture.cpp
     src/gameplay/world3d/characters/SpriteSheetAnimator.cpp
     src/gameplay/world3d/characters/CharacterController.cpp
     src/gameplay/world3d/characters/CharacterTerrainQuery.cpp
@@ -170,6 +173,11 @@ add_executable(title_screen_demo
     src/gameplay/world3d/data/OwmapOverworldLoader.cpp
     src/gameplay/world3d/data/GlbModelLoader.cpp
     src/gameplay/world3d/data/GlbModelAnimation.cpp
+    src/gameplay/world3d/aquarium/AquariumConfig.cpp
+    src/gameplay/world3d/aquarium/AquariumInspectionCamera.cpp
+    src/gameplay/world3d/aquarium/AquariumNavigation.cpp
+    src/gameplay/world3d/aquarium/AquariumPokemonMetrics.cpp
+    src/gameplay/world3d/aquarium/AquariumSimulation.cpp
     src/gameplay/world3d/characters/CharacterMovementConfig.cpp
     src/gameplay/world3d/rendering/GlbModelRenderer.cpp
     src/gameplay/world3d/effects/LandingDustSystem.cpp
@@ -212,6 +220,7 @@ add_executable(title_screen_demo
     src/ui/overlay/OverlayCanvas.cpp
     src/ui/transitions/ScreenTransition.cpp
     src/ui/Overworld3DTestScreen.cpp
+    src/ui/Overworld3DTestScreenCamera.cpp
     src/ui/TransferFlowCoordinator.cpp
     src/ui/title_screen/MainMenuController.cpp
     src/ui/title_screen/OptionsMenuController.cpp
@@ -453,6 +462,7 @@ add_executable(attend_pokemon_model_tests
     src/gameplay/attend/rendering/AttendPokemonAsset.cpp
     src/gameplay/attend/rendering/AttendPokemonMaterialPolicy.cpp
     src/gameplay/attend/rendering/AttendPokemonModel.cpp
+    src/gameplay/attend/rendering/AttendPokemonPresentation.cpp
     src/core/config/Json.cpp
 )
 target_include_directories(attend_pokemon_model_tests PRIVATE include)
@@ -614,6 +624,7 @@ add_executable(owmap_overworld_loader_tests
     src/gameplay/world3d/data/JsonOverworldLoader.cpp
     src/gameplay/world3d/data/OwmapOverworldLoader.cpp
     src/gameplay/world3d/data/RtpksTilePackageLoader.cpp
+    src/gameplay/world3d/doors/DoorTravel.cpp
     src/gameplay/world3d/characters/CharacterController.cpp
     src/gameplay/world3d/characters/CharacterTerrainQuery.cpp
     src/gameplay/world3d/characters/GridActorMotor.cpp
@@ -627,6 +638,27 @@ add_executable(owmap_overworld_loader_tests
     src/gameplay/world3d/camera/Gen4CameraPreset.cpp
     src/gameplay/world3d/camera/Gen4FollowCamera.cpp
 )
+
+add_executable(aquarium_tests
+    tests/native/world3d/aquarium_tests.cpp
+    src/core/config/Json.cpp
+    src/gameplay/attend/PokemonModelCatalog.cpp
+    src/core/crypto/Sha256.cpp
+    src/gameplay/attend/rendering/AttendPokemonAsset.cpp
+    src/gameplay/attend/rendering/AttendPokemonMaterialPolicy.cpp
+    src/gameplay/attend/rendering/AttendPokemonModel.cpp
+    src/gameplay/world3d/aquarium/AquariumConfig.cpp
+    src/gameplay/world3d/aquarium/AquariumInspectionCamera.cpp
+    src/gameplay/world3d/aquarium/AquariumNavigation.cpp
+    src/gameplay/world3d/aquarium/AquariumPokemonMetrics.cpp
+    src/gameplay/world3d/aquarium/AquariumSimulation.cpp
+    src/gameplay/world3d/camera/Gen4FollowCamera.cpp
+    src/gameplay/world3d/camera/FreeCameraCapture.cpp
+)
+target_include_directories(aquarium_tests PRIVATE include)
+target_compile_definitions(aquarium_tests PRIVATE PR_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(aquarium_tests PRIVATE SDL2::SDL2 PkgConfig::ZSTD)
+add_test(NAME aquarium_tests COMMAND aquarium_tests)
 target_include_directories(owmap_overworld_loader_tests PRIVATE
     include
     ${bgfx_cmake_SOURCE_DIR}/bimg/3rdparty/tinyexr/deps/miniz)

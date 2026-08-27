@@ -4,6 +4,47 @@
 #include <cmath>
 
 namespace pr::gameplay::world3d::data {
+namespace {
+
+using Quaternion = std::array<float, 4>;
+
+Quaternion normalizeQuaternion(Quaternion value) {
+    const float magnitude = std::sqrt(std::max(0.000001f,
+        value[0] * value[0] + value[1] * value[1] +
+        value[2] * value[2] + value[3] * value[3]));
+    for (float& component : value) component /= magnitude;
+    return value;
+}
+
+Quaternion conjugate(Quaternion value) {
+    return {-value[0], -value[1], -value[2], value[3]};
+}
+
+Quaternion multiply(Quaternion a, Quaternion b) {
+    return {
+        a[3] * b[0] + a[0] * b[3] + a[1] * b[2] - a[2] * b[1],
+        a[3] * b[1] - a[0] * b[2] + a[1] * b[3] + a[2] * b[0],
+        a[3] * b[2] + a[0] * b[1] - a[1] * b[0] + a[2] * b[3],
+        a[3] * b[3] - a[0] * b[0] - a[1] * b[1] - a[2] * b[2]};
+}
+
+Quaternion interpolateRotation(Quaternion a, Quaternion b, float amount) {
+    const float dot = a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3];
+    if (dot < 0.0f) for (float& component : b) component = -component;
+    Quaternion result{};
+    for (std::size_t i = 0; i < result.size(); ++i) {
+        result[i] = a[i] + (b[i] - a[i]) * amount;
+    }
+    return normalizeQuaternion(result);
+}
+
+std::array<float, 3> rotatePoint(Quaternion rotation, std::array<float, 3> point) {
+    const Quaternion vector{point[0], point[1], point[2], 0.0f};
+    const Quaternion rotated = multiply(multiply(rotation, vector), conjugate(rotation));
+    return {rotated[0], rotated[1], rotated[2]};
+}
+
+} // namespace
 
 std::vector<std::vector<float>> sampleGlbMorphWeights(const GlbMesh& mesh, double time_seconds) {
     if (mesh.animations.empty() || mesh.animations.front().morph_channels.empty()) return {};
@@ -80,6 +121,67 @@ GlbVertex applyGlbMorphWeights(
     result.y = position[1];
     result.z = position[2];
     return result;
+}
+
+std::vector<std::array<float, 4>> sampleGlbNodeRotations(
+    const GlbMesh& mesh,
+    double time_seconds) {
+    std::vector<Quaternion> result(
+        mesh.node_transforms.size(), Quaternion{0.0f, 0.0f, 0.0f, 1.0f});
+    for (const GlbAnimation& animation : mesh.animations) {
+        if (animation.rotation_channels.empty()) continue;
+        const float time = animation.duration_seconds > 0.0f
+            ? static_cast<float>(std::fmod(
+                std::max(0.0, time_seconds), static_cast<double>(animation.duration_seconds)))
+            : 0.0f;
+        for (const GlbRotationAnimationChannel& channel : animation.rotation_channels) {
+            if (channel.target_node < 0 ||
+                channel.target_node >= static_cast<int>(result.size()) ||
+                channel.times.empty() || channel.rotations.size() != channel.times.size()) continue;
+            auto upper = std::upper_bound(channel.times.begin(), channel.times.end(), time);
+            const std::size_t next = upper == channel.times.end()
+                ? channel.times.size() - 1U
+                : static_cast<std::size_t>(upper - channel.times.begin());
+            const std::size_t previous = next == 0U ? 0U : next - 1U;
+            float blend = 0.0f;
+            if (channel.interpolation != GlbRotationAnimationChannel::Interpolation::Step &&
+                next != previous) {
+                const float span = channel.times[next] - channel.times[previous];
+                if (span > 0.0f) blend = std::clamp(
+                    (time - channel.times[previous]) / span, 0.0f, 1.0f);
+            }
+            const Quaternion sampled = interpolateRotation(
+                channel.rotations[previous], channel.rotations[next], blend);
+            const GlbNodeTransform& transform =
+                mesh.node_transforms[static_cast<std::size_t>(channel.target_node)];
+            const Quaternion local_delta = normalizeQuaternion(multiply(
+                sampled, conjugate(normalizeQuaternion(transform.base_local_rotation))));
+            const Quaternion parent = normalizeQuaternion(transform.parent_world_rotation);
+            result[static_cast<std::size_t>(channel.target_node)] = normalizeQuaternion(multiply(
+                multiply(parent, local_delta), conjugate(parent)));
+        }
+    }
+    return result;
+}
+
+std::array<float, 3> sampleGlbAnimatedPosition(
+    const GlbMesh& mesh,
+    const GlbVertex& vertex,
+    const std::vector<std::vector<float>>& node_weights,
+    const std::vector<std::array<float, 4>>& node_rotations) {
+    std::array<float, 3> position = sampleGlbMorphPosition(vertex, node_weights);
+    if (vertex.node < 0 || vertex.node >= static_cast<int>(mesh.node_transforms.size()) ||
+        vertex.node >= static_cast<int>(node_rotations.size())) return position;
+    const GlbNodeTransform& transform = mesh.node_transforms[static_cast<std::size_t>(vertex.node)];
+    std::array<float, 3> relative{
+        position[0] - transform.pivot_world[0],
+        position[1] - transform.pivot_world[1],
+        position[2] - transform.pivot_world[2]};
+    relative = rotatePoint(node_rotations[static_cast<std::size_t>(vertex.node)], relative);
+    return {
+        transform.pivot_world[0] + relative[0],
+        transform.pivot_world[1] + relative[1],
+        transform.pivot_world[2] + relative[2]};
 }
 
 } // namespace pr::gameplay::world3d::data

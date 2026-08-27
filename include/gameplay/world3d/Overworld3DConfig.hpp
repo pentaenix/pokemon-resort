@@ -162,6 +162,7 @@ struct TerrainConfig {
     // 2..5 = linear ramps (N/E/S/W)
     // 6..9 = convex corners (NE/SE/SW/NW)
     // 10..13 = concave corners (NE/SE/SW/NW)
+    // 14 = actor spawn marker; geometrically flat and not consumed by spawning yet
     std::vector<std::vector<std::uint8_t>> heights;
     std::vector<std::vector<std::uint8_t>> specials;
     std::vector<std::vector<std::uint8_t>> collision;
@@ -300,6 +301,19 @@ struct PlayerSpawnConfig {
     FacingDirection facing = FacingDirection::South;
 };
 
+enum class SpawnTileUse {
+    PokemonRandomFromBoxes,
+    NpcWithPartnerPokemon,
+    NpcWithoutPokemon,
+};
+
+struct SpawnTileConfig {
+    std::string id;
+    int tile_x = 0;
+    int tile_y = 0;
+    SpawnTileUse allows = SpawnTileUse::PokemonRandomFromBoxes;
+};
+
 struct MapEnvironmentConfig {
     std::string space;
     TerrainColor clear_color{150, 191, 224, 255};
@@ -312,12 +326,48 @@ struct InteriorOpeningConfig {
     int to = 0;
 };
 
+struct InteriorFloorCutoutConfig {
+    int x = 0;
+    int y = 0;
+    int width = 1;
+    int height = 1;
+    // Optional convex polygon in the referenced model's local X/Z units. This
+    // cuts rounded/angled installations exactly while preserving floor UVs.
+    std::string placement_id;
+    std::vector<std::array<float, 2>> local_polygon;
+};
+
+struct InteriorDefaultRoomConfig {
+    // Shell-less interiors receive a procedural floor and cutaway wall envelope.
+    // Authored RTPKS tiles render over this foundation and can replace it gradually.
+    bool enabled = true;
+    float wall_height_tiles = 4.0f;
+    float front_wall_height_tiles = 0.35f;
+    float trim_height_tiles = 0.125f;
+    int walkable_inset_tiles = 1;
+    float wall_face_offset_tiles = 0.5f;
+    // Additional rows beyond the map boundary. The normal three-wide entry is
+    // already the final in-bounds row, so the default adds no second row.
+    float entry_extension_depth_tiles = 0.0f;
+    bool black_top_cap = true;
+    float top_cap_depth_tiles = 0.125f;
+    TerrainColor floor_color_a{72, 80, 94, 255};
+    TerrainColor floor_color_b{80, 89, 104, 255};
+    TerrainColor wall_color_ns{58, 64, 78, 255};
+    TerrainColor wall_color_ew{52, 58, 72, 255};
+    TerrainColor trim_color{96, 104, 122, 255};
+    TerrainColor baseboard_color{42, 47, 58, 255};
+    TerrainColor top_cap_color{0, 0, 0, 255};
+};
+
 struct InteriorMapConfig {
     std::string shell_model_id;
     float floor_datum = 0.0f;
     int grid_origin_x = 0;
     int grid_origin_y = 0;
     std::vector<InteriorOpeningConfig> openings;
+    std::vector<InteriorFloorCutoutConfig> floor_cutouts;
+    InteriorDefaultRoomConfig default_room;
 };
 
 struct SceneConfig {
@@ -383,6 +433,9 @@ struct SceneConfig {
     std::vector<DoorTriggerConfig> door_triggers;
     TileSurfaceGrid tile_surfaces;
     std::vector<NpcConfig> characters;
+    // Parsed authoring markers only. The current random spawner intentionally
+    // does not consume these until its later migration.
+    std::vector<SpawnTileConfig> spawn_tiles;
     PlayerSpawnConfig player;
 };
 

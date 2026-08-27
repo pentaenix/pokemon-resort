@@ -2,6 +2,7 @@
 
 #include <dear-imgui/imgui.h>
 
+#include <algorithm>
 #include <array>
 
 namespace pr::mapmaker {
@@ -49,7 +50,8 @@ void EditorShell::drawDoorEditor(EditorUiModel& model, EditorUiEvents& events) {
     ImGui::TextDisabled("Destination anchor");
     ImGui::BeginDisabled(door.destination_map_id.empty());
     (void)choiceCombo("##door_anchor", door.anchor_choices, door.destination_anchor_id,
-        "Choose anchor...", events.door_destination_anchor_id);
+        door.automatic_arrival ? door.automatic_arrival_label.c_str() : "Choose anchor...",
+        events.door_destination_anchor_id);
     ImGui::EndDisabled();
 
     ImGui::TextDisabled("Approach direction");
@@ -62,9 +64,29 @@ void EditorShell::drawDoorEditor(EditorUiModel& model, EditorUiEvents& events) {
     ImGui::TextDisabled("Script sequence");
     (void)choiceCombo("##door_script", door.script_choices, door.script_id,
         "Choose script...", events.door_script_id);
-    if (door.destination_map_id.empty() || door.destination_anchor_id.empty()) {
+    const bool destination_map_exists = std::any_of(
+        door.map_choices.begin(), door.map_choices.end(), [&](const ChoiceView& choice) {
+            return choice.id == door.destination_map_id;
+        });
+    const bool destination_anchor_exists = std::any_of(
+        door.anchor_choices.begin(), door.anchor_choices.end(), [&](const ChoiceView& choice) {
+            return choice.id == door.destination_anchor_id;
+        });
+    if (door.destination_map_id.empty() ||
+        (door.destination_anchor_id.empty() && !door.automatic_arrival)) {
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.64f, 0.28f, 1.0f));
-        ImGui::TextWrapped("Choose both a map and an anchor before saving a usable door link.");
+        ImGui::TextWrapped(
+            "Inactive door: choose a destination. An arrival is automatic only when that map has one door or one anchor.");
+        ImGui::PopStyleColor();
+    } else if (!destination_map_exists ||
+        (!destination_anchor_exists && !door.automatic_arrival)) {
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.42f, 0.38f, 1.0f));
+        ImGui::TextWrapped(
+            "Inactive door: the selected destination map or anchor no longer exists.");
+        ImGui::PopStyleColor();
+    } else {
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.42f, 0.86f, 0.66f, 1.0f));
+        ImGui::TextUnformatted("Destination is ready");
         ImGui::PopStyleColor();
     }
 }

@@ -67,7 +67,10 @@ const scripts::OverworldScript* findDoorScript(
 
 class DoorSequenceController {
 public:
-    bool start(const scripts::OverworldScript* script, DoorTriggerHit hit);
+    bool start(
+        const scripts::OverworldScript* script,
+        DoorTriggerHit hit,
+        const std::vector<characters::LoadedWorldChunk>& chunks);
     const scripts::ScriptAction* currentAction() const;
     void advance();
     void cancel();

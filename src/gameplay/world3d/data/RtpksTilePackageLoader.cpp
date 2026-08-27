@@ -6,8 +6,13 @@
 
 #include <algorithm>
 #include <cstring>
+#include <filesystem>
+#include <memory>
+#include <mutex>
 #include <sstream>
 #include <stdexcept>
+#include <unordered_map>
+#include <unordered_set>
 
 namespace pr::gameplay::world3d::data {
 
@@ -65,6 +70,53 @@ std::vector<std::string> stringArray(const JsonValue* value) {
 
 bool boolOr(const JsonValue* value, bool fallback) {
     return value && value->isBool() ? value->asBool() : fallback;
+}
+
+JsonValue extractJson(mz_zip_archive& zip, const std::string& path);
+
+struct CachedManifests {
+    std::filesystem::file_time_type modified{};
+    std::uintmax_t file_size = 0;
+    JsonValue package;
+    JsonValue runtime;
+};
+
+std::mutex manifest_cache_mutex;
+std::unordered_map<std::string, std::shared_ptr<const CachedManifests>> manifest_cache;
+
+std::shared_ptr<const CachedManifests> loadManifests(
+    mz_zip_archive& zip,
+    const std::string& path) {
+    std::error_code error;
+    const auto modified = std::filesystem::last_write_time(path, error);
+    const std::uintmax_t file_size = error ? 0U : std::filesystem::file_size(path, error);
+    {
+        std::lock_guard<std::mutex> lock(manifest_cache_mutex);
+        const auto cached = manifest_cache.find(path);
+        if (cached != manifest_cache.end() && !error &&
+            cached->second->modified == modified &&
+            cached->second->file_size == file_size) {
+            return cached->second;
+        }
+    }
+
+    auto loaded = std::make_shared<CachedManifests>();
+    loaded->modified = modified;
+    loaded->file_size = file_size;
+    loaded->package = extractJson(zip, "manifest.json");
+    loaded->runtime = extractJson(zip, "runtime/manifest.json");
+    {
+        std::lock_guard<std::mutex> lock(manifest_cache_mutex);
+        const auto [it, inserted] = manifest_cache.emplace(path, loaded);
+        if (!inserted) {
+            if (!error && it->second->modified == modified &&
+                it->second->file_size == file_size) {
+                return it->second;
+            }
+            it->second = loaded;
+        }
+    }
+    return loaded;
 }
 
 std::vector<std::uint8_t> extractZipEntry(mz_zip_archive& zip, const std::string& path) {
@@ -179,7 +231,13 @@ const RtpksTileMesh* RtpksTilePackage::tileById(int resort_tile_id) const {
     return it == tiles.end() ? nullptr : &*it;
 }
 
-RtpksTilePackage loadRtpksTilePackage(const std::string& path, std::string* error) {
+namespace {
+
+RtpksTilePackage loadRtpksTilePackageImpl(
+    const std::string& path,
+    const std::unordered_set<int>* requested_tile_ids,
+    bool include_image_payloads,
+    std::string* error) {
     RtpksTilePackage out;
     out.path = path;
 
@@ -190,21 +248,50 @@ RtpksTilePackage loadRtpksTilePackage(const std::string& path, std::string* erro
     }
 
     try {
-        const JsonValue manifest = extractJson(zip, "manifest.json");
+        const std::shared_ptr<const CachedManifests> manifests = loadManifests(zip, path);
+        const JsonValue& manifest = manifests->package;
         if (strOr(manifest.get("format"), "") != "pokemon_resort.rtpks" || intOr(manifest.get("version"), 0) != 2) {
             throw std::runtime_error("Unsupported RTPKS package. Re-export as RTPKS v2: " + path);
         }
-        const JsonValue runtime = extractJson(zip, "runtime/manifest.json");
+        const JsonValue& runtime = manifests->runtime;
         if (strOr(runtime.get("format"), "") != "pokemon_resort.rpak") {
             throw std::runtime_error("RTPKS missing runtime manifest: " + path);
         }
         out.pack_id = strOr(runtime.get("packId"), strOr(manifest.get("packId"), ""));
+
+        std::unordered_set<int> required_material_ids;
+        if (const JsonValue* tiles = runtime.get("tiles"); tiles && tiles->isArray()) {
+            for (const JsonValue& tile_value : tiles->asArray()) {
+                if (!tile_value.isObject()) continue;
+                const int resort_tile_id = intOr(tile_value.get("resortTileId"), -1);
+                if (resort_tile_id < 0 ||
+                    (requested_tile_ids &&
+                     requested_tile_ids->find(resort_tile_id) == requested_tile_ids->end())) {
+                    continue;
+                }
+                const std::string mesh_path = "runtime/meshes/tile_" + std::to_string(resort_tile_id) + ".json";
+                const std::vector<std::uint8_t> mesh_bytes = extractZipEntry(zip, mesh_path);
+                if (mesh_bytes.empty()) continue;
+                const JsonValue mesh_root = parseJsonText(
+                    std::string(reinterpret_cast<const char*>(mesh_bytes.data()), mesh_bytes.size()));
+                RtpksTileMesh tile = parseTileMesh(resort_tile_id, mesh_root, &tile_value);
+                for (const RtpksMaterialRange& range : tile.material_ranges) {
+                    required_material_ids.insert(range.material_id);
+                }
+                out.tiles.push_back(std::move(tile));
+            }
+        }
 
         if (const JsonValue* materials = runtime.get("materials"); materials && materials->isArray()) {
             for (const JsonValue& material_value : materials->asArray()) {
                 if (!material_value.isObject()) continue;
                 RtpksMaterial material;
                 material.material_id = intOr(material_value.get("materialId"), -1);
+                if (material.material_id < 0 ||
+                    (requested_tile_ids &&
+                     required_material_ids.find(material.material_id) == required_material_ids.end())) {
+                    continue;
+                }
                 material.name = strOr(material_value.get("name"), "");
                 material.texture_name = strOr(material_value.get("textureName"), "");
                 material.alpha = intOr(material_value.get("alpha"), 31);
@@ -232,16 +319,17 @@ RtpksTilePackage loadRtpksTilePackage(const std::string& path, std::string* erro
                         };
                     }
                 }
-                if (material.material_id < 0) continue;
-                if (!material.texture_name.empty()) {
+                if (include_image_payloads && !material.texture_name.empty()) {
                     material.image_bytes = extractZipEntry(zip, "runtime/textures/" + material.texture_name);
                 }
                 if (const JsonValue* animation = material_value.get("animation"); animation && animation->isObject() &&
                     strOr(animation->get("type"), "") == "frames") {
                     material.animation_frame_time_ms = std::max(16, intOr(animation->get("frameDurationMs"), 180));
-                    for (const std::string& frame_name : stringArray(animation->get("frames"))) {
-                        std::vector<std::uint8_t> frame = extractZipEntry(zip, "runtime/textures/" + frame_name);
-                        if (!frame.empty()) material.animation_frame_bytes.push_back(std::move(frame));
+                    if (include_image_payloads) {
+                        for (const std::string& frame_name : stringArray(animation->get("frames"))) {
+                            std::vector<std::uint8_t> frame = extractZipEntry(zip, "runtime/textures/" + frame_name);
+                            if (!frame.empty()) material.animation_frame_bytes.push_back(std::move(frame));
+                        }
                     }
                     material.animation_loop = boolOr(animation->get("loop"), true);
                 } else if (animation && animation->isObject() &&
@@ -265,8 +353,12 @@ RtpksTilePackage loadRtpksTilePackage(const std::string& path, std::string* erro
                             if (texture_name.empty()) continue;
                             RtpksMaterialImageKeyframe keyframe;
                             keyframe.frame = std::max(0, intOr(keyframe_value.get("frame"), 0));
-                            keyframe.image_bytes = extractZipEntry(zip, "runtime/textures/" + texture_name);
-                            if (!keyframe.image_bytes.empty()) material.animation_image_keyframes.push_back(std::move(keyframe));
+                            if (include_image_payloads) {
+                                keyframe.image_bytes = extractZipEntry(zip, "runtime/textures/" + texture_name);
+                                if (!keyframe.image_bytes.empty()) {
+                                    material.animation_image_keyframes.push_back(std::move(keyframe));
+                                }
+                            }
                         }
                         std::sort(
                             material.animation_image_keyframes.begin(),
@@ -280,19 +372,6 @@ RtpksTilePackage loadRtpksTilePackage(const std::string& path, std::string* erro
             }
         }
 
-        if (const JsonValue* tiles = runtime.get("tiles"); tiles && tiles->isArray()) {
-            for (const JsonValue& tile_value : tiles->asArray()) {
-                if (!tile_value.isObject()) continue;
-                const int resort_tile_id = intOr(tile_value.get("resortTileId"), -1);
-                if (resort_tile_id < 0) continue;
-                const std::string mesh_path = "runtime/meshes/tile_" + std::to_string(resort_tile_id) + ".json";
-                const std::vector<std::uint8_t> mesh_bytes = extractZipEntry(zip, mesh_path);
-                if (mesh_bytes.empty()) continue;
-                const JsonValue mesh_root = parseJsonText(
-                    std::string(reinterpret_cast<const char*>(mesh_bytes.data()), mesh_bytes.size()));
-                out.tiles.push_back(parseTileMesh(resort_tile_id, mesh_root, &tile_value));
-            }
-        }
         mz_zip_reader_end(&zip);
         return out;
     } catch (const std::exception& e) {
@@ -300,6 +379,28 @@ RtpksTilePackage loadRtpksTilePackage(const std::string& path, std::string* erro
         fail(error, e.what());
         return {};
     }
+}
+
+} // namespace
+
+RtpksTilePackage loadRtpksTilePackage(const std::string& path, std::string* error) {
+    return loadRtpksTilePackageImpl(path, nullptr, true, error);
+}
+
+RtpksTilePackage loadRtpksTilePackageForTiles(
+    const std::string& path,
+    const std::vector<int>& resort_tile_ids,
+    std::string* error) {
+    const std::unordered_set<int> requested(resort_tile_ids.begin(), resort_tile_ids.end());
+    return loadRtpksTilePackageImpl(path, &requested, true, error);
+}
+
+RtpksTilePackage loadRtpksTileMetadataForTiles(
+    const std::string& path,
+    const std::vector<int>& resort_tile_ids,
+    std::string* error) {
+    const std::unordered_set<int> requested(resort_tile_ids.begin(), resort_tile_ids.end());
+    return loadRtpksTilePackageImpl(path, &requested, false, error);
 }
 
 RtpksTilePackage loadRtpksTileSemantics(const std::string& path, std::string* error) {
@@ -311,7 +412,8 @@ RtpksTilePackage loadRtpksTileSemantics(const std::string& path, std::string* er
         return out;
     }
     try {
-        const JsonValue runtime = extractJson(zip, "runtime/manifest.json");
+        const std::shared_ptr<const CachedManifests> manifests = loadManifests(zip, path);
+        const JsonValue& runtime = manifests->runtime;
         if (strOr(runtime.get("format"), "") != "pokemon_resort.rpak") {
             throw std::runtime_error("RTPKS missing runtime manifest: " + path);
         }

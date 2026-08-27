@@ -162,6 +162,21 @@ void testOneCellCardinalHaloIsAcceptedButCornersAreNot() {
     expect(corner_error != diagnostics.end(), "diagonal halo corner remains invalid");
 }
 
+void testSingleDoorIsAnAutomaticArrival() {
+    using namespace pr::mapmaker;
+    auto maps = validMaps();
+    maps.front().links.front().destination_anchor_id.clear();
+    maps.back().anchors.clear();
+    const auto diagnostics = validateMapProject(validProject(), maps);
+    expect(!hasCode(diagnostics, "link.destination_anchor_unknown"),
+        "a destination with one door does not require a redundant anchor selection");
+
+    maps.back().doors.push_back(maps.back().doors.front());
+    const auto ambiguous = validateMapProject(validProject(), maps);
+    expect(hasCode(ambiguous, "link.destination_anchor_unknown"),
+        "multiple destination doors remain ambiguous without an explicit anchor");
+}
+
 } // namespace
 
 int main() {
@@ -170,6 +185,7 @@ int main() {
         {"valid doors links anchors and reuse", testValidDoorsLinksAnchorsAndReuseHaveNoErrors},
         {"invalid project has actionable codes", testInvalidProjectProducesActionableStableCodes},
         {"cardinal halo accepted, corners rejected", testOneCellCardinalHaloIsAcceptedButCornersAreNot},
+        {"single door automatic arrival", testSingleDoorIsAnAutomaticArrival},
     };
     int failures = 0;
     for (const auto& [name, test] : tests) {

@@ -59,10 +59,16 @@ struct MapValidationProjection {
     std::string scene_id;
     int width = 0;
     int height = 0;
+    bool has_runtime_visual = true;
     std::vector<AnchorProjection> anchors;
     std::vector<LinkProjection> links;
     std::vector<DoorProjection> doors;
 };
+
+bool hasAutomaticDoorArrival(const MapValidationProjection& map);
+bool canResolveDoorArrival(
+    const MapValidationProjection& map,
+    const std::string& destination_anchor_id);
 
 std::vector<ValidationDiagnostic> validateMapProject(
     const MapProjectDocument& project,

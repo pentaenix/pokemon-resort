@@ -34,11 +34,14 @@ const char* assetKindLabel(AssetKind kind) {
 } // namespace
 
 void EditorShell::drawAssetBrowser(EditorUiModel& model, EditorUiEvents& events, float) {
-    ImGui::SeparatorText("Layers");
-    if (model.layers.empty()) {
-        ImGui::TextDisabled("No tile layers");
-        if (ImGui::Button("+ Layer", ImVec2(70.0f, 0.0f))) events.add_layer = true;
-    } else {
+    const bool show_layers = model.active_tool == EditorTool::Paint ||
+        model.active_tool == EditorTool::EraseLayer || model.active_tool == EditorTool::ClearCell;
+    if (show_layers) {
+        ImGui::SeparatorText("Layer stack");
+        if (model.layers.empty()) {
+            ImGui::TextDisabled("No tile layers");
+            if (ImGui::Button(ICON_FA_PLUS "  Layer", ImVec2(78.0f, 0.0f))) events.add_layer = true;
+        }
         for (auto iterator = model.layers.rbegin(); iterator != model.layers.rend(); ++iterator) {
             const LayerView& layer = *iterator;
             ImGui::PushID(static_cast<int>(layer.index));
@@ -66,32 +69,22 @@ void EditorShell::drawAssetBrowser(EditorUiModel& model, EditorUiEvents& events,
                 events.rename_layer = std::pair{active->index, std::string(layer_name_.data())};
             }
         }
-        if (ImGui::Button("+ Layer", ImVec2(62.0f, 0.0f))) events.add_layer = true;
+        if (ImGui::Button(ICON_FA_PLUS "  Layer", ImVec2(78.0f, 0.0f))) events.add_layer = true;
         ImGui::SameLine();
-        if (ImGui::Button("Up", ImVec2(48.0f, 0.0f))) events.move_layer_up = true;
+        if (ImGui::Button(ICON_FA_ARROW_UP "##layer_up", ImVec2(38.0f, 0.0f))) events.move_layer_up = true;
         ImGui::SameLine();
-        if (ImGui::Button("Down", ImVec2(52.0f, 0.0f))) events.move_layer_down = true;
+        if (ImGui::Button(ICON_FA_ARROW_DOWN "##layer_down", ImVec2(38.0f, 0.0f))) events.move_layer_down = true;
         ImGui::SameLine();
         ImGui::BeginDisabled(model.layers.size() <= 1U);
-        if (ImGui::Button("Delete", ImVec2(58.0f, 0.0f))) events.delete_layer = true;
+        if (ImGui::Button(ICON_FA_TRASH "##layer_delete", ImVec2(38.0f, 0.0f))) events.delete_layer = true;
         ImGui::EndDisabled();
     }
 
     ImGui::Spacing();
-    ImGui::TextUnformatted("Assets");
+    ImGui::TextUnformatted(assetKindLabel(model.active_asset_kind));
     ImGui::SetNextItemWidth(-1.0f);
     ImGui::InputTextWithHint("##asset_search", "Search tiles, objects, doors...",
         search_, sizeof(search_));
-    bool first_kind = true;
-    for (AssetKind kind : {AssetKind::Tile, AssetKind::Door, AssetKind::Model, AssetKind::SmartSet}) {
-        if (!first_kind) ImGui::SameLine();
-        first_kind = false;
-        if (model.active_asset_kind == kind) {
-            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.17f, 0.46f, 0.63f, 1.0f));
-        }
-        if (ImGui::Button(assetKindLabel(kind))) events.activate_asset_kind = kind;
-        if (model.active_asset_kind == kind) ImGui::PopStyleColor();
-    }
     if ((model.active_asset_kind == AssetKind::Tile || model.active_asset_kind == AssetKind::Door) &&
         !model.tile_categories.empty()) {
         ImGui::SetNextItemWidth(-1.0f);

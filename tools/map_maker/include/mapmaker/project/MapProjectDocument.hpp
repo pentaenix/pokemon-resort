@@ -1,5 +1,7 @@
 #pragma once
 
+#include "core/config/Json.hpp"
+
 #include <cstddef>
 #include <filesystem>
 #include <optional>
@@ -64,7 +66,17 @@ public:
     std::vector<MapSourceGroup> sourceGroups() const;
     bool isReusedMap(std::string_view map_id) const;
 
+    // World-workspace mutations preserve unknown project fields in the parsed
+    // JSON envelope. They update both the authored JSON and its projections.
+    bool moveMap(std::string_view map_id, int grid_x, int grid_y);
+    bool addMap(MapProjectEntry entry);
+    std::string serialize() const;
+    void saveAtomic(const std::filesystem::path& path = {});
+
 private:
+    void rebuildProjection();
+
+    JsonValue root_;
     std::string raw_json_;
     std::filesystem::path source_path_;
     int version_ = 1;

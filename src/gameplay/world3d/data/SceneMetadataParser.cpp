@@ -105,6 +105,49 @@ void applyColor(TerrainColor& out, const JsonValue* color) {
     if (arr.size() > 3 && arr[3].isNumber()) out.a = static_cast<std::uint8_t>(std::clamp(intOr(&arr[3], out.a), 0, 255));
 }
 
+void applyInteriorDefaultRoomConfig(
+    InteriorDefaultRoomConfig& out,
+    const JsonValue* room) {
+    if (!room || !room->isObject()) return;
+    out.enabled = boolOr(room->get("enabled"), out.enabled);
+    out.wall_height_tiles = std::clamp(
+        static_cast<float>(numOr(room->get("wallHeightTiles"), out.wall_height_tiles)),
+        0.0f, 16.0f);
+    out.front_wall_height_tiles = std::clamp(
+        static_cast<float>(numOr(
+            room->get("frontWallHeightTiles"), out.front_wall_height_tiles)),
+        0.0f, 16.0f);
+    out.trim_height_tiles = std::clamp(
+        static_cast<float>(numOr(room->get("trimHeightTiles"), out.trim_height_tiles)),
+        0.0f, 2.0f);
+    out.walkable_inset_tiles = std::clamp(
+        intOr(room->get("walkableInsetTiles"), out.walkable_inset_tiles), 0, 8);
+    out.wall_face_offset_tiles = std::clamp(
+        static_cast<float>(numOr(
+            room->get("wallFaceOffsetTiles"), out.wall_face_offset_tiles)),
+        0.0f, 1.0f);
+    out.entry_extension_depth_tiles = std::clamp(
+        static_cast<float>(numOr(
+            room->get("entryExtensionDepthTiles"), out.entry_extension_depth_tiles)),
+        0.0f, 8.0f);
+    out.black_top_cap = boolOr(room->get("blackTopCap"), out.black_top_cap);
+    out.top_cap_depth_tiles = std::clamp(
+        static_cast<float>(numOr(
+            room->get("topCapDepthTiles"), out.top_cap_depth_tiles)),
+        0.0f, 1.0f);
+    if (const JsonValue* floor = room->get("floorColors"); floor && floor->isObject()) {
+        applyColor(out.floor_color_a, floor->get("checkerA"));
+        applyColor(out.floor_color_b, floor->get("checkerB"));
+    }
+    if (const JsonValue* walls = room->get("wallColors"); walls && walls->isObject()) {
+        applyColor(out.wall_color_ns, walls->get("northSouth"));
+        applyColor(out.wall_color_ew, walls->get("eastWest"));
+        applyColor(out.trim_color, walls->get("trim"));
+        applyColor(out.baseboard_color, walls->get("baseboard"));
+        applyColor(out.top_cap_color, walls->get("topCap"));
+    }
+}
+
 void applyMapEnvironmentConfig(SceneConfig& out, const JsonValue& root) {
     out.map_type = strOr(root.get("type"), "exterior");
     if (out.map_type != "interior") out.map_type = "exterior";
@@ -149,6 +192,30 @@ void applyMapEnvironmentConfig(SceneConfig& out, const JsonValue& root) {
                 }
             }
         }
+        if (const JsonValue* cutouts = interior->get("floorCutouts"); cutouts && cutouts->isArray()) {
+            for (const JsonValue& value : cutouts->asArray()) {
+                if (!value.isObject()) continue;
+                InteriorFloorCutoutConfig cutout;
+                cutout.x = intOr(value.get("x"), 0);
+                cutout.y = intOr(value.get("y"), 0);
+                cutout.width = std::max(1, intOr(value.get("width"), 1));
+                cutout.height = std::max(1, intOr(value.get("height"), 1));
+                cutout.placement_id = strOr(value.get("placementId"), "");
+                if (const JsonValue* polygon = value.get("localPolygon");
+                    polygon && polygon->isArray()) {
+                    for (const JsonValue& point : polygon->asArray()) {
+                        if (!point.isArray() || point.asArray().size() < 2U ||
+                            !point.asArray()[0].isNumber() || !point.asArray()[1].isNumber()) continue;
+                        cutout.local_polygon.push_back({
+                            static_cast<float>(point.asArray()[0].asNumber()),
+                            static_cast<float>(point.asArray()[1].asNumber())});
+                    }
+                    if (cutout.local_polygon.size() < 3U) cutout.local_polygon.clear();
+                }
+                out.interior.floor_cutouts.push_back(cutout);
+            }
+        }
+        applyInteriorDefaultRoomConfig(out.interior.default_room, interior->get("defaultRoom"));
     }
 }
 
@@ -193,6 +260,34 @@ void applyPlayerConfig(PlayerSpawnConfig& out, const JsonValue* player, const st
     }
     out.spawn_height = static_cast<float>(numOr(player->get("spawnHeight"), out.spawn_height));
     out.facing = parseFacing(strOr(player->get("facing"), "south"));
+}
+
+void applySpawnTilesConfig(SceneConfig& out, const JsonValue* spawn_tiles) {
+    if (!spawn_tiles || !spawn_tiles->isArray()) return;
+    out.spawn_tiles.clear();
+    for (const JsonValue& value : spawn_tiles->asArray()) {
+        if (!value.isObject()) continue;
+        SpawnTileConfig spawn;
+        spawn.id = strOr(value.get("id"), "");
+        const std::string allows = strOr(value.get("allows"), "");
+        if (allows == "pokemon_random_from_boxes") {
+            spawn.allows = SpawnTileUse::PokemonRandomFromBoxes;
+        } else if (allows == "npc_with_partner") {
+            spawn.allows = SpawnTileUse::NpcWithPartnerPokemon;
+        } else if (allows == "npc_without_pokemon") {
+            spawn.allows = SpawnTileUse::NpcWithoutPokemon;
+        } else {
+            continue;
+        }
+        const JsonValue* tile = value.get("tile");
+        if (!tile || !tile->isArray() || tile->asArray().size() < 2U ||
+            !tile->asArray()[0].isNumber() || !tile->asArray()[1].isNumber()) continue;
+        spawn.tile_x = static_cast<int>(tile->asArray()[0].asNumber());
+        spawn.tile_y = static_cast<int>(tile->asArray()[1].asNumber());
+        if (spawn.tile_x < 0 || spawn.tile_y < 0 || spawn.tile_x >= out.grid.width ||
+            spawn.tile_y >= out.grid.height) continue;
+        out.spawn_tiles.push_back(std::move(spawn));
+    }
 }
 
 void applyCameraConfig(SceneConfig& out, const JsonValue* camera) {
@@ -518,6 +613,7 @@ SceneConfig parseSceneMetadata(
     }
 
     applyGridConfig(out.grid, root.get("grid"));
+    applySpawnTilesConfig(out, root.get("spawnTiles"));
     applyTilePackageConfig(out, root.get("tilePackage"), project_root);
     applyTileLayersConfig(out, root.get("tileLayers"));
     applyDoorTravelConfig(out, root);

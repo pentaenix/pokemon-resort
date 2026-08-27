@@ -542,6 +542,7 @@ int clearTransferSaveCache(const char* config_path_override) {
 }
 
 int runApplication(const char* argv0, const char* config_path_override) {
+    const auto startup_started_at = std::chrono::steady_clock::now();
     std::string root = findProjectRoot();
     const std::string app_config_path = (fs::path(root) / "config" / "app.json").string();
     std::string config_path = config_path_override ? config_path_override : (fs::path(root) / "config" / "title_screen.json").string();
@@ -635,6 +636,8 @@ int runApplication(const char* argv0, const char* config_path_override) {
     InputRouter input_router;
     WindowPresentation presentation = WindowPresentation::Sdl2D;
     int pending_sdl_recreate_frames = 0;
+    int startup_input_guard_frames = 2;
+    bool startup_time_logged = false;
     SDL_MetalView sdl_metal_view = nullptr;
 
     while (running) {
@@ -643,6 +646,16 @@ int runApplication(const char* argv0, const char* config_path_override) {
         while (SDL_PollEvent(&event)) {
             if (event.type == SDL_QUIT) {
                 running = false;
+                continue;
+            }
+            // A launcher click/Return can remain queued while native resources are
+            // being created. Do not let that launch gesture skip the splash before
+            // the user has seen a presented frame.
+            if (startup_input_guard_frames > 0 &&
+                (event.type == SDL_KEYDOWN || event.type == SDL_KEYUP ||
+                 event.type == SDL_MOUSEBUTTONDOWN || event.type == SDL_MOUSEBUTTONUP ||
+                 event.type == SDL_CONTROLLERBUTTONDOWN ||
+                 event.type == SDL_CONTROLLERBUTTONUP)) {
                 continue;
             }
             if (event.type == SDL_KEYDOWN && !event.key.repeat) {
@@ -861,6 +874,15 @@ int runApplication(const char* argv0, const char* config_path_override) {
                 SDL_SetRenderDrawBlendMode(renderer.get(), SDL_BLENDMODE_BLEND);
                 SDL_RenderPresent(renderer.get());
             }
+        }
+
+        if (startup_input_guard_frames > 0) --startup_input_guard_frames;
+        if (!startup_time_logged) {
+            const double startup_seconds = std::chrono::duration<double>(
+                std::chrono::steady_clock::now() - startup_started_at).count();
+            std::cerr << "[App] First frame presented after " << startup_seconds << " seconds\n";
+            startup_time_logged = true;
+            overworld3d_test.beginBackgroundPreload();
         }
 
         if (app_config.target_fps > 0) {

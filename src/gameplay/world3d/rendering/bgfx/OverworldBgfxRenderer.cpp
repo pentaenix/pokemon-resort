@@ -8,6 +8,10 @@
 #include "gameplay/world3d/data/GlbModelLoader.hpp"
 #include "gameplay/world3d/data/RtpksTilePackageLoader.hpp"
 #include "gameplay/world3d/doors/DoorAnimationPolicy.hpp"
+#include "gameplay/world3d/interiors/DefaultRoomGeometry.hpp"
+#include "gameplay/world3d/interiors/InteriorFloorCutout.hpp"
+#include "gameplay/world3d/aquarium/rendering/AquariumPokemonBgfxRenderer.hpp"
+#include "gameplay/world3d/rendering/InteriorDefaultRoom.hpp"
 #include "gameplay/world3d/rendering/InteriorRenderPolicy.hpp"
 #include "gameplay/world3d/rendering/bgfx/BgfxBackend.hpp"
 #include "gameplay/world3d/rendering/bgfx/RampTerrainRender.hpp"
@@ -33,6 +37,7 @@
 #include <limits>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -284,6 +289,7 @@ public:
     bool valid() const { return initialized_ && backend_.valid(); }
     std::string lastError() const { return last_error_; }
     void setStaticMapChunks(std::vector<OverworldBgfxRenderer::StaticMapChunk> chunks);
+    void setAquariumPokemonActors(std::vector<aquarium::AquariumPokemonActor> actors);
     void setTextboxOverlay(dialogue::OverworldTextboxConfig config, bool visible, std::string text);
     void setAttendButtonOverlay(std::string icon_path, SDL_Rect logical_rect, bool visible);
     void setBlackIrisTransition(float logical_x, float logical_y, float closed_amount,
@@ -529,6 +535,8 @@ private:
     std::optional<data::RtpksTilePackage> tile_package_;
     std::vector<OverworldBgfxRenderer::StaticMapChunk> pending_static_chunks_;
     std::vector<StaticChunkGpuResource> static_chunks_;
+    aquarium::rendering::AquariumPokemonBgfxRenderer aquarium_pokemon_renderer_;
+    std::vector<aquarium::AquariumPokemonActor> aquarium_pokemon_actors_;
     PixelWorldTarget pixel_world_target_;
     bool override_animation_clock_ = false;
     bool animations_enabled_ = true;
@@ -724,6 +732,11 @@ void OverworldBgfxRenderer::setStaticMapChunks(std::vector<StaticMapChunk> chunk
     }
 }
 
+void OverworldBgfxRenderer::setAquariumPokemonActors(
+    std::vector<aquarium::AquariumPokemonActor> actors) {
+    if (impl_) impl_->setAquariumPokemonActors(std::move(actors));
+}
+
 void OverworldBgfxRenderer::setTextboxOverlay(
     dialogue::OverworldTextboxConfig config, bool visible, std::string text) {
     if (impl_) {
@@ -831,6 +844,12 @@ void OverworldBgfxRenderer::Impl::queueScreenshot(const std::string& output_path
 
 void OverworldBgfxRenderer::Impl::setStaticMapChunks(std::vector<OverworldBgfxRenderer::StaticMapChunk> chunks) {
     pending_static_chunks_ = std::move(chunks);
+}
+
+void OverworldBgfxRenderer::Impl::setAquariumPokemonActors(
+    std::vector<aquarium::AquariumPokemonActor> actors) {
+    aquarium_pokemon_actors_ = std::move(actors);
+    if (initialized_) aquarium_pokemon_renderer_.setActors(aquarium_pokemon_actors_);
 }
 
 void OverworldBgfxRenderer::Impl::setTextboxOverlay(
@@ -974,6 +993,7 @@ bool OverworldBgfxRenderer::Impl::initialize(
     int height,
     const std::string& bgfx_preference,
     void* sdl_metal_view) {
+    const auto initialize_started_at = std::chrono::steady_clock::now();
     if (initialized_) {
         backend_.reset(width, height);
         return true;
@@ -1012,6 +1032,11 @@ bool OverworldBgfxRenderer::Impl::initialize(
         return false;
     }
 
+    aquarium_pokemon_renderer_.initialize(
+        layout_, world_program_, tex_uniform_, tint_cutoff_uniform_, color_adjust_uniform_,
+        texture_blur_uniform_, uv_offset_uniform_, light_dir_uniform_, light_params_uniform_);
+    aquarium_pokemon_renderer_.setActors(aquarium_pokemon_actors_);
+
     refreshBillboardDrawer();
     initialized_ = true;
     std::cerr << "[OverworldBgfx] Ready terrain="
@@ -1021,11 +1046,14 @@ bool OverworldBgfxRenderer::Impl::initialize(
               << " staticChunks=" << static_chunks_.size()
               << " playerTexture=" << character_textures_[character_.texture_path].color.width << "x"
               << character_textures_[character_.texture_path].color.height
+              << " initMs=" << std::chrono::duration_cast<std::chrono::milliseconds>(
+                     std::chrono::steady_clock::now() - initialize_started_at).count()
               << '\n';
     return initialized_;
 }
 
 void OverworldBgfxRenderer::Impl::shutdown() {
+    aquarium_pokemon_renderer_.shutdown();
     pixel_world_target_.destroy();
     terrain_flat_top_mesh_.destroy();
     terrain_slope_top_mesh_.destroy();
@@ -1329,8 +1357,23 @@ bool OverworldBgfxRenderer::Impl::loadTilePackage() {
     if (scene_.tile_package.path.empty() || scene_.tile_layers.layers.empty()) {
         return true;
     }
+    std::vector<int> used_tile_ids;
+    std::unordered_set<int> unique_tile_ids;
+    for (const TileLayerConfig& layer : scene_.tile_layers.layers) {
+        if (!layer.visible) continue;
+        for (const auto& row : layer.cells) {
+            for (const int tile_id : row) {
+                if (tile_id >= 0 && unique_tile_ids.insert(tile_id).second) {
+                    used_tile_ids.push_back(tile_id);
+                }
+            }
+        }
+    }
+    if (used_tile_ids.empty()) return true;
+
     std::string error;
-    data::RtpksTilePackage package = data::loadRtpksTilePackage(scene_.tile_package.path, &error);
+    data::RtpksTilePackage package = data::loadRtpksTilePackageForTiles(
+        scene_.tile_package.path, used_tile_ids, &error);
     if (package.tiles.empty()) {
         std::cerr << "[OverworldBgfx] RTPKS unavailable: "
                   << (error.empty() ? scene_.tile_package.path : error)
@@ -1935,20 +1978,45 @@ bool OverworldBgfxRenderer::Impl::buildTerrain() {
         vertices.push_back(Vertex{x3, y3, z3, color, 0.0f, 1.0f});
         indices.insert(indices.end(), {base, base + 1, base + 2, base, base + 2, base + 3});
     };
-    const std::uint32_t floor_a = ramp_terrain_render::packTerrainColor(scene_.terrain.floor_color_a);
-    const std::uint32_t floor_b = ramp_terrain_render::packTerrainColor(scene_.terrain.floor_color_b);
+    const auto push_floor_quad = [](std::vector<Vertex>& vertices,
+                                    std::vector<std::uint32_t>& indices,
+                                    const interiors::DefaultRoomFloorClip& clip,
+                                    float y00, float y10, float y11, float y01,
+                                    std::uint32_t color) {
+        const std::uint32_t base = static_cast<std::uint32_t>(vertices.size());
+        vertices.push_back(Vertex{clip.x0, y00, clip.z0, color, clip.u0, clip.v0});
+        vertices.push_back(Vertex{clip.x1, y10, clip.z0, color, clip.u1, clip.v0});
+        vertices.push_back(Vertex{clip.x1, y11, clip.z1, color, clip.u1, clip.v1});
+        vertices.push_back(Vertex{clip.x0, y01, clip.z1, color, clip.u0, clip.v1});
+        indices.insert(indices.end(), {base, base + 1, base + 2, base, base + 2, base + 3});
+    };
+    const auto push_floor_triangle = [](std::vector<Vertex>& vertices,
+                                        std::vector<std::uint32_t>& indices,
+                                        const interiors::FloorCutoutTriangle& triangle,
+                                        float y0, float y1, float y2,
+                                        std::uint32_t color) {
+        const std::uint32_t base = static_cast<std::uint32_t>(vertices.size());
+        vertices.push_back(Vertex{
+            triangle[0].x, y0, triangle[0].z, color, triangle[0].u, triangle[0].v});
+        vertices.push_back(Vertex{
+            triangle[1].x, y1, triangle[1].z, color, triangle[1].u, triangle[1].v});
+        vertices.push_back(Vertex{
+            triangle[2].x, y2, triangle[2].z, color, triangle[2].u, triangle[2].v});
+        indices.insert(indices.end(), {base, base + 1, base + 2});
+    };
+    const bool default_interior_room = shouldRenderDefaultInteriorRoom(scene_);
+    const auto& room = scene_.interior.default_room;
+    const std::uint32_t floor_a = ramp_terrain_render::packTerrainColor(
+        default_interior_room ? room.floor_color_a : scene_.terrain.floor_color_a);
+    const std::uint32_t floor_b = ramp_terrain_render::packTerrainColor(
+        default_interior_room ? room.floor_color_b : scene_.terrain.floor_color_b);
     const std::uint32_t first_non_base_a = ramp_terrain_render::packTerrainColor(scene_.terrain.first_non_base_floor_color_a);
     const std::uint32_t first_non_base_b = ramp_terrain_render::packTerrainColor(scene_.terrain.first_non_base_floor_color_b);
     const std::uint32_t ramp_a = ramp_terrain_render::packTerrainColor(scene_.terrain.ramp_color_a);
     const std::uint32_t ramp_b = ramp_terrain_render::packTerrainColor(scene_.terrain.ramp_color_b);
     for (int y = 0; y < grid_h; ++y) {
         for (int x = 0; x < grid_w; ++x) {
-            const float x0 = static_cast<float>(x) * tile_size;
-            const float z0 = static_cast<float>(y) * tile_size;
-            const float x1 = x0 + tile_size;
-            const float z1 = z0 + tile_size;
-            float c[4]{};
-            fill_corners(x, y, c);
+            const auto clip = interiors::clipDefaultRoomFloorCell(scene_, x, y, tile_size);
             const int special = tile_special(x, y);
             const bool slope = is_slope_special(special);
             std::vector<Vertex>& top_vertices = slope ? slope_top_vertices : flat_top_vertices;
@@ -1962,9 +2030,43 @@ bool OverworldBgfxRenderer::Impl::buildTerrain() {
                 color = checker ? ramp_b : ramp_a;
             }
             if (!tile_covers_cell(x, y)) {
-                push_quad(top_vertices, top_indices, x0, c[0], z0, x1, c[1], z0, x1, c[2], z1, x0, c[3], z1, color);
+                if (default_interior_room && !scene_.interior.floor_cutouts.empty()) {
+                    for (const auto& triangle :
+                         interiors::clipFloorCellAgainstCutouts(scene_, x, y, tile_size)) {
+                        push_floor_triangle(
+                            top_vertices, top_indices, triangle,
+                            terrain::heightAtWorldPositionOnTile(
+                                scene_, triangle[0].x, triangle[0].z, x, y, true),
+                            terrain::heightAtWorldPositionOnTile(
+                                scene_, triangle[1].x, triangle[1].z, x, y, true),
+                            terrain::heightAtWorldPositionOnTile(
+                                scene_, triangle[2].x, triangle[2].z, x, y, true),
+                            color);
+                    }
+                } else {
+                    push_floor_quad(
+                        top_vertices, top_indices, clip,
+                        terrain::heightAtWorldPositionOnTile(scene_, clip.x0, clip.z0, x, y, true),
+                        terrain::heightAtWorldPositionOnTile(scene_, clip.x1, clip.z0, x, y, true),
+                        terrain::heightAtWorldPositionOnTile(scene_, clip.x1, clip.z1, x, y, true),
+                        terrain::heightAtWorldPositionOnTile(scene_, clip.x0, clip.z1, x, y, true),
+                        color);
+                }
             }
         }
+    }
+
+    for (const auto& quad : interiors::buildDefaultRoomFloorApron(scene_, tile_size)) {
+        const auto& p = quad.points;
+        const std::uint32_t color =
+            ((quad.source_tile_x + quad.source_tile_y) & 1) != 0 ? floor_b : floor_a;
+        const std::uint32_t base = static_cast<std::uint32_t>(flat_top_vertices.size());
+        flat_top_vertices.push_back(Vertex{p[0].x, p[0].y, p[0].z, color, 1.0f, 0.0f});
+        flat_top_vertices.push_back(Vertex{p[1].x, p[1].y, p[1].z, color, 0.0f, 0.0f});
+        flat_top_vertices.push_back(Vertex{p[2].x, p[2].y, p[2].z, color, 0.0f, 1.0f});
+        flat_top_vertices.push_back(Vertex{p[3].x, p[3].y, p[3].z, color, 1.0f, 1.0f});
+        flat_top_indices.insert(flat_top_indices.end(),
+            {base, base + 1, base + 2, base, base + 2, base + 3});
     }
 
     const auto add_wall_if_drop = [&](float xa, float za, float ya0, float ya1,
@@ -1975,8 +2077,10 @@ bool OverworldBgfxRenderer::Impl::buildTerrain() {
         if (high <= low) return;
         push_quad(wall_vertices, wall_indices, xa, low, za, xb, low, zb, xb, high, zb, xa, high, za, color);
     };
-    const std::uint32_t wall_ns = ramp_terrain_render::packTerrainColor(scene_.terrain.wall_color_ns);
-    const std::uint32_t wall_ew = ramp_terrain_render::packTerrainColor(scene_.terrain.wall_color_ew);
+    const std::uint32_t wall_ns = ramp_terrain_render::packTerrainColor(
+        default_interior_room ? room.wall_color_ns : scene_.terrain.wall_color_ns);
+    const std::uint32_t wall_ew = ramp_terrain_render::packTerrainColor(
+        default_interior_room ? room.wall_color_ew : scene_.terrain.wall_color_ew);
     for (int y = 0; y < grid_h; ++y) {
         for (int x = 0; x < grid_w; ++x) {
             const float x0 = static_cast<float>(x) * tile_size;
@@ -1996,6 +2100,99 @@ bool OverworldBgfxRenderer::Impl::buildTerrain() {
                 fill_corners(x, y + 1, n);
                 add_wall_if_drop(x0, z1, c[3], c[2], x1, z1, n[0], n[1], wall_ns);
                 add_wall_if_drop(x0, z1, n[0], n[1], x1, z1, c[3], c[2], wall_ns);
+            }
+        }
+    }
+
+    if (default_interior_room) {
+        const std::uint32_t trim = ramp_terrain_render::packTerrainColor(room.trim_color);
+        const std::uint32_t baseboard =
+            ramp_terrain_render::packTerrainColor(room.baseboard_color);
+        const std::uint32_t top_cap =
+            ramp_terrain_render::packTerrainColor(room.top_cap_color);
+        const auto push_wall_segment = [&](std::string_view edge,
+                                           float ax, float az, float ay,
+                                           float bx, float bz, float by,
+                                           float height_tiles,
+                                           std::uint32_t body_color) {
+            const float height = std::max(0.0f, height_tiles) * tile_size;
+            if (height <= 0.001f) return;
+            const auto [normal_x, normal_z] =
+                interiors::wallOutwardNormal(edge);
+            const auto line = interiors::placeDefaultRoomWallLine(
+                scene_, edge, tile_size, ax, az, bx, bz);
+            ax = line.ax;
+            az = line.az;
+            bx = line.bx;
+            bz = line.bz;
+            const float band = std::min(
+                std::max(0.0f, room.trim_height_tiles) * tile_size,
+                height * 0.35f);
+            const float body_bottom_a = ay + band;
+            const float body_bottom_b = by + band;
+            const float body_top_a = ay + height - band;
+            const float body_top_b = by + height - band;
+            if (band > 0.001f) {
+                push_quad(wall_vertices, wall_indices,
+                    ax, ay, az, bx, by, bz, bx, body_bottom_b, bz, ax, body_bottom_a, az,
+                    baseboard);
+            }
+            if (body_top_a > body_bottom_a + 0.001f ||
+                body_top_b > body_bottom_b + 0.001f) {
+                push_quad(wall_vertices, wall_indices,
+                    ax, body_bottom_a, az, bx, body_bottom_b, bz,
+                    bx, body_top_b, bz, ax, body_top_a, az, body_color);
+            }
+            if (band > 0.001f) {
+                push_quad(wall_vertices, wall_indices,
+                    ax, body_top_a, az, bx, body_top_b, bz,
+                    bx, by + height, bz, ax, ay + height, az, trim);
+            }
+            const float cap_depth =
+                std::max(0.0f, room.top_cap_depth_tiles) * tile_size;
+            if (room.black_top_cap && cap_depth > 0.001f) {
+                push_quad(wall_vertices, wall_indices,
+                    ax, ay + height, az,
+                    bx, by + height, bz,
+                    bx + normal_x * cap_depth, by + height, bz + normal_z * cap_depth,
+                    ax + normal_x * cap_depth, ay + height, az + normal_z * cap_depth,
+                    top_cap);
+            }
+        };
+        for (int x = 0; x < grid_w; ++x) {
+            float north[4]{};
+            fill_corners(x, 0, north);
+            if (!defaultInteriorOpeningCovers(scene_, "north", x)) {
+                push_wall_segment("north",
+                    x * tile_size, 0.0f, north[0],
+                    (x + 1) * tile_size, 0.0f, north[1],
+                    defaultInteriorWallHeightTiles(scene_, "north"), wall_ns);
+            }
+            float south[4]{};
+            fill_corners(x, grid_h - 1, south);
+            if (!defaultInteriorOpeningCovers(scene_, "south", x)) {
+                push_wall_segment("south",
+                    (x + 1) * tile_size, grid_h * tile_size, south[2],
+                    x * tile_size, grid_h * tile_size, south[3],
+                    defaultInteriorWallHeightTiles(scene_, "south"), wall_ns);
+            }
+        }
+        for (int y = 0; y < grid_h; ++y) {
+            float west[4]{};
+            fill_corners(0, y, west);
+            if (!defaultInteriorOpeningCovers(scene_, "west", y)) {
+                push_wall_segment("west",
+                    0.0f, (y + 1) * tile_size, west[3],
+                    0.0f, y * tile_size, west[0],
+                    defaultInteriorWallHeightTiles(scene_, "west"), wall_ew);
+            }
+            float east[4]{};
+            fill_corners(grid_w - 1, y, east);
+            if (!defaultInteriorOpeningCovers(scene_, "east", y)) {
+                push_wall_segment("east",
+                    grid_w * tile_size, y * tile_size, east[1],
+                    grid_w * tile_size, (y + 1) * tile_size, east[2],
+                    defaultInteriorWallHeightTiles(scene_, "east"), wall_ew);
             }
         }
     }
@@ -2070,14 +2267,19 @@ bool OverworldBgfxRenderer::Impl::buildModels() {
         if (!glb.animations.empty()) source_vertices.reserve(glb.triangles.size() * 3);
 
         for (std::size_t mat_index = 0; mat_index < glb.materials.size(); ++mat_index) {
-            const std::uint32_t vertex_color = packAbgr(1.0f, 1.0f, 1.0f, glb.materials[mat_index].base_color[3]);
             const std::uint32_t range_start = static_cast<std::uint32_t>(indices.size());
             for (const data::GlbTriangle& tri : glb.triangles) {
                 if (tri.material != static_cast<int>(mat_index)) continue;
                 const std::uint32_t base = static_cast<std::uint32_t>(vertices.size());
-                vertices.push_back(Vertex{tri.a.x, tri.a.y, tri.a.z, vertex_color, tri.a.u, tri.a.v});
-                vertices.push_back(Vertex{tri.b.x, tri.b.y, tri.b.z, vertex_color, tri.b.u, tri.b.v});
-                vertices.push_back(Vertex{tri.c.x, tri.c.y, tri.c.z, vertex_color, tri.c.u, tri.c.v});
+                vertices.push_back(Vertex{tri.a.x, tri.a.y, tri.a.z,
+                    packAbgr(tri.a.r, tri.a.g, tri.a.b,
+                        data::compositeGlbAlpha(tri.a, glb.materials[mat_index])), tri.a.u, tri.a.v});
+                vertices.push_back(Vertex{tri.b.x, tri.b.y, tri.b.z,
+                    packAbgr(tri.b.r, tri.b.g, tri.b.b,
+                        data::compositeGlbAlpha(tri.b, glb.materials[mat_index])), tri.b.u, tri.b.v});
+                vertices.push_back(Vertex{tri.c.x, tri.c.y, tri.c.z,
+                    packAbgr(tri.c.r, tri.c.g, tri.c.b,
+                        data::compositeGlbAlpha(tri.c, glb.materials[mat_index])), tri.c.u, tri.c.v});
                 if (!glb.animations.empty()) {
                     source_vertices.insert(source_vertices.end(), {tri.a, tri.b, tri.c});
                 }
@@ -2135,9 +2337,12 @@ void OverworldBgfxRenderer::Impl::updateModelAnimation(ModelGpuResource& model) 
             static_cast<double>(scene_.environment_animation_speed);
     const std::vector<std::vector<float>> weights =
         data::sampleGlbMorphWeights(model.animation_mesh, time_seconds);
-    if (weights.empty()) return;
+    const std::vector<std::array<float, 4>> rotations =
+        data::sampleGlbNodeRotations(model.animation_mesh, time_seconds);
+    if (weights.empty() && rotations.empty()) return;
     for (std::size_t i = 0; i < model.source_vertices.size(); ++i) {
-        const std::array<float, 3> position = data::sampleGlbMorphPosition(model.source_vertices[i], weights);
+        const std::array<float, 3> position = data::sampleGlbAnimatedPosition(
+            model.animation_mesh, model.source_vertices[i], weights, rotations);
         model.animated_vertices[i].x = position[0];
         model.animated_vertices[i].y = position[1];
         model.animated_vertices[i].z = position[2];
@@ -3413,6 +3618,12 @@ OverworldBgfxRenderer::EmbeddedViewportTexture OverworldBgfxRenderer::Impl::rend
             submitMesh(model.mesh, model.model_matrix, world_program_, MaterialClass::MaskCutout, 0.5f, stateFor(MaterialClass::MaskCutout));
         }
     }
+
+    // Aquarium actors are real skinned Attend models. Submit them before
+    // transparent tank glass/water so those surfaces correctly cover fish
+    // while the shared world depth buffer still clips underground geometry.
+    aquarium_pokemon_renderer_.submit(1, false);
+    aquarium_pokemon_renderer_.submit(1, true);
 
     // RAE material-motion tiles may carry a source display-list order that
     // crosses opaque/cutout/blend classes (notably Gen 5 shoreline layers).

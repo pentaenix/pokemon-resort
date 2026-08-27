@@ -135,6 +135,48 @@ void testLoadingKeepsExactFileBytes() {
     fs::remove_all(root);
 }
 
+void testWorldMutationsPreserveUnknownProjectData() {
+    auto project = pr::mapmaker::MapProjectDocument::parse(projectJson());
+    expect(project.moveMap("house", -4, 7), "map position changes");
+    const auto* house = project.findMap("house");
+    expect(house && house->grid_x == -4 && house->grid_y == 7,
+        "world position projection updates immediately");
+    pr::mapmaker::MapProjectEntry addition;
+    addition.id = "dock_east";
+    addition.name = "East Dock";
+    addition.file = "dock_east.owmap";
+    addition.grid_x = 9;
+    addition.grid_y = 3;
+    expect(project.addMap(addition), "new map is added");
+    expect(!project.addMap(addition), "duplicate map IDs are rejected");
+    const std::string saved = project.serialize();
+    expect(saved.find("\"futureFeature\"") != std::string::npos &&
+        saved.find("\"mustSurvive\": true") != std::string::npos,
+        "unknown project metadata survives mutations");
+    const auto reparsed = pr::mapmaker::MapProjectDocument::parse(saved);
+    expect(reparsed.findMap("dock_east") != nullptr && reparsed.maps().size() == 4U,
+        "mutated project round-trips");
+}
+
+void testAtomicProjectSaveCreatesRecoverableBackup() {
+    const fs::path root = temporaryRoot("project_save");
+    const fs::path path = root / "map_project.json";
+    writeText(path, projectJson());
+    auto project = pr::mapmaker::MapProjectDocument::load(path);
+    expect(project.moveMap("house", 12, -8), "save test mutation applies");
+    project.saveAtomic();
+    expect(fs::is_regular_file(path.string() + ".bak"), "atomic save preserves a backup");
+    const auto loaded = pr::mapmaker::MapProjectDocument::load(path);
+    const auto* house = loaded.findMap("house");
+    expect(house && house->grid_x == 12 && house->grid_y == -8,
+        "atomic save writes a parseable project");
+    const auto backup = pr::mapmaker::MapProjectDocument::load(path.string() + ".bak");
+    const auto* old_house = backup.findMap("house");
+    expect(old_house && old_house->grid_x == 0 && old_house->grid_y == 0,
+        "backup retains the previous project");
+    fs::remove_all(root);
+}
+
 } // namespace
 
 int main() {
@@ -144,6 +186,8 @@ int main() {
         {"editor session uses preference and shared identity", testEditorSessionUsesPreferenceAndRetainsSharedIdentity},
         {"discovery uses runtime order", testDiscoveryUsesRuntimeOrder},
         {"loading keeps exact file bytes", testLoadingKeepsExactFileBytes},
+        {"world mutations preserve unknown data", testWorldMutationsPreserveUnknownProjectData},
+        {"atomic project save creates backup", testAtomicProjectSaveCreatesRecoverableBackup},
     };
     int failures = 0;
     for (const auto& [name, test] : tests) {

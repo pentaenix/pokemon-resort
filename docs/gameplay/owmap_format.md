@@ -34,6 +34,7 @@ Indexing for all layers is row-major:
   - `2..5`: directional ramps (N/E/S/W)
   - `6..9`: convex corner ramps (NE/SE/SW/NW)
   - `10..13`: concave corner ramps (NE/SE/SW/NW)
+  - `14`: actor spawn marker; geometrically flat and reserved for `spawnTiles[]`
 
 Corner ramp labels name the affected corner in map space. Corner order in the
 runtime height solver is `NW, NE, SE, SW`.
@@ -71,12 +72,26 @@ alignment without changing the version-1 binary envelope:
     "renderOtherSpaces": false
   },
   "interior": {
-    "shellModelId": "interiors/house_test.glb",
-    "floorDatum": -2.5,
-    "gridOrigin": [-16, 32],
+    "shellModelId": "",
+    "floorDatum": 0,
+    "gridOrigin": [0, 0],
     "openings": [
       { "edge": "south", "from": 4, "to": 6 }
-    ]
+    ],
+    "floorCutouts": [
+      { "x": 8, "y": 3, "width": 8, "height": 4 }
+    ],
+    "defaultRoom": {
+      "enabled": true,
+      "wallHeightTiles": 4.0,
+      "frontWallHeightTiles": 0.35,
+      "trimHeightTiles": 0.125,
+      "walkableInsetTiles": 1,
+      "wallFaceOffsetTiles": 0.5,
+      "entryExtensionDepthTiles": 0.0,
+      "blackTopCap": true,
+      "topCapDepthTiles": 0.125
+    }
   }
 }
 ```
@@ -89,17 +104,61 @@ alignment without changing the version-1 binary envelope:
 - `shellModelId` identifies the complete imported room shell; it does not replace
   normal `models[]` placement data. Its authored floor, walls, and entrance do
   replace procedural terrain visually, preventing fallback geometry from leaking
-  or flickering through the shell. Interiors without a shell retain the default
-  buildable grid.
+  or flickering through the shell.
+- A shell-less interior renders `defaultRoom` automatically: a muted checker
+  floor, full back and side walls, a low south cutaway wall, baseboard, and trim.
+  RTPKS floor and wall tiles render over this foundation, so a new interior is
+  presentable before it is decorated. Resizing the OWMAP immediately resizes the
+  procedural room. Set `defaultRoom.enabled` to `false` to opt out. The floor and
+  wall palettes may be overridden with `floorColors.checkerA/checkerB` and
+  `wallColors.northSouth/eastWest/trim/baseboard/topCap` RGBA arrays. Default
+  back and side walls are four tiles tall. `wallFaceOffsetTiles: 0.5` places each
+  face through the center of its boundary cell. The complete floor cells remain
+  at their original scale and are cropped at the wall plane. Perpendicular wall
+  pieces are likewise cropped at their intersection—neither floor nor wall UVs
+  are stretched. The default one-cell boundary collision
+  aligns with those faces, while explicit openings and cardinal-halo doors carve
+  reachable paths through it.
+  New interiors author a three-cell-wide south opening in the final in-bounds
+  row, producing exactly one three-by-one entry vestibule at normal tile scale.
+  Put the arrival anchor and a scripted invisible exit trigger on its center
+  cell. A `MOVE_PLAYER` action before `TRANSITION_CLOSE` lets the character step
+  onto that threshold before transferring, without drawing another floor row.
+  `entryExtensionDepthTiles` optionally adds complete extra rows beyond that
+  boundary (rounded to the nearest row); it defaults to `0`.
+  `walkableInsetTiles` controls the wall-cell collision band; the default is `1`,
+  and cardinal-halo doors or explicit openings carve through it.
+  `blackTopCap` and `topCapDepthTiles` hide the reverse
+  side of the wall with a narrow outward-facing cap.
 - `floorDatum` is the source-model world-space floor elevation used during import.
+- `floorCutouts` removes geometry from the procedural default-room floor without stretching adjacent cells. Legacy `{x,y,width,height}` tile rectangles remain supported. A convex `localPolygon` paired with `placementId` is transformed with that model's position/yaw/scale, then cut exactly from intersecting cells while preserving each cell's original UV domain. This is the preferred form for rounded tanks, angled stairwells, and tunnels; collision remains explicitly authored in the OWMAP.
 - `gridOrigin` is the source-model X/Z position corresponding to OWMAP tile `[0,0]`.
-- Boundary openings use inclusive tile spans. The common Gen V presentation omits
-  the south wall and declares only the doorway span needed for collision and
-  generated-shell authoring.
+- Boundary openings use inclusive tile spans and remove the matching procedural
+  wall segments as well as describing imported-shell entrances.
 
 These fields are metadata, so older OWMAP v1 readers ignore them. Runtime travel
 activates the destination space before applying its anchor coordinate; a halo
 door trigger may still sit outside the stored grid.
+
+### Actor spawn markers
+
+Future actor spawning locations are authored with terrain `special=14` and a
+matching metadata entry. The runtime parses these entries into `SceneConfig`,
+but the current random spawning system does not consume them yet.
+
+```json
+{
+  "spawnTiles": [
+    { "id": "actor_spawn_4_7", "tile": [4, 7], "allows": "pokemon_random_from_boxes" },
+    { "id": "actor_spawn_6_7", "tile": [6, 7], "allows": "npc_with_partner" },
+    { "id": "actor_spawn_8_7", "tile": [8, 7], "allows": "npc_without_pokemon" }
+  ]
+}
+```
+
+`allows` accepts exactly `pokemon_random_from_boxes`, `npc_with_partner`, or
+`npc_without_pokemon`. Editors keep the sparse metadata and the special plane in
+sync. Clearing a cell removes both records.
 
 ## RTPKS decoration layers
 
@@ -116,6 +175,11 @@ stores visible decoration layers whose `cells[y][x]` values are stable
 The map does not duplicate these definitions. Renaming tabs, changing tags, or
 adding animation therefore updates the package without rewriting every `.owmap`
 that uses the same stable IDs.
+
+RAE interior tile kits use ordinary RTPKS entries tagged `interior` and
+`interior.<role>` with an `interior.role` property. A tiled interior has no
+`shellModelId`; floor and wall bundles are placed in normal tile layers and are
+loaded by the existing runtime RTPKS path. Legacy shell interiors remain valid.
 
 ### Terrain transition families
 
@@ -194,6 +258,15 @@ not to the shared tile definition.
 player facing after teleport. `visual.mapId` is optional and defaults to the map
 that owns the trigger; setting it allows an interior return trigger to close the
 exterior door after teleporting back.
+
+Native-editor interior creation adds `entry_left`, `entry`, and `entry_right` on
+the room's south row, facing north into the room. Door authoring proposes the
+middle `entry` node, while all three remain ordinary anchors that can be moved,
+rotated, removed, restored, or selected explicitly. `destinationAnchorId` is
+optional when the destination is unambiguous: one anchor resolves to that anchor,
+and a map with exactly one door resolves to that door tile facing inward. Authors
+only need to choose an anchor when a destination has multiple possible entrances.
+Broken or ambiguous links remain inert and cannot close the screen.
 
 Only the anchor cell stores a multi-cell tile ID. Editor hit testing resolves
 every covered cell back to that anchor: erasing or eyedropping any part affects

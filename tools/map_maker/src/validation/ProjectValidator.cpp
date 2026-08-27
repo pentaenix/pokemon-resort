@@ -54,6 +54,21 @@ std::string lowercase(std::string value) {
 
 } // namespace
 
+bool hasAutomaticDoorArrival(const MapValidationProjection& map) {
+    if (map.anchors.size() == 1U) return true;
+    return map.doors.size() == 1U && map.doors.front().allowed_directions.size() == 1U;
+}
+
+bool canResolveDoorArrival(
+    const MapValidationProjection& map,
+    const std::string& destination_anchor_id) {
+    const bool explicit_anchor_exists = std::any_of(
+        map.anchors.begin(), map.anchors.end(), [&](const AnchorProjection& anchor) {
+            return anchor.id == destination_anchor_id;
+        });
+    return explicit_anchor_exists || hasAutomaticDoorArrival(map);
+}
+
 std::vector<ValidationDiagnostic> validateMapProject(
     const MapProjectDocument& project,
     const std::vector<MapValidationProjection>& loaded_maps) {
@@ -175,6 +190,10 @@ std::vector<ValidationDiagnostic> validateMapProject(
             add(diagnostics, DiagnosticSeverity::Error, "map.dimensions_invalid",
                 "Map dimensions must be positive.", context);
         }
+        if (!map.has_runtime_visual) {
+            add(diagnostics, DiagnosticSeverity::Error, "map.visual_missing",
+                "Map is missing the visual section required by the game runtime.", context);
+        }
         auto& ids = anchor_ids[&map];
         for (const AnchorProjection& anchor : map.anchors) {
             if (anchor.id.empty()) {
@@ -221,10 +240,9 @@ std::vector<ValidationDiagnostic> validateMapProject(
                         ? "Destination map is not loaded; its anchor could not be verified."
                         : "Destination map '" + link.destination_map_id + "' does not exist.",
                     context, link.id);
-            } else if (link.destination_anchor_id.empty() ||
-                !anchor_ids[destination].contains(link.destination_anchor_id)) {
+            } else if (!canResolveDoorArrival(*destination, link.destination_anchor_id)) {
                 add(diagnostics, DiagnosticSeverity::Error, "link.destination_anchor_unknown",
-                    "Destination anchor '" + link.destination_anchor_id + "' does not exist.",
+                    "Destination needs a valid anchor, or exactly one door for automatic arrival.",
                     context, link.id);
             }
         }

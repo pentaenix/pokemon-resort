@@ -1,5 +1,6 @@
 #include "gameplay/attend/rendering/AttendPokemonModel.hpp"
 #include "gameplay/attend/rendering/AttendPokemonMaterialPolicy.hpp"
+#include "gameplay/attend/rendering/AttendPokemonPresentation.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -150,6 +151,24 @@ int main() {
     expect(bulbasaur.valid, "Bulbasaur GLBZ should load for separate-pupil coverage");
     expect(pr::gameplay::attend::rendering::attendModelUsesSeparateEyeIris(bulbasaur),
            "Bulbasaur should retain its separate iris meshes and use the socket stencil");
+
+    const auto clamperl = pr::gameplay::attend::rendering::loadAttendPokemonModel(
+        (root / "assets" / "pokemon_attend" / "pokemon_models" /
+            "pm0366_00_Clamperl.glbz").string(), &error);
+    expect(clamperl.valid, "Clamperl must load for shared aquarium presentation coverage");
+    bool checked_clamperl_texture = false;
+    for (const auto& material : clamperl.materials) {
+        if (!material.has_base_color_texture) continue;
+        const auto image = material.pokemon_eye && material.has_emissive_texture
+            ? pr::gameplay::attend::rendering::composeAttendPokemonEye(
+                material.base_color_bytes, material.emissive_bytes)
+            : pr::gameplay::attend::rendering::decodeAttendRgba(material.base_color_bytes);
+        expect(image.valid(),
+            "aquarium presentation must decode Clamperl with Attend's texture payloads");
+        checked_clamperl_texture = true;
+    }
+    expect(checked_clamperl_texture,
+        "Clamperl should expose at least one shared Attend/aquarium texture");
 
     const pr::gameplay::attend::rendering::AttendPokemonModel burmy =
         pr::gameplay::attend::rendering::loadAttendPokemonModel(

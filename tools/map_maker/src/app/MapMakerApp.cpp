@@ -125,7 +125,9 @@ struct ImGuiRuntime {
     ImGuiRuntime() {
         imguiCreate(17.0f);
         ImGui::GetIO().ConfigMacOSXBehaviors = true;
-        ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+        // The editor owns keyboard shortcuts explicitly. ImGui keyboard
+        // navigation would consume arrows that belong to the embedded game.
+        ImGui::GetIO().ConfigFlags &= ~ImGuiConfigFlags_NavEnableKeyboard;
         applyMapMakerStyle();
     }
     ~ImGuiRuntime() { shutdown(); }
@@ -154,7 +156,7 @@ void configureBackbuffer(int width, int height) {
 
 int runWindow(const MapMakerOptions& options) {
     SdlRuntime sdl;
-    std::uint32_t flags = SDL_WINDOW_RESIZABLE |
+    std::uint32_t flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI |
         (options.smoke_test ? SDL_WINDOW_HIDDEN : SDL_WINDOW_SHOWN);
 #if defined(__APPLE__)
     flags |= SDL_WINDOW_METAL;
@@ -247,6 +249,14 @@ int runWindow(const MapMakerOptions& options) {
             ? preview.render(width, height, delta)
             : ExactWorldPreview::ViewportTexture{};
         configureBackbuffer(width, height);
+        const float framebuffer_scale_x = static_cast<float>(width) /
+            static_cast<float>(std::max(1, logical_width));
+        const float framebuffer_scale_y = static_cast<float>(height) /
+            static_cast<float>(std::max(1, logical_height));
+        ImGui::GetIO().DisplayFramebufferScale = ImVec2(
+            framebuffer_scale_x, framebuffer_scale_y);
+        // Dear ImGui 1.92 derives font rasterizer density from this value in
+        // NewFrame(), so publish the native pixel ratio before beginFrame().
         input.beginFrame(logical_width, logical_height, 255);
         thumbnails.beginFrame();
         controller.setViewportTexture(texture);
@@ -268,7 +278,7 @@ int runWindow(const MapMakerOptions& options) {
     }
 
     for (OpenMapSource* source : workspace.sources()) {
-        if (!source->commands.isDirty()) continue;
+        if (!source->dirty()) continue;
         std::string recovery_error;
         if (!recovery.writeNow(source->key, source->document, &recovery_error)) {
             logger.log(LogLevel::Error, "recovery",

@@ -1,0 +1,37 @@
+{
+  "manifestVersion": 1,
+  "storageFormat": "glb",
+  "id": "aquarium",
+  "displayName": "Aquarium (underground tank)",
+  "defaultYawDeg": 0,
+  "defaultScale": 1,
+  "sourceFormat": "glb",
+  "sourceFile": "aquarium.glb",
+  "glbFile": "aquarium.glb",
+  "modelFile": "aquarium.glb",
+  "footprintTiles": {
+    "w": 10,
+    "d": 5,
+    "h": 6
+  },
+  "renderFootprintTiles": {
+    "w": 10,
+    "d": 5,
+    "h": 6
+  },
+  "authoringFootprintTiles": {
+    "w": 10,
+    "d": 5,
+    "h": 6
+  },
+  "collisionFootprintTiles": {
+    "w": 10,
+    "d": 5,
+    "h": 6
+  },
+  "aabb": {
+    "min": [-81.6, -32.8, -40],
+    "max": [81.6, 64.51632, 40]
+  },
+  "navigationFile": "aquarium.navigation.json"
+}

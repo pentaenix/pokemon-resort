@@ -31,6 +31,8 @@ int main() {
 
     characters::LoadedWorldChunk inside{"inside", {}, 4096, 0};
     inside.scene.id = "inside";
+    inside.scene.grid.width = 10;
+    inside.scene.grid.height = 10;
     inside.scene.anchors.push_back({"entry", 2, 7, FacingDirection::South});
     const std::vector<characters::LoadedWorldChunk> chunks{outside, inside};
 
@@ -46,10 +48,58 @@ int main() {
     script.valid = true;
     script.actions.push_back({});
     DoorSequenceController sequence;
-    require(sequence.start(&script, *hit), "door sequence should accept a valid trigger hit");
+    require(sequence.start(&script, *hit, chunks),
+        "door sequence should accept a trigger with a valid destination anchor");
     require(sequence.hit().chunk != hit->chunk && sequence.hit().trigger != hit->trigger,
         "door sequence must own stable trigger data across active-space changes");
     require(sequence.hit().trigger->id == "front_door", "owned door trigger should retain its metadata");
+
+    auto missing_anchor_chunks = chunks;
+    missing_anchor_chunks.front().scene.links.front().destination_anchor_id.clear();
+    const auto missing_anchor_hit = findDoorTrigger(
+        missing_anchor_chunks, 4, 4, 4, 3, 0, -1);
+    require(missing_anchor_hit.has_value(),
+        "door geometry can still be detected when its authored link is incomplete");
+    require(resolveDoorDestination(missing_anchor_chunks, *missing_anchor_hit).has_value(),
+        "a single destination anchor resolves automatically");
+    DoorSequenceController invalid_sequence;
+    require(invalid_sequence.start(&script, *missing_anchor_hit, missing_anchor_chunks),
+        "a door with one unambiguous destination starts without redundant setup");
+    invalid_sequence.cancel();
+
+    auto unknown_anchor_chunks = chunks;
+    unknown_anchor_chunks.front().scene.links.front().destination_anchor_id = "missing";
+    const auto unknown_anchor_hit = findDoorTrigger(
+        unknown_anchor_chunks, 4, 4, 4, 3, 0, -1);
+    require(unknown_anchor_hit &&
+        invalid_sequence.start(&script, *unknown_anchor_hit, unknown_anchor_chunks),
+        "a stale anchor id falls back to the single unambiguous destination");
+    invalid_sequence.cancel();
+
+    auto unique_door_chunks = chunks;
+    unique_door_chunks.front().scene.links.front().destination_anchor_id.clear();
+    unique_door_chunks.back().scene.anchors.clear();
+    DoorTriggerConfig exit;
+    exit.id = "only_exit";
+    exit.tile_x = 5;
+    exit.tile_y = 10;
+    exit.allowed_directions = {FacingDirection::South};
+    unique_door_chunks.back().scene.door_triggers = {exit};
+    const auto unique_door_hit = findDoorTrigger(
+        unique_door_chunks, 4, 4, 4, 3, 0, -1);
+    const auto automatic_door_destination = resolveDoorDestination(
+        unique_door_chunks, *unique_door_hit);
+    require(automatic_door_destination &&
+        automatic_door_destination->world_tile_x == 4101 &&
+        automatic_door_destination->world_tile_y == 10 &&
+        automatic_door_destination->facing == FacingDirection::North,
+        "a single destination doorway supplies its tile and inward-facing arrival");
+
+    auto ambiguous_chunks = unique_door_chunks;
+    ambiguous_chunks.back().scene.door_triggers.push_back(exit);
+    require(!resolveDoorDestination(ambiguous_chunks, *findDoorTrigger(
+        ambiguous_chunks, 4, 4, 4, 3, 0, -1)),
+        "multiple destination doors still require an explicit arrival anchor");
 
     characters::LoadedWorldChunk halo{"halo", {}, 0, 0};
     trigger.tile_x = 5;
@@ -132,6 +182,10 @@ int main() {
     require(!npc::allowsGlobalDefaultPopulation(interior_scene), "interiors must not copy the exterior NPC population");
     require(rendering::shouldRenderFallbackTerrain(interior_scene),
         "an empty interior retains its buildable fallback grid");
+    interior_scene.tile_layers.layers.push_back(TileLayerConfig{
+        "floor", true, {{42}}});
+    require(rendering::shouldRenderFallbackTerrain(interior_scene),
+        "a tiled interior keeps the normal RTPKS and buildable-grid render path");
     interior_scene.interior.shell_model_id = "complete_room_shell";
     require(!rendering::shouldRenderFallbackTerrain(interior_scene),
         "a complete imported shell must not fight with procedural floor geometry");

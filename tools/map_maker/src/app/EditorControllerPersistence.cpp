@@ -36,6 +36,7 @@ bool EditorController::reloadPreview() {
         std::filesystem::remove(path, error);
         std::filesystem::rename(temporary, path);
         if (!preview_->loadMap(path)) throw std::runtime_error(preview_->lastError());
+        preview_source_key_ = source->key;
         preview_reload_pending_ = false;
         return true;
     } catch (const std::exception& exception) {
@@ -50,7 +51,7 @@ void EditorController::tickRecovery() {
     for (OpenMapSource* source : workspace_->sources()) {
         std::string error;
         if (!recovery_->writeIfDue(
-                source->key, source->document, source->commands.isDirty(), &error) &&
+                source->key, source->document, source->dirty(), &error) &&
             !error.empty()) {
             log(LogLevel::Warning, "recovery", source->key + ": " + error);
         }

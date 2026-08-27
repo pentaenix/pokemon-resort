@@ -1,5 +1,7 @@
 #include "gameplay/world3d/followers/FollowerIdleExitTarget.hpp"
 
+#include "gameplay/world3d/interiors/DefaultRoom.hpp"
+
 #include <array>
 #include <limits>
 
@@ -22,6 +24,7 @@ bool isValidAdjacentCandidate(
     if (tile.y < 0 || tile.y >= static_cast<int>(scene.terrain.heights.size())) return false;
     const auto& height_row = scene.terrain.heights[static_cast<std::size_t>(tile.y)];
     if (tile.x < 0 || tile.x >= static_cast<int>(height_row.size())) return false;
+    if (interiors::boundaryCellBlocked(scene, tile.x, tile.y)) return false;
     if (!scene.terrain.collision.empty()) {
         const auto& collision_row = scene.terrain.collision[static_cast<std::size_t>(tile.y)];
         if (tile.x < static_cast<int>(collision_row.size()) &&

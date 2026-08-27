@@ -1,0 +1,107 @@
+#pragma once
+
+#include "gameplay/world3d/Overworld3DConfig.hpp"
+#include "gameplay/world3d/aquarium/AquariumConfig.hpp"
+#include "gameplay/world3d/aquarium/AquariumNavigation.hpp"
+
+#include <array>
+#include <filesystem>
+#include <random>
+#include <string>
+#include <vector>
+
+namespace pr::gameplay::world3d::aquarium {
+
+struct AquariumPokemonActor {
+    std::string id;
+    std::string species;
+    std::string form;
+    std::string model_path;
+    std::string animation;
+    Point3 world_position{};
+    float world_yaw_degrees = 0.0f;
+    float model_scale = 0.01f;
+    double animation_time_seconds = 0.0;
+};
+
+struct AquariumTankRuntime {
+    std::string placement_id;
+    Point3 world_center{};
+    float half_width_world = 0.0f;
+    float half_depth_world = 0.0f;
+    float yaw_degrees = 0.0f;
+    float units_per_meter_world = 1.0f;
+    // The authored installation floor and complete water range in world units.
+    // Camera placement uses these to remain above the room floor even for tanks
+    // whose navigation extends underground.
+    float floor_y_world = 0.0f;
+    float water_bottom_world = 0.0f;
+    float water_top_world = 0.0f;
+    AquariumInspectionCameraConfig inspection_camera;
+};
+
+class AquariumSimulation {
+public:
+    AquariumSimulation(
+        std::filesystem::path project_root,
+        const SceneConfig& scene,
+        const AquariumMapConfig* config);
+
+    bool active() const { return !actors_.empty(); }
+    const std::vector<AquariumPokemonActor>& actors() const { return actors_; }
+    const std::vector<AquariumTankRuntime>& tanks() const { return tanks_; }
+    const std::vector<std::string>& warnings() const { return warnings_; }
+    void update(double dt_seconds);
+
+private:
+    struct TankTransform {
+        float x = 0.0f;
+        float y = 0.0f;
+        float z = 0.0f;
+        float yaw_degrees = 0.0f;
+        float scale = 1.0f;
+    };
+
+    struct Swimmer {
+        enum class Behavior { Stationary, Wander, School };
+
+        std::size_t actor_index = 0;
+        AquariumPokemonActor actor;
+        AquariumNavigation navigation;
+        TankTransform tank;
+        Point3 local_position{};
+        Point3 local_target{};
+        float speed = 0.5f;
+        float turn_speed = 120.0f;
+        float radius = 0.1f;
+        float lower_extent = 0.0f;
+        float upper_extent = 0.0f;
+        Behavior behavior = Behavior::Wander;
+        std::string school_id;
+        float school_phase = 0.0f;
+        float school_elapsed = 0.0f;
+        Point3 volume_center{};
+        Point3 volume_half_extent{};
+        std::mt19937 rng;
+    };
+
+    static Point3 toWorld(const TankTransform& tank, float units_per_meter, Point3 local);
+    bool chooseTarget(Swimmer& swimmer);
+    bool containsBody(const Swimmer& swimmer, Point3 origin) const;
+    Point3 resolveStartingPosition(
+        Swimmer& swimmer,
+        const AquariumPokemonConfig& config,
+        int copy,
+        int count);
+    void updateSchool(Swimmer& swimmer, float dt);
+    void moveTowardTarget(Swimmer& swimmer, Point3 target, float dt);
+    void syncActor(Swimmer& swimmer);
+
+    std::filesystem::path project_root_;
+    std::vector<Swimmer> swimmers_;
+    std::vector<AquariumPokemonActor> actors_;
+    std::vector<AquariumTankRuntime> tanks_;
+    std::vector<std::string> warnings_;
+};
+
+} // namespace pr::gameplay::world3d::aquarium

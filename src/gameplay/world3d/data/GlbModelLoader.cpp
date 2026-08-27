@@ -160,6 +160,53 @@ Mat4 nodeLocalMatrix(const JsonValue& node) {
     return trsMatrix(t, q, s);
 }
 
+std::array<float, 4> nodeLocalRotation(const JsonValue& node) {
+    std::array<float, 4> result{0.0f, 0.0f, 0.0f, 1.0f};
+    if (const JsonValue* rotation = node.get("rotation"); rotation && rotation->isArray()) {
+        for (std::size_t i = 0; i < result.size() && i < rotation->asArray().size(); ++i) {
+            if (rotation->asArray()[i].isNumber()) {
+                result[i] = static_cast<float>(rotation->asArray()[i].asNumber());
+            }
+        }
+    }
+    return result;
+}
+
+std::array<float, 4> rotationFromMatrix(const Mat4& matrix) {
+    const auto normalized_axis = [&](int offset) {
+        std::array<float, 3> axis{
+            matrix.m[static_cast<std::size_t>(offset)],
+            matrix.m[static_cast<std::size_t>(offset + 1)],
+            matrix.m[static_cast<std::size_t>(offset + 2)]};
+        const float magnitude = std::sqrt(std::max(
+            0.000001f, axis[0] * axis[0] + axis[1] * axis[1] + axis[2] * axis[2]));
+        for (float& value : axis) value /= magnitude;
+        return axis;
+    };
+    const auto x = normalized_axis(0);
+    const auto y = normalized_axis(4);
+    const auto z = normalized_axis(8);
+    const float m00 = x[0], m01 = y[0], m02 = z[0];
+    const float m10 = x[1], m11 = y[1], m12 = z[1];
+    const float m20 = x[2], m21 = y[2], m22 = z[2];
+    std::array<float, 4> q{};
+    const float trace = m00 + m11 + m22;
+    if (trace > 0.0f) {
+        const float s = std::sqrt(trace + 1.0f) * 2.0f;
+        q = {(m21 - m12) / s, (m02 - m20) / s, (m10 - m01) / s, 0.25f * s};
+    } else if (m00 > m11 && m00 > m22) {
+        const float s = std::sqrt(1.0f + m00 - m11 - m22) * 2.0f;
+        q = {0.25f * s, (m01 + m10) / s, (m02 + m20) / s, (m21 - m12) / s};
+    } else if (m11 > m22) {
+        const float s = std::sqrt(1.0f + m11 - m00 - m22) * 2.0f;
+        q = {(m01 + m10) / s, 0.25f * s, (m12 + m21) / s, (m02 - m20) / s};
+    } else {
+        const float s = std::sqrt(1.0f + m22 - m00 - m11) * 2.0f;
+        q = {(m02 + m20) / s, (m12 + m21) / s, 0.25f * s, (m10 - m01) / s};
+    }
+    return q;
+}
+
 int componentByteSize(int component_type) {
     switch (component_type) {
         case 5120: case 5121: return 1; // byte / unsigned byte
@@ -578,6 +625,7 @@ GlbMesh loadGlbModel(const std::string& path, std::string* error) {
     GltfReader reader(root, bin, bin_len);
     std::vector<int> material_remap;
     out.node_morph_target_counts.assign(nodes.size(), 0);
+    out.node_transforms.resize(nodes.size());
 
     // Determine root nodes: scenes[scene].nodes, else every node.
     std::vector<int> root_nodes;
@@ -601,6 +649,11 @@ GlbMesh loadGlbModel(const std::string& path, std::string* error) {
         if (depth > 256 || node_index < 0 || node_index >= static_cast<int>(nodes.size())) return;
         const JsonValue& node = *nodes[static_cast<std::size_t>(node_index)];
         const Mat4 world = multiply(parent, nodeLocalMatrix(node));
+        GlbNodeTransform& transform = out.node_transforms[static_cast<std::size_t>(node_index)];
+        transform.parent_world_rotation = rotationFromMatrix(parent);
+        transform.base_local_rotation = nodeLocalRotation(node);
+        transformPoint(world, 0.0f, 0.0f, 0.0f,
+            transform.pivot_world[0], transform.pivot_world[1], transform.pivot_world[2]);
         const int mesh_index = intMember(&node, "mesh", -1);
         if (mesh_index >= 0) {
             if (const JsonValue* meshes = root.get("meshes"); meshes && meshes->isArray() &&
@@ -640,7 +693,8 @@ GlbMesh loadGlbModel(const std::string& path, std::string* error) {
             for (const JsonValue& channel_json : channels->asArray()) {
                 const JsonValue* target = channel_json.get("target");
                 if (!target || !target->isObject() || !target->get("path") ||
-                    !target->get("path")->isString() || target->get("path")->asString() != "weights") continue;
+                    !target->get("path")->isString()) continue;
+                const std::string target_path = target->get("path")->asString();
                 const int node_index = intMember(target, "node", -1);
                 const int sampler_index = intMember(&channel_json, "sampler", -1);
                 if (node_index < 0 || node_index >= static_cast<int>(out.node_morph_target_counts.size()) ||
@@ -653,35 +707,61 @@ GlbMesh loadGlbModel(const std::string& path, std::string* error) {
                     sampler.get("interpolation")->asString() == "CUBICSPLINE";
                 const int output_multiplier = cubic ? 3 : 1;
                 if (!input.valid || input.component_type != 5126 || !output.valid ||
-                    output.component_type != 5126 || mesh_target_count <= 0 || input.count <= 0) continue;
-                const int values_per_key = output.count / (input.count * output_multiplier);
-                const int target_count = std::min(mesh_target_count, values_per_key);
-                if (target_count <= 0) continue;
-                GlbMorphAnimationChannel channel;
-                channel.target_node = node_index;
-                channel.target_count = target_count;
-                if (const JsonValue* interpolation = sampler.get("interpolation"); interpolation && interpolation->isString() &&
-                    interpolation->asString() == "STEP") channel.interpolation = GlbMorphAnimationChannel::Interpolation::Step;
-                else if (cubic) channel.interpolation = GlbMorphAnimationChannel::Interpolation::CubicSpline;
-                channel.times.reserve(static_cast<std::size_t>(input.count));
-                channel.weights.reserve(static_cast<std::size_t>(input.count * target_count));
-                for (int i = 0; i < input.count; ++i) channel.times.push_back(GltfReader::readFloat(input, i, 0));
-                for (int key = 0; key < input.count; ++key) {
-                    for (int target_index = 0; target_index < target_count; ++target_index) {
-                        const int base = (key * target_count * output_multiplier) + target_index;
-                        if (cubic) {
-                            channel.in_tangents.push_back(GltfReader::readFloat(output, base, 0));
-                            channel.weights.push_back(GltfReader::readFloat(output, base + target_count, 0));
-                            channel.out_tangents.push_back(GltfReader::readFloat(output, base + (target_count * 2), 0));
-                        } else {
-                            channel.weights.push_back(GltfReader::readFloat(output, base, 0));
+                    output.component_type != 5126 || input.count <= 0) continue;
+                if (target_path == "weights") {
+                    if (mesh_target_count <= 0) continue;
+                    const int values_per_key = output.count / (input.count * output_multiplier);
+                    const int target_count = std::min(mesh_target_count, values_per_key);
+                    if (target_count <= 0) continue;
+                    GlbMorphAnimationChannel channel;
+                    channel.target_node = node_index;
+                    channel.target_count = target_count;
+                    if (const JsonValue* interpolation = sampler.get("interpolation"); interpolation && interpolation->isString() &&
+                        interpolation->asString() == "STEP") channel.interpolation = GlbMorphAnimationChannel::Interpolation::Step;
+                    else if (cubic) channel.interpolation = GlbMorphAnimationChannel::Interpolation::CubicSpline;
+                    channel.times.reserve(static_cast<std::size_t>(input.count));
+                    channel.weights.reserve(static_cast<std::size_t>(input.count * target_count));
+                    for (int i = 0; i < input.count; ++i) channel.times.push_back(GltfReader::readFloat(input, i, 0));
+                    for (int key = 0; key < input.count; ++key) {
+                        for (int target_index = 0; target_index < target_count; ++target_index) {
+                            const int base = (key * target_count * output_multiplier) + target_index;
+                            if (cubic) {
+                                channel.in_tangents.push_back(GltfReader::readFloat(output, base, 0));
+                                channel.weights.push_back(GltfReader::readFloat(output, base + target_count, 0));
+                                channel.out_tangents.push_back(GltfReader::readFloat(output, base + (target_count * 2), 0));
+                            } else {
+                                channel.weights.push_back(GltfReader::readFloat(output, base, 0));
+                            }
                         }
                     }
+                    if (!channel.times.empty()) animation.duration_seconds = std::max(animation.duration_seconds, channel.times.back());
+                    animation.morph_channels.push_back(std::move(channel));
+                } else if (target_path == "rotation" && output.num_components >= 4 &&
+                           output.count >= input.count * output_multiplier) {
+                    GlbRotationAnimationChannel channel;
+                    channel.target_node = node_index;
+                    if (const JsonValue* interpolation = sampler.get("interpolation");
+                        interpolation && interpolation->isString() && interpolation->asString() == "STEP") {
+                        channel.interpolation = GlbRotationAnimationChannel::Interpolation::Step;
+                    }
+                    channel.times.reserve(static_cast<std::size_t>(input.count));
+                    channel.rotations.reserve(static_cast<std::size_t>(input.count));
+                    for (int key = 0; key < input.count; ++key) {
+                        channel.times.push_back(GltfReader::readFloat(input, key, 0));
+                        const int output_key = key * output_multiplier + (cubic ? 1 : 0);
+                        channel.rotations.push_back({
+                            GltfReader::readFloat(output, output_key, 0),
+                            GltfReader::readFloat(output, output_key, 1),
+                            GltfReader::readFloat(output, output_key, 2),
+                            GltfReader::readFloat(output, output_key, 3)});
+                    }
+                    if (!channel.times.empty()) animation.duration_seconds = std::max(animation.duration_seconds, channel.times.back());
+                    animation.rotation_channels.push_back(std::move(channel));
                 }
-                if (!channel.times.empty()) animation.duration_seconds = std::max(animation.duration_seconds, channel.times.back());
-                animation.morph_channels.push_back(std::move(channel));
             }
-            if (!animation.morph_channels.empty()) out.animations.push_back(std::move(animation));
+            if (!animation.morph_channels.empty() || !animation.rotation_channels.empty()) {
+                out.animations.push_back(std::move(animation));
+            }
         }
     }
 

@@ -24,14 +24,22 @@ int main() {
     const fs::path pack_path = fs::path(PR_SOURCE_DIR) /
         "assets/overworld/tilepacks/maptiles.rtpks";
     std::string error;
-    const auto package = pr::gameplay::world3d::data::loadRtpksTilePackage(pack_path.string(), &error);
-    expect(error.empty(), "committed RTPKS loads: " + error);
+    const auto semantics = pr::gameplay::world3d::data::loadRtpksTileSemantics(
+        pack_path.string(), &error);
+    expect(error.empty(), "committed RTPKS semantics load: " + error);
 
     const int door_count = static_cast<int>(std::count_if(
-        package.tiles.begin(), package.tiles.end(), [](const RtpksTileMesh& tile) {
+        semantics.tiles.begin(), semantics.tiles.end(), [](const RtpksTileMesh& tile) {
             return tile.triggerable_door;
         }));
     expect(door_count == 30, "Doors tab exposes all 30 deduplicated variants");
+
+    error.clear();
+    const auto package = pr::gameplay::world3d::data::loadRtpksTilePackageForTiles(
+        pack_path.string(), {3338, 3366, 3337}, &error);
+    expect(error.empty(), "selected door resources load: " + error);
+    expect(package.tiles.size() == 3U,
+        "selective runtime loading does not unpack the other 1,053 tile meshes");
 
     const RtpksTileMesh* hinged = package.tileById(3338);
     expect(hinged != nullptr, "door_bar has its stable imported id");
@@ -66,6 +74,16 @@ int main() {
                 "texture-motion door rests closed and opens forward");
         }
     }
+
+    error.clear();
+    const auto metadata = pr::gameplay::world3d::data::loadRtpksTileMetadataForTiles(
+        pack_path.string(), {3337}, &error);
+    expect(error.empty() && metadata.tiles.size() == 1U,
+        "animation metadata can be loaded for selected tiles");
+    expect(std::all_of(metadata.materials.begin(), metadata.materials.end(), [](const auto& material) {
+        return material.image_bytes.empty() && material.animation_frame_bytes.empty() &&
+            material.animation_image_keyframes.empty();
+    }), "metadata-only loading skips all image payload extraction");
 
     if (failures == 0) std::cout << "[PASS] RTPKS door tile tests\n";
     return failures == 0 ? 0 : 1;

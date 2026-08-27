@@ -4,6 +4,7 @@
 #include "gameplay/world3d/camera/Gen4FollowCamera.hpp"
 #include "gameplay/world3d/dialogue/OverworldTextboxConfig.hpp"
 #include "gameplay/world3d/rendering/BillboardPlacement.hpp"
+#include "gameplay/world3d/aquarium/AquariumSimulation.hpp"
 
 #include <SDL.h>
 #include <cstdint>
@@ -78,6 +79,8 @@ public:
     bool valid() const;
     std::string lastError() const;
     void setStaticMapChunks(std::vector<StaticMapChunk> chunks);
+    void setAquariumPokemonActors(
+        std::vector<aquarium::AquariumPokemonActor> actors);
     void setTextboxOverlay(dialogue::OverworldTextboxConfig config, bool visible, std::string text = {});
     void setAttendButtonOverlay(std::string icon_path, SDL_Rect logical_rect, bool visible);
     void setBlackIrisTransition(float logical_x, float logical_y, float closed_amount,
