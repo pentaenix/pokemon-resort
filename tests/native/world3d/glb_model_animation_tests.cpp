@@ -58,6 +58,14 @@ int main() {
            "world GLB loader should preserve the authored animation name");
     expect(!mesh.animations.empty() && !mesh.animations.front().morph_channels.empty(),
            "world GLB loader should decode morph-weight animation channels");
+    bool palm_uses_nitro_modulation = false;
+    for (const auto& material : mesh.materials) {
+        palm_uses_nitro_modulation = palm_uses_nitro_modulation || material.nitro_vertex_color;
+    }
+    expect(palm_uses_nitro_modulation,
+        "RAE Nintendo DS palm materials must retain Nitro vertex-color modulation");
+    expect(pr::gameplay::world3d::data::compositeGlbVertexColor(0.25f, mesh.materials.front()) == 1.0f,
+        "RAE DS vertex color must not darken the established textured overworld presentation");
 
     const auto weights_a = pr::gameplay::world3d::data::sampleGlbMorphWeights(mesh, 0.0);
     const auto weights_b = pr::gameplay::world3d::data::sampleGlbMorphWeights(mesh, 1.5);
@@ -91,6 +99,13 @@ int main() {
     const auto aquarium = pr::gameplay::world3d::data::loadGlbModel(
         (root / "assets/overworld/models/aquarium/aquarium.glb").string(), &error);
     expect(aquarium.valid, "Aquarium Maker GLB should load: " + error);
+    bool aquarium_uses_nitro_modulation = false;
+    for (const auto& material : aquarium.materials) {
+        aquarium_uses_nitro_modulation =
+            aquarium_uses_nitro_modulation || material.nitro_vertex_color;
+    }
+    expect(!aquarium_uses_nitro_modulation,
+        "Aquarium Maker colors must remain ordinary glTF colors, not receive DS brightening");
     expect(aquarium.animations.size() == 2U,
         "both authored kelp WaterSway clips should load");
     expect(!aquarium.animations.empty() &&

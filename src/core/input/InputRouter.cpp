@@ -90,8 +90,12 @@ bool InputRouter::handleEvent(
                 return true;
             }
         }
-        releaseNavigationHold(navigationDeltaForKey(event.key.keysym.sym, config));
-        return false;
+        const NavigationHold released = navigationDeltaForKey(event.key.keysym.sym, config);
+        const bool was_active = releaseNavigationHold(released);
+        if (input && input->canNavigate2d() && (released.dx != 0 || released.dy != 0)) {
+            input->onNavigate2dReleased(released.dx, released.dy);
+        }
+        return was_active;
     }
 
     if (event.type == SDL_MOUSEMOTION && config.accept_mouse) {
@@ -158,6 +162,7 @@ bool InputRouter::handleEvent(
     }
 
     if (event.type == SDL_CONTROLLERBUTTONUP && config.accept_controller) {
+        bool navigation_released = false;
         const NavigationHold released_nav = navigationDeltaForControllerButton(event.cbutton.button);
         if (navigation_long_press_hold_.active &&
             released_nav.dx == navigation_long_press_hold_.dx &&
@@ -176,7 +181,12 @@ bool InputRouter::handleEvent(
             return true;
         }
         if (isControllerNavigationButton(event.cbutton.button)) {
-            releaseNavigationHold(navigationDeltaForControllerButton(event.cbutton.button));
+            const NavigationHold released =
+                navigationDeltaForControllerButton(event.cbutton.button);
+            navigation_released = releaseNavigationHold(released);
+            if (input && input->canNavigate2d()) {
+                input->onNavigate2dReleased(released.dx, released.dy);
+            }
         }
         if (event.cbutton.button == SDL_CONTROLLER_BUTTON_A && input && advance_hold_.active) {
             const bool triggered = advance_hold_.triggered;
@@ -186,7 +196,7 @@ bool InputRouter::handleEvent(
                 input->onAdvancePressed();
             }
         }
-        return false;
+        return navigation_released;
     }
 
     return false;

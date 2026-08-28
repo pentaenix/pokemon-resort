@@ -21,4 +21,8 @@ AquariumPokemonMetrics measureAquariumPokemon(
     const std::string& form = {},
     std::string* error = nullptr);
 
+AquariumPokemonMetrics rotateAquariumPokemonMetrics(
+    const AquariumPokemonMetrics& metrics,
+    float pitch_degrees);
+
 } // namespace pr::gameplay::world3d::aquarium

@@ -18,6 +18,7 @@
 #include "gameplay/world3d/npc/NpcActorDriver.hpp"
 #include "gameplay/world3d/aquarium/AquariumConfig.hpp"
 #include "gameplay/world3d/aquarium/AquariumInspectionCamera.hpp"
+#include "gameplay/world3d/aquarium/AquariumInspectionFacing.hpp"
 #include "gameplay/world3d/aquarium/AquariumSimulation.hpp"
 #include "gameplay/world3d/rendering/BillboardSpriteRenderer.hpp"
 #include "gameplay/world3d/rendering/GlbModelRenderer.hpp"
@@ -33,6 +34,7 @@
 #include <optional>
 #include <random>
 #include <future>
+#include <filesystem>
 #include <string>
 #include <vector>
 
@@ -88,6 +90,9 @@ private:
     std::vector<gameplay::world3d::rendering::bgfx_backend::OverworldBgfxRenderer::StaticMapChunk>
     buildStaticRenderChunks() const;
     void reloadWorldTerrainQueries();
+    void reloadAquariumConfig(bool force);
+    void beginAquariumInspectionExit();
+    void restoreAquariumInspectionFacing();
     bool beginDoorSequenceForStep(int dx, int dy);
     void updateDoorSequence(double dt);
     void logLoadedWorldChunks() const;
@@ -155,9 +160,13 @@ private:
     bool scene_initialized_ = false;
     std::unique_ptr<gameplay::world3d::npc::NpcActorDriver> npc_actor_driver_;
     gameplay::world3d::aquarium::AquariumCatalog aquarium_catalog_{};
+    std::filesystem::file_time_type aquarium_config_write_time_{};
+    bool aquarium_config_write_time_known_ = false;
+    double aquarium_config_poll_seconds_ = 0.0;
     std::unique_ptr<gameplay::world3d::aquarium::AquariumSimulation> aquarium_simulation_;
     std::unique_ptr<gameplay::world3d::aquarium::AquariumInspectionCamera>
         aquarium_inspection_camera_;
+    gameplay::world3d::aquarium::AquariumInspectionFacing aquarium_inspection_facing_;
     gameplay::world3d::dialogue::OverworldTextboxConfig textbox_config_{};
     gameplay::world3d::dialogue::OverworldTextboxController textbox_controller_{};
     std::unique_ptr<gameplay::world3d::dialogue::OverworldTextboxRenderer> textbox_renderer_;

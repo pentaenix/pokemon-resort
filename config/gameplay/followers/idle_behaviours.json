@@ -3,10 +3,16 @@
     "enabled": true,
     "natureSource": "pokemon.temporal.nature",
     "disableIfNatureMissingOrInvalid": true,
-    "startAfterIdleSeconds": 5.0,
-    "behaviorDurationSeconds": { "min": 10.0, "max": 20.0 },
-    "cooldownBetweenBehaviorsSeconds": { "min": 2.5, "max": 4.0 },
-    "movementSpeedMultiplier": 1.0,
+    "startAfterIdleSeconds": 30,
+    "behaviorDurationSeconds": {
+      "min": 10,
+      "max": 20
+    },
+    "cooldownBetweenBehaviorsSeconds": {
+      "min": 2.5,
+      "max": 4
+    },
+    "movementSpeedMultiplier": 1,
     "returnToOriginSpeedMultiplier": 1.35,
     "cancelReturnSpeedMultiplier": 2.25,
     "maxPlayerRadius": 5,
@@ -15,7 +21,10 @@
     "restoreOriginalDirectionOnNaturalEnd": true,
     "allowSoftSnapOnCancelReturn": true,
     "softSnapDelaySeconds": 0.35,
-    "behaviorWeightClamp": { "min": 0, "max": 10 },
+    "behaviorWeightClamp": {
+      "min": 0,
+      "max": 10
+    },
     "quirkyRandomBehaviorChance": 0.2,
     "jump": {
       "heightPixels": 16,
@@ -32,44 +41,309 @@
       "frameWidth": 32,
       "frameHeight": 32,
       "frameCount": 3,
-      "spriteScale": 1.0,
+      "spriteScale": 1,
       "screenOffsetYPx": 0
     },
-    "fallbackOrder": ["watch_player", "face_away", "random_walk", "do_nothing"],
+    "fallbackOrder": [
+      "watch_player",
+      "face_away",
+      "random_walk",
+      "do_nothing"
+    ],
     "groupWeights": {
-      "assertive": { "random_walk": 5, "random_explore": 3, "watch_player": 2, "approach_player_side": 2, "circle_player": 4, "dance_circle": 3, "spin_orbit": 2, "poke_player": 4, "poke_in_place": 2, "sleep": 1, "face_away": 6, "drift_away": 7, "inspect_poi": 2, "jump_fidget": 3, "hop_wander": 2, "guard_post": 8, "shy_hide": 3, "follow_npc": 1 },
-      "steady": { "random_walk": 3, "random_explore": 2, "watch_player": 3, "approach_player_side": 2, "circle_player": 1, "dance_circle": 1, "spin_orbit": 0, "poke_player": 2, "poke_in_place": 2, "sleep": 8, "face_away": 3, "drift_away": 4, "inspect_poi": 1, "jump_fidget": 2, "hop_wander": 1, "guard_post": 5, "shy_hide": 1, "follow_npc": 0 },
-      "curious": { "random_walk": 5, "random_explore": 8, "watch_player": 3, "approach_player_side": 2, "circle_player": 2, "dance_circle": 1, "spin_orbit": 2, "poke_player": 2, "poke_in_place": 1, "sleep": 1, "face_away": 2, "drift_away": 2, "inspect_poi": 9, "jump_fidget": 3, "hop_wander": 3, "guard_post": 2, "shy_hide": 2, "follow_npc": 4 },
-      "composed": { "random_walk": 3, "random_explore": 4, "watch_player": 4, "approach_player_side": 1, "circle_player": 0, "dance_circle": 0, "spin_orbit": 0, "poke_player": 1, "poke_in_place": 2, "sleep": 3, "face_away": 6, "drift_away": 4, "inspect_poi": 6, "jump_fidget": 0, "hop_wander": 0, "guard_post": 7, "shy_hide": 2, "follow_npc": 1 },
-      "energetic": { "random_walk": 7, "random_explore": 6, "watch_player": 4, "approach_player_side": 4, "circle_player": 8, "dance_circle": 7, "spin_orbit": 6, "poke_player": 5, "poke_in_place": 3, "sleep": 0, "face_away": 1, "drift_away": 1, "inspect_poi": 5, "jump_fidget": 8, "hop_wander": 7, "guard_post": 1, "shy_hide": 5, "follow_npc": 3 },
-      "neutral": { "random_walk": 4, "random_explore": 3, "watch_player": 4, "approach_player_side": 2, "circle_player": 2, "dance_circle": 1, "spin_orbit": 1, "poke_player": 2, "poke_in_place": 2, "sleep": 3, "face_away": 3, "drift_away": 2, "inspect_poi": 3, "jump_fidget": 2, "hop_wander": 1, "guard_post": 3, "shy_hide": 2, "follow_npc": 1 }
+      "assertive": {
+        "random_walk": 5,
+        "random_explore": 3,
+        "watch_player": 2,
+        "approach_player_side": 2,
+        "circle_player": 4,
+        "dance_circle": 3,
+        "spin_orbit": 2,
+        "poke_player": 4,
+        "poke_in_place": 2,
+        "sleep": 1,
+        "face_away": 6,
+        "drift_away": 7,
+        "inspect_poi": 2,
+        "jump_fidget": 3,
+        "hop_wander": 2,
+        "guard_post": 8,
+        "shy_hide": 3,
+        "follow_npc": 1
+      },
+      "steady": {
+        "random_walk": 3,
+        "random_explore": 2,
+        "watch_player": 3,
+        "approach_player_side": 2,
+        "circle_player": 1,
+        "dance_circle": 1,
+        "spin_orbit": 0,
+        "poke_player": 2,
+        "poke_in_place": 2,
+        "sleep": 8,
+        "face_away": 3,
+        "drift_away": 4,
+        "inspect_poi": 1,
+        "jump_fidget": 2,
+        "hop_wander": 1,
+        "guard_post": 5,
+        "shy_hide": 1,
+        "follow_npc": 0
+      },
+      "curious": {
+        "random_walk": 5,
+        "random_explore": 8,
+        "watch_player": 3,
+        "approach_player_side": 2,
+        "circle_player": 2,
+        "dance_circle": 1,
+        "spin_orbit": 2,
+        "poke_player": 2,
+        "poke_in_place": 1,
+        "sleep": 1,
+        "face_away": 2,
+        "drift_away": 2,
+        "inspect_poi": 9,
+        "jump_fidget": 3,
+        "hop_wander": 3,
+        "guard_post": 2,
+        "shy_hide": 2,
+        "follow_npc": 4
+      },
+      "composed": {
+        "random_walk": 3,
+        "random_explore": 4,
+        "watch_player": 4,
+        "approach_player_side": 1,
+        "circle_player": 0,
+        "dance_circle": 0,
+        "spin_orbit": 0,
+        "poke_player": 1,
+        "poke_in_place": 2,
+        "sleep": 3,
+        "face_away": 6,
+        "drift_away": 4,
+        "inspect_poi": 6,
+        "jump_fidget": 0,
+        "hop_wander": 0,
+        "guard_post": 7,
+        "shy_hide": 2,
+        "follow_npc": 1
+      },
+      "energetic": {
+        "random_walk": 7,
+        "random_explore": 6,
+        "watch_player": 4,
+        "approach_player_side": 4,
+        "circle_player": 8,
+        "dance_circle": 7,
+        "spin_orbit": 6,
+        "poke_player": 5,
+        "poke_in_place": 3,
+        "sleep": 0,
+        "face_away": 1,
+        "drift_away": 1,
+        "inspect_poi": 5,
+        "jump_fidget": 8,
+        "hop_wander": 7,
+        "guard_post": 1,
+        "shy_hide": 5,
+        "follow_npc": 3
+      },
+      "neutral": {
+        "random_walk": 4,
+        "random_explore": 3,
+        "watch_player": 4,
+        "approach_player_side": 2,
+        "circle_player": 2,
+        "dance_circle": 1,
+        "spin_orbit": 1,
+        "poke_player": 2,
+        "poke_in_place": 2,
+        "sleep": 3,
+        "face_away": 3,
+        "drift_away": 2,
+        "inspect_poi": 3,
+        "jump_fidget": 2,
+        "hop_wander": 1,
+        "guard_post": 3,
+        "shy_hide": 2,
+        "follow_npc": 1
+      }
     },
     "natureModifiers": {
-      "Lonely": { "drift_away": 2, "face_away": 2, "shy_hide": 2, "watch_player": 1, "circle_player": -1, "dance_circle": -1 },
-      "Brave": { "guard_post": 2, "face_away": 1, "approach_player_side": 1, "shy_hide": -2, "sleep": -1 },
-      "Adamant": { "guard_post": 1, "face_away": 2, "drift_away": 1, "poke_player": -1, "random_explore": -1 },
-      "Naughty": { "poke_player": 2, "poke_in_place": 2, "circle_player": 2, "dance_circle": 1, "jump_fidget": 1, "guard_post": -2 },
-      "Bold": { "guard_post": 2, "watch_player": 1, "face_away": 1, "sleep": -1 },
-      "Relaxed": { "sleep": 2, "random_walk": -1, "hop_wander": -1, "jump_fidget": -1, "face_away": 1 },
-      "Impish": { "poke_player": 2, "poke_in_place": 2, "jump_fidget": 2, "dance_circle": 1, "sleep": -1 },
-      "Lax": { "sleep": 2, "drift_away": 2, "face_away": 1, "guard_post": -1, "watch_player": -1 },
-      "Modest": { "inspect_poi": 2, "watch_player": 1, "random_explore": 1, "poke_player": -1, "dance_circle": -1 },
-      "Mild": { "inspect_poi": 2, "random_explore": 1, "follow_npc": 1, "sleep": 1, "guard_post": -1 },
-      "Quiet": { "face_away": 2, "drift_away": 1, "inspect_poi": 1, "circle_player": -2, "spin_orbit": -2, "jump_fidget": -1 },
-      "Rash": { "random_explore": 2, "jump_fidget": 2, "spin_orbit": 2, "hop_wander": 1, "sleep": -1 },
-      "Calm": { "watch_player": 1, "face_away": 1, "guard_post": 1, "random_walk": -1, "jump_fidget": -2 },
-      "Gentle": { "watch_player": 2, "inspect_poi": 1, "approach_player_side": 1, "drift_away": -1, "guard_post": -1 },
-      "Sassy": { "face_away": 2, "poke_in_place": 2, "drift_away": 1, "watch_player": -1 },
-      "Careful": { "inspect_poi": 2, "guard_post": 2, "random_explore": 1, "circle_player": -1, "dance_circle": -1 },
-      "Timid": { "shy_hide": 3, "watch_player": 2, "approach_player_side": 1, "drift_away": -1, "spin_orbit": -1 },
-      "Hasty": { "random_walk": 2, "hop_wander": 2, "spin_orbit": 1, "sleep": -2, "watch_player": -1 },
-      "Jolly": { "circle_player": 2, "dance_circle": 2, "jump_fidget": 2, "poke_player": 1, "face_away": -1 },
-      "Naive": { "inspect_poi": 2, "follow_npc": 2, "random_explore": 1, "poke_player": 1, "guard_post": -1 },
-      "Hardy": { "guard_post": 1, "random_walk": 1, "sleep": -1 },
-      "Docile": { "watch_player": 2, "approach_player_side": 1, "random_walk": -1 },
-      "Serious": { "face_away": 1, "guard_post": 1, "watch_player": 1, "dance_circle": -1, "spin_orbit": -1 },
-      "Bashful": { "watch_player": 2, "shy_hide": 2, "poke_in_place": 1, "circle_player": -1 },
-      "Quirky": { "spin_orbit": 2, "dance_circle": 2, "jump_fidget": 2, "inspect_poi": 1, "sleep": -1 }
+      "Lonely": {
+        "drift_away": 2,
+        "face_away": 2,
+        "shy_hide": 2,
+        "watch_player": 1,
+        "circle_player": -1,
+        "dance_circle": -1
+      },
+      "Brave": {
+        "guard_post": 2,
+        "face_away": 1,
+        "approach_player_side": 1,
+        "shy_hide": -2,
+        "sleep": -1
+      },
+      "Adamant": {
+        "guard_post": 1,
+        "face_away": 2,
+        "drift_away": 1,
+        "poke_player": -1,
+        "random_explore": -1
+      },
+      "Naughty": {
+        "poke_player": 2,
+        "poke_in_place": 2,
+        "circle_player": 2,
+        "dance_circle": 1,
+        "jump_fidget": 1,
+        "guard_post": -2
+      },
+      "Bold": {
+        "guard_post": 2,
+        "watch_player": 1,
+        "face_away": 1,
+        "sleep": -1
+      },
+      "Relaxed": {
+        "sleep": 2,
+        "random_walk": -1,
+        "hop_wander": -1,
+        "jump_fidget": -1,
+        "face_away": 1
+      },
+      "Impish": {
+        "poke_player": 2,
+        "poke_in_place": 2,
+        "jump_fidget": 2,
+        "dance_circle": 1,
+        "sleep": -1
+      },
+      "Lax": {
+        "sleep": 2,
+        "drift_away": 2,
+        "face_away": 1,
+        "guard_post": -1,
+        "watch_player": -1
+      },
+      "Modest": {
+        "inspect_poi": 2,
+        "watch_player": 1,
+        "random_explore": 1,
+        "poke_player": -1,
+        "dance_circle": -1
+      },
+      "Mild": {
+        "inspect_poi": 2,
+        "random_explore": 1,
+        "follow_npc": 1,
+        "sleep": 1,
+        "guard_post": -1
+      },
+      "Quiet": {
+        "face_away": 2,
+        "drift_away": 1,
+        "inspect_poi": 1,
+        "circle_player": -2,
+        "spin_orbit": -2,
+        "jump_fidget": -1
+      },
+      "Rash": {
+        "random_explore": 2,
+        "jump_fidget": 2,
+        "spin_orbit": 2,
+        "hop_wander": 1,
+        "sleep": -1
+      },
+      "Calm": {
+        "watch_player": 1,
+        "face_away": 1,
+        "guard_post": 1,
+        "random_walk": -1,
+        "jump_fidget": -2
+      },
+      "Gentle": {
+        "watch_player": 2,
+        "inspect_poi": 1,
+        "approach_player_side": 1,
+        "drift_away": -1,
+        "guard_post": -1
+      },
+      "Sassy": {
+        "face_away": 2,
+        "poke_in_place": 2,
+        "drift_away": 1,
+        "watch_player": -1
+      },
+      "Careful": {
+        "inspect_poi": 2,
+        "guard_post": 2,
+        "random_explore": 1,
+        "circle_player": -1,
+        "dance_circle": -1
+      },
+      "Timid": {
+        "shy_hide": 3,
+        "watch_player": 2,
+        "approach_player_side": 1,
+        "drift_away": -1,
+        "spin_orbit": -1
+      },
+      "Hasty": {
+        "random_walk": 2,
+        "hop_wander": 2,
+        "spin_orbit": 1,
+        "sleep": -2,
+        "watch_player": -1
+      },
+      "Jolly": {
+        "circle_player": 2,
+        "dance_circle": 2,
+        "jump_fidget": 2,
+        "poke_player": 1,
+        "face_away": -1
+      },
+      "Naive": {
+        "inspect_poi": 2,
+        "follow_npc": 2,
+        "random_explore": 1,
+        "poke_player": 1,
+        "guard_post": -1
+      },
+      "Hardy": {
+        "guard_post": 1,
+        "random_walk": 1,
+        "sleep": -1
+      },
+      "Docile": {
+        "watch_player": 2,
+        "approach_player_side": 1,
+        "random_walk": -1
+      },
+      "Serious": {
+        "face_away": 1,
+        "guard_post": 1,
+        "watch_player": 1,
+        "dance_circle": -1,
+        "spin_orbit": -1
+      },
+      "Bashful": {
+        "watch_player": 2,
+        "shy_hide": 2,
+        "poke_in_place": 1,
+        "circle_player": -1
+      },
+      "Quirky": {
+        "spin_orbit": 2,
+        "dance_circle": 2,
+        "jump_fidget": 2,
+        "inspect_poi": 1,
+        "sleep": -1
+      }
     }
   }
 }

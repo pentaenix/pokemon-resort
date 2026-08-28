@@ -148,20 +148,30 @@ AquariumSimulation::AquariumSimulation(
                 swimmer.actor.model_path = model_path;
                 swimmer.actor.animation = pokemon.animation;
                 swimmer.actor.model_scale = config->pokemon_scale * pokemon.size_multiplier;
+                swimmer.actor.world_pitch_degrees = pokemon.pitch_degrees;
+                swimmer.actor.presentation = config->pokemon_presentation;
                 swimmer.navigation = navigation;
                 swimmer.tank = tank;
                 swimmer.speed = pokemon.speed_meters_per_second;
                 swimmer.turn_speed = pokemon.turn_degrees_per_second;
+                swimmer.floor_navigation = normalize(pokemon.movement_plane) == "floor";
                 if (metrics.valid) {
+                    const AquariumPokemonMetrics oriented_metrics =
+                        rotateAquariumPokemonMetrics(metrics, pokemon.pitch_degrees);
                     const float model_units_to_meters =
                         swimmer.actor.model_scale / world_units_per_meter;
                     const float model_radius = std::max({
-                        std::abs(metrics.min_x), std::abs(metrics.max_x),
-                        std::abs(metrics.min_z), std::abs(metrics.max_z)}) *
+                        std::abs(oriented_metrics.min_x), std::abs(oriented_metrics.max_x),
+                        std::abs(oriented_metrics.min_z), std::abs(oriented_metrics.max_z)}) *
                         model_units_to_meters;
-                    swimmer.radius = std::max(pokemon.body_radius_meters, model_radius);
-                    swimmer.lower_extent = metrics.min_y * model_units_to_meters;
-                    swimmer.upper_extent = metrics.max_y * model_units_to_meters;
+                    // Shallow-pool actors navigate by a contact footprint. A
+                    // face-up model may deliberately overhang that footprint,
+                    // unlike a freely swimming body that must fit in 3D.
+                    swimmer.radius = swimmer.floor_navigation
+                        ? pokemon.body_radius_meters
+                        : std::max(pokemon.body_radius_meters, model_radius);
+                    swimmer.lower_extent = oriented_metrics.min_y * model_units_to_meters;
+                    swimmer.upper_extent = oriented_metrics.max_y * model_units_to_meters;
                 } else {
                     swimmer.radius = pokemon.body_radius_meters;
                     warnings_.push_back(
@@ -210,6 +220,10 @@ AquariumSimulation::AquariumSimulation(
 }
 
 bool AquariumSimulation::containsBody(const Swimmer& swimmer, Point3 origin) const {
+    if (swimmer.floor_navigation) {
+        origin[1] = swimmer.volume_center[1];
+        return containsPoint(swimmer.navigation, origin, swimmer.radius);
+    }
     if (!containsPoint(swimmer.navigation, origin, swimmer.radius)) return false;
     Point3 bottom = origin;
     Point3 top = origin;
@@ -217,6 +231,17 @@ bool AquariumSimulation::containsBody(const Swimmer& swimmer, Point3 origin) con
     top[1] += swimmer.upper_extent;
     return containsPoint(swimmer.navigation, bottom, swimmer.radius) &&
         containsPoint(swimmer.navigation, top, swimmer.radius);
+}
+
+bool AquariumSimulation::segmentNavigable(
+    const Swimmer& swimmer,
+    Point3 from,
+    Point3 to) const {
+    if (swimmer.floor_navigation) {
+        from[1] = swimmer.volume_center[1];
+        to[1] = swimmer.volume_center[1];
+    }
+    return segmentIsNavigable(swimmer.navigation, from, to, swimmer.radius);
 }
 
 Point3 AquariumSimulation::resolveStartingPosition(
@@ -228,8 +253,11 @@ Point3 AquariumSimulation::resolveStartingPosition(
         ? config.starting_position_meters
         : fallbackSpawn(swimmer.navigation);
     const auto vertical = verticalBounds(swimmer.navigation);
-    if (normalize(config.vertical_anchor) == "bottom") {
-        candidate[1] = vertical[0] - swimmer.lower_extent + 0.01f;
+    const std::string vertical_anchor = normalize(config.vertical_anchor);
+    if (vertical_anchor == "floor") {
+        candidate[1] += swimmer.navigation.floor_level_y - swimmer.lower_extent + 0.01f;
+    } else if (vertical_anchor == "bottom") {
+        candidate[1] += vertical[0] - swimmer.lower_extent + 0.01f;
     }
 
     if (swimmer.behavior == Swimmer::Behavior::School && !config.has_starting_position) {
@@ -251,12 +279,38 @@ Point3 AquariumSimulation::resolveStartingPosition(
     }
     if (containsBody(swimmer, candidate)) return candidate;
 
+    if (config.has_starting_position) {
+        const Point3 requested = candidate;
+        const float search_extent = std::max(
+            swimmer.volume_half_extent[0], swimmer.volume_half_extent[2]) * 2.0f;
+        for (int ring = 1; ring <= 48; ++ring) {
+            const float radius = search_extent * static_cast<float>(ring) / 48.0f;
+            for (int step = 0; step < 64; ++step) {
+                const float angle = 2.0f * kPi * static_cast<float>(step) / 64.0f;
+                Point3 adjusted{
+                    requested[0] + radius * std::cos(angle),
+                    requested[1],
+                    requested[2] + radius * std::sin(angle)};
+                if (!containsBody(swimmer, adjusted)) continue;
+                warnings_.push_back(
+                    "Aquarium position for " + swimmer.actor.id +
+                    " intersected glass or an obstacle; adjusted locally to [" +
+                    std::to_string(adjusted[0]) + ", " +
+                    std::to_string(adjusted[1]) + ", " +
+                    std::to_string(adjusted[2]) + "]");
+                return adjusted;
+            }
+        }
+    }
+
     std::uniform_real_distribution<float> x_pick(
         swimmer.volume_center[0] - swimmer.volume_half_extent[0],
         swimmer.volume_center[0] + swimmer.volume_half_extent[0]);
-    std::uniform_real_distribution<float> y_pick(
-        vertical[0] - swimmer.lower_extent,
-        vertical[1] - swimmer.upper_extent);
+    const float minimum_y = vertical[0] - swimmer.lower_extent;
+    const float maximum_y = swimmer.floor_navigation
+        ? minimum_y
+        : vertical[1] - swimmer.upper_extent;
+    std::uniform_real_distribution<float> y_pick(minimum_y, maximum_y);
     std::uniform_real_distribution<float> z_pick(
         swimmer.volume_center[2] - swimmer.volume_half_extent[2],
         swimmer.volume_center[2] + swimmer.volume_half_extent[2]);
@@ -300,12 +354,14 @@ bool AquariumSimulation::chooseTarget(Swimmer& swimmer) {
         }
         const float vertical_clearance = std::min(swimmer.radius, (layer.y_top - layer.y_bottom) * 0.2f);
         std::uniform_real_distribution<float> x_pick(min_x, max_x);
-        std::uniform_real_distribution<float> y_pick(
-            layer.y_bottom + vertical_clearance, layer.y_top - vertical_clearance);
+        const float target_y = swimmer.floor_navigation
+            ? swimmer.local_position[1]
+            : std::uniform_real_distribution<float>(
+                layer.y_bottom + vertical_clearance, layer.y_top - vertical_clearance)(swimmer.rng);
         std::uniform_real_distribution<float> z_pick(min_z, max_z);
-        const Point3 candidate{x_pick(swimmer.rng), y_pick(swimmer.rng), z_pick(swimmer.rng)};
+        const Point3 candidate{x_pick(swimmer.rng), target_y, z_pick(swimmer.rng)};
         if (containsBody(swimmer, candidate) &&
-            segmentIsNavigable(swimmer.navigation, swimmer.local_position, candidate, swimmer.radius)) {
+            segmentNavigable(swimmer, swimmer.local_position, candidate)) {
             swimmer.local_target = candidate;
             return true;
         }
@@ -326,8 +382,7 @@ void AquariumSimulation::moveTowardTarget(Swimmer& swimmer, Point3 target, float
         swimmer.local_position[1] + dy / distance * step,
         swimmer.local_position[2] + dz / distance * step};
     if (!containsBody(swimmer, candidate) ||
-        !segmentIsNavigable(
-            swimmer.navigation, swimmer.local_position, candidate, swimmer.radius)) return;
+        !segmentNavigable(swimmer, swimmer.local_position, candidate)) return;
     swimmer.local_position = candidate;
     const float target_yaw = std::atan2(dx, dz) * 180.0f / kPi + swimmer.tank.yaw_degrees;
     const float yaw_delta = wrapDegrees(target_yaw - swimmer.actor.world_yaw_degrees);

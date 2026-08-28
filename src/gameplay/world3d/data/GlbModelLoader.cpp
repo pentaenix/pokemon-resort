@@ -409,6 +409,10 @@ int resolveMaterial(
     }
     if (const JsonValue* extras = mat.get("extras"); extras && extras->isObject()) {
         if (const JsonValue* rae = extras->get("rae"); rae && rae->isObject()) {
+            if (const JsonValue* platform = rae->get("platform");
+                platform && platform->isString() && platform->asString() == "nds") {
+                gmat.nitro_vertex_color = true;
+            }
             if (const JsonValue* render_class = rae->get("renderClass"); render_class && render_class->isString()) {
                 const std::string value = render_class->asString();
                 if (value == "mask") {

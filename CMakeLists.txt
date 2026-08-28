@@ -46,7 +46,7 @@ bgfx_compile_shaders(
 )
 bgfx_compile_shaders(
     TYPE FRAGMENT
-    SHADERS ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/fs_textured_cutout.sc ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/fs_pokemon_eye.sc ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/fs_eye_sclera_mask.sc ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/fs_pica_tev.sc
+    SHADERS ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/fs_textured_cutout.sc ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/fs_textured_wall_clip.sc ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/fs_pokemon_eye.sc ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/fs_eye_sclera_mask.sc ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/fs_pica_tev.sc
     VARYING_DEF ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/varying.def.sc
     OUTPUT_DIR ${WORLD3D_BGFX_SHADER_OUTPUT_DIR}
     INCLUDE_DIRS ${bgfx_cmake_SOURCE_DIR}/bgfx/src
@@ -175,6 +175,7 @@ add_executable(title_screen_demo
     src/gameplay/world3d/data/GlbModelAnimation.cpp
     src/gameplay/world3d/aquarium/AquariumConfig.cpp
     src/gameplay/world3d/aquarium/AquariumInspectionCamera.cpp
+    src/gameplay/world3d/aquarium/AquariumInspectionFacing.cpp
     src/gameplay/world3d/aquarium/AquariumNavigation.cpp
     src/gameplay/world3d/aquarium/AquariumPokemonMetrics.cpp
     src/gameplay/world3d/aquarium/AquariumSimulation.cpp
@@ -220,6 +221,7 @@ add_executable(title_screen_demo
     src/ui/overlay/OverlayCanvas.cpp
     src/ui/transitions/ScreenTransition.cpp
     src/ui/Overworld3DTestScreen.cpp
+    src/ui/Overworld3DTestScreenAquarium.cpp
     src/ui/Overworld3DTestScreenCamera.cpp
     src/ui/TransferFlowCoordinator.cpp
     src/ui/title_screen/MainMenuController.cpp
@@ -676,6 +678,7 @@ add_executable(aquarium_tests
     src/gameplay/attend/rendering/AttendPokemonModel.cpp
     src/gameplay/world3d/aquarium/AquariumConfig.cpp
     src/gameplay/world3d/aquarium/AquariumInspectionCamera.cpp
+    src/gameplay/world3d/aquarium/AquariumInspectionFacing.cpp
     src/gameplay/world3d/aquarium/AquariumNavigation.cpp
     src/gameplay/world3d/aquarium/AquariumPokemonMetrics.cpp
     src/gameplay/world3d/aquarium/AquariumSimulation.cpp

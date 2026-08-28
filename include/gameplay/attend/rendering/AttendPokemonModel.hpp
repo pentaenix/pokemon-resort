@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <memory>
 #include <cstdint>
 #include <string>
 #include <utility>
@@ -268,6 +269,12 @@ struct AttendPokemonModel {
 };
 
 AttendPokemonModel loadAttendPokemonModel(const std::string& path, std::string* error = nullptr);
+// Aquarium simulation and rendering both need the same decoded Attend asset.
+// This process-local cache avoids decompressing and parsing it twice while
+// still invalidating when a developer replaces the source file.
+std::shared_ptr<const AttendPokemonModel> loadAttendPokemonModelShared(
+    const std::string& path,
+    std::string* error = nullptr);
 const AttendPokemonAnimation* findAttendPokemonAnimation(
     const AttendPokemonModel& model,
     const std::string& animation_name);

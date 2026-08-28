@@ -1500,14 +1500,16 @@ void testCurrentMapProjectSourcesLoadInRuntime() {
             root.string(), path.string());
         expect(!scene.id.empty(), "current map '" + id->asString() + "' loads as a runtime scene");
         if (scene.id == "aquarium12") {
+            expect(scene.grid.width == 24 && scene.grid.height == 18,
+                "aquarium gallery keeps its compact tank-focused footprint");
             expect(std::abs(scene.interior.default_room.wall_height_tiles - 4.0f) < 0.001f,
                 "current shell-less interior uses the new four-tile default walls");
             expect(scene.interior.default_room.walkable_inset_tiles == 1 &&
                     std::abs(scene.interior.default_room.wall_face_offset_tiles - 0.5f) < 0.001f &&
                     std::abs(scene.interior.default_room.entry_extension_depth_tiles) < 0.001f &&
-                    pr::gameplay::world3d::interiors::boundaryCellBlocked(scene, 14, 0) &&
-                    pr::gameplay::world3d::interiors::boundaryCellBlocked(scene, 0, 9) &&
-                    !pr::gameplay::world3d::interiors::boundaryCellBlocked(scene, 14, 19),
+                    pr::gameplay::world3d::interiors::boundaryCellBlocked(scene, 12, 0) &&
+                    pr::gameplay::world3d::interiors::boundaryCellBlocked(scene, 0, 8) &&
+                    !pr::gameplay::world3d::interiors::boundaryCellBlocked(scene, 12, 17),
                 "aquarium boundary cells contain walls while its south entry remains reachable");
             const auto apron =
                 pr::gameplay::world3d::interiors::buildDefaultRoomFloorApron(
@@ -1519,23 +1521,23 @@ void testCurrentMapProjectSourcesLoadInRuntime() {
                     scene, 0, 0, scene.grid.tile_size);
             const auto south_entry_floor =
                 pr::gameplay::world3d::interiors::clipDefaultRoomFloorCell(
-                    scene, 14, 19, scene.grid.tile_size);
+                    scene, 12, 17, scene.grid.tile_size);
             expect(std::abs(northwest_floor.x0 - 8.0f) < 0.001f &&
                     std::abs(northwest_floor.z0 - 8.0f) < 0.001f &&
                     std::abs(northwest_floor.u0 - 0.5f) < 0.001f &&
                     std::abs(northwest_floor.v0 - 0.5f) < 0.001f &&
-                    std::abs(south_entry_floor.z1 - 320.0f) < 0.001f &&
+                    std::abs(south_entry_floor.z1 - 288.0f) < 0.001f &&
                     std::abs(south_entry_floor.v1 - 1.0f) < 0.001f,
                 "floor cells crop at wall intersections while entry cells remain complete");
             expect(scene.interior.openings.size() == 1U &&
                     scene.interior.openings[0].edge == "south" &&
-                    scene.interior.openings[0].from == 13 &&
-                    scene.interior.openings[0].to == 15,
+                    scene.interior.openings[0].from == 11 &&
+                    scene.interior.openings[0].to == 13,
                 "aquarium keeps one three-wide south entry row");
-            for (int x = 13; x <= 15; ++x) {
+            for (int x = 11; x <= 13; ++x) {
                 const auto floor =
                     pr::gameplay::world3d::interiors::clipDefaultRoomFloorCell(
-                        scene, x, 19, scene.grid.tile_size);
+                        scene, x, 17, scene.grid.tile_size);
                 expect(std::abs((floor.x1 - floor.x0) - scene.grid.tile_size) < 0.001f &&
                         std::abs((floor.z1 - floor.z0) - scene.grid.tile_size) < 0.001f &&
                         std::abs(floor.u0) < 0.001f &&
@@ -1554,14 +1556,14 @@ void testCurrentMapProjectSourcesLoadInRuntime() {
                     std::abs(north_wall.bz - 8.0f) < 0.001f,
                 "corner wall pieces trim at the perpendicular wall intersection");
             pr::gameplay::world3d::characters::CharacterController player(scene);
-            expect(player.teleportToTile(14, 18, pr::gameplay::world3d::FacingDirection::South),
+            expect(player.teleportToTile(12, 16, pr::gameplay::world3d::FacingDirection::South),
                 "room boundary test can place the player before the final south row");
             const auto final_row_step = player.moveInput(0, 1, 0.02);
             expect(final_row_step.attempted_step && !final_row_step.blocked,
                 "player can reach the final south row");
             pr::gameplay::world3d::characters::CharacterController arrival(scene);
             expect(arrival.teleportToTile(
-                    14, 19, pr::gameplay::world3d::FacingDirection::North),
+                    12, 17, pr::gameplay::world3d::FacingDirection::North),
                 "interior arrival begins on the single visible entry row");
             const auto arrival_step = arrival.moveInput(0, -1, 0.02);
             expect(arrival_step.attempted_step && !arrival_step.blocked,
@@ -1572,20 +1574,20 @@ void testCurrentMapProjectSourcesLoadInRuntime() {
                     return anchor.id == "anchor";
                 });
             expect(entry_anchor != scene.anchors.end() &&
-                    entry_anchor->tile_x == 14 && entry_anchor->tile_y == 19 &&
+                    entry_anchor->tile_x == 12 && entry_anchor->tile_y == 17 &&
                     entry_anchor->facing == pr::gameplay::world3d::FacingDirection::North,
                 "aquarium arrival starts on the in-bounds entry row facing inward");
             expect(scene.door_triggers.size() == 1U &&
                     scene.door_triggers.front().id == "aquarium_exit" &&
-                    scene.door_triggers.front().tile_x == 14 &&
-                    scene.door_triggers.front().tile_y == 19 &&
+                    scene.door_triggers.front().tile_x == 12 &&
+                    scene.door_triggers.front().tile_y == 17 &&
                     scene.door_triggers.front().script_id ==
                         "interior_exit_step_then_transfer",
                 "aquarium starts its scripted exit when entering the visible threshold row");
             const std::vector<pr::gameplay::world3d::characters::LoadedWorldChunk> room_chunks{{
                 scene.id, scene, 0, 0}};
             expect(pr::gameplay::world3d::doors::findDoorTrigger(
-                    room_chunks, 14, 18, 14, 19, 0, 1).has_value(),
+                    room_chunks, 12, 16, 12, 17, 0, 1).has_value(),
                 "moving south into the threshold starts the one-cell pre-transfer exit step");
         }
         chunks.push_back({id->asString(), scene, 0, 0});
@@ -1627,7 +1629,7 @@ void testAquariumMapPlacesTankOverFloorCutout() {
     const fs::path root = repositoryRoot();
     const auto scene = pr::gameplay::world3d::data::loadOwmapScene(
         root.string(), (root / "assets/overworld/maps/aquarium12.owmap").string());
-    expect(scene.models.size() == 2U, "aquarium map must place both tank models");
+    expect(scene.models.size() == 3U, "aquarium map must place all three tank models");
     expect(scene.models.front().id == "aquarium", "aquarium tank placement id");
     expect(std::abs(scene.models.front().scale - 1.0f) < 0.0001f,
         "Aquarium Maker models must place at the ordinary model scale");
@@ -1636,6 +1638,23 @@ void testAquariumMapPlacesTankOverFloorCutout() {
         "the nominal ten-metre large tank must occupy ten map cells");
     expect(scene.models.front().glb_path.find("assets/overworld/models/aquarium/aquarium.glb") != std::string::npos,
         "aquarium map must point at the authored GLB");
+    const auto cylinder = std::find_if(scene.models.begin(), scene.models.end(),
+        [](const auto& model) { return model.id == "aquarium_c"; });
+    expect(cylinder != scene.models.end() &&
+            std::abs(cylinder->x - 296.0f) < 0.0001f &&
+            std::abs(cylinder->z - 88.0f) < 0.0001f,
+        "cylinder tank must move inward with the compact room layout");
+    const auto touch_pool = std::find_if(scene.models.begin(), scene.models.end(),
+        [](const auto& model) { return model.id == "aquarium_t"; });
+    expect(touch_pool != scene.models.end() &&
+            std::abs(touch_pool->x - 104.0f) < 0.0001f &&
+            std::abs(touch_pool->z - 216.0f) < 0.0001f,
+        "touch pool must be placed on the left side of the room");
+    expect(scene.terrain.collision[3][2] == 1 && scene.terrain.collision[8][12] == 1 &&
+            scene.terrain.collision[4][17] == 1 && scene.terrain.collision[6][19] == 1 &&
+            scene.terrain.collision[11][4] == 1 && scene.terrain.collision[15][8] == 1 &&
+            scene.terrain.collision[16][12] == 0,
+        "all three compacted tank collisions must match their visual placements");
     expect(scene.interior.floor_cutouts.size() == 1U, "aquarium must declare one floor cutout");
     const auto& cutout = scene.interior.floor_cutouts.front();
     expect(cutout.placement_id == "aquarium" && cutout.local_polygon.size() >= 20U,

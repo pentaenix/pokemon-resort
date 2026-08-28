@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <string>
@@ -82,6 +83,10 @@ struct GlbMaterial {
     bool alpha_blend = false;              // legacy SDL fallback flag: glTF alphaMode MASK or BLEND
     AlphaMode alpha_mode = AlphaMode::Opaque;
     RenderClass render_class = RenderClass::Opaque;
+    // RAE tags original Nintendo DS materials explicitly. The established
+    // overworld presentation uses their texture colors directly; exported DS
+    // COLOR_0 channels are not ordinary glTF color multipliers.
+    bool nitro_vertex_color = false;
     float alpha_cutoff = 0.5f;
     float base_color[4] = {1.0f, 1.0f, 1.0f, 1.0f};
 };
@@ -92,6 +97,10 @@ struct GlbMaterial {
 // opaque when it starts preserving authored vertex colors.
 inline float compositeGlbAlpha(const GlbVertex& vertex, const GlbMaterial& material) {
     return vertex.a * material.base_color[3];
+}
+
+inline float compositeGlbVertexColor(float channel, const GlbMaterial& material) {
+    return material.nitro_vertex_color ? 1.0f : channel;
 }
 
 struct GlbTriangle {

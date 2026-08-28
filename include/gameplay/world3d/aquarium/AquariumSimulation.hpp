@@ -20,8 +20,10 @@ struct AquariumPokemonActor {
     std::string animation;
     Point3 world_position{};
     float world_yaw_degrees = 0.0f;
+    float world_pitch_degrees = 0.0f;
     float model_scale = 0.01f;
     double animation_time_seconds = 0.0;
+    AquariumPokemonPresentationConfig presentation;
 };
 
 struct AquariumTankRuntime {
@@ -76,6 +78,7 @@ private:
         float radius = 0.1f;
         float lower_extent = 0.0f;
         float upper_extent = 0.0f;
+        bool floor_navigation = false;
         Behavior behavior = Behavior::Wander;
         std::string school_id;
         float school_phase = 0.0f;
@@ -88,6 +91,7 @@ private:
     static Point3 toWorld(const TankTransform& tank, float units_per_meter, Point3 local);
     bool chooseTarget(Swimmer& swimmer);
     bool containsBody(const Swimmer& swimmer, Point3 origin) const;
+    bool segmentNavigable(const Swimmer& swimmer, Point3 from, Point3 to) const;
     Point3 resolveStartingPosition(
         Swimmer& swimmer,
         const AquariumPokemonConfig& config,

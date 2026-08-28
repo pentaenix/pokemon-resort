@@ -29,6 +29,10 @@ public:
         (void)dx;
         (void)dy;
     }
+    virtual void onNavigate2dReleased(int dx, int dy) {
+        (void)dx;
+        (void)dy;
+    }
 
     virtual bool acceptsAdvanceInput() const { return true; }
     virtual void onAdvancePressed() {}

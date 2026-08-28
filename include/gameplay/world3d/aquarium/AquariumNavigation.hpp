@@ -20,6 +20,7 @@ struct SwimVolumeLayer {
 
 struct AquariumNavigation {
     float export_units_per_meter = 1.0f;
+    float floor_level_y = 0.0f;
     std::vector<SwimVolumeLayer> layers;
     std::vector<Point3> suggested_spawns;
     bool valid = false;

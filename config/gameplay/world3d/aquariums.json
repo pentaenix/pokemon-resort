@@ -1,6 +1,25 @@
 {
-  "schemaVersion": 2,
-  "pokemonScale": 0.3,
+  "schemaVersion": 4,
+  "pokemonScale": 0.27,
+  "pokemonPresentation": {
+    "brightness": 1.08,
+    "pokemonBrightness": 1.02,
+    "saturation": 1,
+    "contrast": 1,
+    "ambient": 0.74,
+    "directional": 0.34,
+    "formShadow": 0.24,
+    "lightDirection": [
+      -0.35,
+      0.82,
+      0.45
+    ],
+    "tint": [
+      1,
+      0.99,
+      0.95
+    ]
+  },
   "maps": [
     {
       "mapId": "aquarium12",
@@ -22,7 +41,22 @@
               0
             ],
             "interactionReachTiles": 1.5,
-            "smooth": 0
+            "smooth": 640,
+            "returnSmooth": 2400,
+            "inspectionView": {
+              "behindPlayerTiles": 11,
+              "frontHeightTiles": 5.1543217,
+              "sideHeightTiles": 4.4304316
+            },
+            "focusedView": {
+              "standoffTiles": 8.7166932,
+              "frontHeightTiles": 4.1543217,
+              "sideHeightTiles": 3.4304316,
+              "frontPitchDegrees": -10.4799919,
+              "sidePitchDegrees": -10.7199888,
+              "nearClip": 12,
+              "wallClipRadiusTiles": 1.5
+            }
           },
           "pokemon": [
             {
@@ -53,7 +87,22 @@
               0
             ],
             "interactionReachTiles": 1.5,
-            "smooth": 0
+            "smooth": 640,
+            "returnSmooth": 2400,
+            "inspectionView": {
+              "behindPlayerTiles": 11,
+              "frontHeightTiles": 5.1543217,
+              "sideHeightTiles": 4.4304316
+            },
+            "focusedView": {
+              "standoffTiles": 8.9293954,
+              "frontHeightTiles": 4.1543217,
+              "sideHeightTiles": 3.4304316,
+              "frontPitchDegrees": -10.4799919,
+              "sidePitchDegrees": -10.7199888,
+              "nearClip": 12,
+              "wallClipRadiusTiles": 1.5
+            }
           },
           "pokemon": [
             {
@@ -62,7 +111,11 @@
               "count": 1,
               "animation": "idle_default",
               "behavior": "stationary",
-              "startingPositionMeters": [0, 0, 0],
+              "startingPositionMeters": [
+                0,
+                0,
+                0
+              ],
               "verticalAnchor": "bottom",
               "speedMetersPerSecond": 0,
               "turnDegreesPerSecond": 120,
@@ -78,6 +131,70 @@
               "speedMetersPerSecond": 0.34,
               "turnDegreesPerSecond": 180,
               "bodyRadiusMeters": 0.03
+            }
+          ]
+        },
+        {
+          "placementId": "aquarium_t",
+          "navigation": "assets/overworld/models/aquarium_t/aquarium_T.navigation.json",
+          "seed": 121771,
+          "inspectionCamera": {
+            "enabled": true,
+            "lookAtOffsetMeters": [
+              0,
+              0.68,
+              0
+            ],
+            "interactionReachTiles": 1.5,
+            "smooth": 640,
+            "returnSmooth": 2400,
+            "inspectionView": {
+              "behindPlayerTiles": 11,
+              "frontHeightTiles": 5.1543217,
+              "sideHeightTiles": 4.4304316
+            },
+            "focusedView": {
+              "standoffTiles": 3.5,
+              "frontHeightTiles": 4.1543217,
+              "sideHeightTiles": 3.4304316,
+              "frontPitchDegrees": -10.4799919,
+              "sidePitchDegrees": -10.7199888,
+              "nearClip": 12,
+              "wallClipRadiusTiles": 1.5
+            }
+          },
+          "pokemon": [
+            {
+              "id": "touch_pool_staryu_left",
+              "species": "staryu",
+              "animation": "idle_default",
+              "behavior": "stationary",
+              "movementPlane": "floor",
+              "pitchDegrees": -90,
+              "positionMeters": {
+                "x": -1.15,
+                "y": 0.2,
+                "z": -1.15
+              },
+              "verticalAnchor": "floor",
+              "speedMetersPerSecond": 0,
+              "bodyRadiusMeters": 0.04
+            },
+            {
+              "id": "touch_pool_pyukumuku",
+              "species": "pyukumuku",
+              "animation": "walk",
+              "behavior": "wander",
+              "movementPlane": "floor",
+              "positionMeters": {
+                "x": 0,
+                "y": 0.2,
+                "z": 1.35
+              },
+              "verticalAnchor": "floor",
+              "speedMetersPerSecond": 0.28,
+              "turnDegreesPerSecond": 180,
+              "bodyRadiusMeters": 0.18
             }
           ]
         }

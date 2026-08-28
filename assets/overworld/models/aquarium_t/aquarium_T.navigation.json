@@ -1,0 +1,171 @@
+{
+  "schema": "aquarium-maker-navigation",
+  "schemaVersion": 4,
+  "coordinateSystem": {
+    "units": "meters",
+    "up": "+Y",
+    "front": "+Z",
+    "floorLevelY": 0
+  },
+  "profile": "standard",
+  "footprint": "rectangle",
+  "footprintRotation": 0,
+  "footprintMirrored": false,
+  "boundsMeters": {
+    "min": [
+      -2.327,
+      0.670465,
+      -2.327
+    ],
+    "max": [
+      2.327,
+      0.690465,
+      2.327
+    ]
+  },
+  "waterBoundary": [
+    [
+      2.327,
+      2.327
+    ],
+    [
+      2.327,
+      -2.327
+    ],
+    [
+      -2.327,
+      -2.327
+    ],
+    [
+      -2.327,
+      2.327
+    ]
+  ],
+  "waterHeightRangeMeters": [
+    0.670465,
+    0.690465
+  ],
+  "waterSurfaceAreaM2": 21.659716,
+  "approximateWaterVolumeM3": 0.43319432000000035,
+  "recommendedMaxFishRadiusM": 0.073,
+  "collisionGuidance": "Use swimVolumeLayers as the authoritative navigation volume. Tunnel arches use their widest footprint only between floor and crown. Rock decor uses tight oriented boxes with a minimal safety margin; plants are non-blocking.",
+  "suggestedSpawnPoints": [
+    {
+      "id": "spawn-1",
+      "position": [
+        0,
+        0.681465,
+        0
+      ],
+      "region": "main"
+    }
+  ],
+  "regions": [
+    {
+      "id": "main",
+      "label": "Main water region",
+      "polygon": [
+        [
+          2.427,
+          2.427
+        ],
+        [
+          2.427,
+          -2.427
+        ],
+        [
+          -2.427,
+          -2.427
+        ],
+        [
+          -2.427,
+          2.427
+        ]
+      ],
+      "yBottom": 0.670465,
+      "yTop": 0.690465
+    }
+  ],
+  "portals": [],
+  "swimVolumeLayers": [
+    {
+      "id": "swim-layer-1",
+      "yBottom": 0.670465,
+      "yTop": 0.690465,
+      "polygons": [
+        [
+          [
+            [
+              -2.327,
+              -2.327
+            ],
+            [
+              2.327,
+              -2.327
+            ],
+            [
+              2.327,
+              2.327
+            ],
+            [
+              -2.327,
+              2.327
+            ],
+            [
+              -2.327,
+              -2.327
+            ]
+          ],
+          [
+            [
+              -1.0625085453853498,
+              -0.9478387937106605
+            ],
+            [
+              -1.0625085453853498,
+              1.0734464707813742
+            ],
+            [
+              0.9804018802776444,
+              1.0734464707813742
+            ],
+            [
+              0.9804018802776444,
+              -0.9478387937106605
+            ],
+            [
+              -1.0625085453853498,
+              -0.9478387937106605
+            ]
+          ]
+        ]
+      ]
+    }
+  ],
+  "dryPassages": [],
+  "decorObstacles": [
+    {
+      "id": "decor-mtaz4fal-l8hv8",
+      "kind": "boulder",
+      "center": [
+        -0.041053332553852684,
+        0.1885,
+        0.06280383853535682
+      ],
+      "halfExtents": [
+        1.021455212831497,
+        1.0106426322460174
+      ],
+      "rotation": 0,
+      "yBottom": 0.1885,
+      "yTop": 0.7087863999999999,
+      "shape": "orientedBox"
+    }
+  ],
+  "exportUnitsPerMeter": 16,
+  "exportedBoundsUnits": {
+    "width": 80,
+    "depth": 80,
+    "height": 16
+  }
+}

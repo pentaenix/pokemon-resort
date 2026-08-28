@@ -290,6 +290,13 @@ public:
     std::string lastError() const { return last_error_; }
     void setStaticMapChunks(std::vector<OverworldBgfxRenderer::StaticMapChunk> chunks);
     void setAquariumPokemonActors(std::vector<aquarium::AquariumPokemonActor> actors);
+    void setPlayerVisible(bool visible) { player_visible_ = visible; }
+    void setInteriorWallCameraClip(camera::Vec3 center, float radius_world) {
+        interior_wall_clip_[0] = center.x;
+        interior_wall_clip_[1] = center.y;
+        interior_wall_clip_[2] = center.z;
+        interior_wall_clip_[3] = std::max(0.0f, radius_world);
+    }
     void setTextboxOverlay(dialogue::OverworldTextboxConfig config, bool visible, std::string text);
     void setAttendButtonOverlay(std::string icon_path, SDL_Rect logical_rect, bool visible);
     void setBlackIrisTransition(float logical_x, float logical_y, float closed_amount,
@@ -495,6 +502,7 @@ private:
 
     bgfx::VertexLayout layout_{};
     bgfx::ProgramHandle world_program_ = BGFX_INVALID_HANDLE;
+    bgfx::ProgramHandle wall_clip_program_ = BGFX_INVALID_HANDLE;
     bgfx::ProgramHandle billboard_program_ = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle tex_uniform_ = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle tint_cutoff_uniform_ = BGFX_INVALID_HANDLE;
@@ -503,6 +511,7 @@ private:
     bgfx::UniformHandle uv_offset_uniform_ = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle light_dir_uniform_ = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle light_params_uniform_ = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle camera_clip_uniform_ = BGFX_INVALID_HANDLE;
     TextureGpuResource white_texture_;
     TextureGpuResource shadow_texture_;
     TextureGpuResource textbox_texture_;
@@ -536,6 +545,8 @@ private:
     std::vector<OverworldBgfxRenderer::StaticMapChunk> pending_static_chunks_;
     std::vector<StaticChunkGpuResource> static_chunks_;
     aquarium::rendering::AquariumPokemonBgfxRenderer aquarium_pokemon_renderer_;
+    bool player_visible_ = true;
+    float interior_wall_clip_[4]{};
     std::vector<aquarium::AquariumPokemonActor> aquarium_pokemon_actors_;
     PixelWorldTarget pixel_world_target_;
     bool override_animation_clock_ = false;
@@ -600,7 +611,8 @@ private:
         float alpha_cutoff,
         std::uint64_t state,
         bgfx::ViewId view_id = 0,
-        bool ordered_materials = false) const;
+        bool ordered_materials = false,
+        const float* camera_clip = nullptr) const;
     void submitAlphaDepthPrepass(
         const MeshGpuResource& mesh,
         const float* model_matrix,
@@ -735,6 +747,16 @@ void OverworldBgfxRenderer::setStaticMapChunks(std::vector<StaticMapChunk> chunk
 void OverworldBgfxRenderer::setAquariumPokemonActors(
     std::vector<aquarium::AquariumPokemonActor> actors) {
     if (impl_) impl_->setAquariumPokemonActors(std::move(actors));
+}
+
+void OverworldBgfxRenderer::setPlayerVisible(bool visible) {
+    if (impl_) impl_->setPlayerVisible(visible);
+}
+
+void OverworldBgfxRenderer::setInteriorWallCameraClip(
+    camera::Vec3 center,
+    float radius_world) {
+    if (impl_) impl_->setInteriorWallCameraClip(center, radius_world);
 }
 
 void OverworldBgfxRenderer::setTextboxOverlay(
@@ -1017,6 +1039,7 @@ bool OverworldBgfxRenderer::Impl::initialize(
     uv_offset_uniform_ = bgfx::createUniform("u_uvOffset", bgfx::UniformType::Vec4);
     light_dir_uniform_ = bgfx::createUniform("u_lightDir", bgfx::UniformType::Vec4);
     light_params_uniform_ = bgfx::createUniform("u_lightParams", bgfx::UniformType::Vec4);
+    camera_clip_uniform_ = bgfx::createUniform("u_cameraClip", bgfx::UniformType::Vec4);
 
     std::uint8_t white[4] = {255, 255, 255, 255};
     white_texture_ = createTextureFromRgba(white, 1, 1, "world3d-white");
@@ -1124,6 +1147,10 @@ void OverworldBgfxRenderer::Impl::shutdown() {
         bgfx::destroy(light_params_uniform_);
         light_params_uniform_ = BGFX_INVALID_HANDLE;
     }
+    if (bgfx::isValid(camera_clip_uniform_)) {
+        bgfx::destroy(camera_clip_uniform_);
+        camera_clip_uniform_ = BGFX_INVALID_HANDLE;
+    }
     backend_.shutdown();
     initialized_ = false;
 }
@@ -1132,20 +1159,28 @@ bool OverworldBgfxRenderer::Impl::createPrograms() {
     const std::filesystem::path shader_root = backend_.shaderDirectory();
     const std::string shader_subdir = backend_.shaderSubdirectory();
     bgfx::ShaderHandle vs_world = loadShader(shader_root, shader_subdir, "vs_world");
+    bgfx::ShaderHandle vs_wall = loadShader(shader_root, shader_subdir, "vs_world");
     bgfx::ShaderHandle vs_billboard = loadShader(shader_root, shader_subdir, "vs_billboard");
     bgfx::ShaderHandle fs = loadShader(shader_root, shader_subdir, "fs_textured_cutout");
+    bgfx::ShaderHandle fs_wall = loadShader(shader_root, shader_subdir, "fs_textured_wall_clip");
     bgfx::ShaderHandle fs_billboard = loadShader(shader_root, shader_subdir, "fs_textured_cutout");
-    if (!bgfx::isValid(vs_world) || !bgfx::isValid(vs_billboard) || !bgfx::isValid(fs) || !bgfx::isValid(fs_billboard)) {
+    if (!bgfx::isValid(vs_world) || !bgfx::isValid(vs_wall) ||
+        !bgfx::isValid(vs_billboard) || !bgfx::isValid(fs) ||
+        !bgfx::isValid(fs_wall) || !bgfx::isValid(fs_billboard)) {
         last_error_ = "Could not load bgfx shader binaries from " + shader_root.string();
         if (bgfx::isValid(vs_world)) bgfx::destroy(vs_world);
+        if (bgfx::isValid(vs_wall)) bgfx::destroy(vs_wall);
         if (bgfx::isValid(vs_billboard)) bgfx::destroy(vs_billboard);
         if (bgfx::isValid(fs)) bgfx::destroy(fs);
+        if (bgfx::isValid(fs_wall)) bgfx::destroy(fs_wall);
         if (bgfx::isValid(fs_billboard)) bgfx::destroy(fs_billboard);
         return false;
     }
     world_program_ = bgfx::createProgram(vs_world, fs, true);
+    wall_clip_program_ = bgfx::createProgram(vs_wall, fs_wall, true);
     billboard_program_ = bgfx::createProgram(vs_billboard, fs_billboard, true);
-    if (!bgfx::isValid(world_program_) || !bgfx::isValid(billboard_program_)) {
+    if (!bgfx::isValid(world_program_) || !bgfx::isValid(wall_clip_program_) ||
+        !bgfx::isValid(billboard_program_)) {
         last_error_ = "Could not create bgfx shader programs";
         return false;
     }
@@ -1156,6 +1191,10 @@ void OverworldBgfxRenderer::Impl::destroyPrograms() {
     if (bgfx::isValid(world_program_)) {
         bgfx::destroy(world_program_);
         world_program_ = BGFX_INVALID_HANDLE;
+    }
+    if (bgfx::isValid(wall_clip_program_)) {
+        bgfx::destroy(wall_clip_program_);
+        wall_clip_program_ = BGFX_INVALID_HANDLE;
     }
     if (bgfx::isValid(billboard_program_)) {
         bgfx::destroy(billboard_program_);
@@ -2272,13 +2311,19 @@ bool OverworldBgfxRenderer::Impl::buildModels() {
                 if (tri.material != static_cast<int>(mat_index)) continue;
                 const std::uint32_t base = static_cast<std::uint32_t>(vertices.size());
                 vertices.push_back(Vertex{tri.a.x, tri.a.y, tri.a.z,
-                    packAbgr(tri.a.r, tri.a.g, tri.a.b,
+                    packAbgr(data::compositeGlbVertexColor(tri.a.r, glb.materials[mat_index]),
+                        data::compositeGlbVertexColor(tri.a.g, glb.materials[mat_index]),
+                        data::compositeGlbVertexColor(tri.a.b, glb.materials[mat_index]),
                         data::compositeGlbAlpha(tri.a, glb.materials[mat_index])), tri.a.u, tri.a.v});
                 vertices.push_back(Vertex{tri.b.x, tri.b.y, tri.b.z,
-                    packAbgr(tri.b.r, tri.b.g, tri.b.b,
+                    packAbgr(data::compositeGlbVertexColor(tri.b.r, glb.materials[mat_index]),
+                        data::compositeGlbVertexColor(tri.b.g, glb.materials[mat_index]),
+                        data::compositeGlbVertexColor(tri.b.b, glb.materials[mat_index]),
                         data::compositeGlbAlpha(tri.b, glb.materials[mat_index])), tri.b.u, tri.b.v});
                 vertices.push_back(Vertex{tri.c.x, tri.c.y, tri.c.z,
-                    packAbgr(tri.c.r, tri.c.g, tri.c.b,
+                    packAbgr(data::compositeGlbVertexColor(tri.c.r, glb.materials[mat_index]),
+                        data::compositeGlbVertexColor(tri.c.g, glb.materials[mat_index]),
+                        data::compositeGlbVertexColor(tri.c.b, glb.materials[mat_index]),
                         data::compositeGlbAlpha(tri.c, glb.materials[mat_index])), tri.c.u, tri.c.v});
                 if (!glb.animations.empty()) {
                     source_vertices.insert(source_vertices.end(), {tri.a, tri.b, tri.c});
@@ -2549,7 +2594,8 @@ void OverworldBgfxRenderer::Impl::submitMesh(
     float,
     std::uint64_t state,
     bgfx::ViewId view_id,
-    bool ordered_materials) const {
+    bool ordered_materials,
+    const float* camera_clip) const {
     if (!mesh.valid()) return;
     for (const MaterialRange& range : mesh.ranges) {
         if (range.index_count == 0) continue;
@@ -2689,6 +2735,8 @@ void OverworldBgfxRenderer::Impl::submitMesh(
         bgfx::setUniform(uv_offset_uniform_, uv_offset);
         bgfx::setUniform(light_dir_uniform_, light_dir);
         bgfx::setUniform(light_params_uniform_, light_params);
+        const float no_camera_clip[4]{};
+        bgfx::setUniform(camera_clip_uniform_, camera_clip ? camera_clip : no_camera_clip);
         bgfx::setState(ordered_materials ? stateFor(effective_pass) : state);
         bgfx::submit(view_id, program);
     }
@@ -3594,7 +3642,9 @@ OverworldBgfxRenderer::EmbeddedViewportTexture OverworldBgfxRenderer::Impl::rend
     }
     submitMesh(terrain_flat_top_mesh_, ident, world_program_, MaterialClass::Opaque, 0.0f, stateFor(MaterialClass::Opaque));
     submitMesh(terrain_slope_top_mesh_, ident, world_program_, MaterialClass::Opaque, 0.0f, stateFor(MaterialClass::Opaque));
-    submitMesh(terrain_wall_mesh_, ident, world_program_, MaterialClass::Opaque, 0.0f, stateFor(MaterialClass::Opaque));
+    submitMesh(
+        terrain_wall_mesh_, ident, wall_clip_program_, MaterialClass::Opaque, 0.0f,
+        stateFor(MaterialClass::Opaque), 0, false, interior_wall_clip_);
     submitMesh(tile_layer_mesh_, ident, world_program_, MaterialClass::Opaque, 0.0f, stateFor(MaterialClass::Opaque));
     for (const ModelGpuResource& model : models_) {
         submitMesh(model.mesh, model.model_matrix, world_program_, MaterialClass::Opaque, 0.0f, stateFor(MaterialClass::Opaque));
@@ -3649,23 +3699,25 @@ OverworldBgfxRenderer::EmbeddedViewportTexture OverworldBgfxRenderer::Impl::rend
     bgfx::touch(1);
 
     std::vector<rendering::CharacterBillboardDraw> characters = character_draws;
-    rendering::CharacterBillboardDraw player_draw{};
-    player_draw.character = &character_;
-    player_draw.source_rect = player_source_rect;
-    player_draw.activity_id = player_activity_id;
-    player_draw.use_run_texture = player_use_run_texture;
-    player_draw.draw_shadow = player_draw_shadow;
-    player_draw.depth_priority_bias = kPlayerBillboardDepthPriorityBias;
-    player_draw.placement = rendering::buildCharacterBillboardPlacement(
-        scene_,
-        camera,
-        player_binding,
-        character_,
-        player_pos,
-        player_source_rect,
-        placement_w,
-        placement_h);
-    characters.push_back(player_draw);
+    if (player_visible_) {
+        rendering::CharacterBillboardDraw player_draw{};
+        player_draw.character = &character_;
+        player_draw.source_rect = player_source_rect;
+        player_draw.activity_id = player_activity_id;
+        player_draw.use_run_texture = player_use_run_texture;
+        player_draw.draw_shadow = player_draw_shadow;
+        player_draw.depth_priority_bias = kPlayerBillboardDepthPriorityBias;
+        player_draw.placement = rendering::buildCharacterBillboardPlacement(
+            scene_,
+            camera,
+            player_binding,
+            character_,
+            player_pos,
+            player_source_rect,
+            placement_w,
+            placement_h);
+        characters.push_back(player_draw);
+    }
 
     submitProjectedCharacterShadows(camera, characters);
 

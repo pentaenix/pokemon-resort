@@ -81,6 +81,8 @@ public:
     void setStaticMapChunks(std::vector<StaticMapChunk> chunks);
     void setAquariumPokemonActors(
         std::vector<aquarium::AquariumPokemonActor> actors);
+    void setPlayerVisible(bool visible);
+    void setInteriorWallCameraClip(camera::Vec3 center, float radius_world);
     void setTextboxOverlay(dialogue::OverworldTextboxConfig config, bool visible, std::string text = {});
     void setAttendButtonOverlay(std::string icon_path, SDL_Rect logical_rect, bool visible);
     void setBlackIrisTransition(float logical_x, float logical_y, float closed_amount,

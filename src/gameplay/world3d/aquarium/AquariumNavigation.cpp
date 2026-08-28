@@ -78,6 +78,10 @@ AquariumNavigation loadAquariumNavigation(const std::string& path, std::string* 
     try {
         const JsonValue root = parseJsonFile(path);
         out.export_units_per_meter = std::max(0.0001f, numberOr(root.get("exportUnitsPerMeter"), 1.0f));
+        if (const JsonValue* coordinates = root.get("coordinateSystem");
+            coordinates && coordinates->isObject()) {
+            out.floor_level_y = numberOr(coordinates->get("floorLevelY"), 0.0f);
+        }
         if (const JsonValue* spawns = root.get("suggestedSpawnPoints"); spawns && spawns->isArray()) {
             for (const JsonValue& spawn : spawns->asArray()) {
                 if (spawn.isObject()) {

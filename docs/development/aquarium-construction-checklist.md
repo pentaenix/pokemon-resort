@@ -15,8 +15,8 @@ Updated: 2026-08-28
 
 | Milestone | State | Review |
 |---|---|---|
-| 0 — branches, baseline, contracts, kernel harness | Implemented | Awaiting approval |
-| 1 — fixed rectangle vertical slice | Not started | Blocked on Milestone 0 approval |
+| 0 — branches, baseline, contracts, kernel harness | Complete | Approved 2026-08-28 |
+| 1 — fixed rectangle vertical slice | Ready | Start from the integrated Milestone 1 branch |
 | 2 — editing and history | Not started | Blocked on Milestone 1 approval |
 | 3 — height, L/U shapes, roundness | Not started | Blocked on Milestone 2 approval |
 | 4 — tunnels | Not started | Blocked on Milestone 3 approval |
@@ -89,4 +89,4 @@ Render isolation was verified from the generated link graph: `title_screen_demo`
 
 ## Next milestone boundary
 
-Milestone 1 may begin only after Milestone 0 acceptance evidence is complete and reviewed. It will add the first player-visible rectangle flow; no L/U, roundness, tunnel, or authored-tank editing work belongs in that milestone.
+Milestone 0 is approved. Milestone 1 begins from `codex/aquarium-construction-milestone-1` after both nested repositories' `main` branches contain the integrated pre-Milestone 1 state. It will add the first player-visible rectangle flow; no L/U, roundness, tunnel, or authored-tank editing work belongs in that milestone.

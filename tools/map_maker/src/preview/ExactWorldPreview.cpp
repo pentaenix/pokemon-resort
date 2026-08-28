@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <iostream>
 #include <optional>
 #include <stdexcept>
 #include <utility>
@@ -53,6 +54,9 @@ public:
     std::unique_ptr<CharacterController> player_controller;
     gameplay::world3d::aquarium::AquariumCatalog aquarium_catalog{};
     std::unique_ptr<gameplay::world3d::aquarium::AquariumSimulation> aquarium_simulation;
+    fs::file_time_type aquarium_config_write_time{};
+    bool aquarium_config_write_time_known = false;
+    double aquarium_config_poll_seconds = 0.0;
     Vec3 focus{};
     SDL_Window* window = nullptr;
     void* metal_view = nullptr;
@@ -97,6 +101,49 @@ public:
         error = candidate.lastError();
         if (error.empty()) error = "Exact overworld renderer initialization failed";
         return false;
+    }
+
+    void rememberAquariumConfigWriteTime() {
+        std::error_code ec;
+        const fs::path path = project_root / "config/gameplay/world3d/aquariums.json";
+        const fs::file_time_type value = fs::last_write_time(path, ec);
+        if (!ec) {
+            aquarium_config_write_time = value;
+            aquarium_config_write_time_known = true;
+        }
+    }
+
+    void pollAquariumConfig(double delta_seconds) {
+        aquarium_config_poll_seconds += std::max(0.0, delta_seconds);
+        if (aquarium_config_poll_seconds < 0.25 || !loaded_scene || !renderer) return;
+        aquarium_config_poll_seconds = 0.0;
+        std::error_code ec;
+        const fs::path path = project_root / "config/gameplay/world3d/aquariums.json";
+        const fs::file_time_type value = fs::last_write_time(path, ec);
+        if (ec || (aquarium_config_write_time_known && value == aquarium_config_write_time)) return;
+        aquarium_config_write_time = value;
+        aquarium_config_write_time_known = true;
+        std::string config_error;
+        auto catalog = gameplay::world3d::aquarium::loadAquariumCatalog(
+            project_root.string(), &config_error);
+        if (!config_error.empty()) {
+            error = "Aquarium config reload rejected: " + config_error;
+            std::cerr << "[Aquarium] " << error << '\n';
+            return;
+        }
+        auto simulation =
+            std::make_unique<gameplay::world3d::aquarium::AquariumSimulation>(
+                project_root, *loaded_scene,
+                gameplay::world3d::aquarium::aquariumMapConfig(catalog, loaded_scene->id));
+        for (const std::string& warning : simulation->warnings()) {
+            std::cerr << "[Aquarium] " << warning << '\n';
+        }
+        renderer->setAquariumPokemonActors(simulation->actors());
+        aquarium_catalog = std::move(catalog);
+        aquarium_simulation = std::move(simulation);
+        error.clear();
+        std::cerr << "[Aquarium] Map Studio applied config for " << loaded_scene->id
+                  << " with " << aquarium_simulation->actors().size() << " actors\n";
     }
 };
 
@@ -165,8 +212,10 @@ bool ExactWorldPreview::loadMap(const fs::path& owmap_path) {
 
         auto candidate = std::make_unique<Renderer>(
             impl_->project_root.string(), scene, character);
+        std::string aquarium_error;
         auto aquarium_catalog = gameplay::world3d::aquarium::loadAquariumCatalog(
-            impl_->project_root.string());
+            impl_->project_root.string(), &aquarium_error);
+        if (!aquarium_error.empty()) throw std::runtime_error(aquarium_error);
         auto aquarium_simulation =
             std::make_unique<gameplay::world3d::aquarium::AquariumSimulation>(
                 impl_->project_root,
@@ -185,6 +234,7 @@ bool ExactWorldPreview::loadMap(const fs::path& owmap_path) {
         impl_->player_controller = std::move(player_controller);
         impl_->aquarium_catalog = std::move(aquarium_catalog);
         impl_->aquarium_simulation = std::move(aquarium_simulation);
+        impl_->rememberAquariumConfigWriteTime();
         impl_->focus = focus;
         impl_->map_path = resolved;
         impl_->zoom_min = std::max(0.01f, impl_->loaded_scene->scene_camera.distance_scale_min);
@@ -224,6 +274,7 @@ ExactWorldPreview::ViewportTexture ExactWorldPreview::render(
     if (!ready()) return {};
     impl_->framebuffer_width = std::max(1, framebuffer_width);
     impl_->framebuffer_height = std::max(1, framebuffer_height);
+    impl_->pollAquariumConfig(delta_seconds);
     if (impl_->animations_enabled && std::isfinite(delta_seconds) && delta_seconds > 0.0) {
         impl_->animation_time_seconds += delta_seconds;
         if (impl_->aquarium_simulation) impl_->aquarium_simulation->update(delta_seconds);

@@ -49,6 +49,10 @@ void Gen4FollowCamera::setManualPose(Vec3 position, float yaw_deg, float pitch_d
     up_ = normalize(cross(right_, forward_));
 }
 
+void Gen4FollowCamera::setNearClip(float near_clip) {
+    preset_.near_clip = std::clamp(near_clip, 0.01f, preset_.far_clip - 0.01f);
+}
+
 void Gen4FollowCamera::rebuildBasis() {
     const float pitch = preset_.pitch_deg * (kPi / 180.0f);
     const float yaw = preset_.yaw_deg * (kPi / 180.0f);

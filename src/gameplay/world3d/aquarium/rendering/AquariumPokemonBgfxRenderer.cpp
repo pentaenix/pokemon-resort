@@ -59,12 +59,21 @@ std::uint64_t samplerFlags(int wrap_s, int wrap_t, bool gf_wrap = false) {
 
 void placementMatrix(const AquariumPokemonActor& actor, float (&matrix)[16]) {
     std::fill(std::begin(matrix), std::end(matrix), 0.0f);
-    const float radians = actor.world_yaw_degrees * 3.14159265358979323846f / 180.0f;
-    const float c = std::cos(radians) * actor.model_scale;
-    const float s = std::sin(radians) * actor.model_scale;
-    matrix[0] = c; matrix[2] = -s;
-    matrix[5] = actor.model_scale;
-    matrix[8] = s; matrix[10] = c;
+    constexpr float kPi = 3.14159265358979323846f;
+    const float yaw = actor.world_yaw_degrees * kPi / 180.0f;
+    const float pitch = actor.world_pitch_degrees * kPi / 180.0f;
+    const float cy = std::cos(yaw);
+    const float sy = std::sin(yaw);
+    const float cp = std::cos(pitch);
+    const float sp = std::sin(pitch);
+    matrix[0] = cy * actor.model_scale;
+    matrix[2] = -sy * actor.model_scale;
+    matrix[4] = sy * sp * actor.model_scale;
+    matrix[5] = cp * actor.model_scale;
+    matrix[6] = cy * sp * actor.model_scale;
+    matrix[8] = sy * cp * actor.model_scale;
+    matrix[9] = -sp * actor.model_scale;
+    matrix[10] = cy * cp * actor.model_scale;
     matrix[12] = actor.world_position[0];
     matrix[13] = actor.world_position[1];
     matrix[14] = actor.world_position[2];
@@ -91,11 +100,32 @@ public:
         bool cull_backface = true;
         std::uint64_t sampler_flags = samplerFlags(10497, 10497);
     };
+    struct PrimitivePose {
+        bgfx::DynamicVertexBufferHandle vertices = BGFX_INVALID_HANDLE;
+        bgfx::IndexBufferHandle indices = BGFX_INVALID_HANDLE;
+        std::uint32_t index_count = 0;
+        int material = -1;
+        bool visible = false;
+        void destroy() {
+            if (bgfx::isValid(vertices)) bgfx::destroy(vertices);
+            if (bgfx::isValid(indices)) bgfx::destroy(indices);
+            vertices = BGFX_INVALID_HANDLE;
+            indices = BGFX_INVALID_HANDLE;
+            index_count = 0;
+            visible = false;
+        }
+    };
     struct Model {
-        attend::AttendPokemonModel source;
+        std::shared_ptr<const attend::AttendPokemonModel> source;
         std::vector<Material> materials;
+        std::vector<PrimitivePose> pose;
+        std::string pose_animation;
+        std::string pose_form;
+        std::int64_t pose_tick = -1;
         bool valid = false;
         void destroy() {
+            for (PrimitivePose& primitive : pose) primitive.destroy();
+            pose.clear();
             for (Material& material : materials) material.texture.destroy();
             materials.clear();
             source = {};
@@ -160,14 +190,14 @@ public:
         Model& model = it->second;
         if (!inserted) return model.valid ? &model : nullptr;
         std::string error;
-        model.source = attend::loadAttendPokemonModel(path, &error);
-        if (!model.source.valid) {
+        model.source = attend::loadAttendPokemonModelShared(path, &error);
+        if (!model.source || !model.source->valid) {
             last_error_ = "Could not load aquarium Pokemon '" + path + "': " + error;
             std::cerr << "[Aquarium] " << last_error_ << '\n';
             return nullptr;
         }
-        model.materials.reserve(model.source.materials.size());
-        for (const attend::AttendPokemonMaterial& source : model.source.materials) {
+        model.materials.reserve(model.source->materials.size());
+        for (const attend::AttendPokemonMaterial& source : model.source->materials) {
             Material material;
             attend::AttendRgbaImage image;
             if (source.pokemon_eye && source.has_base_color_texture && source.has_emissive_texture) {
@@ -211,74 +241,140 @@ public:
         }
         model.valid = true;
         std::cerr << "[Aquarium] Loaded Attend Pokemon " << path
-                  << " primitives=" << model.source.primitives.size()
-                  << " animations=" << model.source.animations.size() << '\n';
+                  << " primitives=" << model.source->primitives.size()
+                  << " animations=" << model.source->animations.size() << '\n';
         return &model;
+    }
+
+    bool updatePose(Model& model, const AquariumPokemonActor& actor) {
+        // The source animations were authored for handheld presentation. A
+        // 24 Hz pose cache remains smooth while avoiding CPU skinning and GPU
+        // allocation at the host display's 60/120 Hz refresh rate.
+        constexpr double kPoseFramesPerSecond = 24.0;
+        const std::string slot = animationSlot(actor.animation);
+        const std::int64_t tick = static_cast<std::int64_t>(
+            std::floor(std::max(0.0, actor.animation_time_seconds) * kPoseFramesPerSecond));
+        if (model.pose_tick == tick && model.pose_animation == slot &&
+            model.pose_form == actor.form) return true;
+
+        if (!model.source) return false;
+        const attend::AttendPokemonModel& source_model = *model.source;
+        const attend::AttendPokemonAnimation* animation =
+            attend::findAttendPokemonAnimation(source_model, slot);
+        const double sample_time = static_cast<double>(tick) / kPoseFramesPerSecond;
+        const auto globals = attend::buildAttendPokemonGlobals(
+            source_model, animation, sample_time);
+        const auto skin_matrices = attend::buildAttendPokemonSkinMatrices(source_model, globals);
+        if (model.pose.size() != source_model.primitives.size()) {
+            for (PrimitivePose& primitive : model.pose) primitive.destroy();
+            model.pose.clear();
+            model.pose.resize(source_model.primitives.size());
+        }
+
+        std::vector<attend::AttendPokemonVertex> skinned;
+        std::vector<Vertex> upload_vertices;
+        for (std::size_t primitive_index = 0;
+             primitive_index < source_model.primitives.size(); ++primitive_index) {
+            const attend::AttendPokemonPrimitive& source =
+                source_model.primitives[primitive_index];
+            PrimitivePose& pose = model.pose[primitive_index];
+            pose.visible = attend::attendPrimitiveVisibleForDefaultForm(
+                source_model, source, actor.form) && !source.indices.empty();
+            if (!pose.visible) continue;
+            pose.material = attend::attendMaterialForDefaultPresentation(
+                source_model, source.material, actor.form);
+            const attend::AttendPokemonMaterial* source_material =
+                pose.material >= 0 &&
+                pose.material < static_cast<int>(source_model.materials.size())
+                    ? &source_model.materials[static_cast<std::size_t>(pose.material)]
+                    : nullptr;
+            attend::skinAttendPokemonPrimitiveWithPose(
+                source_model, source, globals, skin_matrices, skinned);
+            if (skinned.empty() || skinned.size() > UINT16_MAX ||
+                source.indices.size() > UINT16_MAX) {
+                pose.visible = false;
+                continue;
+            }
+            upload_vertices.resize(skinned.size());
+            for (std::size_t vertex_index = 0; vertex_index < skinned.size(); ++vertex_index) {
+                const auto& vertex = skinned[vertex_index];
+                const auto uv = attend::attendPokemonUvForDefaultExpression(
+                    vertex, source_material);
+                upload_vertices[vertex_index] = Vertex{
+                    vertex.x, vertex.y, vertex.z,
+                    packAbgr(vertex.r, vertex.g, vertex.b, vertex.a),
+                    uv.first, uv.second, vertex.nx, vertex.ny, vertex.nz};
+            }
+            if (!bgfx::isValid(pose.vertices)) {
+                pose.vertices = bgfx::createDynamicVertexBuffer(
+                    static_cast<std::uint32_t>(upload_vertices.size()), layout_);
+            }
+            if (!bgfx::isValid(pose.vertices)) {
+                pose.visible = false;
+                continue;
+            }
+            bgfx::update(pose.vertices, 0, bgfx::copy(
+                upload_vertices.data(),
+                static_cast<std::uint32_t>(upload_vertices.size() * sizeof(Vertex))));
+            if (!bgfx::isValid(pose.indices)) {
+                std::vector<std::uint16_t> indices(source.indices.size());
+                std::transform(source.indices.begin(), source.indices.end(), indices.begin(),
+                    [](std::uint32_t index) { return static_cast<std::uint16_t>(index); });
+                pose.indices = bgfx::createIndexBuffer(bgfx::copy(
+                    indices.data(),
+                    static_cast<std::uint32_t>(indices.size() * sizeof(std::uint16_t))));
+            }
+            pose.index_count = static_cast<std::uint32_t>(source.indices.size());
+            pose.visible = pose.visible && bgfx::isValid(pose.indices);
+        }
+        model.pose_tick = tick;
+        model.pose_animation = slot;
+        model.pose_form = actor.form;
+        return true;
     }
 
     void submit(std::uint16_t view_id, bool blended_pass) {
         if (!initialized_ || !bgfx::isValid(program_)) return;
         for (const AquariumPokemonActor& actor : actors_) {
             Model* model = ensureModel(actor.model_path);
-            if (!model) continue;
-            const attend::AttendPokemonAnimation* animation = attend::findAttendPokemonAnimation(
-                model->source, animationSlot(actor.animation));
-            const auto globals = attend::buildAttendPokemonGlobals(
-                model->source, animation, actor.animation_time_seconds);
-            const auto skin_matrices = attend::buildAttendPokemonSkinMatrices(model->source, globals);
+            if (!model || !updatePose(*model, actor)) continue;
             float matrix[16];
             placementMatrix(actor, matrix);
-            for (const attend::AttendPokemonPrimitive& primitive : model->source.primitives) {
-                if (!attend::attendPrimitiveVisibleForDefaultForm(
-                        model->source, primitive, actor.form) ||
-                    primitive.indices.empty()) continue;
-                const int presentation_material = attend::attendMaterialForDefaultPresentation(
-                    model->source, primitive.material, actor.form);
+            for (const PrimitivePose& primitive : model->pose) {
+                if (!primitive.visible) continue;
+                const int presentation_material = primitive.material;
                 const Material* material = presentation_material >= 0 &&
                     presentation_material < static_cast<int>(model->materials.size())
                         ? &model->materials[static_cast<std::size_t>(presentation_material)] : nullptr;
-                const attend::AttendPokemonMaterial* source_material =
-                    presentation_material >= 0 &&
-                    presentation_material < static_cast<int>(model->source.materials.size())
-                        ? &model->source.materials[static_cast<std::size_t>(presentation_material)]
-                        : nullptr;
                 const bool blended = material && material->blended;
                 if (blended != blended_pass) continue;
-                std::vector<attend::AttendPokemonVertex> skinned;
-                attend::skinAttendPokemonPrimitiveWithPose(
-                    model->source, primitive, globals, skin_matrices, skinned);
-                if (skinned.empty() || skinned.size() > UINT16_MAX || primitive.indices.size() > UINT16_MAX) continue;
-                bgfx::TransientVertexBuffer vertices;
-                bgfx::TransientIndexBuffer indices;
-                if (!bgfx::allocTransientBuffers(
-                        &vertices, layout_, static_cast<std::uint32_t>(skinned.size()),
-                        &indices, static_cast<std::uint32_t>(primitive.indices.size()))) continue;
-                auto* out_vertices = reinterpret_cast<Vertex*>(vertices.data);
-                for (std::size_t i = 0; i < skinned.size(); ++i) {
-                    const auto& source = skinned[i];
-                    const auto uv = attend::attendPokemonUvForDefaultExpression(
-                        source, source_material);
-                    out_vertices[i] = Vertex{
-                        source.x, source.y, source.z,
-                        packAbgr(source.r, source.g, source.b, source.a),
-                        uv.first, uv.second, source.nx, source.ny, source.nz};
-                }
-                auto* out_indices = reinterpret_cast<std::uint16_t*>(indices.data);
-                for (std::size_t i = 0; i < primitive.indices.size(); ++i) {
-                    out_indices[i] = static_cast<std::uint16_t>(primitive.indices[i]);
-                }
                 const float base_color[4] = {
-                    material ? static_cast<float>(material->color & 0xffU) / 255.0f : 1.0f,
-                    material ? static_cast<float>((material->color >> 8U) & 0xffU) / 255.0f : 1.0f,
-                    material ? static_cast<float>((material->color >> 16U) & 0xffU) / 255.0f : 1.0f,
+                    (material ? static_cast<float>(material->color & 0xffU) / 255.0f : 1.0f) *
+                        actor.presentation.tint[0],
+                    (material ? static_cast<float>((material->color >> 8U) & 0xffU) / 255.0f : 1.0f) *
+                        actor.presentation.tint[1],
+                    (material ? static_cast<float>((material->color >> 16U) & 0xffU) / 255.0f : 1.0f) *
+                        actor.presentation.tint[2],
                     material ? material->alpha_cutoff : 0.0f};
-                const float adjust[4]{1.0f, 1.0f, 1.0f, 0.0f};
+                const float adjust[4]{
+                    actor.presentation.brightness * actor.presentation.pokemon_brightness,
+                    actor.presentation.saturation,
+                    actor.presentation.contrast,
+                    0.0f};
                 const float zeros[4]{};
-                const float light_dir[4]{-0.3f, 0.8f, -0.45f, 0.0f};
-                const float light_params[4]{0.72f, 0.28f, 0.0f, 0.0f};
+                const float light_dir[4]{
+                    actor.presentation.light_direction[0],
+                    actor.presentation.light_direction[1],
+                    actor.presentation.light_direction[2],
+                    0.0f};
+                const float light_params[4]{
+                    actor.presentation.ambient,
+                    actor.presentation.directional,
+                    actor.presentation.form_shadow,
+                    0.0f};
                 bgfx::setTransform(matrix);
-                bgfx::setVertexBuffer(0, &vertices);
-                bgfx::setIndexBuffer(&indices);
+                bgfx::setVertexBuffer(0, primitive.vertices);
+                bgfx::setIndexBuffer(primitive.indices, 0, primitive.index_count);
                 bgfx::setTexture(
                     0, texture_uniform_,
                     material && bgfx::isValid(material->texture.handle)

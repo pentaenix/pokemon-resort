@@ -8,7 +8,11 @@
 #include <cctype>
 #include <cmath>
 #include <cstring>
+#include <filesystem>
 #include <limits>
+#include <memory>
+#include <mutex>
+#include <unordered_map>
 #include <utility>
 
 namespace pr::gameplay::attend::rendering {
@@ -1497,6 +1501,46 @@ AttendPokemonModel loadAttendPokemonModel(const std::string& path, std::string* 
         fail(error, "Attend Pokemon GLB did not produce renderable model: " + path);
     }
     return out;
+}
+
+std::shared_ptr<const AttendPokemonModel> loadAttendPokemonModelShared(
+    const std::string& path,
+    std::string* error) {
+    struct CacheEntry {
+        std::filesystem::file_time_type write_time{};
+        bool write_time_known = false;
+        std::shared_ptr<const AttendPokemonModel> model;
+    };
+    static std::mutex mutex;
+    static std::unordered_map<std::string, CacheEntry> cache;
+
+    std::error_code time_error;
+    const auto write_time = std::filesystem::last_write_time(path, time_error);
+    {
+        const std::lock_guard<std::mutex> lock(mutex);
+        const auto found = cache.find(path);
+        if (found != cache.end() && found->second.model &&
+            ((!time_error && found->second.write_time_known &&
+              found->second.write_time == write_time) ||
+             (time_error && !found->second.write_time_known))) {
+            if (error) error->clear();
+            return found->second.model;
+        }
+    }
+
+    std::string load_error;
+    AttendPokemonModel decoded = loadAttendPokemonModel(path, &load_error);
+    if (!decoded.valid) {
+        if (error) *error = std::move(load_error);
+        return {};
+    }
+    auto shared = std::make_shared<const AttendPokemonModel>(std::move(decoded));
+    {
+        const std::lock_guard<std::mutex> lock(mutex);
+        cache[path] = CacheEntry{write_time, !time_error, shared};
+    }
+    if (error) error->clear();
+    return shared;
 }
 
 const AttendPokemonAnimation* findAttendPokemonAnimation(

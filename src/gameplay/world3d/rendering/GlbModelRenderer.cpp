@@ -385,8 +385,10 @@ void GlbModelRenderer::render(
         float material_g = 1.0f;
         float material_b = 1.0f;
         float material_a = 1.0f;
+        const data::GlbMaterial* glb_material = nullptr;
         if (tri.material >= 0 && tri.material < static_cast<int>(mesh_.materials.size())) {
             const data::GlbMaterial& mat = mesh_.materials[static_cast<std::size_t>(tri.material)];
+            glb_material = &mat;
             material_r = mat.base_color[0];
             material_g = mat.base_color[1];
             material_b = mat.base_color[2];
@@ -399,9 +401,17 @@ void GlbModelRenderer::render(
         // samples the wrong edge texel (black stains, smeared seams). We emulate REPEAT exactly
         // by clipping each triangle against the integer UV grid and re-basing every resulting
         // piece into [0,1): each piece lives in a single texture tile, so the clamp is a no-op.
-        const UvVert va{x0, y0, d0, tri.a.u, tri.a.v, tri.a.r, tri.a.g, tri.a.b, tri.a.a};
-        const UvVert vb{x1, y1, d1, tri.b.u, tri.b.v, tri.b.r, tri.b.g, tri.b.b, tri.b.a};
-        const UvVert vc{x2, y2, d2, tri.c.u, tri.c.v, tri.c.r, tri.c.g, tri.c.b, tri.c.a};
+        const auto vertex_color = [glb_material](float channel) {
+            return glb_material
+                ? data::compositeGlbVertexColor(channel, *glb_material)
+                : channel;
+        };
+        const UvVert va{x0, y0, d0, tri.a.u, tri.a.v,
+            vertex_color(tri.a.r), vertex_color(tri.a.g), vertex_color(tri.a.b), tri.a.a};
+        const UvVert vb{x1, y1, d1, tri.b.u, tri.b.v,
+            vertex_color(tri.b.r), vertex_color(tri.b.g), vertex_color(tri.b.b), tri.b.a};
+        const UvVert vc{x2, y2, d2, tri.c.u, tri.c.v,
+            vertex_color(tri.c.r), vertex_color(tri.c.g), vertex_color(tri.c.b), tri.c.a};
         const int cuMin = static_cast<int>(std::floor(std::min({va.u, vb.u, vc.u})));
         const int cuMax = static_cast<int>(std::floor(std::max({va.u, vb.u, vc.u}) - 1e-4f));
         const int cvMin = static_cast<int>(std::floor(std::min({va.v, vb.v, vc.v})));

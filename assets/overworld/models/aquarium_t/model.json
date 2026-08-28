@@ -1,0 +1,37 @@
+{
+  "manifestVersion": 1,
+  "storageFormat": "glb",
+  "id": "aquarium_t",
+  "displayName": "Aquarium (touch pool)",
+  "defaultYawDeg": 0,
+  "defaultScale": 1,
+  "sourceFormat": "glb",
+  "sourceFile": "aquarium_T.glb",
+  "glbFile": "aquarium_T.glb",
+  "modelFile": "aquarium_T.glb",
+  "footprintTiles": {
+    "w": 5,
+    "d": 5,
+    "h": 1
+  },
+  "renderFootprintTiles": {
+    "w": 5,
+    "d": 5,
+    "h": 1
+  },
+  "authoringFootprintTiles": {
+    "w": 5,
+    "d": 5,
+    "h": 1
+  },
+  "collisionFootprintTiles": {
+    "w": 5,
+    "d": 5,
+    "h": 1
+  },
+  "aabb": {
+    "min": [-40, 0, -40],
+    "max": [40, 16, 40]
+  },
+  "navigationFile": "aquarium_T.navigation.json"
+}

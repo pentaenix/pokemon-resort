@@ -23,6 +23,7 @@ struct FakeScreen final : pr::ScreenInput {
     int navigate_calls = 0;
     int navigate_sum = 0;
     int navigate2d_calls = 0;
+    int navigate2d_release_calls = 0;
     int last_dx = 0;
     int last_dy = 0;
     int advance_calls = 0;
@@ -54,6 +55,11 @@ struct FakeScreen final : pr::ScreenInput {
     bool canNavigate2d() const override { return two_dimensional; }
     void onNavigate2d(int dx, int dy) override {
         ++navigate2d_calls;
+        last_dx = dx;
+        last_dy = dy;
+    }
+    void onNavigate2dReleased(int dx, int dy) override {
+        ++navigate2d_release_calls;
         last_dx = dx;
         last_dy = dy;
     }
@@ -167,6 +173,17 @@ int main() {
     grid.two_dimensional = true;
     expect(router.handleEvent(controllerDown(SDL_CONTROLLER_BUTTON_DPAD_LEFT), config, &grid), "controller left is handled");
     expect(grid.navigate2d_calls == 1 && grid.last_dx == -1 && grid.last_dy == 0, "controller left dispatches 2D navigation");
+    expect(router.handleEvent(
+        controllerButtonUp(SDL_CONTROLLER_BUTTON_DPAD_LEFT), config, &grid),
+        "controller left release is handled");
+    expect(grid.navigate2d_release_calls == 1 && grid.last_dx == -1 && grid.last_dy == 0,
+        "controller release lets a 2D screen clear movement latches");
+    expect(router.handleEvent(keyDown(SDLK_RIGHT), config, &grid),
+        "keyboard right is handled by a 2D screen");
+    expect(router.handleEvent(keyUp(SDLK_RIGHT), config, &grid),
+        "keyboard right release is handled");
+    expect(grid.navigate2d_release_calls == 2 && grid.last_dx == 1 && grid.last_dy == 0,
+        "keyboard release uses the same 2D release contract");
 
     FakeScreen actions;
     expect(router.handleEvent(keyDown(SDLK_RETURN), config, &actions), "keyboard forward is handled");
@@ -276,7 +293,7 @@ int main() {
 
     config.accept_controller = false;
     expect(!router.handleEvent(controllerDown(SDL_CONTROLLER_BUTTON_DPAD_RIGHT), config, &grid), "controller input ignored when disabled");
-    expect(grid.navigate2d_calls == 1, "disabled controller does not dispatch");
+    expect(grid.navigate2d_calls == 2, "disabled controller does not dispatch");
 
     return failures == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }
