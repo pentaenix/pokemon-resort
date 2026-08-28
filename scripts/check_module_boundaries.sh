@@ -27,4 +27,6 @@ if [[ -n "$transfer_contract_hits" ]]; then
   fail "Transfer contracts include gameplay/ui types"
 fi
 
+bash shared/aquarium_geometry/scripts/check_boundaries.sh
+
 echo "[boundary-check] OK"

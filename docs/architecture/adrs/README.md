@@ -12,3 +12,4 @@ File naming:
 Accepted decisions:
 
 - [`0001-native-map-maker.md`](0001-native-map-maker.md): standalone SDL2/bgfx/ImGui editor with a lossless OWMAP core and exact runtime-renderer preview seam.
+- [`0002-shared-aquarium-geometry-kernel.md`](0002-shared-aquarium-geometry-kernel.md): one deterministic native/WASM kernel owns player-aquarium geometry, collision, and navigation derivation.
