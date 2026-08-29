@@ -11,6 +11,7 @@
 #include "gameplay/world3d/interiors/DefaultRoomGeometry.hpp"
 #include "gameplay/world3d/interiors/InteriorFloorCutout.hpp"
 #include "gameplay/world3d/aquarium/rendering/AquariumPokemonBgfxRenderer.hpp"
+#include "gameplay/world3d/aquarium/rendering/AquariumConstructionBgfxRenderer.hpp"
 #include "gameplay/world3d/aquarium/rendering/PlayerAquariumBgfxRenderer.hpp"
 #include "gameplay/world3d/rendering/InteriorDefaultRoom.hpp"
 #include "gameplay/world3d/rendering/InteriorRenderPolicy.hpp"
@@ -291,6 +292,8 @@ public:
     std::string lastError() const { return last_error_; }
     void setStaticMapChunks(std::vector<OverworldBgfxRenderer::StaticMapChunk> chunks);
     void setAquariumPokemonActors(std::vector<aquarium::AquariumPokemonActor> actors);
+    void setAquariumConstructionVisual(
+        aquarium::construction::AquariumConstructionVisual visual);
     bool replacePlayerAquariumTanks(
         const std::vector<aquarium::construction::PlayerTankRuntime>& tanks,
         std::string* error);
@@ -555,6 +558,7 @@ private:
     std::vector<OverworldBgfxRenderer::StaticMapChunk> pending_static_chunks_;
     std::vector<StaticChunkGpuResource> static_chunks_;
     aquarium::rendering::AquariumPokemonBgfxRenderer aquarium_pokemon_renderer_;
+    aquarium::rendering::AquariumConstructionBgfxRenderer aquarium_construction_renderer_;
     aquarium::rendering::PlayerAquariumBgfxRenderer player_aquarium_renderer_;
     bool player_visible_ = true;
     float interior_wall_clip_[4]{};
@@ -760,6 +764,11 @@ void OverworldBgfxRenderer::setAquariumPokemonActors(
     if (impl_) impl_->setAquariumPokemonActors(std::move(actors));
 }
 
+void OverworldBgfxRenderer::setAquariumConstructionVisual(
+    aquarium::construction::AquariumConstructionVisual visual) {
+    if (impl_) impl_->setAquariumConstructionVisual(std::move(visual));
+}
+
 bool OverworldBgfxRenderer::replacePlayerAquariumTanks(
     const std::vector<aquarium::construction::PlayerTankRuntime>& tanks,
     std::string* error) {
@@ -907,6 +916,11 @@ void OverworldBgfxRenderer::Impl::setAquariumPokemonActors(
     std::vector<aquarium::AquariumPokemonActor> actors) {
     aquarium_pokemon_actors_ = std::move(actors);
     if (initialized_) aquarium_pokemon_renderer_.setActors(aquarium_pokemon_actors_);
+}
+
+void OverworldBgfxRenderer::Impl::setAquariumConstructionVisual(
+    aquarium::construction::AquariumConstructionVisual visual) {
+    aquarium_construction_renderer_.setVisual(std::move(visual));
 }
 
 bool OverworldBgfxRenderer::Impl::replacePlayerAquariumTanks(
@@ -1122,6 +1136,10 @@ bool OverworldBgfxRenderer::Impl::initialize(
         layout_, world_program_, white_texture_.handle, tex_uniform_, tint_cutoff_uniform_,
         color_adjust_uniform_, texture_blur_uniform_, uv_offset_uniform_,
         light_dir_uniform_, light_params_uniform_);
+    aquarium_construction_renderer_.initialize(
+        layout_, world_program_, white_texture_.handle, tex_uniform_, tint_cutoff_uniform_,
+        color_adjust_uniform_, texture_blur_uniform_, uv_offset_uniform_,
+        light_dir_uniform_, light_params_uniform_);
 
     refreshBillboardDrawer();
     initialized_ = true;
@@ -1139,6 +1157,7 @@ bool OverworldBgfxRenderer::Impl::initialize(
 }
 
 void OverworldBgfxRenderer::Impl::shutdown() {
+    aquarium_construction_renderer_.shutdown();
     player_aquarium_renderer_.shutdown();
     aquarium_pokemon_renderer_.shutdown();
     pixel_world_target_.destroy();
@@ -3239,7 +3258,7 @@ void OverworldBgfxRenderer::Impl::submitBlackIrisTransition(
     float view[16], proj[16], model[16]; identity(view); identity(model);
     bx::mtxOrtho(proj, 0, static_cast<float>(framebuffer_w), static_cast<float>(framebuffer_h), 0,
         0, 100, 0, backend_.homogeneousDepth());
-    constexpr bgfx::ViewId view_id = 6;
+    constexpr bgfx::ViewId view_id = 7;
     bgfx::setViewTransform(view_id, view, proj);
     bgfx::setViewRect(view_id, 0, 0, static_cast<uint16_t>(framebuffer_w), static_cast<uint16_t>(framebuffer_h));
     bgfx::setViewFrameBuffer(view_id, BGFX_INVALID_HANDLE);
@@ -3759,6 +3778,7 @@ OverworldBgfxRenderer::EmbeddedViewportTexture OverworldBgfxRenderer::Impl::rend
     for (const StaticChunkGpuResource& chunk : static_chunks_) {
         submitMesh(chunk.tile_layer_mesh, chunk.world_matrix, world_program_, MaterialClass::TrueBlend, 0.0f, stateFor(MaterialClass::TrueBlend), 1);
     }
+    aquarium_construction_renderer_.submitWorld(1);
 
     bgfx::touch(1);
 
@@ -3888,6 +3908,8 @@ OverworldBgfxRenderer::EmbeddedViewportTexture OverworldBgfxRenderer::Impl::rend
     if (attend_button_visible_ && ensureAttendButtonTexture()) {
         submitAttendButtonOverlay(framebuffer_w, framebuffer_h, logical_w, logical_h);
     }
+    aquarium_construction_renderer_.submitHud(
+        6, framebuffer_w, framebuffer_h, backend_.homogeneousDepth());
     submitBlackIrisTransition(framebuffer_w, framebuffer_h, logical_w, logical_h);
 
     if (!debug_frame_counter_label.empty()) {

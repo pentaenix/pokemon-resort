@@ -24,6 +24,8 @@ struct FakeScreen final : pr::ScreenInput {
     int navigate_calls = 0;
     int navigate_sum = 0;
     int navigate2d_calls = 0;
+    int navigate2d_sum_x = 0;
+    int navigate2d_sum_y = 0;
     int navigate2d_release_calls = 0;
     int last_dx = 0;
     int last_dy = 0;
@@ -47,6 +49,8 @@ struct FakeScreen final : pr::ScreenInput {
     double last_nav2d_charge_elapsed = 0.0;
     int nav2d_end_calls = 0;
     bool last_nav2d_end_triggered = false;
+    bool capture_right_mouse = false;
+    int unrouted_mouse_calls = 0;
 
     bool canNavigate() const override { return one_dimensional; }
     void onNavigate(int delta) override {
@@ -58,6 +62,8 @@ struct FakeScreen final : pr::ScreenInput {
     bool acceptsControllerAxisNavigation() const override { return accepts_controller_axis; }
     void onNavigate2d(int dx, int dy) override {
         ++navigate2d_calls;
+        navigate2d_sum_x += dx;
+        navigate2d_sum_y += dy;
         last_dx = dx;
         last_dy = dy;
     }
@@ -90,6 +96,15 @@ struct FakeScreen final : pr::ScreenInput {
     bool handlePointerReleased(int, int) override {
         ++release_calls;
         return true;
+    }
+    bool handleUnroutedSdlEvent(const SDL_Event& event) override {
+        if (capture_right_mouse &&
+            (event.type == SDL_MOUSEBUTTONDOWN || event.type == SDL_MOUSEBUTTONUP) &&
+            event.button.button == SDL_BUTTON_RIGHT) {
+            ++unrouted_mouse_calls;
+            return true;
+        }
+        return false;
     }
 
     bool captureNavigate2dForLongPress(int dx, int dy) const override {
@@ -151,13 +166,14 @@ SDL_Event controllerAxis(Uint8 axis, Sint16 value) {
     return event;
 }
 
-SDL_Event mouseEvent(Uint32 type) {
+SDL_Event mouseEvent(Uint32 type, Uint8 button = SDL_BUTTON_LEFT) {
     SDL_Event event{};
     event.type = type;
     event.motion.x = 12;
     event.motion.y = 34;
     event.button.x = 12;
     event.button.y = 34;
+    event.button.button = button;
     return event;
 }
 
@@ -197,6 +213,34 @@ int main() {
     expect(grid.navigate2d_release_calls == 2 && grid.last_dx == 1 && grid.last_dy == 0,
         "keyboard release uses the same 2D release contract");
 
+    FakeScreen keyboard_grid_hold;
+    keyboard_grid_hold.two_dimensional = true;
+    pr::InputRouter keyboard_grid_router;
+    expect(keyboard_grid_router.handleEvent(keyDown(SDLK_RIGHT), config, &keyboard_grid_hold),
+        "construction-style keyboard grid hold begins");
+    keyboard_grid_router.update(0.43, &keyboard_grid_hold);
+    keyboard_grid_router.update(1.45, &keyboard_grid_hold);
+    expect(keyboard_grid_hold.navigate2d_calls == 10 &&
+           keyboard_grid_hold.navigate2d_sum_x == 10 &&
+           keyboard_grid_hold.navigate2d_sum_y == 0,
+        "held keyboard movement produces ten whole-cell semantic steps");
+    keyboard_grid_router.handleEvent(keyUp(SDLK_RIGHT), config, &keyboard_grid_hold);
+
+    FakeScreen dpad_grid_hold;
+    dpad_grid_hold.two_dimensional = true;
+    pr::InputRouter dpad_grid_router;
+    expect(dpad_grid_router.handleEvent(
+        controllerDown(SDL_CONTROLLER_BUTTON_DPAD_DOWN), config, &dpad_grid_hold),
+        "construction-style D-pad grid hold begins");
+    dpad_grid_router.update(0.43, &dpad_grid_hold);
+    dpad_grid_router.update(1.45, &dpad_grid_hold);
+    expect(dpad_grid_hold.navigate2d_calls == 10 &&
+           dpad_grid_hold.navigate2d_sum_x == 0 &&
+           dpad_grid_hold.navigate2d_sum_y == 10,
+        "held D-pad movement produces ten whole-cell semantic steps");
+    dpad_grid_router.handleEvent(
+        controllerButtonUp(SDL_CONTROLLER_BUTTON_DPAD_DOWN), config, &dpad_grid_hold);
+
     FakeScreen actions;
     expect(router.handleEvent(keyDown(SDLK_RETURN), config, &actions), "keyboard forward is handled");
     expect(actions.advance_calls == 1, "keyboard forward advances");
@@ -224,6 +268,22 @@ int main() {
         "left stick return to dead zone is handled");
     expect(stick.navigate2d_release_calls == 1,
         "left stick return releases semantic navigation");
+
+    FakeScreen stick_grid_hold;
+    stick_grid_hold.two_dimensional = true;
+    stick_grid_hold.accepts_controller_axis = true;
+    pr::InputRouter stick_grid_router;
+    expect(stick_grid_router.handleEvent(
+        controllerAxis(SDL_CONTROLLER_AXIS_LEFTX, -20000), config, &stick_grid_hold),
+        "construction-style left-stick grid hold begins outside the dead zone");
+    stick_grid_router.update(0.43, &stick_grid_hold);
+    stick_grid_router.update(1.45, &stick_grid_hold);
+    expect(stick_grid_hold.navigate2d_calls == 10 &&
+           stick_grid_hold.navigate2d_sum_x == -10 &&
+           stick_grid_hold.navigate2d_sum_y == 0,
+        "held left-stick movement produces ten whole-cell semantic steps");
+    stick_grid_router.handleEvent(
+        controllerAxis(SDL_CONTROLLER_AXIS_LEFTX, 0), config, &stick_grid_hold);
 
     actions.accepts_advance = false;
     expect(router.handleEvent(controllerDown(SDL_CONTROLLER_BUTTON_A), config, &actions), "controller A remains handled when advance blocked");
@@ -320,6 +380,18 @@ int main() {
     expect(router.handleEvent(mouseEvent(SDL_MOUSEBUTTONDOWN), config, &pointer), "mouse press is handled when enabled");
     expect(router.handleEvent(mouseEvent(SDL_MOUSEBUTTONUP), config, &pointer), "mouse release is handled when enabled");
     expect(pointer.move_calls == 1 && pointer.press_calls == 1 && pointer.release_calls == 1, "mouse events dispatch to screen");
+
+    FakeScreen context_pointer;
+    context_pointer.capture_right_mouse = true;
+    expect(router.handleEvent(
+        mouseEvent(SDL_MOUSEBUTTONDOWN, SDL_BUTTON_RIGHT), config, &context_pointer),
+        "right mouse press can be captured as a semantic back action");
+    expect(router.handleEvent(
+        mouseEvent(SDL_MOUSEBUTTONUP, SDL_BUTTON_RIGHT), config, &context_pointer),
+        "right mouse release can be captured without leaking to pointer placement");
+    expect(context_pointer.unrouted_mouse_calls == 2 &&
+           context_pointer.press_calls == 0 && context_pointer.release_calls == 0,
+        "captured right mouse input bypasses left-button placement callbacks");
 
     config.accept_mouse = false;
     expect(!router.handleEvent(mouseEvent(SDL_MOUSEMOTION), config, &pointer), "mouse motion ignored when disabled");

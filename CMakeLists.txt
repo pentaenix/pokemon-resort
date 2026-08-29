@@ -114,6 +114,7 @@ add_library(world3d_bgfx_renderer STATIC
     src/gameplay/attend/rendering/AttendPokemonModel.cpp
     src/gameplay/attend/rendering/AttendPokemonPresentation.cpp
     src/gameplay/world3d/aquarium/rendering/AquariumPokemonBgfxRenderer.cpp
+    src/gameplay/world3d/aquarium/rendering/AquariumConstructionBgfxRenderer.cpp
     src/gameplay/world3d/aquarium/rendering/PlayerAquariumBgfxRenderer.cpp
     src/gameplay/world3d/rendering/bgfx/BgfxBackend.cpp
     src/gameplay/world3d/rendering/bgfx/BillboardBgfxDrawer.cpp
@@ -187,6 +188,7 @@ add_executable(title_screen_demo
     src/gameplay/world3d/aquarium/construction/AquariumCollisionOverlay.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionOverlay.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionSession.cpp
+    src/gameplay/world3d/aquarium/construction/AquariumConstructionVisual.cpp
     src/gameplay/world3d/aquarium/construction/AquariumDesign.cpp
     src/gameplay/world3d/aquarium/construction/AquariumDesignStore.cpp
     src/gameplay/world3d/aquarium/construction/AquariumPlayerRuntime.cpp
@@ -358,9 +360,11 @@ add_test(NAME aquarium_design_tests COMMAND aquarium_design_tests)
 add_executable(aquarium_runtime_tests
     tests/native/world3d/aquarium_construction/aquarium_runtime_tests.cpp
     src/core/config/Json.cpp
+    src/gameplay/world3d/camera/Gen4FollowCamera.cpp
     src/gameplay/attend/PokemonModelCatalog.cpp
     src/gameplay/world3d/aquarium/construction/AquariumCollisionOverlay.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionSession.cpp
+    src/gameplay/world3d/aquarium/construction/AquariumConstructionVisual.cpp
     src/gameplay/world3d/aquarium/construction/AquariumDesign.cpp
     src/gameplay/world3d/aquarium/construction/AquariumDesignStore.cpp
     src/gameplay/world3d/aquarium/construction/AquariumPlayerRuntime.cpp

@@ -19,6 +19,7 @@ enum class ConstructionState {
     Dormant,
     Browse,
     ResizeFootprint,
+    DraftReview,
     Building,
 };
 
@@ -44,6 +45,9 @@ public:
     ConstructionState state() const { return state_; }
     const AquariumDesignDocument& committedDesign() const { return committed_; }
     const std::optional<ConstructionDraft>& draft() const { return draft_; }
+    const std::vector<pr::aquarium::geometry::GridCell>& allowedCells() const {
+        return allowed_cells_;
+    }
     pr::aquarium::geometry::GridCell cursor() const { return cursor_; }
     const std::string& validationMessage() const { return validation_message_; }
 
@@ -52,6 +56,8 @@ public:
     void moveCursor(int column_delta, int row_delta);
     void pointAt(pr::aquarium::geometry::GridCell cell);
     bool beginRectangle();
+    bool reviewDraft();
+    bool adjustDraft();
     bool cancel();
     std::optional<ConstructionCommitCandidate> prepareCommit();
     void publish(ConstructionCommitCandidate candidate);
@@ -60,6 +66,7 @@ public:
     std::vector<pr::aquarium::geometry::GridCell> draftCells() const;
     bool draftValid() const;
     bool cellAllowed(pr::aquarium::geometry::GridCell cell) const;
+    bool cellBlocked(pr::aquarium::geometry::GridCell cell) const;
 
 private:
     pr::aquarium::geometry::TankDesign draftTank() const;

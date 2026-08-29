@@ -24,6 +24,7 @@
 #include "gameplay/world3d/aquarium/construction/AquariumConstructionOverlay.hpp"
 #include "gameplay/world3d/aquarium/construction/AquariumDesignStore.hpp"
 #include "gameplay/world3d/aquarium/construction/AquariumPlayerRuntime.hpp"
+#include "gameplay/world3d/aquarium/construction/AquariumConstructionVisual.hpp"
 #include "gameplay/world3d/rendering/BillboardSpriteRenderer.hpp"
 #include "gameplay/world3d/rendering/GlbModelRenderer.hpp"
 #include "gameplay/world3d/rendering/OverworldMapRenderer.hpp"
@@ -111,6 +112,12 @@ private:
     void exitAquariumConstruction();
     void applyAquariumConstructionCamera();
     void requestAquariumConstructionErrorFeedback();
+    gameplay::world3d::aquarium::construction::AquariumConstructionVisual
+        aquariumConstructionVisual() const;
+    std::optional<pr::aquarium::geometry::GridCell> aquariumConstructionCellAt(
+        int logical_x, int logical_y) const;
+    gameplay::world3d::aquarium::construction::ConstructionHudAction
+        aquariumConstructionHudActionAt(int logical_x, int logical_y) const;
     void beginAquariumInspectionExit();
     void restoreAquariumInspectionFacing();
     bool beginDoorSequenceForStep(int dx, int dy);
@@ -213,6 +220,9 @@ private:
     };
     std::future<AquariumGeneratedCommit> aquarium_commit_future_;
     bool aquarium_commit_cancelled_ = false;
+    bool aquarium_pointer_down_ = false;
+    bool aquarium_pointer_dragged_ = false;
+    bool aquarium_pointer_second_click_ = false;
     gameplay::world3d::dialogue::OverworldTextboxConfig textbox_config_{};
     gameplay::world3d::dialogue::OverworldTextboxController textbox_controller_{};
     std::unique_ptr<gameplay::world3d::dialogue::OverworldTextboxRenderer> textbox_renderer_;

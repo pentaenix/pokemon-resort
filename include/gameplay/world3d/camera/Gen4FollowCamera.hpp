@@ -2,8 +2,6 @@
 
 #include "gameplay/world3d/camera/Gen4CameraPreset.hpp"
 
-#include <SDL.h>
-
 namespace pr::gameplay::world3d::camera {
 
 struct Vec3 {

@@ -1,5 +1,6 @@
 #include "gameplay/world3d/aquarium/construction/AquariumCollisionOverlay.hpp"
 #include "gameplay/world3d/aquarium/construction/AquariumConstructionSession.hpp"
+#include "gameplay/world3d/aquarium/construction/AquariumConstructionVisual.hpp"
 #include "gameplay/world3d/aquarium/construction/AquariumDesignStore.hpp"
 #include "gameplay/world3d/aquarium/construction/AquariumPlayerRuntime.hpp"
 #include "gameplay/world3d/aquarium/rendering/AquariumResourceGeneration.hpp"
@@ -52,6 +53,7 @@ void stateMachinePreservesCommittedDataOnCancel() {
     require(session.beginRectangle(), "rectangle draft did not begin");
     session.moveCursor(1, 1);
     require(!session.draftValid(), "2x2 draft must remain invalid");
+    require(session.reviewDraft(), "invalid draft did not enter review");
     require(!session.prepareCommit(), "invalid draft prepared a commit");
     require(session.cancel(), "draft cancel was not consumed");
     require(session.committedDesign().revision == 0 && session.committedDesign().tanks.empty(),
@@ -69,6 +71,7 @@ construction::ConstructionCommitCandidate buildFirstTank(
     require(session.beginRectangle(), "rectangle draft did not begin");
     session.moveCursor(2, 2);
     require(session.draftValid(), "3x3 draft should be valid");
+    require(session.reviewDraft(), "valid rectangle did not enter draft review");
     auto candidate = session.prepareCommit();
     require(candidate.has_value(), "valid rectangle did not prepare a commit");
     geo::AquariumBuildRequest request;
@@ -91,8 +94,103 @@ void stateMachineBuildsAndRejectsOverlap() {
     session.pointAt({10, 10});
     require(session.beginRectangle(), "overlap draft did not begin");
     session.moveCursor(2, 2);
+    require(session.reviewDraft(), "overlap draft did not enter review");
     require(!session.draftValid() && !session.prepareCommit(),
         "overlapping tank was allowed to commit");
+}
+
+void draftReviewIsNonMutatingAndAdjustmentIsReversible() {
+    construction::AquariumConstructionSession session;
+    session.configure("aquarium12", constructionConfig(), {}, emptyDocument());
+    require(session.enter({9, 9}), "draft-review fixture did not enter construction");
+    require(session.beginRectangle(), "draft-review fixture did not choose an anchor");
+    for (int step = 0; step < 10; ++step) session.moveCursor(1, 0);
+    require(session.cursor().column == 20 && session.cursor().row == 10,
+        "ten construction movement steps did not advance ten whole cells");
+    session.moveCursor(-8, 2);
+    require(session.reviewDraft(), "opposite-corner placement did not enter draft review");
+    require(session.state() == construction::ConstructionState::DraftReview &&
+            session.committedDesign().revision == 0 && session.committedDesign().tanks.empty(),
+        "draft review mutated the authoritative aquarium");
+    require(session.adjustDraft() &&
+            session.state() == construction::ConstructionState::ResizeFootprint,
+        "back from draft review did not restore footprint adjustment");
+    session.moveCursor(1, 0);
+    require(session.reviewDraft(), "adjusted draft did not return to review");
+    require(session.cancel() && session.state() == construction::ConstructionState::Browse &&
+            session.committedDesign().revision == 0,
+        "discarding a reviewed draft changed committed data");
+}
+
+void constructionVisualBuildsYellowCellsGizmosAndCanonicalHitTargets() {
+    construction::AquariumConstructionVisual visual;
+    visual.visible = true;
+    visual.cells = {{{10, 10}, 0.0f, false}, {{11, 10}, 0.0f, false}};
+    visual.cursor = {10, 10};
+    visual.state = construction::ConstructionState::Browse;
+    const auto browse_mesh = construction::buildAquariumConstructionWorldMesh(visual);
+    require(browse_mesh.vertices.size() >= 40 && !browse_mesh.indices.empty(),
+        "visible allowed cells did not generate filled grid and border geometry");
+
+    visual.anchor = geo::GridCell{10, 10};
+    visual.draft_cells = {{10, 10}, {11, 10}};
+    visual.draft_valid = true;
+    visual.state = construction::ConstructionState::DraftReview;
+    const auto review_mesh = construction::buildAquariumConstructionWorldMesh(visual);
+    require(review_mesh.vertices.size() > browse_mesh.vertices.size(),
+        "draft review did not add silhouette and creation gizmos");
+    visual.draft_valid = false;
+    const auto invalid_mesh = construction::buildAquariumConstructionWorldMesh(visual);
+    require(invalid_mesh.vertices.size() > review_mesh.vertices.size(),
+        "invalid preview did not add non-color invalid markers");
+
+    pr::gameplay::world3d::camera::Gen4CameraPreset preset;
+    preset.fov_y_deg = 45.0f;
+    preset.near_clip = 0.1f;
+    preset.far_clip = 1000.0f;
+    pr::gameplay::world3d::camera::Gen4FollowCamera camera(preset);
+    camera.setManualPose({168.0f, 180.0f, 340.0f}, 180.0f, -45.0f);
+    float screen_x = 0.0f;
+    float screen_y = 0.0f;
+    float depth = 0.0f;
+    require(camera.worldToScreen({168.0f, 0.35f, 168.0f}, 1280, 800,
+                screen_x, screen_y, depth),
+        "canonical cell centre did not project into the construction viewport");
+    const auto hit = construction::hitTestAquariumConstructionCell(
+        visual, camera, static_cast<int>(screen_x), static_cast<int>(screen_y), 1280, 800);
+    require(hit && hit->column == 10 && hit->row == 10,
+        "rendered canonical cell and pointer hit target disagree");
+
+    const auto hud = construction::aquariumConstructionHudLayout(
+        1280, 800, construction::ConstructionState::DraftReview);
+    require(construction::hitTestAquariumConstructionHud(
+                hud, hud.build.x + 2, hud.build.y + 2,
+                construction::ConstructionState::DraftReview) ==
+            construction::ConstructionHudAction::Build,
+        "visible Draft Review build control is not hit-testable");
+    const auto browse_hud = construction::aquariumConstructionHudLayout(
+        1280, 800, construction::ConstructionState::Browse);
+    require(construction::hitTestAquariumConstructionHud(
+                browse_hud, browse_hud.place.x + 2, browse_hud.place.y + 2,
+                construction::ConstructionState::Browse) ==
+            construction::ConstructionHudAction::Place,
+        "visible Browse place control is not hit-testable");
+    const auto resize_hud = construction::aquariumConstructionHudLayout(
+        1280, 800, construction::ConstructionState::ResizeFootprint);
+    require(construction::hitTestAquariumConstructionHud(
+                resize_hud, resize_hud.review.x + 2, resize_hud.review.y + 2,
+                construction::ConstructionState::ResizeFootprint) ==
+            construction::ConstructionHudAction::Review,
+        "visible Resize review control is not hit-testable");
+
+    const std::string minimum_hint = construction::aquariumConstructionHintForValidation(
+        "Expand the tank to at least three cells in both directions");
+    require(minimum_hint == "MAKE TANK WIDER" &&
+            minimum_hint.find_first_of("0123456789") == std::string::npos,
+        "minimum-size feedback should be short and nonnumeric");
+    require(construction::aquariumConstructionHintForValidation(
+                "Tank footprint overlaps an existing obstacle") == "SPACE IS BLOCKED",
+        "overlap feedback should identify blocked space without developer diagnostics");
 }
 
 void loadedPlacementValidationRejectsBoundsAndOverlap() {
@@ -277,6 +375,8 @@ int main() {
     try {
         stateMachinePreservesCommittedDataOnCancel();
         stateMachineBuildsAndRejectsOverlap();
+        draftReviewIsNonMutatingAndAdjustmentIsReversible();
+        constructionVisualBuildsYellowCellsGizmosAndCanonicalHitTargets();
         loadedPlacementValidationRejectsBoundsAndOverlap();
         storeRoundTripsAndRecoversBackup();
         storePreservesNewerDocumentsAndFailedWrites();

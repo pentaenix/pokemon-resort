@@ -110,7 +110,7 @@ void AquariumConstructionSession::moveCursor(int column_delta, int row_delta) {
 void AquariumConstructionSession::pointAt(geo::GridCell cell) {
     if (!active() || !cellAllowed(cell)) return;
     cursor_ = cell;
-    if (draft_) {
+    if (draft_ && state_ == ConstructionState::ResizeFootprint) {
         draft_->cursor = cell;
         refreshDraftValidation();
     }
@@ -124,8 +124,23 @@ bool AquariumConstructionSession::beginRectangle() {
     return true;
 }
 
+bool AquariumConstructionSession::reviewDraft() {
+    if (state_ != ConstructionState::ResizeFootprint || !draft_) return false;
+    refreshDraftValidation();
+    state_ = ConstructionState::DraftReview;
+    return true;
+}
+
+bool AquariumConstructionSession::adjustDraft() {
+    if (state_ != ConstructionState::DraftReview || !draft_) return false;
+    state_ = ConstructionState::ResizeFootprint;
+    return true;
+}
+
 bool AquariumConstructionSession::cancel() {
-    if (state_ == ConstructionState::ResizeFootprint || state_ == ConstructionState::Building) {
+    if (state_ == ConstructionState::ResizeFootprint ||
+        state_ == ConstructionState::DraftReview ||
+        state_ == ConstructionState::Building) {
         draft_.reset();
         state_ = ConstructionState::Browse;
         validation_message_.clear();
@@ -187,6 +202,10 @@ bool AquariumConstructionSession::occupiedByCommitted(geo::GridCell cell) const 
     return false;
 }
 
+bool AquariumConstructionSession::cellBlocked(geo::GridCell cell) const {
+    return occupiedByCommitted(cell);
+}
+
 void AquariumConstructionSession::refreshDraftValidation() {
     validation_message_.clear();
     if (!draft_) return;
@@ -218,7 +237,7 @@ bool AquariumConstructionSession::draftValid() const {
 }
 
 std::optional<ConstructionCommitCandidate> AquariumConstructionSession::prepareCommit() {
-    if (state_ != ConstructionState::ResizeFootprint) return std::nullopt;
+    if (state_ != ConstructionState::DraftReview) return std::nullopt;
     refreshDraftValidation();
     if (!draftValid() || committed_.tanks.size() >= 8U) {
         if (committed_.tanks.size() >= 8U) validation_message_ = "This room supports eight player tanks";
@@ -239,7 +258,7 @@ void AquariumConstructionSession::publish(ConstructionCommitCandidate candidate)
 }
 
 void AquariumConstructionSession::rejectCommit(std::string message) {
-    state_ = draft_ ? ConstructionState::ResizeFootprint : ConstructionState::Browse;
+    state_ = draft_ ? ConstructionState::DraftReview : ConstructionState::Browse;
     validation_message_ = std::move(message);
 }
 

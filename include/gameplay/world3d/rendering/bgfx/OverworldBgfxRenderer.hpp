@@ -6,6 +6,7 @@
 #include "gameplay/world3d/rendering/BillboardPlacement.hpp"
 #include "gameplay/world3d/aquarium/AquariumSimulation.hpp"
 #include "gameplay/world3d/aquarium/construction/AquariumPlayerRuntime.hpp"
+#include "gameplay/world3d/aquarium/construction/AquariumConstructionVisual.hpp"
 
 #include <SDL.h>
 #include <cstdint>
@@ -82,6 +83,8 @@ public:
     void setStaticMapChunks(std::vector<StaticMapChunk> chunks);
     void setAquariumPokemonActors(
         std::vector<aquarium::AquariumPokemonActor> actors);
+    void setAquariumConstructionVisual(
+        aquarium::construction::AquariumConstructionVisual visual);
     bool replacePlayerAquariumTanks(
         const std::vector<aquarium::construction::PlayerTankRuntime>& tanks,
         std::string* error = nullptr);

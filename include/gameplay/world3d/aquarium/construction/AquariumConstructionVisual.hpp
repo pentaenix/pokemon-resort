@@ -1,0 +1,97 @@
+#pragma once
+
+#include "aquarium_geometry/Types.hpp"
+#include "gameplay/world3d/aquarium/construction/AquariumConstructionSession.hpp"
+#include "gameplay/world3d/camera/Gen4FollowCamera.hpp"
+
+#include <cstdint>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <vector>
+
+namespace pr::gameplay::world3d::aquarium::construction {
+
+struct ConstructionCellSurface {
+    pr::aquarium::geometry::GridCell cell;
+    float floor_y = 0.0f;
+    bool blocked = false;
+};
+
+struct AquariumConstructionVisual {
+    bool visible = false;
+    float tile_world_units = 16.0f;
+    std::vector<ConstructionCellSurface> cells;
+    std::vector<pr::aquarium::geometry::GridCell> draft_cells;
+    pr::aquarium::geometry::GridCell cursor{};
+    std::optional<pr::aquarium::geometry::GridCell> anchor;
+    ConstructionState state = ConstructionState::Dormant;
+    bool draft_valid = false;
+    std::string status_hint;
+};
+
+struct ConstructionVisualVertex {
+    float x = 0.0f;
+    float y = 0.0f;
+    float z = 0.0f;
+    std::uint32_t abgr = 0xffffffffU;
+};
+
+struct ConstructionVisualMesh {
+    std::vector<ConstructionVisualVertex> vertices;
+    std::vector<std::uint16_t> indices;
+};
+
+enum class ConstructionHudAction {
+    None,
+    Place,
+    Review,
+    Build,
+    Adjust,
+    Cancel,
+    Exit,
+};
+
+struct ConstructionHudRect {
+    int x = 0;
+    int y = 0;
+    int width = 0;
+    int height = 0;
+
+    bool contains(int point_x, int point_y) const;
+};
+
+struct ConstructionHudLayout {
+    ConstructionHudRect place;
+    ConstructionHudRect review;
+    ConstructionHudRect build;
+    ConstructionHudRect adjust;
+    ConstructionHudRect cancel;
+    ConstructionHudRect exit;
+};
+
+ConstructionVisualMesh buildAquariumConstructionWorldMesh(
+    const AquariumConstructionVisual& visual);
+
+std::optional<pr::aquarium::geometry::GridCell> hitTestAquariumConstructionCell(
+    const AquariumConstructionVisual& visual,
+    const gameplay::world3d::camera::Gen4FollowCamera& camera,
+    int screen_x,
+    int screen_y,
+    int viewport_width,
+    int viewport_height);
+
+ConstructionHudLayout aquariumConstructionHudLayout(
+    int viewport_width,
+    int viewport_height,
+    ConstructionState state);
+
+ConstructionHudAction hitTestAquariumConstructionHud(
+    const ConstructionHudLayout& layout,
+    int screen_x,
+    int screen_y,
+    ConstructionState state);
+
+std::string aquariumConstructionHintForValidation(std::string_view validation_message);
+
+} // namespace pr::gameplay::world3d::aquarium::construction

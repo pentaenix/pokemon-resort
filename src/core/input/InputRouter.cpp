@@ -113,6 +113,9 @@ bool InputRouter::handleEvent(
     }
 
     if (event.type == SDL_MOUSEBUTTONDOWN && config.accept_mouse) {
+        if (input && input->handleUnroutedSdlEvent(event)) {
+            return true;
+        }
         if (input) {
             input->handlePointerPressed(event.button.x, event.button.y);
         }
@@ -120,6 +123,9 @@ bool InputRouter::handleEvent(
     }
 
     if (event.type == SDL_MOUSEBUTTONUP && config.accept_mouse) {
+        if (input && input->handleUnroutedSdlEvent(event)) {
+            return true;
+        }
         if (input) {
             input->handlePointerReleased(event.button.x, event.button.y);
         }

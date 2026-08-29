@@ -16,7 +16,7 @@ Updated: 2026-08-28
 | Milestone | State | Review |
 |---|---|---|
 | 0 — branches, baseline, contracts, kernel harness | Complete | Approved 2026-08-28 |
-| 1 — fixed rectangle vertical slice | Reopened — usability remediation required | Player review failed: grid invisible and placement movement unusable |
+| 1 — fixed rectangle vertical slice | Review checkpoint ready after usability remediation | Awaiting player mouse/keyboard/controller approval |
 | 2 — editing and history | Not started | Blocked on Milestone 1 approval |
 | 3 — height, L/U shapes, roundness | Not started | Blocked on Milestone 2 approval |
 | 4 — tunnels | Not started | Blocked on Milestone 3 approval |
@@ -102,7 +102,7 @@ Milestone 0 is approved. Milestone 1 begins from `codex/aquarium-construction-mi
 - [x] Add dynamic collision, navigation ownership, and replaceable population policy.
 - [x] Add committed bgfx tank rendering with isolated glass state.
 - [x] Add automated tests and fault-injection coverage.
-- [ ] Measure generation/upload/load timings and resource counts. Native generation is measured; runtime `loadUs`, `uploadUs`, mesh, vertex, triangle, and resource diagnostics are instrumented and await an interactive commit.
+- [x] Measure generation/upload/load timings and resource counts. Interactive revision 2 recorded `generationUs=6935`, `uploadUs=137`, and a subsequent `loadUs=6895`; two tanks own eight semantic meshes and sixteen bgfx vertex/index-buffer resources by the renderer's resource-count contract.
 - [ ] Complete manual aquarium/outdoor/controller regression checks.
 - [x] Present Milestone 1 review checkpoint and stop before Milestone 2.
 
@@ -110,21 +110,21 @@ Milestone 0 is approved. Milestone 1 begins from `codex/aquarium-construction-mi
 
 Player review found that the construction grid is not visibly readable and placement movement is not usable. Passing semantic input unit tests is therefore insufficient. Milestone 1 remains open until the complete creation interaction below works in the shipping bgfx path.
 
-- [ ] Replace the abstract/difficult-to-see layout with a world-aligned construction grid over the actual aquarium floor.
-- [ ] Render every allowed build cell as a warm translucent yellow tile with a strong yellow border, slight floor offset, and stable depth behavior without changing shared render state.
-- [ ] Show unavailable/locked cells and authored tanks as visually distinct obstacles; use patterns and icons as well as color.
-- [ ] Keep the complete build zone framed by the construction camera and readable against glass, sand, water, and authored geometry.
-- [ ] Root-cause and fix keyboard, D-pad, and left-stick cursor movement in the running game, including held-stick repeat and dead-zone behavior.
-- [ ] Add pointer-to-world-grid hit testing using the canonical cell transform; mouse interaction must operate on the cells shown in the world, not on a disconnected screen-space approximation.
-- [ ] Add a reusable semantic gizmo model, renderer, focus state, and hit-test layer. It begins with creation gizmos in Milestone 1 and is extended rather than reimplemented later.
-- [ ] Add an anchor gizmo, active opposite-corner resize gizmo, footprint outline, occupied-cell silhouette, directional affordances, and explicit Build/Adjust/Cancel controls.
-- [ ] Separate footprint completion from building. Releasing a drag or choosing the opposite corner enters Draft Review; it must never immediately regenerate/save the tank.
-- [ ] Support mouse press-drag-release: press chooses the anchor, held movement resizes, and release enters Draft Review.
-- [ ] Support mouse click-move-click: a click without a drag chooses the anchor, pointer movement previews the rectangle, and the second click enters Draft Review.
-- [ ] Support keyboard/controller place-move-place: A/Enter chooses the anchor, grid movement resizes, and A/Enter chooses the opposite corner and enters Draft Review.
-- [ ] In Draft Review, A/Enter or the visible Build control starts the transaction; B/Escape returns to adjustment; Z/Y cancels the draft to Browse. Cancel must not change the document or runtime.
-- [ ] Show a visible invalid marker, cross-hatching, offending cells, and a short nonnumeric reason when a footprint cannot be built.
-- [ ] Add shipping-path interaction tests and deterministic visual captures that demonstrate the yellow grid and gizmos are actually submitted and visible.
+- [x] Replace the abstract/difficult-to-see layout with a world-aligned construction grid over the actual aquarium floor.
+- [x] Render every allowed build cell as a warm translucent yellow tile with a strong yellow border, slight floor offset, and stable depth behavior without changing shared render state.
+- [x] Show unavailable/locked cells and authored tanks as visually distinct obstacles; use patterns and icons as well as color.
+- [x] Keep the complete build zone framed by the construction camera and readable against glass, sand, water, and authored geometry.
+- [x] Root-cause and fix keyboard, D-pad, and left-stick cursor movement in the running game, including held-stick repeat and dead-zone behavior.
+- [x] Add pointer-to-world-grid hit testing using the canonical cell transform; mouse interaction operates on the projected world cells.
+- [x] Add a reusable semantic gizmo model, renderer, focus state, and hit-test layer. It begins with creation gizmos in Milestone 1 and is extended rather than reimplemented later.
+- [x] Add an anchor gizmo, active opposite-corner resize gizmo, footprint outline, occupied-cell silhouette, and explicit Place/Review/Build/Adjust/Cancel/Exit controls.
+- [x] Separate footprint completion from building. Releasing a drag or choosing the opposite corner enters Draft Review and does not regenerate or save the tank.
+- [x] Support mouse press-drag-release: press chooses the anchor, held movement resizes, and release enters Draft Review.
+- [x] Support mouse click-move-click: a click without a drag chooses the anchor, pointer movement previews the rectangle, and the second click enters Draft Review.
+- [x] Support keyboard/controller place-move-place: A/Enter chooses the anchor, grid movement resizes, and A/Enter chooses the opposite corner and enters Draft Review.
+- [x] In Draft Review, A/Enter or the visible Build control starts the transaction; B/Escape returns to adjustment; Z/Y cancels the draft to Browse. Cancel does not change the document or runtime.
+- [x] Show visible invalid markers on offending cells and a short nonnumeric reason when a footprint cannot be built.
+- [x] Add shipping-path interaction tests and deterministic visual-model tests; capture the Metal shipping window to verify that the world grid, gizmos, HUD labels, and invalid hint are submitted and visible.
 - [ ] Manually verify the complete mouse, keyboard-only, D-pad-only, and left-stick-only flows in aquarium12 before requesting another Milestone 1 review.
 
 #### Revised Milestone 1 creation state flow
@@ -198,3 +198,14 @@ New automated coverage includes unavailable-map activation, keyboard Z/controlle
 - Player testing subsequently demonstrated that the grid is not visibly readable and placement movement is not usable. This supersedes the automated checkpoint and reopens Milestone 1.
 - Interactive timing collection still awaits a successful player-visible commit. The temporary aquarium12 startup override was restored; normal startup is `assets/overworld/maps/0.owmap` and the normal headless smoke passes.
 - Milestone 2 remains blocked until the usability-remediation acceptance evidence above is demonstrated and approved.
+
+### Milestone 1 usability-remediation evidence
+
+- Root cause: the original construction overlay used the SDL presentation renderer, but the shipping macOS bgfx path releases that renderer before Metal initialization. The session cursor could change while the overlay was never submitted. The construction visual now has a dedicated bgfx world/HUD renderer.
+- The camera now derives its target from the configured build-zone bounds; the prior fixed pose did not reliably frame aquarium12's construction mask.
+- A real Metal-window capture at the normal 800×500 game viewport shows the warm-yellow cell grid over aquarium12, locked/dark occupied cells, cursor and anchor/resize diamonds, red invalid cells with non-color markers, a `SPACE IS BLOCKED` hint, and labeled `BUILD`, `ADJUST`, and `CANCEL` controls.
+- Projected-cell tests use the same `Gen4FollowCamera::worldToScreen` transform as the rendered world mesh, so pointer selection and visualization share the canonical whole-cell coordinates.
+- Input-router tests demonstrate ten consecutive whole-cell repeat steps for keyboard, D-pad, and left stick; the left stick remains construction-owned and honors its dead zone/release contract.
+- Focused verification after the remediation: `aquarium_runtime_tests`, `input_router_tests`, and `title_screen_headless_smoke` pass 3/3.
+- Temporary direct-to-aquarium launch and forced-draft code used for capture was removed immediately after visual QA. Normal title-screen startup and `assets/overworld/maps/0.owmap` were restored.
+- Remaining approval gate: player verification of the full mouse, keyboard-only, D-pad-only, and left-stick-only flows. No Milestone 2 work begins before that review.

@@ -2,8 +2,11 @@
 
 #include "core/app/AppPaths.hpp"
 #include "core/config/ConfigLoader.hpp"
+#include "gameplay/world3d/rendering/PixelScale.hpp"
 
 #include <chrono>
+#include <algorithm>
+#include <cmath>
 #include <filesystem>
 #include <iostream>
 #include <memory>
@@ -374,7 +377,94 @@ void Overworld3DTestScreen::updateAquariumConstructionCommit() {
 
 void Overworld3DTestScreen::applyAquariumConstructionCamera() {
     if (!aquarium_construction_.active()) return;
-    camera_.setManualPose({248.0f, 240.0f, 330.0f}, 180.0f, -48.0f);
+    const auto& cells = aquarium_construction_.allowedCells();
+    if (cells.empty()) return;
+    int min_column = cells.front().column;
+    int max_column = cells.front().column;
+    int min_row = cells.front().row;
+    int max_row = cells.front().row;
+    for (const auto cell : cells) {
+        min_column = std::min(min_column, cell.column);
+        max_column = std::max(max_column, cell.column);
+        min_row = std::min(min_row, cell.row);
+        max_row = std::max(max_row, cell.row);
+    }
+    const float tile = scene_.grid.tile_size;
+    const float center_x = (static_cast<float>(min_column + max_column + 1) * 0.5f) * tile;
+    const float center_z = (static_cast<float>(min_row + max_row + 1) * 0.5f) * tile;
+    constexpr float kYaw = 180.0f;
+    constexpr float kPitch = -55.0f;
+    constexpr float kDistance = 320.0f;
+    constexpr float kRadians = 3.1415926535f / 180.0f;
+    const float pitch = kPitch * kRadians;
+    const float floor_y = aquariumConstructionVisual().cells.front().floor_y;
+    camera_.setManualPose({
+        center_x,
+        floor_y - std::sin(pitch) * kDistance,
+        center_z - std::cos(kPitch * kRadians) * std::cos(kYaw * kRadians) * kDistance,
+    }, kYaw, kPitch);
+}
+
+gameplay::world3d::aquarium::construction::AquariumConstructionVisual
+Overworld3DTestScreen::aquariumConstructionVisual() const {
+    namespace aqc = gameplay::world3d::aquarium::construction;
+    aqc::AquariumConstructionVisual visual;
+    visual.visible = aquarium_construction_.active();
+    visual.tile_world_units = scene_.grid.tile_size;
+    visual.cursor = aquarium_construction_.cursor();
+    visual.state = aquarium_construction_.state();
+    visual.draft_valid = aquarium_construction_.draftValid();
+    visual.draft_cells = aquarium_construction_.draftCells();
+    visual.status_hint = aqc::aquariumConstructionHintForValidation(
+        aquarium_construction_.validationMessage());
+    if (aquarium_construction_.draft()) {
+        visual.anchor = aquarium_construction_.draft()->anchor;
+    }
+    const float height_step = scene_.terrain.height_per_floor > 0.0f
+        ? scene_.terrain.height_per_floor : scene_.grid.tile_size;
+    for (const auto cell : aquarium_construction_.allowedCells()) {
+        float floor_y = 0.0f;
+        if (cell.row >= 0 && cell.column >= 0 &&
+            cell.row < static_cast<int>(scene_.terrain.heights.size()) &&
+            cell.column < static_cast<int>(scene_.terrain.heights[cell.row].size())) {
+            floor_y = static_cast<float>(scene_.terrain.heights[cell.row][cell.column]) * height_step;
+        }
+        visual.cells.push_back({
+            cell,
+            floor_y,
+            aquarium_construction_.cellBlocked(cell),
+        });
+    }
+    return visual;
+}
+
+std::optional<pr::aquarium::geometry::GridCell>
+Overworld3DTestScreen::aquariumConstructionCellAt(int logical_x, int logical_y) const {
+    if (!aquarium_construction_.active()) return std::nullopt;
+    const int logical_w = std::max(1, app_config_.window.virtual_width);
+    const int logical_h = std::max(1, app_config_.window.virtual_height);
+    const SDL_Rect viewport = visibleWorldViewportRect(logical_w, logical_h);
+    const SDL_Point point{logical_x, logical_y};
+    if (!SDL_PointInRect(&point, &viewport)) return std::nullopt;
+    const int projection_w = scene_.world_viewport.enabled
+        ? gameplay::world3d::rendering::worldViewportBaseWidth(scene_) : logical_w;
+    const int projection_h = scene_.world_viewport.enabled
+        ? gameplay::world3d::rendering::worldViewportBaseHeight(scene_) : logical_h;
+    const int projected_x = (logical_x - viewport.x) * projection_w / std::max(1, viewport.w);
+    const int projected_y = (logical_y - viewport.y) * projection_h / std::max(1, viewport.h);
+    return gameplay::world3d::aquarium::construction::hitTestAquariumConstructionCell(
+        aquariumConstructionVisual(), camera_, projected_x, projected_y,
+        projection_w, projection_h);
+}
+
+gameplay::world3d::aquarium::construction::ConstructionHudAction
+Overworld3DTestScreen::aquariumConstructionHudActionAt(int logical_x, int logical_y) const {
+    namespace aqc = gameplay::world3d::aquarium::construction;
+    const int width = std::max(1, app_config_.window.virtual_width);
+    const int height = std::max(1, app_config_.window.virtual_height);
+    return aqc::hitTestAquariumConstructionHud(
+        aqc::aquariumConstructionHudLayout(width, height, aquarium_construction_.state()),
+        logical_x, logical_y, aquarium_construction_.state());
 }
 
 void Overworld3DTestScreen::requestAquariumConstructionErrorFeedback() {
@@ -396,6 +486,9 @@ void Overworld3DTestScreen::exitAquariumConstruction() {
     animator_.setMoving(false);
     camera_.setTarget(player_.position());
     SDL_SetRelativeMouseMode(SDL_FALSE);
+    aquarium_pointer_down_ = false;
+    aquarium_pointer_dragged_ = false;
+    aquarium_pointer_second_click_ = false;
     aquarium_construction_controller_id_ = -1;
     std::cerr << "[AquariumConstruction] event=exit\n";
 }
