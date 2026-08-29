@@ -25,6 +25,7 @@ public:
 
     /// Optional 2D navigation (controllers / d-pad / left-right UI graphs).
     virtual bool canNavigate2d() const { return false; }
+    virtual bool acceptsControllerAxisNavigation() const { return false; }
     virtual void onNavigate2d(int dx, int dy) {
         (void)dx;
         (void)dy;
@@ -38,6 +39,9 @@ public:
     virtual void onAdvancePressed() {}
     virtual void onBackPressed() {}
     virtual void onAttendPressed() {}
+    virtual void onAquariumConstructionPressed(SDL_JoystickID controller_instance_id = -1) {
+        (void)controller_instance_id;
+    }
 
     // --- Optional "long press" hooks (implemented by InputRouter) ---
     // If `captureAdvanceForLongPress()` is true, InputRouter will NOT call `onAdvancePressed()` on key-down.

@@ -68,6 +68,32 @@ bool parsePosition(const JsonValue* value, std::array<float, 3>& out) {
     return true;
 }
 
+AquariumConstructionConfig parseConstruction(const JsonValue* value) {
+    AquariumConstructionConfig out;
+    if (!value || !value->isObject()) return out;
+    if (const JsonValue* enabled = value->get("enabled"); enabled && enabled->isBool()) {
+        out.enabled = enabled->asBool();
+    }
+    const JsonValue* rows = value->get("allowedCellRows");
+    if (!rows || !rows->isArray()) return out;
+    for (const JsonValue& row_value : rows->asArray()) {
+        if (!row_value.isObject()) continue;
+        const int row = static_cast<int>(numberOr(row_value.get("row"), -1.0));
+        const int first = static_cast<int>(numberOr(row_value.get("fromColumn"), -1.0));
+        const int last = static_cast<int>(numberOr(row_value.get("toColumn"), -1.0));
+        if (row < 0 || first < 0 || last < first || last - first > 255) {
+            throw std::runtime_error("construction.allowedCellRows contains an invalid inclusive range");
+        }
+        for (int column = first; column <= last; ++column) {
+            out.allowed_cells.push_back({column, row});
+        }
+    }
+    if (out.enabled && out.allowed_cells.empty()) {
+        throw std::runtime_error("enabled aquarium construction requires allowedCellRows");
+    }
+    return out;
+}
+
 AquariumPokemonPresentationConfig parsePokemonPresentation(
     const JsonValue* value,
     AquariumPokemonPresentationConfig out = {}) {
@@ -246,6 +272,7 @@ AquariumCatalog loadAquariumCatalog(const std::string& project_root, std::string
             map.pokemon_scale = out.pokemon_scale;
             map.pokemon_presentation = parsePokemonPresentation(
                 map_value.get("pokemonPresentation"), out.pokemon_presentation);
+            map.construction = parseConstruction(map_value.get("construction"));
             const JsonValue* tanks = map_value.get("tanks");
             if (tanks && tanks->isArray()) {
                 for (const JsonValue& tank_value : tanks->asArray()) {

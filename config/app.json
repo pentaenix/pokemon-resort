@@ -21,6 +21,7 @@
     "run_keys": ["B"],
     "run_toggle_keys": [],
     "attend_keys": ["X"],
+    "aquarium_construction_keys": ["Z"],
     "record_toggle_keys": ["R"],
     "screenshot_keys": ["T"]
   },

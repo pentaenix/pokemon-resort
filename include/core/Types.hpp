@@ -131,6 +131,7 @@ struct InputConfig {
     std::vector<std::string> run_keys{"B"};
     std::vector<std::string> run_toggle_keys{};
     std::vector<std::string> attend_keys{"X"};
+    std::vector<std::string> aquarium_construction_keys{"Z"};
     /// Optional app-level bindings. Missing/empty means disabled.
     std::vector<std::string> record_toggle_keys{};
     std::vector<std::string> screenshot_keys{};

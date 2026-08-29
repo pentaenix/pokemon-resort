@@ -95,11 +95,21 @@ struct AquariumTankConfig {
     std::vector<AquariumPokemonConfig> pokemon;
 };
 
+struct AquariumConstructionConfig {
+    struct Cell {
+        int column = 0;
+        int row = 0;
+    };
+    bool enabled = false;
+    std::vector<Cell> allowed_cells;
+};
+
 struct AquariumMapConfig {
     std::string map_id;
     float pokemon_scale = 0.14f;
     AquariumPokemonPresentationConfig pokemon_presentation;
     std::vector<AquariumTankConfig> tanks;
+    AquariumConstructionConfig construction;
 };
 
 struct AquariumCatalog {

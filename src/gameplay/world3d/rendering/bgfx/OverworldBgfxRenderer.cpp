@@ -11,6 +11,7 @@
 #include "gameplay/world3d/interiors/DefaultRoomGeometry.hpp"
 #include "gameplay/world3d/interiors/InteriorFloorCutout.hpp"
 #include "gameplay/world3d/aquarium/rendering/AquariumPokemonBgfxRenderer.hpp"
+#include "gameplay/world3d/aquarium/rendering/PlayerAquariumBgfxRenderer.hpp"
 #include "gameplay/world3d/rendering/InteriorDefaultRoom.hpp"
 #include "gameplay/world3d/rendering/InteriorRenderPolicy.hpp"
 #include "gameplay/world3d/rendering/bgfx/BgfxBackend.hpp"
@@ -290,6 +291,15 @@ public:
     std::string lastError() const { return last_error_; }
     void setStaticMapChunks(std::vector<OverworldBgfxRenderer::StaticMapChunk> chunks);
     void setAquariumPokemonActors(std::vector<aquarium::AquariumPokemonActor> actors);
+    bool replacePlayerAquariumTanks(
+        const std::vector<aquarium::construction::PlayerTankRuntime>& tanks,
+        std::string* error);
+    bool stagePlayerAquariumTanks(
+        const std::vector<aquarium::construction::PlayerTankRuntime>& tanks,
+        std::string* error);
+    bool publishStagedPlayerAquariumTanks();
+    void discardStagedPlayerAquariumTanks();
+    std::size_t playerAquariumResourceCount() const;
     void setPlayerVisible(bool visible) { player_visible_ = visible; }
     void setInteriorWallCameraClip(camera::Vec3 center, float radius_world) {
         interior_wall_clip_[0] = center.x;
@@ -545,6 +555,7 @@ private:
     std::vector<OverworldBgfxRenderer::StaticMapChunk> pending_static_chunks_;
     std::vector<StaticChunkGpuResource> static_chunks_;
     aquarium::rendering::AquariumPokemonBgfxRenderer aquarium_pokemon_renderer_;
+    aquarium::rendering::PlayerAquariumBgfxRenderer player_aquarium_renderer_;
     bool player_visible_ = true;
     float interior_wall_clip_[4]{};
     std::vector<aquarium::AquariumPokemonActor> aquarium_pokemon_actors_;
@@ -749,6 +760,30 @@ void OverworldBgfxRenderer::setAquariumPokemonActors(
     if (impl_) impl_->setAquariumPokemonActors(std::move(actors));
 }
 
+bool OverworldBgfxRenderer::replacePlayerAquariumTanks(
+    const std::vector<aquarium::construction::PlayerTankRuntime>& tanks,
+    std::string* error) {
+    return impl_ && impl_->replacePlayerAquariumTanks(tanks, error);
+}
+
+bool OverworldBgfxRenderer::stagePlayerAquariumTanks(
+    const std::vector<aquarium::construction::PlayerTankRuntime>& tanks,
+    std::string* error) {
+    return impl_ && impl_->stagePlayerAquariumTanks(tanks, error);
+}
+
+bool OverworldBgfxRenderer::publishStagedPlayerAquariumTanks() {
+    return impl_ && impl_->publishStagedPlayerAquariumTanks();
+}
+
+void OverworldBgfxRenderer::discardStagedPlayerAquariumTanks() {
+    if (impl_) impl_->discardStagedPlayerAquariumTanks();
+}
+
+std::size_t OverworldBgfxRenderer::playerAquariumResourceCount() const {
+    return impl_ ? impl_->playerAquariumResourceCount() : 0U;
+}
+
 void OverworldBgfxRenderer::setPlayerVisible(bool visible) {
     if (impl_) impl_->setPlayerVisible(visible);
 }
@@ -872,6 +907,30 @@ void OverworldBgfxRenderer::Impl::setAquariumPokemonActors(
     std::vector<aquarium::AquariumPokemonActor> actors) {
     aquarium_pokemon_actors_ = std::move(actors);
     if (initialized_) aquarium_pokemon_renderer_.setActors(aquarium_pokemon_actors_);
+}
+
+bool OverworldBgfxRenderer::Impl::replacePlayerAquariumTanks(
+    const std::vector<aquarium::construction::PlayerTankRuntime>& tanks,
+    std::string* error) {
+    return player_aquarium_renderer_.replaceTanks(tanks, error);
+}
+
+bool OverworldBgfxRenderer::Impl::stagePlayerAquariumTanks(
+    const std::vector<aquarium::construction::PlayerTankRuntime>& tanks,
+    std::string* error) {
+    return player_aquarium_renderer_.stageTanks(tanks, error);
+}
+
+bool OverworldBgfxRenderer::Impl::publishStagedPlayerAquariumTanks() {
+    return player_aquarium_renderer_.publishStagedTanks();
+}
+
+void OverworldBgfxRenderer::Impl::discardStagedPlayerAquariumTanks() {
+    player_aquarium_renderer_.discardStagedTanks();
+}
+
+std::size_t OverworldBgfxRenderer::Impl::playerAquariumResourceCount() const {
+    return player_aquarium_renderer_.resourceCount();
 }
 
 void OverworldBgfxRenderer::Impl::setTextboxOverlay(
@@ -1059,6 +1118,10 @@ bool OverworldBgfxRenderer::Impl::initialize(
         layout_, world_program_, tex_uniform_, tint_cutoff_uniform_, color_adjust_uniform_,
         texture_blur_uniform_, uv_offset_uniform_, light_dir_uniform_, light_params_uniform_);
     aquarium_pokemon_renderer_.setActors(aquarium_pokemon_actors_);
+    player_aquarium_renderer_.initialize(
+        layout_, world_program_, white_texture_.handle, tex_uniform_, tint_cutoff_uniform_,
+        color_adjust_uniform_, texture_blur_uniform_, uv_offset_uniform_,
+        light_dir_uniform_, light_params_uniform_);
 
     refreshBillboardDrawer();
     initialized_ = true;
@@ -1076,6 +1139,7 @@ bool OverworldBgfxRenderer::Impl::initialize(
 }
 
 void OverworldBgfxRenderer::Impl::shutdown() {
+    player_aquarium_renderer_.shutdown();
     aquarium_pokemon_renderer_.shutdown();
     pixel_world_target_.destroy();
     terrain_flat_top_mesh_.destroy();
@@ -3658,6 +3722,7 @@ OverworldBgfxRenderer::EmbeddedViewportTexture OverworldBgfxRenderer::Impl::rend
             submitMesh(model.mesh, model.model_matrix, world_program_, MaterialClass::Opaque, 0.0f, stateFor(MaterialClass::Opaque));
         }
     }
+    player_aquarium_renderer_.submitOpaque(1);
     submitMesh(tile_layer_mesh_, ident, world_program_, MaterialClass::MaskCutout, 0.5f, stateFor(MaterialClass::MaskCutout));
     for (const ModelGpuResource& model : models_) {
         submitMesh(model.mesh, model.model_matrix, world_program_, MaterialClass::MaskCutout, 0.5f, stateFor(MaterialClass::MaskCutout));
@@ -3669,9 +3734,8 @@ OverworldBgfxRenderer::EmbeddedViewportTexture OverworldBgfxRenderer::Impl::rend
         }
     }
 
-    // Aquarium actors are real skinned Attend models. Submit them before
-    // transparent tank glass/water so those surfaces correctly cover fish
-    // while the shared world depth buffer still clips underground geometry.
+    // Aquarium actors are real skinned Attend models. Player-built glass/water
+    // is submitted with the other late transparent geometry below.
     aquarium_pokemon_renderer_.submit(1, false);
     aquarium_pokemon_renderer_.submit(1, true);
 
@@ -3770,6 +3834,12 @@ OverworldBgfxRenderer::EmbeddedViewportTexture OverworldBgfxRenderer::Impl::rend
             billboard_drawer_->submitTextureDraw(camera, texture_draw);
         }
     }
+    const auto aquarium_camera_pose = camera.pose();
+    player_aquarium_renderer_.submitTransparent(
+        1,
+        aquarium_camera_pose.position.x,
+        aquarium_camera_pose.position.y,
+        aquarium_camera_pose.position.z);
 
     override_animation_clock_ = previous_override_animation_clock;
     animations_enabled_ = previous_animations_enabled;

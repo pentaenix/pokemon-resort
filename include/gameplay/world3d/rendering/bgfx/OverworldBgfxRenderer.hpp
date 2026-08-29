@@ -5,6 +5,7 @@
 #include "gameplay/world3d/dialogue/OverworldTextboxConfig.hpp"
 #include "gameplay/world3d/rendering/BillboardPlacement.hpp"
 #include "gameplay/world3d/aquarium/AquariumSimulation.hpp"
+#include "gameplay/world3d/aquarium/construction/AquariumPlayerRuntime.hpp"
 
 #include <SDL.h>
 #include <cstdint>
@@ -81,6 +82,15 @@ public:
     void setStaticMapChunks(std::vector<StaticMapChunk> chunks);
     void setAquariumPokemonActors(
         std::vector<aquarium::AquariumPokemonActor> actors);
+    bool replacePlayerAquariumTanks(
+        const std::vector<aquarium::construction::PlayerTankRuntime>& tanks,
+        std::string* error = nullptr);
+    bool stagePlayerAquariumTanks(
+        const std::vector<aquarium::construction::PlayerTankRuntime>& tanks,
+        std::string* error = nullptr);
+    bool publishStagedPlayerAquariumTanks();
+    void discardStagedPlayerAquariumTanks();
+    std::size_t playerAquariumResourceCount() const;
     void setPlayerVisible(bool visible);
     void setInteriorWallCameraClip(camera::Vec3 center, float radius_world);
     void setTextboxOverlay(dialogue::OverworldTextboxConfig config, bool visible, std::string text = {});

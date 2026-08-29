@@ -144,6 +144,9 @@ void configuredDewgongMovesInsidePlacedTank() {
         aquarium::aquariumMapConfig(catalog, scene.id);
     require(aquarium_map && aquarium_map->tanks.size() == 3U,
         "aquarium12 camera/population config must load all three tanks");
+    require(aquarium_map->construction.enabled &&
+            aquarium_map->construction.allowed_cells.size() == 72U,
+        "aquarium12 must expose only its explicit six-by-twelve construction mask");
     require(near(aquarium_map->pokemon_presentation.brightness, 1.08f) &&
             near(aquarium_map->pokemon_presentation.pokemon_brightness, 1.02f) &&
             near(aquarium_map->pokemon_presentation.ambient, 0.74f) &&

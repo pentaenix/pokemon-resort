@@ -60,6 +60,8 @@ void testCommittedAppConfigKeepsInputContract() {
            "app.json navigate_up_keys changed; update input tests/docs if this is intentional");
     expect(config.input.forward_keys == std::vector<std::string>({"M", "RETURN", "SPACE"}),
            "app.json forward_keys changed; update input tests/docs if this is intentional");
+    expect(config.input.aquarium_construction_keys == std::vector<std::string>({"Z"}),
+           "app.json aquarium construction binding must remain explicit");
     expect(config.input.back_keys == std::vector<std::string>({"N", "ESCAPE", "BACKSPACE"}),
            "app.json back_keys changed; update input tests/docs if this is intentional");
 }
@@ -112,7 +114,8 @@ void testAppConfigCanOverrideEveryInputBindingVector() {
             "back_keys": ["O"],
             "run_keys": ["B"],
             "run_toggle_keys": ["V"],
-            "attend_keys": ["X"]
+            "attend_keys": ["X"],
+            "aquarium_construction_keys": ["K"]
         }
     })json");
 
@@ -131,6 +134,8 @@ void testAppConfigCanOverrideEveryInputBindingVector() {
     expect(config.input.run_keys == std::vector<std::string>({"B"}), "run_keys should be fully data-driven");
     expect(config.input.run_toggle_keys == std::vector<std::string>({"V"}), "run_toggle_keys should be fully data-driven");
     expect(config.input.attend_keys == std::vector<std::string>({"X"}), "attend_keys should be fully data-driven");
+    expect(config.input.aquarium_construction_keys == std::vector<std::string>({"K"}),
+        "aquarium_construction_keys should be fully data-driven");
 }
 
 void testInvalidInputVectorsFailWithActionName() {

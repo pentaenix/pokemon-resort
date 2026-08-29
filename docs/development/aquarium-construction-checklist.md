@@ -4,19 +4,19 @@ Updated: 2026-08-28
 
 ## Working-state guardrails
 
-- Pokémon Resort branch: `codex/aquarium-construction` from `16441aa3`.
-- Aquarium maker branch: `codex/aquarium-construction` from `54b7fa6`.
-- Both branches were created in their existing dirty worktrees; no reset, clean, checkout, or broad reformat was performed.
-- Pre-existing Resort baseline: 34 tracked files modified plus untracked touch-pool, inspection-facing, wall-clip shader, and aquarium screen-extraction files. The baseline included `CMakeLists.txt` changes before construction work began.
-- Pre-existing maker baseline: README, HTML, application, settings, panel, and model-validator changes plus untracked `scripts/rescale-glb-units.mjs`.
-- Feature commits must stage explicit files or hunks only. Pre-existing aquarium/rendering work remains user-owned.
+- Pokémon Resort branch: `codex/aquarium-construction-milestone-1` from clean `main` at `33a19c32`.
+- Aquarium maker branch: `codex/aquarium-construction-milestone-1` from clean `main` at `85b75ed`.
+- Pre-Milestone 1 aquarium work was integrated into both repositories before these branches were created.
+- Milestone 1 changes are confined to Pokémon Resort; the maker branch remains clean because the shared kernel contract did not change.
+- No reset, clean, checkout, destructive operation, or broad reformat was performed.
+- Feature commits stage explicit Milestone 1 paths only.
 
 ## Milestone status
 
 | Milestone | State | Review |
 |---|---|---|
 | 0 — branches, baseline, contracts, kernel harness | Complete | Approved 2026-08-28 |
-| 1 — fixed rectangle vertical slice | Ready | Start from the integrated Milestone 1 branch |
+| 1 — fixed rectangle vertical slice | Ready for review; interactive verification pending | Automated checkpoint 2026-08-28 |
 | 2 — editing and history | Not started | Blocked on Milestone 1 approval |
 | 3 — height, L/U shapes, roundness | Not started | Blocked on Milestone 2 approval |
 | 4 — tunnels | Not started | Blocked on Milestone 3 approval |
@@ -90,3 +90,50 @@ Render isolation was verified from the generated link graph: `title_screen_demo`
 ## Next milestone boundary
 
 Milestone 0 is approved. Milestone 1 begins from `codex/aquarium-construction-milestone-1` after both nested repositories' `main` branches contain the integrated pre-Milestone 1 state. It will add the first player-visible rectangle flow; no L/U, roundness, tunnel, or authored-tank editing work belongs in that milestone.
+
+## Milestone 1 work log
+
+- [x] Start from clean `codex/aquarium-construction-milestone-1` branches in both nested repositories.
+- [x] Add explicit `aquarium12` construction configuration and placement mask.
+- [x] Add semantic Z/Y activation and construction-owned input routing.
+- [x] Add fixed rectangular draft, validation, confirmation, and cancellation.
+- [x] Add construction camera and keyboard/mouse/controller overlay flow.
+- [x] Add transactional per-profile document persistence and recovery.
+- [x] Add dynamic collision, navigation ownership, and replaceable population policy.
+- [x] Add committed bgfx tank rendering with isolated glass state.
+- [x] Add automated tests and fault-injection coverage.
+- [ ] Measure generation/upload/load timings and resource counts. Native generation is measured; runtime `loadUs`, `uploadUs`, mesh, vertex, triangle, and resource diagnostics are instrumented and await an interactive commit.
+- [ ] Complete manual aquarium/outdoor/controller regression checks.
+- [x] Present Milestone 1 review checkpoint and stop before Milestone 2.
+
+### Milestone 1 implementation inventory
+
+- `AquariumConstructionSession`: committed/draft state separation, rectangle placement, fast validation, player-cell protection, cancellation, and immutable commit candidates.
+- `AquariumDesignStore`: canonical per-profile/map documents, read-back validation, durable temporary writes, validated backups, atomic promotion, and newer/invalid recovery behavior.
+- `AquariumCollisionOverlay`: generated collision composed over static OWMAP terrain queries used by player, follower, and NPC movement.
+- `AquariumPlayerRuntime`: rebuildable kernel geometry/navigation/collision plus replaceable population policy; the v1 policy supplies one deterministic Wishiwashi actor per tank.
+- `AquariumConstructionOverlay`: nonnumeric grid, cursor, silhouette, fixed-height ticks, confirm/cancel glyphs, and pattern-plus-color validity feedback.
+- `PlayerAquariumBgfxRenderer`: four semantic material passes, locally scoped glass/water state, stable transparent sorting, and staged candidate upload/publish/discard ownership.
+- `Overworld3DTestScreenAquarium`: aquarium12 document lifecycle, worker generation, render-thread upload, transactional commit publication, diagnostics, and map-scoped construction configuration.
+- `InputRouter` and `ScreenInput`: semantic Z/Y action plus construction-owned left-stick navigation that does not leak to other screens.
+
+### Milestone 1 automated evidence
+
+| Command | Result |
+|---|---|
+| `cmake --build build --target aquarium_runtime_tests title_screen_demo -j4` | Pass |
+| Focused aquarium/input/headless `ctest` selection | 8/8 pass |
+| `cmake --build build -j4` | Pass |
+| `ctest --test-dir build --output-on-failure` | 68/73 pass; the same five pre-Milestone 1 baseline failures remain |
+| `npm run check` in aquarium maker | Pass; existing large-chunk warning only |
+| `npm run validate:kernel` in aquarium maker | Pass; parity hash remains `fnv1a64:5f18ef72142032cb` |
+
+New automated coverage includes unavailable-map activation, keyboard Z/controller Y routing, construction-owned stick input, minimum rectangle sizing, overlap/bounds/player-cell rejection, cancellation invariance, stable IDs/revisions, canonical save round trips, backup recovery, newer-file preservation, failed-write injection, combined collision, navigation derivation, replaceable population policy, and staged fake-GPU publication/discard semantics.
+
+### Milestone 1 performance and manual status
+
+- Native rectangle kernel, 2,000 samples: p50 0.3166 ms, p95 0.4101 ms, p99 0.5593 ms, max 0.8143 ms.
+- Latest maker WASM validation: p95 2.7295 ms; native/WASM canonical output remains identical.
+- Runtime commits log `generationUs`, `uploadUs`, document `loadUs`, tank/mesh/vertex/triangle counts, and active resource counts.
+- Interactive timing collection and the aquarium12/controller/outdoor visual checklist remain unverified because the macOS test session was locked during the attempted GUI run. The temporary aquarium12 startup override was restored immediately; normal startup is `assets/overworld/maps/0.owmap` and the normal headless smoke passes.
+- Milestone 2 remains blocked until this checkpoint is reviewed and the pending interactive checks are completed.

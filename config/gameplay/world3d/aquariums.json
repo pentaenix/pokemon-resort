@@ -23,6 +23,17 @@
   "maps": [
     {
       "mapId": "aquarium12",
+      "construction": {
+        "enabled": true,
+        "allowedCellRows": [
+          { "row": 10, "fromColumn": 10, "toColumn": 21 },
+          { "row": 11, "fromColumn": 10, "toColumn": 21 },
+          { "row": 12, "fromColumn": 10, "toColumn": 21 },
+          { "row": 13, "fromColumn": 10, "toColumn": 21 },
+          { "row": 14, "fromColumn": 10, "toColumn": 21 },
+          { "row": 15, "fromColumn": 10, "toColumn": 21 }
+        ]
+      },
       "tanks": [
         {
           "placementId": "aquarium",

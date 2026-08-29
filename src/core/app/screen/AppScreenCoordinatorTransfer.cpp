@@ -30,6 +30,15 @@ void AppScreenCoordinator::collectOverworldFrameRequests() {
     frame_requests_.requestOverworldBlockedSfxIf(
         active_screen_ == ActiveScreen::Overworld3DTest &&
         overworld3d_test_.consumeBlockedMovementSfxRequested());
+    if (active_screen_ == ActiveScreen::Overworld3DTest) {
+        frame_requests_.requestErrorSfxIf(
+            overworld3d_test_.consumeAquariumConstructionErrorSfxRequested());
+        frame_requests_.requestUiMoveSfxIf(
+            overworld3d_test_.consumeAquariumConstructionMoveSfxRequested());
+        if (overworld3d_test_.consumeAquariumConstructionSaveSfxRequested()) {
+            frame_requests_.requestSaveSfx();
+        }
+    }
     if (active_screen_ == ActiveScreen::TestAttend) {
         for (const std::string& request : attend_test_.consumeOneShotSfxRequests()) {
             frame_requests_.requestOneShotSfx(request);

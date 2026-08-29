@@ -19,6 +19,7 @@ void expect(bool condition, const std::string& message) {
 struct FakeScreen final : pr::ScreenInput {
     bool one_dimensional = false;
     bool two_dimensional = false;
+    bool accepts_controller_axis = false;
     bool accepts_advance = true;
     int navigate_calls = 0;
     int navigate_sum = 0;
@@ -28,6 +29,7 @@ struct FakeScreen final : pr::ScreenInput {
     int last_dy = 0;
     int advance_calls = 0;
     int back_calls = 0;
+    int aquarium_construction_calls = 0;
     int move_calls = 0;
     int press_calls = 0;
     int release_calls = 0;
@@ -53,6 +55,7 @@ struct FakeScreen final : pr::ScreenInput {
     }
 
     bool canNavigate2d() const override { return two_dimensional; }
+    bool acceptsControllerAxisNavigation() const override { return accepts_controller_axis; }
     void onNavigate2d(int dx, int dy) override {
         ++navigate2d_calls;
         last_dx = dx;
@@ -78,6 +81,7 @@ struct FakeScreen final : pr::ScreenInput {
         last_advance_end_triggered = long_press_action_fired;
     }
     void onBackPressed() override { ++back_calls; }
+    void onAquariumConstructionPressed(SDL_JoystickID) override { ++aquarium_construction_calls; }
     void handlePointerMoved(int, int) override { ++move_calls; }
     bool handlePointerPressed(int, int) override {
         ++press_calls;
@@ -139,6 +143,14 @@ SDL_Event controllerButtonUp(Uint8 button) {
     return event;
 }
 
+SDL_Event controllerAxis(Uint8 axis, Sint16 value) {
+    SDL_Event event{};
+    event.type = SDL_CONTROLLERAXISMOTION;
+    event.caxis.axis = axis;
+    event.caxis.value = value;
+    return event;
+}
+
 SDL_Event mouseEvent(Uint32 type) {
     SDL_Event event{};
     event.type = type;
@@ -190,6 +202,28 @@ int main() {
     expect(actions.advance_calls == 1, "keyboard forward advances");
     expect(router.handleEvent(controllerDown(SDL_CONTROLLER_BUTTON_B), config, &actions), "controller back is handled");
     expect(actions.back_calls == 1, "controller B backs out");
+    expect(router.handleEvent(keyDown(SDLK_z), config, &actions),
+        "configured aquarium construction key is handled");
+    expect(router.handleEvent(controllerDown(SDL_CONTROLLER_BUTTON_Y), config, &actions),
+        "controller Y aquarium construction action is handled");
+    expect(actions.aquarium_construction_calls == 2,
+        "keyboard Z and controller Y share one semantic construction action");
+
+    FakeScreen stick;
+    stick.two_dimensional = true;
+    expect(!router.handleEvent(controllerAxis(SDL_CONTROLLER_AXIS_LEFTX, 20000), config, &stick),
+        "left stick does not leak into screens that do not explicitly own axis navigation");
+    expect(stick.navigate2d_calls == 0,
+        "unowned left stick input does not navigate the screen");
+    stick.accepts_controller_axis = true;
+    expect(router.handleEvent(controllerAxis(SDL_CONTROLLER_AXIS_LEFTX, 20000), config, &stick),
+        "left stick navigation is handled outside the dead zone");
+    expect(stick.navigate2d_calls == 1 && stick.last_dx == 1 && stick.last_dy == 0,
+        "left stick right dispatches semantic 2D navigation");
+    expect(router.handleEvent(controllerAxis(SDL_CONTROLLER_AXIS_LEFTX, 0), config, &stick),
+        "left stick return to dead zone is handled");
+    expect(stick.navigate2d_release_calls == 1,
+        "left stick return releases semantic navigation");
 
     actions.accepts_advance = false;
     expect(router.handleEvent(controllerDown(SDL_CONTROLLER_BUTTON_A), config, &actions), "controller A remains handled when advance blocked");

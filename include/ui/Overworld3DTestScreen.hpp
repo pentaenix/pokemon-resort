@@ -20,6 +20,10 @@
 #include "gameplay/world3d/aquarium/AquariumInspectionCamera.hpp"
 #include "gameplay/world3d/aquarium/AquariumInspectionFacing.hpp"
 #include "gameplay/world3d/aquarium/AquariumSimulation.hpp"
+#include "gameplay/world3d/aquarium/construction/AquariumCollisionOverlay.hpp"
+#include "gameplay/world3d/aquarium/construction/AquariumConstructionOverlay.hpp"
+#include "gameplay/world3d/aquarium/construction/AquariumDesignStore.hpp"
+#include "gameplay/world3d/aquarium/construction/AquariumPlayerRuntime.hpp"
 #include "gameplay/world3d/rendering/BillboardSpriteRenderer.hpp"
 #include "gameplay/world3d/rendering/GlbModelRenderer.hpp"
 #include "gameplay/world3d/rendering/OverworldMapRenderer.hpp"
@@ -59,16 +63,24 @@ public:
     void renderPresentationOverlay(SDL_Renderer* renderer);
     void queueBgfxScreenshot(const std::string& output_path);
     bool consumeBlockedMovementSfxRequested();
+    bool consumeAquariumConstructionErrorSfxRequested();
+    bool consumeAquariumConstructionSaveSfxRequested();
+    bool consumeAquariumConstructionMoveSfxRequested();
 
     bool canNavigate2d() const override { return true; }
+    bool acceptsControllerAxisNavigation() const override {
+        return aquarium_construction_.active();
+    }
     bool capturesUnroutedKeyboardFocus() const override { return true; }
     bool handleUnroutedSdlEvent(const SDL_Event& event) override;
     bool handlePointerPressed(int logical_x, int logical_y) override;
     bool handlePointerReleased(int logical_x, int logical_y) override;
+    void handlePointerMoved(int logical_x, int logical_y) override;
     void onNavigate2d(int dx, int dy) override;
     void onAdvancePressed() override;
     void onBackPressed() override;
     void onAttendPressed() override;
+    void onAquariumConstructionPressed(SDL_JoystickID controller_instance_id = -1) override;
 
     bool consumeReturnToTitleRequested();
     bool consumeOpenAttendRequested();
@@ -91,6 +103,14 @@ private:
     buildStaticRenderChunks() const;
     void reloadWorldTerrainQueries();
     void reloadAquariumConfig(bool force);
+    void configureAquariumConstruction(const gameplay::world3d::aquarium::AquariumMapConfig* map_config);
+    void refreshPlayerAquariumRuntime();
+    void refreshAquariumRenderActors();
+    bool commitAquariumConstruction();
+    void updateAquariumConstructionCommit();
+    void exitAquariumConstruction();
+    void applyAquariumConstructionCamera();
+    void requestAquariumConstructionErrorFeedback();
     void beginAquariumInspectionExit();
     void restoreAquariumInspectionFacing();
     bool beginDoorSequenceForStep(int dx, int dy);
@@ -167,6 +187,32 @@ private:
     std::unique_ptr<gameplay::world3d::aquarium::AquariumInspectionCamera>
         aquarium_inspection_camera_;
     gameplay::world3d::aquarium::AquariumInspectionFacing aquarium_inspection_facing_;
+    gameplay::world3d::aquarium::construction::AquariumConstructionSession
+        aquarium_construction_;
+    gameplay::world3d::aquarium::construction::AquariumConstructionOverlay
+        aquarium_construction_overlay_;
+    std::unique_ptr<gameplay::world3d::aquarium::construction::AquariumDesignStore>
+        aquarium_design_store_;
+    std::unique_ptr<gameplay::world3d::aquarium::construction::AquariumPopulationPolicy>
+        aquarium_population_policy_;
+    gameplay::world3d::aquarium::construction::PlayerAquariumRuntimeSet
+        player_aquarium_runtime_;
+    std::shared_ptr<gameplay::world3d::aquarium::construction::AquariumCollisionOverlay>
+        aquarium_collision_overlay_;
+    bool aquarium_construction_read_only_ = false;
+    bool aquarium_construction_error_sfx_requested_ = false;
+    bool aquarium_construction_save_sfx_requested_ = false;
+    bool aquarium_construction_move_sfx_requested_ = false;
+    SDL_JoystickID aquarium_construction_controller_id_ = -1;
+    struct AquariumGeneratedCommit {
+        gameplay::world3d::aquarium::construction::ConstructionCommitCandidate candidate;
+        gameplay::world3d::aquarium::construction::PlayerAquariumRuntimeSet runtime;
+        std::vector<std::string> diagnostics;
+        bool validation_valid = false;
+        std::int64_t generation_microseconds = 0;
+    };
+    std::future<AquariumGeneratedCommit> aquarium_commit_future_;
+    bool aquarium_commit_cancelled_ = false;
     gameplay::world3d::dialogue::OverworldTextboxConfig textbox_config_{};
     gameplay::world3d::dialogue::OverworldTextboxController textbox_controller_{};
     std::unique_ptr<gameplay::world3d::dialogue::OverworldTextboxRenderer> textbox_renderer_;

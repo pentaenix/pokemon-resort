@@ -89,6 +89,10 @@ set(RESORT_STORAGE_SOURCES
     src/resort/integration/Gen12DvBytes.cpp
 )
 
+# Deterministic, render-independent aquarium geometry shared with the maker's
+# WebAssembly adapter. This target has no SDL, bgfx, or editor dependencies.
+add_subdirectory(shared/aquarium_geometry)
+
 add_library(world3d_bgfx_renderer STATIC
     src/core/crypto/Sha256.cpp
     src/gameplay/attend/rendering/AttendBgfxRenderer.cpp
@@ -110,6 +114,7 @@ add_library(world3d_bgfx_renderer STATIC
     src/gameplay/attend/rendering/AttendPokemonModel.cpp
     src/gameplay/attend/rendering/AttendPokemonPresentation.cpp
     src/gameplay/world3d/aquarium/rendering/AquariumPokemonBgfxRenderer.cpp
+    src/gameplay/world3d/aquarium/rendering/PlayerAquariumBgfxRenderer.cpp
     src/gameplay/world3d/rendering/bgfx/BgfxBackend.cpp
     src/gameplay/world3d/rendering/bgfx/BillboardBgfxDrawer.cpp
     src/gameplay/world3d/rendering/bgfx/OverworldBgfxRenderer.cpp
@@ -126,7 +131,7 @@ add_library(world3d_bgfx_renderer STATIC
 target_include_directories(world3d_bgfx_renderer PUBLIC include)
 target_include_directories(world3d_bgfx_renderer PRIVATE ${bgfx_cmake_SOURCE_DIR}/bimg/3rdparty/tinyexr/deps/miniz)
 target_compile_features(world3d_bgfx_renderer PRIVATE cxx_std_20)
-target_link_libraries(world3d_bgfx_renderer PUBLIC bgfx bx bimg SDL2::SDL2 SDL2_image::SDL2_image SDL2_ttf::SDL2_ttf PkgConfig::ZSTD)
+target_link_libraries(world3d_bgfx_renderer PUBLIC aquarium_geometry bgfx bx bimg SDL2::SDL2 SDL2_image::SDL2_image SDL2_ttf::SDL2_ttf PkgConfig::ZSTD)
 
 add_executable(title_screen_demo
     src/main.cpp
@@ -179,6 +184,12 @@ add_executable(title_screen_demo
     src/gameplay/world3d/aquarium/AquariumNavigation.cpp
     src/gameplay/world3d/aquarium/AquariumPokemonMetrics.cpp
     src/gameplay/world3d/aquarium/AquariumSimulation.cpp
+    src/gameplay/world3d/aquarium/construction/AquariumCollisionOverlay.cpp
+    src/gameplay/world3d/aquarium/construction/AquariumConstructionOverlay.cpp
+    src/gameplay/world3d/aquarium/construction/AquariumConstructionSession.cpp
+    src/gameplay/world3d/aquarium/construction/AquariumDesign.cpp
+    src/gameplay/world3d/aquarium/construction/AquariumDesignStore.cpp
+    src/gameplay/world3d/aquarium/construction/AquariumPlayerRuntime.cpp
     src/gameplay/world3d/characters/CharacterMovementConfig.cpp
     src/gameplay/world3d/rendering/GlbModelRenderer.cpp
     src/gameplay/world3d/effects/LandingDustSystem.cpp
@@ -335,10 +346,6 @@ endif()
 
 enable_testing()
 
-# Deterministic, render-independent aquarium geometry shared with the maker's
-# WebAssembly adapter. This target has no SDL, bgfx, or editor dependencies.
-add_subdirectory(shared/aquarium_geometry)
-
 add_executable(aquarium_design_tests
     tests/native/world3d/aquarium_construction/aquarium_design_tests.cpp
     src/core/config/Json.cpp
@@ -347,6 +354,20 @@ add_executable(aquarium_design_tests
 target_include_directories(aquarium_design_tests PRIVATE include)
 target_link_libraries(aquarium_design_tests PRIVATE aquarium_geometry)
 add_test(NAME aquarium_design_tests COMMAND aquarium_design_tests)
+
+add_executable(aquarium_runtime_tests
+    tests/native/world3d/aquarium_construction/aquarium_runtime_tests.cpp
+    src/core/config/Json.cpp
+    src/gameplay/attend/PokemonModelCatalog.cpp
+    src/gameplay/world3d/aquarium/construction/AquariumCollisionOverlay.cpp
+    src/gameplay/world3d/aquarium/construction/AquariumConstructionSession.cpp
+    src/gameplay/world3d/aquarium/construction/AquariumDesign.cpp
+    src/gameplay/world3d/aquarium/construction/AquariumDesignStore.cpp
+    src/gameplay/world3d/aquarium/construction/AquariumPlayerRuntime.cpp
+)
+target_include_directories(aquarium_runtime_tests PRIVATE include)
+target_link_libraries(aquarium_runtime_tests PRIVATE aquarium_geometry)
+add_test(NAME aquarium_runtime_tests COMMAND aquarium_runtime_tests)
 
 # Native side of the cross-runtime golden harness. The same adapter sources
 # are compiled with Emscripten by aquarium-maker's validate:kernel script.

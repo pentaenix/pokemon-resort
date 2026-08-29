@@ -44,6 +44,10 @@ bool InputRouter::handleEvent(
             if (input) input->onAttendPressed();
             return true;
         }
+        if (matchesBinding(key, config.aquarium_construction_keys)) {
+            if (input) input->onAquariumConstructionPressed();
+            return true;
+        }
         if (matchesBinding(key, config.forward_keys)) {
             if (input && input->acceptsAdvanceInput()) {
                 if (input->captureAdvanceForLongPress()) {
@@ -156,9 +160,41 @@ bool InputRouter::handleEvent(
                     input->onBackPressed();
                 }
                 return true;
+            case SDL_CONTROLLER_BUTTON_Y:
+                if (input) input->onAquariumConstructionPressed(event.cbutton.which);
+                return true;
             default:
                 return false;
         }
+    }
+
+    if (event.type == SDL_CONTROLLERAXISMOTION && config.accept_controller &&
+        (event.caxis.axis == SDL_CONTROLLER_AXIS_LEFTX ||
+         event.caxis.axis == SDL_CONTROLLER_AXIS_LEFTY)) {
+        if (!input || !input->acceptsControllerAxisNavigation()) {
+            controller_axis_x_ = 0;
+            controller_axis_y_ = 0;
+            return false;
+        }
+        constexpr Sint16 kAxisThreshold = 16000;
+        const int direction = event.caxis.value <= -kAxisThreshold
+            ? -1 : event.caxis.value >= kAxisThreshold ? 1 : 0;
+        const NavigationHold previous{controller_axis_x_, controller_axis_y_, 0.0, 0.0};
+        if (event.caxis.axis == SDL_CONTROLLER_AXIS_LEFTX) controller_axis_x_ = direction;
+        else controller_axis_y_ = direction;
+        const NavigationHold current{controller_axis_x_, controller_axis_y_, 0.0, 0.0};
+        if (previous.dx == current.dx && previous.dy == current.dy) return current.dx != 0 || current.dy != 0;
+        if (input && (previous.dx != 0 || previous.dy != 0)) {
+            input->onNavigate2dReleased(previous.dx, previous.dy);
+        }
+        resetHold();
+        if (current.dx != 0 || current.dy != 0) {
+            if (dispatchNavigation(current, input)) {
+                startHold(current);
+                return true;
+            }
+        }
+        return previous.dx != 0 || previous.dy != 0;
     }
 
     if (event.type == SDL_CONTROLLERBUTTONUP && config.accept_controller) {

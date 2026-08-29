@@ -52,6 +52,8 @@ private:
     NavigationHold navigation_hold_;
     AdvanceHold advance_hold_{};
     NavigationLongPressHold navigation_long_press_hold_{};
+    int controller_axis_x_ = 0;
+    int controller_axis_y_ = 0;
 };
 
 } // namespace pr
