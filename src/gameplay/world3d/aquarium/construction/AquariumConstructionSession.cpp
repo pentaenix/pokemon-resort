@@ -1,7 +1,9 @@
 #include "gameplay/world3d/aquarium/construction/AquariumConstructionSession.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
+#include <limits>
 #include <set>
 #include <utility>
 
@@ -125,6 +127,34 @@ const geo::TankDesign* AquariumConstructionSession::selectedTank() const {
     if (!selected_tank_id_) return nullptr;
     const auto index = playerTankIndex(committed_, *selected_tank_id_);
     return index ? &committed_.tanks[*index] : nullptr;
+}
+
+AquariumResizeHandle AquariumConstructionSession::preferredResizeHandle() const {
+    const geo::TankDesign* tank = selectedTank();
+    if (!tank) return AquariumResizeHandle::SouthEast;
+    constexpr std::array<AquariumResizeHandle, 8> handles{
+        AquariumResizeHandle::SouthEast,
+        AquariumResizeHandle::NorthWest,
+        AquariumResizeHandle::North,
+        AquariumResizeHandle::NorthEast,
+        AquariumResizeHandle::East,
+        AquariumResizeHandle::South,
+        AquariumResizeHandle::SouthWest,
+        AquariumResizeHandle::West,
+    };
+    AquariumResizeHandle nearest = handles.front();
+    int nearest_distance = std::numeric_limits<int>::max();
+    for (const AquariumResizeHandle handle : handles) {
+        const geo::GridCell cell = resizeHandleCell(*tank, handle);
+        const int column_distance = cursor_.column - cell.column;
+        const int row_distance = cursor_.row - cell.row;
+        const int distance = column_distance * column_distance + row_distance * row_distance;
+        if (distance < nearest_distance) {
+            nearest = handle;
+            nearest_distance = distance;
+        }
+    }
+    return nearest;
 }
 
 void AquariumConstructionSession::moveCursor(int column_delta, int row_delta) {

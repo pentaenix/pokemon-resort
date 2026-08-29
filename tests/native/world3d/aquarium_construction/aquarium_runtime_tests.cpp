@@ -316,6 +316,56 @@ void newerAsyncOperationInvalidatesEveryOlderCandidate() {
         "stale worker result published or displaced the current candidate");
 }
 
+void cursorChoosesEveryControllerResizeHandle() {
+    auto document = emptyDocument();
+    geo::TankDesign tank;
+    tank.id = "tank_directional_resize";
+    tank.footprint.origin_cell = {12, 11};
+    tank.footprint.width_cells = 5;
+    tank.footprint.depth_cells = 5;
+    document.tanks.push_back(tank);
+    construction::AquariumConstructionSession session;
+    session.configure("aquarium12", constructionConfig(), {}, document);
+    require(session.enter({12, 11}) && session.selectAtCursor(),
+        "directional-resize fixture could not select its tank");
+    const std::array<std::pair<geo::GridCell, construction::AquariumResizeHandle>, 8> cases{{
+        {geo::GridCell{12, 11}, construction::AquariumResizeHandle::NorthWest},
+        {geo::GridCell{14, 11}, construction::AquariumResizeHandle::North},
+        {geo::GridCell{16, 11}, construction::AquariumResizeHandle::NorthEast},
+        {geo::GridCell{16, 13}, construction::AquariumResizeHandle::East},
+        {geo::GridCell{16, 15}, construction::AquariumResizeHandle::SouthEast},
+        {geo::GridCell{14, 15}, construction::AquariumResizeHandle::South},
+        {geo::GridCell{12, 15}, construction::AquariumResizeHandle::SouthWest},
+        {geo::GridCell{12, 13}, construction::AquariumResizeHandle::West},
+    }};
+    for (const auto& [cell, expected] : cases) {
+        session.pointAt(cell);
+        require(session.preferredResizeHandle() == expected,
+            "grid cursor did not choose the matching resize handle");
+    }
+    session.pointAt({12, 11});
+    const auto expected = session.preferredResizeHandle();
+    require(session.beginResizeSelected(expected) && session.draft() &&
+            session.draft()->resize_handle == construction::AquariumResizeHandle::NorthWest,
+        "controller-style resize did not grab the visibly selected handle");
+}
+
+void authoredObstaclesRemainVisibleAtBuildZoneEdges() {
+    const std::vector<geo::GridCell> allowed{{10, 10}, {11, 10}, {10, 11}, {11, 11}};
+    const std::vector<geo::GridCell> authored{
+        {10, 10}, {9, 10}, {12, 11}, {8, 8}, {30, 30}, {9, 10}};
+    const auto locked = construction::aquariumConstructionContextLockedCells(
+        allowed, authored, 2);
+    const std::vector<geo::GridCell> expected{{8, 8}, {9, 10}, {10, 10}, {12, 11}};
+    const bool matches = locked.size() == expected.size() &&
+        std::equal(locked.begin(), locked.end(), expected.begin(),
+            [](geo::GridCell lhs, geo::GridCell rhs) {
+                return lhs.column == rhs.column && lhs.row == rhs.row;
+            });
+    require(matches,
+        "authored obstacle overlay omitted nearby locked cells or retained distant clutter");
+}
+
 void constructionVisualBuildsYellowCellsGizmosAndCanonicalHitTargets() {
     construction::AquariumConstructionVisual visual;
     visual.visible = true;
@@ -630,6 +680,8 @@ int main() {
         invalidMoveAndResizeCannotPrepareCommands();
         everyEditingStateCancelsWithoutChangingTheDocument();
         newerAsyncOperationInvalidatesEveryOlderCandidate();
+        cursorChoosesEveryControllerResizeHandle();
+        authoredObstaclesRemainVisibleAtBuildZoneEdges();
         constructionVisualBuildsYellowCellsGizmosAndCanonicalHitTargets();
         loadedPlacementValidationRejectsBoundsAndOverlap();
         storeRoundTripsAndRecoversBackup();

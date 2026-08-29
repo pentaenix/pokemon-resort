@@ -135,6 +135,11 @@ ConstructionHudAction hitTestAquariumConstructionHud(
 std::vector<ConstructionHudAction> aquariumConstructionHudActions(ConstructionState state);
 ConstructionHudAction defaultAquariumConstructionHudAction(ConstructionState state);
 
+std::vector<pr::aquarium::geometry::GridCell> aquariumConstructionContextLockedCells(
+    const std::vector<pr::aquarium::geometry::GridCell>& allowed_cells,
+    const std::vector<pr::aquarium::geometry::GridCell>& authored_obstacles,
+    int padding_cells = 2);
+
 std::string aquariumConstructionHintForValidation(std::string_view validation_message);
 
 } // namespace pr::gameplay::world3d::aquarium::construction

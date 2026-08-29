@@ -266,10 +266,14 @@ ConstructionVisualMesh buildAquariumConstructionWorldMesh(
     if (visual.state == ConstructionState::Selected && visual.selected_tank) {
         for (const auto& gizmo : gizmoWorldPoints(visual)) {
             const bool move = gizmo.hit.kind == ConstructionGizmoKind::Move;
+            const bool active_resize = !move && visual.active_resize_handle &&
+                *visual.active_resize_handle == gizmo.hit.resize_handle;
             appendDiamond(mesh, gizmo.world.x, gizmo.world.z, gizmo.world.y,
-                move ? 5.0f : 3.6f, move ? kAnchor : kHandle);
+                move ? 5.0f : (active_resize ? 5.2f : 3.6f),
+                move ? kAnchor : (active_resize ? kSelected : kHandle));
             appendDiamond(mesh, gizmo.world.x, gizmo.world.z, gizmo.world.y + 0.04f,
-                move ? 2.8f : 1.8f, move ? kSelected : kAnchor);
+                move ? 2.8f : (active_resize ? 2.8f : 1.8f),
+                move ? kSelected : (active_resize ? kHandle : kAnchor));
         }
     }
     return mesh;
@@ -399,6 +403,36 @@ std::vector<ConstructionHudAction> aquariumConstructionHudActions(ConstructionSt
 ConstructionHudAction defaultAquariumConstructionHudAction(ConstructionState state) {
     const auto actions = aquariumConstructionHudActions(state);
     return actions.empty() ? ConstructionHudAction::None : actions.front();
+}
+
+std::vector<geo::GridCell> aquariumConstructionContextLockedCells(
+    const std::vector<geo::GridCell>& allowed_cells,
+    const std::vector<geo::GridCell>& authored_obstacles,
+    int padding_cells) {
+    if (allowed_cells.empty()) return {};
+    int min_column = allowed_cells.front().column;
+    int max_column = min_column;
+    int min_row = allowed_cells.front().row;
+    int max_row = min_row;
+    for (const geo::GridCell cell : allowed_cells) {
+        min_column = std::min(min_column, cell.column);
+        max_column = std::max(max_column, cell.column);
+        min_row = std::min(min_row, cell.row);
+        max_row = std::max(max_row, cell.row);
+    }
+    const int padding = std::max(0, padding_cells);
+    std::vector<geo::GridCell> locked;
+    for (const geo::GridCell cell : authored_obstacles) {
+        if (cell.column >= min_column - padding && cell.column <= max_column + padding &&
+            cell.row >= min_row - padding && cell.row <= max_row + padding) {
+            locked.push_back(cell);
+        }
+    }
+    std::sort(locked.begin(), locked.end(), [](geo::GridCell lhs, geo::GridCell rhs) {
+        return lhs.row < rhs.row || (lhs.row == rhs.row && lhs.column < rhs.column);
+    });
+    locked.erase(std::unique(locked.begin(), locked.end(), sameCell), locked.end());
+    return locked;
 }
 
 std::string aquariumConstructionHintForValidation(std::string_view validation_message) {

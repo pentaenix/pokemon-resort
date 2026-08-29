@@ -72,7 +72,7 @@ bool Overworld3DTestScreen::activateAquariumConstructionAction(
             break;
         case aqc::ConstructionHudAction::Resize:
             handled = aquarium_construction_.beginResizeSelected(
-                aqc::AquariumResizeHandle::SouthEast);
+                aquarium_construction_.preferredResizeHandle());
             break;
         case aqc::ConstructionHudAction::Review:
             handled = aquarium_construction_.reviewDraft();

@@ -454,6 +454,10 @@ Overworld3DTestScreen::aquariumConstructionVisual() const {
         aquarium_construction_.validationMessage());
     if (const auto* selected = aquarium_construction_.selectedTank()) {
         visual.selected_tank = *selected;
+        if (aquarium_construction_.state() == aqc::ConstructionState::Selected &&
+            aquarium_construction_focused_action_ == aqc::ConstructionHudAction::Resize) {
+            visual.active_resize_handle = aquarium_construction_.preferredResizeHandle();
+        }
         if (!aquarium_construction_.draft()) {
             visual.selected_cells = aqc::tankFootprintCells(*selected);
         }
@@ -481,9 +485,8 @@ Overworld3DTestScreen::aquariumConstructionVisual() const {
             aquarium_construction_.cellBlocked(cell),
         });
     }
-    for (const auto cell : authoredObstacleCells(scene_)) {
-        if (aquarium_construction_.cellAllowed(cell)) visual.locked_cells.push_back(cell);
-    }
+    visual.locked_cells = aqc::aquariumConstructionContextLockedCells(
+        aquarium_construction_.allowedCells(), authoredObstacleCells(scene_));
     return visual;
 }
 

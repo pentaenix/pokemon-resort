@@ -227,6 +227,8 @@ New automated coverage includes unavailable-map activation, keyboard Z/controlle
 - [x] Add structured command kind, history action, operation token, revision, generation, upload, mesh, and resource diagnostics.
 - [x] Add automated command, history, cancellation, overlap/bounds, stale-worker, visual-gizmo, input-isolation, serialization, and resource-lifecycle coverage.
 - [x] Verify selected and move-draft visuals in the shipping Metal renderer; cancel the draft and confirm the profile remained at revision 2.
+- [x] Close review gap: keyboard/controller resize now chooses the nearest of all eight handles from the grid cursor and visibly highlights that handle before confirmation.
+- [x] Close review gap: nearby authored collision remains marked as locked context even when its cells sit just outside the yellow construction mask.
 - [ ] Player manual review: complete mouse flow and controller-only flow, then supply revision comments.
 - [x] Stop at the Milestone 2 review checkpoint; do not start height/L/U/roundness work.
 
@@ -246,6 +248,7 @@ New automated coverage includes unavailable-map activation, keyboard Z/controlle
 |---|---|
 | `cmake --build build -j4` | Pass; normal title startup restored after visual QA |
 | `ctest --test-dir build -R 'aquarium_(runtime\|command)_tests\|input_router_tests\|title_screen_headless_smoke' --output-on-failure` | 4/4 pass |
+| `cmake --build build --target title_screen_demo -j4` plus focused runtime/input/headless checks after review fixes | Pass; shipping integration compiled and 3/3 focused tests pass |
 | `ctest --test-dir build --output-on-failure` | 69/74 pass; exactly the same five documented baseline failures, with no new failure |
 | `npm run check` in aquarium maker | Pass; existing large-chunk warning only |
 | `npm run validate:kernel` in aquarium maker | Pass; parity hash `fnv1a64:5f18ef72142032cb`, WASM p95 1.7829 ms |

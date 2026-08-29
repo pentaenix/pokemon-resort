@@ -78,6 +78,7 @@ public:
     const std::string& validationMessage() const { return validation_message_; }
     const std::optional<std::string>& selectedTankId() const { return selected_tank_id_; }
     const pr::aquarium::geometry::TankDesign* selectedTank() const;
+    AquariumResizeHandle preferredResizeHandle() const;
     bool canUndo() const { return history_.canUndo() && state_ != ConstructionState::Building; }
     bool canRedo() const { return history_.canRedo() && state_ != ConstructionState::Building; }
     std::size_t undoCount() const { return history_.undoCount(); }
