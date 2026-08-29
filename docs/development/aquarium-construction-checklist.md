@@ -16,7 +16,7 @@ Updated: 2026-08-28
 | Milestone | State | Review |
 |---|---|---|
 | 0 — branches, baseline, contracts, kernel harness | Complete | Approved 2026-08-28 |
-| 1 — fixed rectangle vertical slice | Ready for review; interactive verification pending | Automated checkpoint 2026-08-28 |
+| 1 — fixed rectangle vertical slice | Reopened — usability remediation required | Player review failed: grid invisible and placement movement unusable |
 | 2 — editing and history | Not started | Blocked on Milestone 1 approval |
 | 3 — height, L/U shapes, roundness | Not started | Blocked on Milestone 2 approval |
 | 4 — tunnels | Not started | Blocked on Milestone 3 approval |
@@ -106,6 +106,66 @@ Milestone 0 is approved. Milestone 1 begins from `codex/aquarium-construction-mi
 - [ ] Complete manual aquarium/outdoor/controller regression checks.
 - [x] Present Milestone 1 review checkpoint and stop before Milestone 2.
 
+### Milestone 1 usability remediation — blocking approval
+
+Player review found that the construction grid is not visibly readable and placement movement is not usable. Passing semantic input unit tests is therefore insufficient. Milestone 1 remains open until the complete creation interaction below works in the shipping bgfx path.
+
+- [ ] Replace the abstract/difficult-to-see layout with a world-aligned construction grid over the actual aquarium floor.
+- [ ] Render every allowed build cell as a warm translucent yellow tile with a strong yellow border, slight floor offset, and stable depth behavior without changing shared render state.
+- [ ] Show unavailable/locked cells and authored tanks as visually distinct obstacles; use patterns and icons as well as color.
+- [ ] Keep the complete build zone framed by the construction camera and readable against glass, sand, water, and authored geometry.
+- [ ] Root-cause and fix keyboard, D-pad, and left-stick cursor movement in the running game, including held-stick repeat and dead-zone behavior.
+- [ ] Add pointer-to-world-grid hit testing using the canonical cell transform; mouse interaction must operate on the cells shown in the world, not on a disconnected screen-space approximation.
+- [ ] Add a reusable semantic gizmo model, renderer, focus state, and hit-test layer. It begins with creation gizmos in Milestone 1 and is extended rather than reimplemented later.
+- [ ] Add an anchor gizmo, active opposite-corner resize gizmo, footprint outline, occupied-cell silhouette, directional affordances, and explicit Build/Adjust/Cancel controls.
+- [ ] Separate footprint completion from building. Releasing a drag or choosing the opposite corner enters Draft Review; it must never immediately regenerate/save the tank.
+- [ ] Support mouse press-drag-release: press chooses the anchor, held movement resizes, and release enters Draft Review.
+- [ ] Support mouse click-move-click: a click without a drag chooses the anchor, pointer movement previews the rectangle, and the second click enters Draft Review.
+- [ ] Support keyboard/controller place-move-place: A/Enter chooses the anchor, grid movement resizes, and A/Enter chooses the opposite corner and enters Draft Review.
+- [ ] In Draft Review, A/Enter or the visible Build control starts the transaction; B/Escape returns to adjustment; Z/Y cancels the draft to Browse. Cancel must not change the document or runtime.
+- [ ] Show a visible invalid marker, cross-hatching, offending cells, and a short nonnumeric reason when a footprint cannot be built.
+- [ ] Add shipping-path interaction tests and deterministic visual captures that demonstrate the yellow grid and gizmos are actually submitted and visible.
+- [ ] Manually verify the complete mouse, keyboard-only, D-pad-only, and left-stick-only flows in aquarium12 before requesting another Milestone 1 review.
+
+#### Revised Milestone 1 creation state flow
+
+```text
+Dormant → Entering → Browse
+Browse → CreateAnchor
+CreateAnchor → ResizeFootprint
+ResizeFootprint → DraftReview
+DraftReview → Building → Browse
+DraftReview → ResizeFootprint       (Adjust / B / Escape)
+ResizeFootprint → Browse            (Z / Y or explicit discard)
+Browse → Exiting → Dormant
+```
+
+`CommittedDesign` remains untouched throughout CreateAnchor, ResizeFootprint, and DraftReview. Only Build may create a transactional commit candidate.
+
+### Gizmo allocation by milestone
+
+| Milestone | Gizmos and visualization owned by the milestone |
+|---|---|
+| 1 — rectangle creation | Shared gizmo foundation; yellow world-cell grid; hover/focus cell; anchor handle; opposite-corner resize handle; footprint outline/silhouette; validity markers; Build/Adjust/Cancel affordances. These are blocking Milestone 1 requirements. |
+| 2 — editing and history | Tank selection outline; centre move handle; four corner and four edge resize handles; original-versus-candidate ghost; locked authored-tank badge; delete confirmation target; undo/redo state feedback. |
+| 3 — height, L/U, roundness | Vertical height handle with discrete layer pips; rotation handle; L-notch and U-opening handles; corner-radius arc handles and fitted-radius preview. No numeric labels. |
+| 4 — tunnels | Boundary portal sockets; entry/exit handles; cell-centred route; elbow handle; direction arrows; occupied/dry corridor cells; invalid crossing/connectivity markers. |
+| 5 — hardening | Prompt consistency, scalable/high-contrast variants, reduced motion, color-vision review, focus/audio/rumble polish, visual regression captures, and performance/resource stress coverage for all gizmos. |
+
+The shared gizmo foundation owns semantic handles, focus, hit testing, and visual state only. Construction commands and documents remain authoritative; gizmos never mutate saved data directly.
+
+### Revised Milestone 1 acceptance evidence
+
+- The yellow build cells are plainly visible in an aquarium12 screenshot at the normal game resolution.
+- The rendered grid and mouse hit target resolve to the same canonical cell in odd/even transform fixtures.
+- Ten consecutive steps in each direction work with keyboard, D-pad, and left stick without moving the player.
+- Mouse drag and click-move-click produce the same canonical rectangle document as keyboard/controller place-move-place.
+- Drag release and opposite-corner placement stop in Draft Review without changing revision, save files, collision, navigation, actors, meshes, or GPU generation.
+- Build from Draft Review performs exactly one transaction and one revision increment.
+- B/Escape adjustment and Z/Y draft cancellation restore predictable states with no leaked resources.
+- A controller-only user can enter construction, understand the grid/gizmos, place and review a tank, build or cancel it, and exit construction.
+- Outdoor and non-aquarium maps render no construction grid and receive no construction movement.
+
 ### Milestone 1 implementation inventory
 
 - `AquariumConstructionSession`: committed/draft state separation, rectangle placement, fast validation, player-cell protection, cancellation, and immutable commit candidates.
@@ -135,5 +195,6 @@ New automated coverage includes unavailable-map activation, keyboard Z/controlle
 - Native rectangle kernel, 2,000 samples: p50 0.3166 ms, p95 0.4101 ms, p99 0.5593 ms, max 0.8143 ms.
 - Latest maker WASM validation: p95 2.7295 ms; native/WASM canonical output remains identical.
 - Runtime commits log `generationUs`, `uploadUs`, document `loadUs`, tank/mesh/vertex/triangle counts, and active resource counts.
-- Interactive timing collection and the aquarium12/controller/outdoor visual checklist remain unverified because the macOS test session was locked during the attempted GUI run. The temporary aquarium12 startup override was restored immediately; normal startup is `assets/overworld/maps/0.owmap` and the normal headless smoke passes.
-- Milestone 2 remains blocked until this checkpoint is reviewed and the pending interactive checks are completed.
+- Player testing subsequently demonstrated that the grid is not visibly readable and placement movement is not usable. This supersedes the automated checkpoint and reopens Milestone 1.
+- Interactive timing collection still awaits a successful player-visible commit. The temporary aquarium12 startup override was restored; normal startup is `assets/overworld/maps/0.owmap` and the normal headless smoke passes.
+- Milestone 2 remains blocked until the usability-remediation acceptance evidence above is demonstrated and approved.
