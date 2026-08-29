@@ -133,6 +133,9 @@ bool InputRouter::handleEvent(
     }
 
     if (event.type == SDL_CONTROLLERBUTTONDOWN && config.accept_controller) {
+        if (input && input->handleUnroutedSdlEvent(event)) {
+            return true;
+        }
         const NavigationHold nav = navigationDeltaForControllerButton(event.cbutton.button);
         if (nav.dx != 0 || nav.dy != 0) {
             if (input && input->captureNavigate2dForLongPress(nav.dx, nav.dy)) {
@@ -204,6 +207,9 @@ bool InputRouter::handleEvent(
     }
 
     if (event.type == SDL_CONTROLLERBUTTONUP && config.accept_controller) {
+        if (input && input->handleUnroutedSdlEvent(event)) {
+            return true;
+        }
         bool navigation_released = false;
         const NavigationHold released_nav = navigationDeltaForControllerButton(event.cbutton.button);
         if (navigation_long_press_hold_.active &&

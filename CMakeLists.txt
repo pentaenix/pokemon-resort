@@ -186,12 +186,14 @@ add_executable(title_screen_demo
     src/gameplay/world3d/aquarium/AquariumPokemonMetrics.cpp
     src/gameplay/world3d/aquarium/AquariumSimulation.cpp
     src/gameplay/world3d/aquarium/construction/AquariumCollisionOverlay.cpp
+    src/gameplay/world3d/aquarium/construction/AquariumConstructionCommand.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionOverlay.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionSession.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionVisual.cpp
     src/gameplay/world3d/aquarium/construction/AquariumDesign.cpp
     src/gameplay/world3d/aquarium/construction/AquariumDesignStore.cpp
     src/gameplay/world3d/aquarium/construction/AquariumPlayerRuntime.cpp
+    src/gameplay/world3d/aquarium/construction/AquariumTankEditing.cpp
     src/gameplay/world3d/characters/CharacterMovementConfig.cpp
     src/gameplay/world3d/rendering/GlbModelRenderer.cpp
     src/gameplay/world3d/effects/LandingDustSystem.cpp
@@ -235,6 +237,7 @@ add_executable(title_screen_demo
     src/ui/transitions/ScreenTransition.cpp
     src/ui/Overworld3DTestScreen.cpp
     src/ui/Overworld3DTestScreenAquarium.cpp
+    src/ui/Overworld3DTestScreenAquariumConstructionUi.cpp
     src/ui/Overworld3DTestScreenCamera.cpp
     src/ui/TransferFlowCoordinator.cpp
     src/ui/title_screen/MainMenuController.cpp
@@ -357,17 +360,28 @@ target_include_directories(aquarium_design_tests PRIVATE include)
 target_link_libraries(aquarium_design_tests PRIVATE aquarium_geometry)
 add_test(NAME aquarium_design_tests COMMAND aquarium_design_tests)
 
+add_executable(aquarium_command_tests
+    tests/native/world3d/aquarium_construction/aquarium_command_tests.cpp
+    src/gameplay/world3d/aquarium/construction/AquariumConstructionCommand.cpp
+    src/gameplay/world3d/aquarium/construction/AquariumTankEditing.cpp
+)
+target_include_directories(aquarium_command_tests PRIVATE include)
+target_link_libraries(aquarium_command_tests PRIVATE aquarium_geometry)
+add_test(NAME aquarium_command_tests COMMAND aquarium_command_tests)
+
 add_executable(aquarium_runtime_tests
     tests/native/world3d/aquarium_construction/aquarium_runtime_tests.cpp
     src/core/config/Json.cpp
     src/gameplay/world3d/camera/Gen4FollowCamera.cpp
     src/gameplay/attend/PokemonModelCatalog.cpp
     src/gameplay/world3d/aquarium/construction/AquariumCollisionOverlay.cpp
+    src/gameplay/world3d/aquarium/construction/AquariumConstructionCommand.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionSession.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionVisual.cpp
     src/gameplay/world3d/aquarium/construction/AquariumDesign.cpp
     src/gameplay/world3d/aquarium/construction/AquariumDesignStore.cpp
     src/gameplay/world3d/aquarium/construction/AquariumPlayerRuntime.cpp
+    src/gameplay/world3d/aquarium/construction/AquariumTankEditing.cpp
 )
 target_include_directories(aquarium_runtime_tests PRIVATE include)
 target_link_libraries(aquarium_runtime_tests PRIVATE aquarium_geometry)

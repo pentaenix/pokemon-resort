@@ -122,6 +122,191 @@ void draftReviewIsNonMutatingAndAdjustmentIsReversible() {
         "discarding a reviewed draft changed committed data");
 }
 
+void editingHistoryIsTransactionalStableAndStaleSafe() {
+    auto document = emptyDocument();
+    document.revision = 5;
+    geo::TankDesign tank;
+    tank.id = "tank_stable";
+    tank.footprint.origin_cell = {10, 10};
+    tank.footprint.width_cells = 3;
+    tank.footprint.depth_cells = 3;
+    document.tanks.push_back(tank);
+    construction::AquariumConstructionSession session;
+    session.configure("aquarium12", constructionConfig(), {}, document);
+    require(session.enter({9, 9}), "editing fixture did not enter construction");
+    session.pointAt({10, 10});
+    require(session.selectAtCursor() && session.selectedTankId() == "tank_stable",
+        "player tank was not selectable by its occupied cell");
+    require(session.beginMoveSelected(), "selected tank did not enter move mode");
+    session.moveCursor(3, 0);
+    require(session.reviewDraft() && session.draftValid(),
+        "valid move did not enter review");
+    auto moved = session.prepareCommit();
+    require(moved && moved->document.revision == 6 &&
+            moved->document.tanks[0].id == "tank_stable" &&
+            moved->document.tanks[0].footprint.origin_cell.column == 13,
+        "move candidate changed stable identity or revision semantics");
+    require(session.publish(std::move(*moved)) && session.undoCount() == 1 &&
+            session.state() == construction::ConstructionState::Selected,
+        "published move did not enter history or retain selection");
+
+    auto stale_undo = session.prepareUndo();
+    require(stale_undo && session.cancel(), "undo cancellation fixture did not start and cancel");
+    require(!session.candidateCurrent(*stale_undo) && !session.publish(std::move(*stale_undo)) &&
+            session.committedDesign().revision == 6 && session.undoCount() == 1,
+        "cancelled async candidate published or consumed history");
+
+    auto undo = session.prepareUndo();
+    const auto durable_undo = undo
+        ? construction::parseAquariumDesign(
+            construction::serializeAquariumDesignCanonical(undo->document))
+        : construction::AquariumDesignLoadResult{};
+    require(durable_undo.document && durable_undo.document->revision == 7 &&
+            durable_undo.document->tanks[0].footprint.origin_cell.column == 10,
+        "undo candidate did not survive the canonical transactional-save representation");
+    require(undo && session.publish(std::move(*undo)) &&
+            session.committedDesign().revision == 7 &&
+            session.committedDesign().tanks[0].footprint.origin_cell.column == 10 &&
+            session.canRedo(),
+        "undo did not restore the exact tank through a new durable revision");
+    auto redo = session.prepareRedo();
+    require(redo && session.publish(std::move(*redo)) &&
+            session.committedDesign().revision == 8 &&
+            session.committedDesign().tanks[0].footprint.origin_cell.column == 13,
+        "redo did not reapply the move through a new durable revision");
+
+    require(session.beginResizeSelected(construction::AquariumResizeHandle::SouthEast),
+        "selected tank did not expose its south-east resize handle");
+    session.moveCursor(1, 1);
+    require(session.reviewDraft() && session.draftValid(),
+        "valid resize did not enter review");
+    auto resized = session.prepareCommit();
+    require(resized && session.publish(std::move(*resized)) &&
+            session.committedDesign().revision == 9 &&
+            session.committedDesign().tanks[0].footprint.width_cells == 4 &&
+            session.committedDesign().tanks[0].footprint.depth_cells == 4,
+        "resize did not preserve identity and publish discrete dimensions");
+
+    require(session.requestDeleteSelected(), "selected tank did not enter delete confirmation");
+    auto deleted = session.prepareDelete();
+    require(deleted && session.publish(std::move(*deleted)) &&
+            session.committedDesign().revision == 10 && session.committedDesign().tanks.empty(),
+        "confirmed deletion did not publish as an undoable command");
+    auto restore = session.prepareUndo();
+    require(restore && session.publish(std::move(*restore)) &&
+            session.committedDesign().revision == 11 &&
+            session.committedDesign().tanks.size() == 1 &&
+            session.committedDesign().tanks[0].id == "tank_stable",
+        "undo deletion did not restore the stable tank");
+}
+
+void invalidMoveAndResizeCannotPrepareCommands() {
+    auto document = emptyDocument();
+    geo::TankDesign first;
+    first.id = "tank_first";
+    first.footprint.origin_cell = {10, 10};
+    first.footprint.width_cells = 3;
+    first.footprint.depth_cells = 3;
+    geo::TankDesign second = first;
+    second.id = "tank_second";
+    second.footprint.origin_cell = {16, 10};
+    document.tanks = {first, second};
+    construction::AquariumConstructionSession session;
+    session.configure("aquarium12", constructionConfig(), {}, document);
+    require(session.enter({9, 9}), "invalid-edit fixture did not enter construction");
+    session.pointAt({10, 10});
+    require(session.selectAtCursor() && session.beginMoveSelected(),
+        "invalid overlap fixture could not select and move a player tank");
+    session.moveCursor(6, 0);
+    require(session.reviewDraft() && !session.draftValid() && !session.prepareCommit(),
+        "move overlapping another player tank prepared a command");
+    require(session.adjustDraft(), "invalid move could not return to adjustment");
+    session.pointAt({21, 15});
+    require(session.reviewDraft() && !session.draftValid() && !session.prepareCommit(),
+        "out-of-bounds move prepared a command");
+}
+
+void everyEditingStateCancelsWithoutChangingTheDocument() {
+    auto document = emptyDocument();
+    document.revision = 3;
+    geo::TankDesign tank;
+    tank.id = "tank_cancel";
+    tank.footprint.origin_cell = {12, 11};
+    tank.footprint.width_cells = 3;
+    tank.footprint.depth_cells = 3;
+    document.tanks.push_back(tank);
+    construction::AquariumConstructionSession session;
+    session.configure("aquarium12", constructionConfig(), {{10, 10}}, document);
+    require(session.enter({9, 9}), "editing-cancel fixture did not enter construction");
+    session.pointAt({10, 10});
+    require(!session.selectAtCursor() && session.state() == construction::ConstructionState::Browse,
+        "authored obstacle was selectable as a player tank");
+    session.pointAt({12, 11});
+    require(session.selectAtCursor(), "editing-cancel fixture could not select its player tank");
+
+    require(session.beginMoveSelected(), "move cancellation fixture did not begin");
+    session.moveCursor(2, 1);
+    require(session.cancel() && session.state() == construction::ConstructionState::Selected,
+        "cancelling move did not return to the selected tank");
+    require(session.committedDesign().revision == 3 &&
+            session.committedDesign().tanks[0].footprint.origin_cell.column == 12,
+        "cancelling move changed the committed document");
+
+    require(session.beginResizeSelected(construction::AquariumResizeHandle::West),
+        "resize cancellation fixture did not begin");
+    session.moveCursor(-2, 0);
+    require(session.reviewDraft() && session.cancel() &&
+            session.state() == construction::ConstructionState::Selected,
+        "cancelling reviewed resize did not restore selection");
+    require(session.committedDesign().revision == 3 &&
+            session.committedDesign().tanks[0].footprint.width_cells == 3,
+        "cancelling resize changed the committed dimensions");
+
+    require(session.requestDeleteSelected() && session.cancelDelete() &&
+            session.state() == construction::ConstructionState::Selected,
+        "cancelling deletion did not restore selection");
+    require(session.committedDesign().revision == 3 && session.committedDesign().tanks.size() == 1,
+        "cancelling deletion changed the committed tank list");
+    require(session.cancel() && session.state() == construction::ConstructionState::Browse,
+        "cancelling selection did not return to Browse");
+}
+
+void newerAsyncOperationInvalidatesEveryOlderCandidate() {
+    auto document = emptyDocument();
+    geo::TankDesign tank;
+    tank.id = "tank_race";
+    tank.footprint.origin_cell = {12, 11};
+    tank.footprint.width_cells = 3;
+    tank.footprint.depth_cells = 3;
+    document.tanks.push_back(tank);
+    construction::AquariumConstructionSession session;
+    session.configure("aquarium12", constructionConfig(), {}, document);
+    require(session.enter({9, 9}), "worker-race fixture did not enter construction");
+    session.pointAt({12, 11});
+    require(session.selectAtCursor() && session.beginMoveSelected(),
+        "worker-race fixture could not begin its first edit");
+    session.moveCursor(1, 0);
+    require(session.reviewDraft(), "worker-race move did not enter review");
+    auto old_candidate = session.prepareCommit();
+    require(old_candidate && session.cancel(), "worker-race first candidate did not cancel");
+
+    require(session.beginResizeSelected(construction::AquariumResizeHandle::South),
+        "worker-race fixture could not begin its replacement edit");
+    session.moveCursor(0, 1);
+    require(session.reviewDraft(), "worker-race resize did not enter review");
+    auto current_candidate = session.prepareCommit();
+    require(current_candidate &&
+            current_candidate->operation_token != old_candidate->operation_token &&
+            !session.candidateCurrent(*old_candidate) &&
+            session.candidateCurrent(*current_candidate),
+        "new async operation did not make the older generation token stale");
+    require(!session.publish(std::move(*old_candidate)) &&
+            session.publish(std::move(*current_candidate)) &&
+            session.committedDesign().revision == 1 &&
+            session.committedDesign().tanks[0].footprint.depth_cells == 4,
+        "stale worker result published or displaced the current candidate");
+}
+
 void constructionVisualBuildsYellowCellsGizmosAndCanonicalHitTargets() {
     construction::AquariumConstructionVisual visual;
     visual.visible = true;
@@ -144,6 +329,28 @@ void constructionVisualBuildsYellowCellsGizmosAndCanonicalHitTargets() {
     require(invalid_mesh.vertices.size() > review_mesh.vertices.size(),
         "invalid preview did not add non-color invalid markers");
 
+    geo::TankDesign selected;
+    selected.id = "tank_gizmo";
+    selected.footprint.origin_cell = {10, 10};
+    selected.footprint.width_cells = 3;
+    selected.footprint.depth_cells = 3;
+    visual.cells.clear();
+    for (int row = 10; row <= 12; ++row) {
+        for (int column = 10; column <= 12; ++column) {
+            visual.cells.push_back({{column, row}, 0.0f, false});
+        }
+    }
+    visual.anchor.reset();
+    visual.draft_cells.clear();
+    visual.selected_tank = selected;
+    visual.selected_cells = construction::tankFootprintCells(selected);
+    visual.original_cells = visual.selected_cells;
+    visual.locked_cells = {{10, 10}};
+    visual.state = construction::ConstructionState::Selected;
+    const auto selected_mesh = construction::buildAquariumConstructionWorldMesh(visual);
+    require(selected_mesh.vertices.size() > browse_mesh.vertices.size(),
+        "selected tank, locked-cell marker, and edit gizmos did not add visible geometry");
+
     pr::gameplay::world3d::camera::Gen4CameraPreset preset;
     preset.fov_y_deg = 45.0f;
     preset.near_clip = 0.1f;
@@ -160,6 +367,22 @@ void constructionVisualBuildsYellowCellsGizmosAndCanonicalHitTargets() {
         visual, camera, static_cast<int>(screen_x), static_cast<int>(screen_y), 1280, 800);
     require(hit && hit->column == 10 && hit->row == 10,
         "rendered canonical cell and pointer hit target disagree");
+
+    require(camera.worldToScreen({184.0f, 0.72f, 184.0f}, 1280, 800,
+                screen_x, screen_y, depth),
+        "selected tank move gizmo did not project into the construction viewport");
+    const auto move_gizmo = construction::hitTestAquariumConstructionGizmo(
+        visual, camera, static_cast<int>(screen_x), static_cast<int>(screen_y), 1280, 800);
+    require(move_gizmo && move_gizmo->kind == construction::ConstructionGizmoKind::Move,
+        "selected tank centre did not expose a mouse-hit-testable move gizmo");
+    require(camera.worldToScreen({208.0f, 0.72f, 208.0f}, 1280, 800,
+                screen_x, screen_y, depth),
+        "selected tank resize gizmo did not project into the construction viewport");
+    const auto resize_gizmo = construction::hitTestAquariumConstructionGizmo(
+        visual, camera, static_cast<int>(screen_x), static_cast<int>(screen_y), 1280, 800);
+    require(resize_gizmo && resize_gizmo->kind == construction::ConstructionGizmoKind::Resize &&
+            resize_gizmo->resize_handle == construction::AquariumResizeHandle::SouthEast,
+        "south-east tank corner did not expose its directional resize gizmo");
 
     const auto hud = construction::aquariumConstructionHudLayout(
         1280, 800, construction::ConstructionState::DraftReview);
@@ -182,6 +405,24 @@ void constructionVisualBuildsYellowCellsGizmosAndCanonicalHitTargets() {
                 construction::ConstructionState::ResizeFootprint) ==
             construction::ConstructionHudAction::Review,
         "visible Resize review control is not hit-testable");
+    const auto selected_hud = construction::aquariumConstructionHudLayout(
+        1280, 800, construction::ConstructionState::Selected);
+    require(construction::hitTestAquariumConstructionHud(
+                selected_hud, selected_hud.remove.x + 2, selected_hud.remove.y + 2,
+                construction::ConstructionState::Selected) ==
+            construction::ConstructionHudAction::Delete,
+        "selected tank delete control is not hit-testable");
+    const auto browse_actions = construction::aquariumConstructionHudActions(
+        construction::ConstructionState::Browse);
+    require(browse_actions.size() == 5 &&
+            browse_actions.front() == construction::ConstructionHudAction::Place &&
+            browse_actions[2] == construction::ConstructionHudAction::Undo &&
+            browse_actions[3] == construction::ConstructionHudAction::Redo,
+        "browse palette does not expose controller-reachable place/select/history actions");
+    require(construction::defaultAquariumConstructionHudAction(
+                construction::ConstructionState::Selected) ==
+            construction::ConstructionHudAction::Move,
+        "selected-tank controller focus does not begin on the move gizmo action");
 
     const std::string minimum_hint = construction::aquariumConstructionHintForValidation(
         "Expand the tank to at least three cells in both directions");
@@ -376,6 +617,10 @@ int main() {
         stateMachinePreservesCommittedDataOnCancel();
         stateMachineBuildsAndRejectsOverlap();
         draftReviewIsNonMutatingAndAdjustmentIsReversible();
+        editingHistoryIsTransactionalStableAndStaleSafe();
+        invalidMoveAndResizeCannotPrepareCommands();
+        everyEditingStateCancelsWithoutChangingTheDocument();
+        newerAsyncOperationInvalidatesEveryOlderCandidate();
         constructionVisualBuildsYellowCellsGizmosAndCanonicalHitTargets();
         loadedPlacementValidationRejectsBoundsAndOverlap();
         storeRoundTripsAndRecoversBackup();

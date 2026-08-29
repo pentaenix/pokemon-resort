@@ -1,23 +1,23 @@
 # Aquarium Construction Implementation Checklist
 
-Updated: 2026-08-28
+Updated: 2026-08-29
 
 ## Working-state guardrails
 
-- Pokémon Resort branch: `codex/aquarium-construction-milestone-1` from clean `main` at `33a19c32`.
-- Aquarium maker branch: `codex/aquarium-construction-milestone-1` from clean `main` at `85b75ed`.
+- Pokémon Resort branch: `codex/aquarium-construction-milestone-2` from the reviewed Milestone 1 commit `777a809a`.
+- Aquarium maker branch: `codex/aquarium-construction-milestone-2` from clean `main` at `85b75ed`.
 - Pre-Milestone 1 aquarium work was integrated into both repositories before these branches were created.
-- Milestone 1 changes are confined to Pokémon Resort; the maker branch remains clean because the shared kernel contract did not change.
+- Milestone 2 changes are confined to Pokémon Resort; the maker branch remains clean because the shared kernel contract did not change.
 - No reset, clean, checkout, destructive operation, or broad reformat was performed.
-- Feature commits stage explicit Milestone 1 paths only.
+- Feature commits stage explicit Milestone 2 paths only.
 
 ## Milestone status
 
 | Milestone | State | Review |
 |---|---|---|
 | 0 — branches, baseline, contracts, kernel harness | Complete | Approved 2026-08-28 |
-| 1 — fixed rectangle vertical slice | Review checkpoint ready after usability remediation | Awaiting player mouse/keyboard/controller approval |
-| 2 — editing and history | Not started | Blocked on Milestone 1 approval |
+| 1 — fixed rectangle vertical slice | Complete | User authorized Milestone 2 on 2026-08-29; detailed usability comments deferred to review |
+| 2 — editing and history | Review checkpoint ready | Awaiting player review and revision comments |
 | 3 — height, L/U shapes, roundness | Not started | Blocked on Milestone 2 approval |
 | 4 — tunnels | Not started | Blocked on Milestone 3 approval |
 | 5 — recovery, performance, release hardening | Not started | Blocked on Milestone 4 approval |
@@ -197,7 +197,7 @@ New automated coverage includes unavailable-map activation, keyboard Z/controlle
 - Runtime commits log `generationUs`, `uploadUs`, document `loadUs`, tank/mesh/vertex/triangle counts, and active resource counts.
 - Player testing subsequently demonstrated that the grid is not visibly readable and placement movement is not usable. This supersedes the automated checkpoint and reopens Milestone 1.
 - Interactive timing collection still awaits a successful player-visible commit. The temporary aquarium12 startup override was restored; normal startup is `assets/overworld/maps/0.owmap` and the normal headless smoke passes.
-- Milestone 2 remains blocked until the usability-remediation acceptance evidence above is demonstrated and approved.
+- The user authorized moving into Milestone 2 on 2026-08-29 and asked to defer detailed comments until its review checkpoint.
 
 ### Milestone 1 usability-remediation evidence
 
@@ -208,4 +208,59 @@ New automated coverage includes unavailable-map activation, keyboard Z/controlle
 - Input-router tests demonstrate ten consecutive whole-cell repeat steps for keyboard, D-pad, and left stick; the left stick remains construction-owned and honors its dead zone/release contract.
 - Focused verification after the remediation: `aquarium_runtime_tests`, `input_router_tests`, and `title_screen_headless_smoke` pass 3/3.
 - Temporary direct-to-aquarium launch and forced-draft code used for capture was removed immediately after visual QA. Normal title-screen startup and `assets/overworld/maps/0.owmap` were restored.
-- Remaining approval gate: player verification of the full mouse, keyboard-only, D-pad-only, and left-stick-only flows. No Milestone 2 work begins before that review.
+- Player feedback was deferred, and the user explicitly advanced work to Milestone 2 on 2026-08-29.
+
+## Milestone 2 work log
+
+- [x] Create clean `codex/aquarium-construction-milestone-2` branches in both repositories without changing maker files.
+- [x] Add semantic create/edit/delete commands with exact before/after values, stable tank IDs, and document-order preservation.
+- [x] Add move and all eight whole-cell resize-handle transformations.
+- [x] Add player-tank selection while keeping authored geometry non-selectable and physically visible.
+- [x] Add selected outlines, a centre move gizmo, four corner and four edge resize gizmos, and projected mouse hit targets.
+- [x] Add original-position ghosts plus valid/invalid candidate silhouettes and non-color invalid markers.
+- [x] Add deletion confirmation and make confirmed deletion undoable.
+- [x] Add undo/redo history with branch invalidation and monotonically increasing durable revisions.
+- [x] Route edits, deletion, undo, and redo through the Milestone 1 worker-generation, validation, staged-GPU, transactional-save, and publication pipeline.
+- [x] Add operation tokens so cancelled or superseded worker results cannot publish.
+- [x] Add keyboard shortcuts, mouse manipulation, and controller-only palette focus/actions without leaking construction input to gameplay.
+- [x] Split construction UI integration into a focused source file rather than expanding the oversized screen implementation further.
+- [x] Add structured command kind, history action, operation token, revision, generation, upload, mesh, and resource diagnostics.
+- [x] Add automated command, history, cancellation, overlap/bounds, stale-worker, visual-gizmo, input-isolation, serialization, and resource-lifecycle coverage.
+- [x] Verify selected and move-draft visuals in the shipping Metal renderer; cancel the draft and confirm the profile remained at revision 2.
+- [ ] Player manual review: complete mouse flow and controller-only flow, then supply revision comments.
+- [x] Stop at the Milestone 2 review checkpoint; do not start height/L/U/roundness work.
+
+### Milestone 2 implementation inventory
+
+- `AquariumConstructionCommand`: immutable semantic create/edit/delete commands and deterministic forward/reverse application.
+- `AquariumConstructionHistory`: publication-bound undo/redo stacks; cancelled drafts and failed candidates never enter history, and a new command clears the abandoned redo branch.
+- `AquariumTankEditing`: cell selection, footprint enumeration, canonical centre selection, whole-cell movement, and eight-direction resizing.
+- `AquariumConstructionSession`: selected/edit/delete states, committed-versus-draft separation, operation tokens, history candidates, monotonic revisions, and stable selection across publication.
+- `AquariumConstructionVisual` and the bgfx construction renderer: selection, ghost, validity, move/resize gizmos, action palette, disabled history state, and high-contrast controller focus.
+- `Overworld3DTestScreenAquariumConstructionUi`: construction-only pointer projection, gizmo/HUD dispatch, palette focus, error feedback, and exit restoration.
+- The existing runtime builder, collision overlay, population policy, save store, and staged bgfx resource owner are reused unchanged as the publication boundary.
+
+### Milestone 2 automated and visual evidence
+
+| Command | Result |
+|---|---|
+| `cmake --build build -j4` | Pass; normal title startup restored after visual QA |
+| `ctest --test-dir build -R 'aquarium_(runtime\|command)_tests\|input_router_tests\|title_screen_headless_smoke' --output-on-failure` | 4/4 pass |
+| `ctest --test-dir build --output-on-failure` | 69/74 pass; exactly the same five documented baseline failures, with no new failure |
+| `npm run check` in aquarium maker | Pass; existing large-chunk warning only |
+| `npm run validate:kernel` in aquarium maker | Pass; parity hash `fnv1a64:5f18ef72142032cb`, WASM p95 1.7829 ms |
+| `npm run validate:model` in aquarium maker | Pass for all existing geometry, tunnel, below-floor, and decor validation scenarios |
+
+New tests demonstrate exact move/edit/delete inversion, stable identity and order, history branching, newer-operation token precedence, cancellation from selection/move/resize/review/delete/building, authored-obstacle non-selection, overlap and bounds rejection, canonical undo serialization, projected centre/corner gizmo hit testing, disabled/enabled history presentation, and controller edit-input capture.
+
+Shipping Metal inspection at the normal 800×500 game viewport showed both loaded player tanks, the yellow build grid, cyan selected footprint, centre and eight perimeter handles, focused Move/Resize/Delete/Undo/Redo/Done palette, blue original footprint, green valid move candidate, and red cross-hatched out-of-bounds candidate with `OUTSIDE BUILD AREA`. The temporary aquarium12 startup/selection harness was removed immediately; the unsaved draft was cancelled and the saved document remained revision 2.
+
+### Milestone 2 acceptance and review boundary
+
+- Selection, move, eight-direction resize, deletion, undo, and redo are represented by commands and use the same transactional commit pipeline.
+- Stable IDs survive every edit and history operation; revisions increase for forward commands, undo, and redo.
+- Invalid overlaps and out-of-bounds edits cannot prepare or publish commands.
+- Authored tanks are not part of the player document and cannot be selected or modified.
+- Cancel and stale worker publication leave document, collision, navigation, population, GPU ownership, history, and save revision unchanged.
+- Mouse users can select a tank/click its centre or edge gizmos/drag/review; keyboard and controller users can reach the same actions through semantic focus and whole-cell cursor movement.
+- Milestone 3 remains blocked until the user reviews this checkpoint and explicitly approves height, L/U shapes, and corner-roundness work.

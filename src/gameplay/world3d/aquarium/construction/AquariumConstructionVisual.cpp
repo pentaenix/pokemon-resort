@@ -90,6 +90,85 @@ bool pointInTriangle(ScreenPoint point, ScreenPoint a, ScreenPoint b, ScreenPoin
     return !(negative && positive);
 }
 
+struct GizmoWorldPoint {
+    ConstructionGizmoHit hit;
+    gameplay::world3d::camera::Vec3 world;
+};
+
+std::vector<GizmoWorldPoint> gizmoWorldPoints(const AquariumConstructionVisual& visual) {
+    if (!visual.selected_tank) return {};
+    const auto& footprint = visual.selected_tank->footprint;
+    const float tile = visual.tile_world_units;
+    const float west = static_cast<float>(footprint.origin_cell.column) * tile;
+    const float north = static_cast<float>(footprint.origin_cell.row) * tile;
+    const float east = west + static_cast<float>(footprint.width_cells) * tile;
+    const float south = north + static_cast<float>(footprint.depth_cells) * tile;
+    const float center_x = (west + east) * 0.5f;
+    const float center_z = (north + south) * 0.5f;
+    const float y = floorForCell(visual, tankCentreCell(*visual.selected_tank)) + 0.72f;
+    return {
+        {{ConstructionGizmoKind::Move, AquariumResizeHandle::SouthEast}, {center_x, y, center_z}},
+        {{ConstructionGizmoKind::Resize, AquariumResizeHandle::NorthWest}, {west, y, north}},
+        {{ConstructionGizmoKind::Resize, AquariumResizeHandle::North}, {center_x, y, north}},
+        {{ConstructionGizmoKind::Resize, AquariumResizeHandle::NorthEast}, {east, y, north}},
+        {{ConstructionGizmoKind::Resize, AquariumResizeHandle::East}, {east, y, center_z}},
+        {{ConstructionGizmoKind::Resize, AquariumResizeHandle::SouthEast}, {east, y, south}},
+        {{ConstructionGizmoKind::Resize, AquariumResizeHandle::South}, {center_x, y, south}},
+        {{ConstructionGizmoKind::Resize, AquariumResizeHandle::SouthWest}, {west, y, south}},
+        {{ConstructionGizmoKind::Resize, AquariumResizeHandle::West}, {west, y, center_z}},
+    };
+}
+
+void appendCellCross(
+    ConstructionVisualMesh& mesh, float x0, float z0, float tile, float y,
+    std::uint32_t color) {
+    appendQuad(mesh, x0 + 2.0f, z0 + tile * 0.43f,
+        x0 + tile - 2.0f, z0 + tile * 0.57f, y, color);
+    appendQuad(mesh, x0 + tile * 0.43f, z0 + 2.0f,
+        x0 + tile * 0.57f, z0 + tile - 2.0f, y + 0.01f, color);
+}
+
+ConstructionHudRect* rectForAction(ConstructionHudLayout& layout, ConstructionHudAction action) {
+    switch (action) {
+        case ConstructionHudAction::Place: return &layout.place;
+        case ConstructionHudAction::Select: return &layout.select;
+        case ConstructionHudAction::Move: return &layout.move;
+        case ConstructionHudAction::Resize: return &layout.resize;
+        case ConstructionHudAction::Review: return &layout.review;
+        case ConstructionHudAction::Build: return &layout.build;
+        case ConstructionHudAction::Adjust: return &layout.adjust;
+        case ConstructionHudAction::Delete: return &layout.remove;
+        case ConstructionHudAction::Undo: return &layout.undo;
+        case ConstructionHudAction::Redo: return &layout.redo;
+        case ConstructionHudAction::Cancel: return &layout.cancel;
+        case ConstructionHudAction::Done: return &layout.done;
+        case ConstructionHudAction::Exit: return &layout.exit;
+        case ConstructionHudAction::None: return nullptr;
+    }
+    return nullptr;
+}
+
+const ConstructionHudRect* rectForAction(
+    const ConstructionHudLayout& layout, ConstructionHudAction action) {
+    switch (action) {
+        case ConstructionHudAction::Place: return &layout.place;
+        case ConstructionHudAction::Select: return &layout.select;
+        case ConstructionHudAction::Move: return &layout.move;
+        case ConstructionHudAction::Resize: return &layout.resize;
+        case ConstructionHudAction::Review: return &layout.review;
+        case ConstructionHudAction::Build: return &layout.build;
+        case ConstructionHudAction::Adjust: return &layout.adjust;
+        case ConstructionHudAction::Delete: return &layout.remove;
+        case ConstructionHudAction::Undo: return &layout.undo;
+        case ConstructionHudAction::Redo: return &layout.redo;
+        case ConstructionHudAction::Cancel: return &layout.cancel;
+        case ConstructionHudAction::Done: return &layout.done;
+        case ConstructionHudAction::Exit: return &layout.exit;
+        case ConstructionHudAction::None: return nullptr;
+    }
+    return nullptr;
+}
+
 } // namespace
 
 bool ConstructionHudRect::contains(int point_x, int point_y) const {
@@ -108,6 +187,10 @@ ConstructionVisualMesh buildAquariumConstructionWorldMesh(
     constexpr std::uint32_t kBlockedBorder = colorAbgr(242, 155, 62, 220);
     constexpr std::uint32_t kValidFill = colorAbgr(62, 210, 140, 145);
     constexpr std::uint32_t kInvalidFill = colorAbgr(224, 67, 73, 170);
+    constexpr std::uint32_t kLockedFill = colorAbgr(85, 68, 42, 190);
+    constexpr std::uint32_t kLockedMark = colorAbgr(255, 177, 48, 255);
+    constexpr std::uint32_t kSelected = colorAbgr(65, 222, 255, 255);
+    constexpr std::uint32_t kOriginal = colorAbgr(76, 130, 255, 145);
     constexpr std::uint32_t kCursor = colorAbgr(255, 250, 184, 255);
     constexpr std::uint32_t kAnchor = colorAbgr(255, 197, 45, 255);
     constexpr std::uint32_t kHandle = colorAbgr(255, 255, 255, 255);
@@ -120,6 +203,29 @@ ConstructionVisualMesh buildAquariumConstructionWorldMesh(
             y, surface.blocked ? kBlockedFill : kAllowedFill);
         appendBorder(mesh, x0 + 0.35f, z0 + 0.35f, x0 + tile - 0.35f, z0 + tile - 0.35f,
             y + 0.03f, 0.38f, surface.blocked ? kBlockedBorder : kAllowedBorder);
+    }
+
+    for (const geo::GridCell cell : visual.locked_cells) {
+        const float x0 = static_cast<float>(cell.column) * tile;
+        const float z0 = static_cast<float>(cell.row) * tile;
+        const float y = floorForCell(visual, cell) + 0.27f;
+        appendQuad(mesh, x0 + 1.0f, z0 + 1.0f, x0 + tile - 1.0f, z0 + tile - 1.0f,
+            y, kLockedFill);
+        appendCellCross(mesh, x0, z0, tile, y + 0.04f, kLockedMark);
+    }
+
+    for (const geo::GridCell cell : visual.original_cells) {
+        const float x0 = static_cast<float>(cell.column) * tile;
+        const float z0 = static_cast<float>(cell.row) * tile;
+        appendBorder(mesh, x0 + 1.4f, z0 + 1.4f, x0 + tile - 1.4f, z0 + tile - 1.4f,
+            floorForCell(visual, cell) + 0.31f, 0.55f, kOriginal);
+    }
+
+    for (const geo::GridCell cell : visual.selected_cells) {
+        const float x0 = static_cast<float>(cell.column) * tile;
+        const float z0 = static_cast<float>(cell.row) * tile;
+        appendBorder(mesh, x0 + 0.8f, z0 + 0.8f, x0 + tile - 0.8f, z0 + tile - 0.8f,
+            floorForCell(visual, cell) + 0.39f, 0.8f, kSelected);
     }
 
     for (const geo::GridCell cell : visual.draft_cells) {
@@ -149,11 +255,22 @@ ConstructionVisualMesh buildAquariumConstructionWorldMesh(
             floorForCell(visual, *visual.anchor) + 0.48f, 3.1f, kAnchor);
     }
     if (visual.state == ConstructionState::ResizeFootprint ||
+        visual.state == ConstructionState::MoveTank ||
+        visual.state == ConstructionState::ResizeTank ||
         visual.state == ConstructionState::DraftReview) {
         appendDiamond(mesh, cursor_x + tile * 0.5f, cursor_z + tile * 0.5f,
             cursor_y + 0.16f, 4.0f, kHandle);
         appendDiamond(mesh, cursor_x + tile * 0.5f, cursor_z + tile * 0.5f,
             cursor_y + 0.19f, 2.4f, visual.draft_valid ? kValidFill : kInvalidFill);
+    }
+    if (visual.state == ConstructionState::Selected && visual.selected_tank) {
+        for (const auto& gizmo : gizmoWorldPoints(visual)) {
+            const bool move = gizmo.hit.kind == ConstructionGizmoKind::Move;
+            appendDiamond(mesh, gizmo.world.x, gizmo.world.z, gizmo.world.y,
+                move ? 5.0f : 3.6f, move ? kAnchor : kHandle);
+            appendDiamond(mesh, gizmo.world.x, gizmo.world.z, gizmo.world.y + 0.04f,
+                move ? 2.8f : 1.8f, move ? kSelected : kAnchor);
+        }
     }
     return mesh;
 }
@@ -196,28 +313,49 @@ std::optional<geo::GridCell> hitTestAquariumConstructionCell(
     return nearest;
 }
 
+std::optional<ConstructionGizmoHit> hitTestAquariumConstructionGizmo(
+    const AquariumConstructionVisual& visual,
+    const gameplay::world3d::camera::Gen4FollowCamera& camera,
+    int screen_x, int screen_y, int viewport_width, int viewport_height) {
+    if (!visual.visible || visual.state != ConstructionState::Selected ||
+        viewport_width <= 0 || viewport_height <= 0) return std::nullopt;
+    constexpr float kHitRadiusSquared = 18.0f * 18.0f;
+    float nearest_distance = kHitRadiusSquared;
+    std::optional<ConstructionGizmoHit> nearest;
+    for (const auto& gizmo : gizmoWorldPoints(visual)) {
+        float projected_x = 0.0f;
+        float projected_y = 0.0f;
+        float depth = 0.0f;
+        if (!camera.worldToScreen(gizmo.world, viewport_width, viewport_height,
+                projected_x, projected_y, depth)) continue;
+        const float dx = projected_x - static_cast<float>(screen_x);
+        const float dy = projected_y - static_cast<float>(screen_y);
+        const float distance = dx * dx + dy * dy;
+        if (distance <= nearest_distance) {
+            nearest_distance = distance;
+            nearest = gizmo.hit;
+        }
+    }
+    return nearest;
+}
+
 ConstructionHudLayout aquariumConstructionHudLayout(
     int viewport_width, int viewport_height, ConstructionState state) {
     ConstructionHudLayout layout;
     const int size = std::clamp(std::min(viewport_width, viewport_height) / 10, 48, 76);
     const int gap = std::max(10, size / 5);
     const int bottom = std::max(14, viewport_height / 28);
-    if (state == ConstructionState::Browse) {
-        const int total = size * 2 + gap;
+    const auto actions = aquariumConstructionHudActions(state);
+    if (!actions.empty()) {
+        const int total = size * static_cast<int>(actions.size()) +
+            gap * static_cast<int>(actions.size() - 1U);
         const int start = (viewport_width - total) / 2;
-        layout.place = {start, viewport_height - bottom - size, size, size};
-        layout.exit = {start + size + gap, viewport_height - bottom - size, size, size};
-    } else if (state == ConstructionState::DraftReview) {
-        const int total = size * 3 + gap * 2;
-        const int start = (viewport_width - total) / 2;
-        layout.build = {start, viewport_height - bottom - size, size, size};
-        layout.adjust = {start + size + gap, viewport_height - bottom - size, size, size};
-        layout.cancel = {start + (size + gap) * 2, viewport_height - bottom - size, size, size};
-    } else if (state == ConstructionState::ResizeFootprint) {
-        const int total = size * 2 + gap;
-        const int start = (viewport_width - total) / 2;
-        layout.review = {start, viewport_height - bottom - size, size, size};
-        layout.cancel = {start + size + gap, viewport_height - bottom - size, size, size};
+        for (std::size_t index = 0; index < actions.size(); ++index) {
+            if (auto* rect = rectForAction(layout, actions[index])) {
+                *rect = {start + static_cast<int>(index) * (size + gap),
+                    viewport_height - bottom - size, size, size};
+            }
+        }
     }
     return layout;
 }
@@ -225,18 +363,42 @@ ConstructionHudLayout aquariumConstructionHudLayout(
 ConstructionHudAction hitTestAquariumConstructionHud(
     const ConstructionHudLayout& layout,
     int screen_x, int screen_y, ConstructionState state) {
-    if (state == ConstructionState::Browse) {
-        if (layout.place.contains(screen_x, screen_y)) return ConstructionHudAction::Place;
-        if (layout.exit.contains(screen_x, screen_y)) return ConstructionHudAction::Exit;
+    for (const auto action : aquariumConstructionHudActions(state)) {
+        const auto* rect = rectForAction(layout, action);
+        if (rect && rect->contains(screen_x, screen_y)) return action;
     }
-    if (state == ConstructionState::ResizeFootprint &&
-        layout.review.contains(screen_x, screen_y)) return ConstructionHudAction::Review;
-    if (state == ConstructionState::DraftReview) {
-        if (layout.build.contains(screen_x, screen_y)) return ConstructionHudAction::Build;
-        if (layout.adjust.contains(screen_x, screen_y)) return ConstructionHudAction::Adjust;
-    }
-    if (layout.cancel.contains(screen_x, screen_y)) return ConstructionHudAction::Cancel;
     return ConstructionHudAction::None;
+}
+
+std::vector<ConstructionHudAction> aquariumConstructionHudActions(ConstructionState state) {
+    switch (state) {
+        case ConstructionState::Browse:
+            return {ConstructionHudAction::Place, ConstructionHudAction::Select,
+                ConstructionHudAction::Undo, ConstructionHudAction::Redo,
+                ConstructionHudAction::Exit};
+        case ConstructionState::Selected:
+            return {ConstructionHudAction::Move, ConstructionHudAction::Resize,
+                ConstructionHudAction::Delete, ConstructionHudAction::Undo,
+                ConstructionHudAction::Redo, ConstructionHudAction::Done};
+        case ConstructionState::ResizeFootprint:
+        case ConstructionState::MoveTank:
+        case ConstructionState::ResizeTank:
+            return {ConstructionHudAction::Review, ConstructionHudAction::Cancel};
+        case ConstructionState::DraftReview:
+            return {ConstructionHudAction::Build, ConstructionHudAction::Adjust,
+                ConstructionHudAction::Cancel};
+        case ConstructionState::DeleteConfirm:
+            return {ConstructionHudAction::Delete, ConstructionHudAction::Cancel};
+        case ConstructionState::Dormant:
+        case ConstructionState::Building:
+            return {};
+    }
+    return {};
+}
+
+ConstructionHudAction defaultAquariumConstructionHudAction(ConstructionState state) {
+    const auto actions = aquariumConstructionHudActions(state);
+    return actions.empty() ? ConstructionHudAction::None : actions.front();
 }
 
 std::string aquariumConstructionHintForValidation(std::string_view validation_message) {

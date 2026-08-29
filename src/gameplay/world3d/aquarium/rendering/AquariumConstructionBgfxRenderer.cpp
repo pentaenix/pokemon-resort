@@ -213,24 +213,43 @@ public:
         constexpr std::uint32_t kPlace = 0xf065bd5aU;
         constexpr std::uint32_t kReview = 0xf04fc4e8U;
         constexpr std::uint32_t kExit = 0xf0524cceU;
+        constexpr std::uint32_t kSelect = 0xf0e6c24fU;
+        constexpr std::uint32_t kEdit = 0xf04fc4e8U;
+        constexpr std::uint32_t kDelete = 0xf0524cceU;
+        constexpr std::uint32_t kHistory = 0xf0c58cddU;
+        constexpr std::uint32_t kDisabled = 0x80666360U;
+        constexpr std::uint32_t kFocus = 0xffffffffU;
         constexpr std::uint32_t kGlyph = 0xffffffffU;
         const auto button = [&](const construction::ConstructionHudRect& rect,
-                                std::uint32_t fill, std::string_view label) {
+                                std::uint32_t fill, std::string_view label,
+                                construction::ConstructionHudAction action,
+                                bool enabled = true) {
             if (rect.width <= 0) return;
             appendQuad(mesh, static_cast<float>(rect.x), static_cast<float>(rect.y),
                 static_cast<float>(rect.x + rect.width), static_cast<float>(rect.y + rect.height), kPanel);
-            appendBorder(mesh, rect, 4.0f, fill);
-            const float scale = rect.width >= 72 ? 2.0f : 1.0f;
-            appendCenteredText(mesh, rect, label, scale, kGlyph);
+            appendBorder(mesh, rect, 4.0f, enabled ? fill : kDisabled);
+            if (visual_.focused_action == action) appendBorder(mesh, rect, 2.0f, kFocus);
+            const float scale = rect.width >= 72 && label.size() <= 5U ? 2.0f : 1.0f;
+            appendCenteredText(mesh, rect, label, scale, enabled ? kGlyph : kDisabled);
         };
-        button(layout.place, kPlace, "PLACE");
-        button(layout.review, kReview, "REVIEW");
-        button(layout.build, kBuild, "BUILD");
-        button(layout.adjust, kAdjust, "ADJUST");
-        button(layout.cancel, kCancel, "CANCEL");
-        button(layout.exit, kExit, "EXIT");
+        using Action = construction::ConstructionHudAction;
+        button(layout.place, kPlace, "PLACE", Action::Place);
+        button(layout.select, kSelect, "SELECT", Action::Select);
+        button(layout.move, kEdit, "MOVE", Action::Move);
+        button(layout.resize, kEdit, "RESIZE", Action::Resize);
+        button(layout.review, kReview, "REVIEW", Action::Review);
+        button(layout.build, kBuild, "BUILD", Action::Build);
+        button(layout.adjust, kAdjust, "ADJUST", Action::Adjust);
+        button(layout.remove, kDelete, "DELETE", Action::Delete);
+        button(layout.undo, kHistory, "UNDO", Action::Undo, visual_.undo_available);
+        button(layout.redo, kHistory, "REDO", Action::Redo, visual_.redo_available);
+        button(layout.cancel, kCancel, "CANCEL", Action::Cancel);
+        button(layout.done, kSelect, "DONE", Action::Done);
+        button(layout.exit, kExit, "EXIT", Action::Exit);
         if (!visual_.status_hint.empty() &&
             (visual_.state == construction::ConstructionState::ResizeFootprint ||
+             visual_.state == construction::ConstructionState::MoveTank ||
+             visual_.state == construction::ConstructionState::ResizeTank ||
              visual_.state == construction::ConstructionState::DraftReview)) {
             const float scale = width >= 640 ? 2.0f : 1.0f;
             const int banner_width = static_cast<int>(textWidth(visual_.status_hint, scale)) + 24;

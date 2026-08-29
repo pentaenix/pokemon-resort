@@ -108,6 +108,11 @@ private:
     void refreshPlayerAquariumRuntime();
     void refreshAquariumRenderActors();
     bool commitAquariumConstruction();
+    bool beginAquariumConstructionCommit(
+        std::optional<gameplay::world3d::aquarium::construction::ConstructionCommitCandidate>
+            candidate);
+    bool undoAquariumConstruction();
+    bool redoAquariumConstruction();
     void updateAquariumConstructionCommit();
     void exitAquariumConstruction();
     void applyAquariumConstructionCamera();
@@ -116,8 +121,14 @@ private:
         aquariumConstructionVisual() const;
     std::optional<pr::aquarium::geometry::GridCell> aquariumConstructionCellAt(
         int logical_x, int logical_y) const;
+    std::optional<gameplay::world3d::aquarium::construction::ConstructionGizmoHit>
+        aquariumConstructionGizmoAt(int logical_x, int logical_y) const;
     gameplay::world3d::aquarium::construction::ConstructionHudAction
         aquariumConstructionHudActionAt(int logical_x, int logical_y) const;
+    bool activateAquariumConstructionAction(
+        gameplay::world3d::aquarium::construction::ConstructionHudAction action);
+    void syncAquariumConstructionFocus();
+    void cycleAquariumConstructionFocus(int direction);
     void beginAquariumInspectionExit();
     void restoreAquariumInspectionFacing();
     bool beginDoorSequenceForStep(int dx, int dy);
@@ -223,6 +234,12 @@ private:
     bool aquarium_pointer_down_ = false;
     bool aquarium_pointer_dragged_ = false;
     bool aquarium_pointer_second_click_ = false;
+    gameplay::world3d::aquarium::construction::ConstructionHudAction
+        aquarium_construction_focused_action_ =
+            gameplay::world3d::aquarium::construction::ConstructionHudAction::None;
+    gameplay::world3d::aquarium::construction::ConstructionState
+        aquarium_construction_focus_state_ =
+            gameplay::world3d::aquarium::construction::ConstructionState::Dormant;
     gameplay::world3d::dialogue::OverworldTextboxConfig textbox_config_{};
     gameplay::world3d::dialogue::OverworldTextboxController textbox_controller_{};
     std::unique_ptr<gameplay::world3d::dialogue::OverworldTextboxRenderer> textbox_renderer_;

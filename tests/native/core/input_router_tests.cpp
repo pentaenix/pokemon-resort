@@ -50,7 +50,9 @@ struct FakeScreen final : pr::ScreenInput {
     int nav2d_end_calls = 0;
     bool last_nav2d_end_triggered = false;
     bool capture_right_mouse = false;
+    bool capture_controller_extras = false;
     int unrouted_mouse_calls = 0;
+    int unrouted_controller_calls = 0;
 
     bool canNavigate() const override { return one_dimensional; }
     void onNavigate(int delta) override {
@@ -102,6 +104,13 @@ struct FakeScreen final : pr::ScreenInput {
             (event.type == SDL_MOUSEBUTTONDOWN || event.type == SDL_MOUSEBUTTONUP) &&
             event.button.button == SDL_BUTTON_RIGHT) {
             ++unrouted_mouse_calls;
+            return true;
+        }
+        if (capture_controller_extras &&
+            (event.type == SDL_CONTROLLERBUTTONDOWN ||
+             event.type == SDL_CONTROLLERBUTTONUP) &&
+            event.cbutton.button == SDL_CONTROLLER_BUTTON_X) {
+            ++unrouted_controller_calls;
             return true;
         }
         return false;
@@ -392,6 +401,19 @@ int main() {
     expect(context_pointer.unrouted_mouse_calls == 2 &&
            context_pointer.press_calls == 0 && context_pointer.release_calls == 0,
         "captured right mouse input bypasses left-button placement callbacks");
+
+    FakeScreen construction_controller;
+    construction_controller.capture_controller_extras = true;
+    expect(router.handleEvent(
+        controllerDown(SDL_CONTROLLER_BUTTON_X), config, &construction_controller),
+        "construction context can capture controller edit actions before global routing");
+    expect(router.handleEvent(
+        controllerButtonUp(SDL_CONTROLLER_BUTTON_X), config, &construction_controller),
+        "construction context can capture controller edit-action release");
+    expect(construction_controller.unrouted_controller_calls == 2 &&
+           construction_controller.advance_calls == 0 &&
+           construction_controller.back_calls == 0,
+        "captured controller edit action does not leak into gameplay actions");
 
     config.accept_mouse = false;
     expect(!router.handleEvent(mouseEvent(SDL_MOUSEMOTION), config, &pointer), "mouse motion ignored when disabled");

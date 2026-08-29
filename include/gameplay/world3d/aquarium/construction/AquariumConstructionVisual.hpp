@@ -18,15 +18,40 @@ struct ConstructionCellSurface {
     bool blocked = false;
 };
 
+enum class ConstructionHudAction {
+    None,
+    Place,
+    Select,
+    Move,
+    Resize,
+    Review,
+    Build,
+    Adjust,
+    Delete,
+    Undo,
+    Redo,
+    Cancel,
+    Done,
+    Exit,
+};
+
 struct AquariumConstructionVisual {
     bool visible = false;
     float tile_world_units = 16.0f;
     std::vector<ConstructionCellSurface> cells;
+    std::vector<pr::aquarium::geometry::GridCell> locked_cells;
     std::vector<pr::aquarium::geometry::GridCell> draft_cells;
+    std::vector<pr::aquarium::geometry::GridCell> selected_cells;
+    std::vector<pr::aquarium::geometry::GridCell> original_cells;
     pr::aquarium::geometry::GridCell cursor{};
     std::optional<pr::aquarium::geometry::GridCell> anchor;
+    std::optional<pr::aquarium::geometry::TankDesign> selected_tank;
+    std::optional<AquariumResizeHandle> active_resize_handle;
     ConstructionState state = ConstructionState::Dormant;
     bool draft_valid = false;
+    bool undo_available = false;
+    bool redo_available = false;
+    ConstructionHudAction focused_action = ConstructionHudAction::None;
     std::string status_hint;
 };
 
@@ -42,16 +67,6 @@ struct ConstructionVisualMesh {
     std::vector<std::uint16_t> indices;
 };
 
-enum class ConstructionHudAction {
-    None,
-    Place,
-    Review,
-    Build,
-    Adjust,
-    Cancel,
-    Exit,
-};
-
 struct ConstructionHudRect {
     int x = 0;
     int y = 0;
@@ -63,17 +78,42 @@ struct ConstructionHudRect {
 
 struct ConstructionHudLayout {
     ConstructionHudRect place;
+    ConstructionHudRect select;
+    ConstructionHudRect move;
+    ConstructionHudRect resize;
     ConstructionHudRect review;
     ConstructionHudRect build;
     ConstructionHudRect adjust;
+    ConstructionHudRect remove;
+    ConstructionHudRect undo;
+    ConstructionHudRect redo;
     ConstructionHudRect cancel;
+    ConstructionHudRect done;
     ConstructionHudRect exit;
+};
+
+enum class ConstructionGizmoKind {
+    Move,
+    Resize,
+};
+
+struct ConstructionGizmoHit {
+    ConstructionGizmoKind kind = ConstructionGizmoKind::Move;
+    AquariumResizeHandle resize_handle = AquariumResizeHandle::SouthEast;
 };
 
 ConstructionVisualMesh buildAquariumConstructionWorldMesh(
     const AquariumConstructionVisual& visual);
 
 std::optional<pr::aquarium::geometry::GridCell> hitTestAquariumConstructionCell(
+    const AquariumConstructionVisual& visual,
+    const gameplay::world3d::camera::Gen4FollowCamera& camera,
+    int screen_x,
+    int screen_y,
+    int viewport_width,
+    int viewport_height);
+
+std::optional<ConstructionGizmoHit> hitTestAquariumConstructionGizmo(
     const AquariumConstructionVisual& visual,
     const gameplay::world3d::camera::Gen4FollowCamera& camera,
     int screen_x,
@@ -91,6 +131,9 @@ ConstructionHudAction hitTestAquariumConstructionHud(
     int screen_x,
     int screen_y,
     ConstructionState state);
+
+std::vector<ConstructionHudAction> aquariumConstructionHudActions(ConstructionState state);
+ConstructionHudAction defaultAquariumConstructionHudAction(ConstructionState state);
 
 std::string aquariumConstructionHintForValidation(std::string_view validation_message);
 
