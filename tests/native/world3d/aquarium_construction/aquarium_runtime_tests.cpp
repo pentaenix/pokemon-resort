@@ -112,6 +112,15 @@ void draftReviewIsNonMutatingAndAdjustmentIsReversible() {
     require(session.state() == construction::ConstructionState::DraftReview &&
             session.committedDesign().revision == 0 && session.committedDesign().tanks.empty(),
         "draft review mutated the authoritative aquarium");
+    const auto locked_review_cells = session.draftCells();
+    session.pointAt({20, 15});
+    const auto after_pointer_move = session.draftCells();
+    require(after_pointer_move.size() == locked_review_cells.size() &&
+            after_pointer_move.front().column == locked_review_cells.front().column &&
+            after_pointer_move.front().row == locked_review_cells.front().row &&
+            after_pointer_move.back().column == locked_review_cells.back().column &&
+            after_pointer_move.back().row == locked_review_cells.back().row,
+        "pointer movement toward review controls changed the locked footprint");
     require(session.adjustDraft() &&
             session.state() == construction::ConstructionState::ResizeFootprint,
         "back from draft review did not restore footprint adjustment");

@@ -134,7 +134,8 @@ void AquariumConstructionSession::moveCursor(int column_delta, int row_delta) {
 void AquariumConstructionSession::pointAt(geo::GridCell cell) {
     if (!active() || !cellAllowed(cell)) return;
     cursor_ = cell;
-    if (!draft_) return;
+    if (!draft_ || (state_ != ConstructionState::ResizeFootprint &&
+        state_ != ConstructionState::MoveTank && state_ != ConstructionState::ResizeTank)) return;
     draft_->cursor = cell;
     if (state_ == ConstructionState::MoveTank && draft_->original_tank) {
         draft_->candidate_tank = moveTankByCells(
@@ -145,10 +146,7 @@ void AquariumConstructionSession::pointAt(geo::GridCell cell) {
         draft_->candidate_tank = resizeTankToCell(
             *draft_->original_tank, draft_->resize_handle, cell);
     }
-    if (state_ == ConstructionState::ResizeFootprint ||
-        state_ == ConstructionState::MoveTank || state_ == ConstructionState::ResizeTank) {
-        refreshDraftValidation();
-    }
+    refreshDraftValidation();
 }
 
 bool AquariumConstructionSession::beginRectangle() {
