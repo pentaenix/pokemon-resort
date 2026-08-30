@@ -125,13 +125,17 @@ private:
     std::optional<gameplay::world3d::aquarium::construction::ConstructionGizmoHit>
         aquariumConstructionGizmoAt(int logical_x, int logical_y) const;
     bool handleAquariumConstructionPointerPressed(int logical_x, int logical_y);
-    gameplay::world3d::aquarium::construction::ConstructionHudAction
-        aquariumConstructionHudActionAt(int logical_x, int logical_y) const;
+    gameplay::world3d::aquarium::construction::ConstructionHudHit
+        aquariumConstructionHudHitAt(int logical_x, int logical_y) const;
+    bool aquariumConstructionUiAt(int logical_x, int logical_y) const;
     bool activateAquariumConstructionAction(
         gameplay::world3d::aquarium::construction::ConstructionHudAction action);
     void syncAquariumConstructionFocus();
     void cycleAquariumConstructionFocus(int direction);
     bool adjustAquariumConstructionProperty(int direction);
+    bool setAquariumConstructionPropertyValue(
+        gameplay::world3d::aquarium::construction::ConstructionHudAction action,
+        int value);
     void beginAquariumInspectionExit();
     void restoreAquariumInspectionFacing();
     bool beginDoorSequenceForStep(int dx, int dy);

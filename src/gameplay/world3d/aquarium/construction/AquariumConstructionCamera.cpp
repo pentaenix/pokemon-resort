@@ -17,10 +17,13 @@ AquariumConstructionCameraOverview trackAquariumConstructionCursor(
     float floor_y,
     float vertical_fov_degrees,
     float viewport_aspect,
-    ::pr::aquarium::geometry::GridCell cursor,
+    float normal_pitch_degrees,
+    ::pr::aquarium::geometry::GridCell focus,
+    bool property_panel_visible,
     double delta_seconds) {
     constexpr float kRadians = 3.1415926535f / 180.0f;
     AquariumConstructionCameraOverview overview;
+    overview.pitch_degrees = std::clamp(normal_pitch_degrees - 6.0f, -68.0f, -61.0f);
     const float tile = std::max(1.0f, tile_world_units);
     const float width = static_cast<float>(std::max(1, grid_width)) * tile;
     const float depth = static_cast<float>(std::max(1, grid_height)) * tile;
@@ -28,27 +31,40 @@ AquariumConstructionCameraOverview trackAquariumConstructionCursor(
     const float fov_radians = std::clamp(vertical_fov_degrees, 15.0f, 70.0f) * kRadians;
     const float tangent_vertical = std::tan(fov_radians * 0.5f);
     const float aspect = std::max(0.5f, viewport_aspect);
-    // Keep roughly twelve cells visible vertically. This is intentionally
-    // closer than a full-room fit so minimum footprints and handles remain
-    // legible at the DS-native world resolution.
+    // Keep roughly ten cells visible vertically. The normal camera's perspective
+    // character is preserved while minimum footprints remain readable.
     const float distance = std::clamp(
-        (tile * 6.0f) / std::max(0.1f, tangent_vertical), tile * 22.0f, tile * 34.0f);
-    const float cursor_x = (static_cast<float>(cursor.column) + 0.5f) * tile;
-    const float cursor_z = (static_cast<float>(cursor.row) + 0.5f) * tile;
+        (tile * 5.0f) / std::max(0.1f, tangent_vertical), tile * 20.0f, tile * 28.0f);
+    const float composition_x = property_panel_visible ? -tile * 0.75f : -tile * 0.35f;
+    const float composition_z = property_panel_visible ? tile * 1.75f : 0.0f;
+    const float focus_x = (static_cast<float>(focus.column) + 0.5f) * tile + composition_x;
+    const float focus_z = (static_cast<float>(focus.row) + 0.5f) * tile + composition_z;
     if (!state.initialized) {
-        state.center_x = cursor_x;
-        state.center_z = cursor_z;
+        state.center_x = focus_x;
+        state.center_z = focus_z;
+        state.property_panel_visible = property_panel_visible;
         state.initialized = true;
     }
+    const bool composition_changed =
+        state.property_panel_visible != property_panel_visible;
+    state.property_panel_visible = property_panel_visible;
 
-    const float dead_zone_x = tile * 3.5f;
-    const float dead_zone_z = tile * 2.75f;
+    const float dead_zone_x = tile * 3.0f;
+    const float dead_zone_z = tile * 2.15f;
     float desired_x = state.center_x;
     float desired_z = state.center_z;
-    if (cursor_x < state.center_x - dead_zone_x) desired_x = cursor_x + dead_zone_x;
-    if (cursor_x > state.center_x + dead_zone_x) desired_x = cursor_x - dead_zone_x;
-    if (cursor_z < state.center_z - dead_zone_z) desired_z = cursor_z + dead_zone_z;
-    if (cursor_z > state.center_z + dead_zone_z) desired_z = cursor_z - dead_zone_z;
+    if (composition_changed) {
+        // Opening or closing the contextual tray changes the protected screen
+        // area. Recompose deliberately instead of letting the dead zone absorb
+        // the small offset and leave the tank beneath the tray.
+        desired_x = focus_x;
+        desired_z = focus_z;
+    } else {
+        if (focus_x < state.center_x - dead_zone_x) desired_x = focus_x + dead_zone_x;
+        if (focus_x > state.center_x + dead_zone_x) desired_x = focus_x - dead_zone_x;
+        if (focus_z < state.center_z - dead_zone_z) desired_z = focus_z + dead_zone_z;
+        if (focus_z > state.center_z + dead_zone_z) desired_z = focus_z - dead_zone_z;
+    }
 
     // Clamp by the approximate floor footprint of the view. A small allowance
     // keeps boundary cells readable without revealing large empty regions.

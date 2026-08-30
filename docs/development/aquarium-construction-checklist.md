@@ -285,7 +285,7 @@ Shipping Metal inspection at the normal 800×500 game viewport showed both loade
 - [x] Keep property drafts immutable until review/build and make B/Escape discard only the property draft.
 - [x] Add shape-aware selection, move, resize, collision, overlap checks, tank centres, population positions, and runtime geometry.
 - [x] Add nonnumeric property ticks, live arcs, rotation/notch controls, and compact wrapping HUD layout.
-- [x] Add world-space height, rotation, roundness, notch-width, and notch-depth gizmos with projected mouse hit targets.
+- [x] Replace the hard-to-read world-space property handles with a contextual bottom tray; retain world-space gizmos only for spatial move/resize operations.
 - [x] Route mouse wheel, keyboard Q/E/brackets, and controller LT/RT through semantic property actions.
 - [x] Keep construction camera framing deterministic and driven by canonical grid coordinates.
 - [x] Preserve `aquarium12` as the authored three-tank gallery and add a separate empty `aquarium_builder_lab` test room.
@@ -295,7 +295,10 @@ Shipping Metal inspection at the normal 800×500 game viewport showed both loade
 - [x] Stop at the Milestone 3 review checkpoint; do not start tunnel work.
 - [ ] Player manual review: exercise every shape/property with mouse, keyboard, and controller in the Builder Lab.
 - [x] Revision: route the normal exterior aquarium entrance directly to the empty Builder Lab while retaining the authored gallery through the lab's north doorway.
-- [x] Revision: replace the rejected full-room fit with a closer near-top-down cursor-tracking camera, a central dead zone, smooth edge panning, persistent mouse-edge scrolling, and an always-visible navigation banner.
+- [x] Revision: replace the rejected full-room fit and near-top-down view with a close camera six degrees above the normal room angle, a central dead zone, smooth cursor tracking, persistent mouse-edge scrolling, and an always-visible navigation banner.
+- [x] Revision: reserve a safe world viewport outside the left tool rail and contextual property tray so UI clicks never move the cursor or manipulate a tank.
+- [x] Revision: replace perspective-projected height/shape controls with direct nonnumeric choices for shape, height, fitted roundness, orientation, and L/U insets.
+- [x] Revision: cut away only the tracked section of the near procedural wall during construction so the normal-style camera remains readable without changing authored geometry or shared render state.
 - [x] Revision: hide the player and other overworld actors during construction, then return the player to a configured non-buildable doorway cell on exit.
 - [x] Revision: make travel topology directional and reversible: resort → lab south door, lab north door ⇄ gallery, and lab south door → resort.
 
@@ -305,7 +308,7 @@ Shipping Metal inspection at the normal 800×500 game viewport showed both loade
 - `shared/aquarium_geometry/GeometryBuilder`: semantic shaped meshes plus collision and navigation derived from the same footprint.
 - `AquariumConstructionSessionProperties`: discrete property drafts and shape-specific notch/opening constraints.
 - `AquariumTankEditing`: shape-aware occupancy, selection, centres, movement, and eight-direction resizing.
-- `AquariumConstructionVisual` and `AquariumConstructionHudLayout`: property gizmos, hit testing, tick/arc feedback, and compact focusable controls without numeric labels.
+- `AquariumConstructionVisual` and `AquariumConstructionHudLayout`: spatial move/resize gizmos, safe-view hit testing, contextual property choices, tick/arc feedback, and compact focusable controls without numeric labels.
 - `Overworld3DTestScreenAquariumConstructionUi`: construction-only pointer, HUD, gizmo, and semantic property dispatch.
 - `aquarium_builder_lab.owmap`: empty procedural construction room; its config owns the 340-cell safe mask and no authored tank catalog entries.
 - Aquarium Maker `resortKernel.ts`: strict whole-cell compatible-subset mapper with advanced-feature fallback.
@@ -335,13 +338,19 @@ Revision verification:
 
 | Command | Result |
 |---|---|
-| Focused aquarium/runtime/map/headless build | Pass |
-| Focused aquarium/runtime/map/headless tests | Aquarium runtime, config, and headless smoke pass; OWMAP project/door checks pass before its unchanged baseline ramp assertion |
+| `cmake --build build -j4` | Pass; all game, shared renderer, test, and Map Studio targets link after moving the construction visual/layout implementation to its renderer owner |
+| Focused aquarium/runtime/input/map/headless tests | Aquarium runtime, geometry, input routing, and headless smoke pass; OWMAP project/door checks pass before its unchanged baseline ramp assertion |
+| `ctest --test-dir build --output-on-failure` | 69/74 pass; the same five documented baseline failures and no construction UX failure |
 | `pokemon_resort_map_maker --validate-project` | Pass; five maps and five unique sources |
 
-The tracked-camera test verifies a near-top-down pitch, readable adjacent-cell
-separation at the native 400×250 world resolution, no movement inside the
-central dead zone, camera movement beyond the edge, and bounded room framing.
+The tracked-camera test verifies a `-61°` normal-style pitch six degrees above
+the live `-55°` gameplay camera, readable adjacent-cell separation at the
+native 400×250 world resolution, no movement inside the central dead zone,
+explicit recomposition when the property tray opens or closes, camera movement
+beyond the edge, and bounded room framing. HUD tests verify
+that panels are outside the safe world viewport, direct property choices are
+mouse-hit-testable, roundness always preserves the exact current value, and
+large L/U inset ranges remain a bounded previous/current/next stepper.
 Config tests require the safe return cell to be present, outside
 the build mask, and paired with a cardinal facing. Runtime rendering suppresses
 overworld actors only while construction is active; no shared rendering state

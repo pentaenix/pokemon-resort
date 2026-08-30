@@ -220,6 +220,20 @@ public:
         constexpr std::uint32_t kDisabled = 0x80666360U;
         constexpr std::uint32_t kFocus = 0xffffffffU;
         constexpr std::uint32_t kGlyph = 0xffffffffU;
+        if (layout.tool_panel.width > 0) {
+            appendQuad(mesh, static_cast<float>(layout.tool_panel.x),
+                static_cast<float>(layout.tool_panel.y),
+                static_cast<float>(layout.tool_panel.x + layout.tool_panel.width),
+                static_cast<float>(layout.tool_panel.y + layout.tool_panel.height), kPanel);
+            appendBorder(mesh, layout.tool_panel, 2.0f, kHistory);
+        }
+        if (layout.property_panel.width > 0) {
+            appendQuad(mesh, static_cast<float>(layout.property_panel.x),
+                static_cast<float>(layout.property_panel.y),
+                static_cast<float>(layout.property_panel.x + layout.property_panel.width),
+                static_cast<float>(layout.property_panel.y + layout.property_panel.height), kPanel);
+            appendBorder(mesh, layout.property_panel, 2.0f, kHistory);
+        }
         const auto button = [&](const construction::ConstructionHudRect& rect,
                                 std::uint32_t fill, std::string_view label,
                                 construction::ConstructionHudAction action,
@@ -256,100 +270,72 @@ public:
         button(layout.cancel, kCancel, "CANCEL", Action::Cancel);
         button(layout.done, kSelect, "DONE", Action::Done);
         button(layout.exit, kExit, "EXIT", Action::Exit);
-        if (!visual_.navigation_hint.empty()) {
-            const float scale = width >= 640 ? 2.0f : 1.0f;
-            const int banner_width = static_cast<int>(
-                textWidth(visual_.navigation_hint, scale)) + 24;
-            const int banner_height = static_cast<int>(7.0f * scale) + 14;
-            const construction::ConstructionHudRect banner{
-                (width - banner_width) / 2, 12, banner_width, banner_height};
-            appendQuad(mesh, static_cast<float>(banner.x), static_cast<float>(banner.y),
-                static_cast<float>(banner.x + banner.width),
-                static_cast<float>(banner.y + banner.height), kPanel);
-            appendBorder(mesh, banner, 2.0f, kHistory);
-            appendCenteredText(mesh, banner, visual_.navigation_hint, scale, kGlyph);
-        }
-        if (visual_.preview_tank) {
-            const auto& tank = *visual_.preview_tank;
-            int current_tick = 0;
-            int maximum_tick = 0;
-            switch (visual_.focused_action) {
-            case Action::Shape:
-                current_tick = static_cast<int>(tank.footprint.shape) + 1;
-                maximum_tick = 3;
-                break;
-            case Action::Height:
-                current_tick = tank.height_steps - 3;
-                maximum_tick = 9;
-                break;
-            case Action::Roundness:
-                current_tick = tank.corner_radius_steps + 1;
-                maximum_tick = pr::aquarium::geometry::fittedCornerRadiusSteps(
-                    tank.footprint, 64) + 1;
-                break;
-            case Action::Rotate:
-                current_tick = tank.footprint.rotation_quarter_turns + 1;
-                maximum_tick = 4;
-                break;
-            case Action::NotchWidth:
-                current_tick = tank.footprint.notch_width_cells;
-                maximum_tick = tank.footprint.shape == pr::aquarium::geometry::FootprintShape::L
-                    ? tank.footprint.width_cells - 2 : tank.footprint.width_cells - 4;
-                break;
-            case Action::NotchDepth:
-                current_tick = tank.footprint.notch_depth_cells;
-                maximum_tick = tank.footprint.depth_cells - 2;
-                break;
-            default:
-                break;
+        const auto choices = construction::aquariumConstructionPropertyChoices(layout, visual_);
+        for (std::size_t index = 0; index < choices.size(); ++index) {
+            const auto& choice = choices[index];
+            appendQuad(mesh, static_cast<float>(choice.rect.x), static_cast<float>(choice.rect.y),
+                static_cast<float>(choice.rect.x + choice.rect.width),
+                static_cast<float>(choice.rect.y + choice.rect.height), kPanel);
+            appendBorder(mesh, choice.rect, choice.selected ? 4.0f : 2.0f,
+                choice.selected ? kFocus : kEdit);
+            std::string_view label;
+            if (choice.action == Action::Shape) {
+                constexpr std::string_view labels[]{"RECT", "L", "U"};
+                label = labels[std::clamp(choice.value, 0, 2)];
+            } else if (choice.action == Action::Roundness) {
+                const int maximum = pr::aquarium::geometry::fittedCornerRadiusSteps(
+                    shown_tank->footprint, 64);
+                label = choice.value <= 0 ? "SQUARE" :
+                    (choice.value >= maximum ? "FULL" :
+                    (choice.value * 3 <= maximum ? "SOFT" : "ROUND"));
+            } else if (choice.action == Action::Rotate) {
+                constexpr std::string_view labels[]{"N", "E", "S", "W"};
+                label = labels[std::clamp(choice.value, 0, 3)];
+            } else if (choice.action == Action::NotchWidth ||
+                       choice.action == Action::NotchDepth) {
+                const int current = choice.action == Action::NotchWidth
+                    ? shown_tank->footprint.notch_width_cells
+                    : shown_tank->footprint.notch_depth_cells;
+                label = choice.value < current ? "BACK" :
+                    (choice.value > current ? "NEXT" : "SET");
             }
-            maximum_tick = std::clamp(maximum_tick, 0, 12);
-            current_tick = std::clamp(current_tick, 0, maximum_tick);
-            if (maximum_tick > 0) {
-                constexpr float kTickSize = 9.0f;
-                constexpr float kTickGap = 5.0f;
-                const float total = static_cast<float>(maximum_tick) * kTickSize +
-                    static_cast<float>(maximum_tick - 1) * kTickGap;
-                const float left = (static_cast<float>(width) - total) * 0.5f;
-                int palette_top = height;
-                const construction::ConstructionHudRect* rects[]{
-                    &layout.place, &layout.select, &layout.move, &layout.resize,
-                    &layout.shape, &layout.height, &layout.roundness, &layout.rotate,
-                    &layout.notch_width, &layout.notch_depth, &layout.review,
-                    &layout.build, &layout.adjust, &layout.remove, &layout.undo,
-                    &layout.redo, &layout.cancel, &layout.done, &layout.exit,
-                };
-                for (const auto* rect : rects) {
-                    if (rect->height > 0) palette_top = std::min(palette_top, rect->y);
-                }
-                const float top = static_cast<float>(palette_top) - 28.0f;
-                for (int tick = 0; tick < maximum_tick; ++tick) {
-                    const float x = left + static_cast<float>(tick) * (kTickSize + kTickGap);
-                    appendQuad(mesh, x, top, x + kTickSize, top + kTickSize,
-                        tick < current_tick ? kFocus : kDisabled);
+            if (!label.empty()) {
+                appendCenteredText(mesh, choice.rect, label,
+                    choice.rect.width >= 72 ? 2.0f : 1.0f, kGlyph);
+            } else {
+                const int pips = choice.action == Action::Height
+                    ? std::max(1, choice.value - 3) : std::max(1, choice.value);
+                const float pip_width = std::max(3.0f,
+                    (static_cast<float>(choice.rect.width) - 10.0f) /
+                        static_cast<float>(std::max(1, pips)) - 2.0f);
+                const float total = static_cast<float>(pips) * (pip_width + 2.0f) - 2.0f;
+                const float left = static_cast<float>(choice.rect.x) +
+                    (static_cast<float>(choice.rect.width) - total) * 0.5f;
+                const float top = static_cast<float>(choice.rect.y + choice.rect.height / 2 - 4);
+                for (int pip = 0; pip < pips; ++pip) {
+                    appendQuad(mesh, left + static_cast<float>(pip) * (pip_width + 2.0f),
+                        top, left + static_cast<float>(pip) * (pip_width + 2.0f) + pip_width,
+                        top + 8.0f, choice.selected ? kFocus : kGlyph);
                 }
             }
         }
-        if (!visual_.status_hint.empty() &&
-            (visual_.state == construction::ConstructionState::ResizeFootprint ||
-             visual_.state == construction::ConstructionState::MoveTank ||
-             visual_.state == construction::ConstructionState::ResizeTank ||
-             visual_.state == construction::ConstructionState::DraftReview)) {
+        const std::string& status = !visual_.status_hint.empty()
+            ? visual_.status_hint : visual_.navigation_hint;
+        if (!status.empty() && layout.status.width > 0) {
             const float scale = width >= 640 ? 2.0f : 1.0f;
-            const int banner_width = static_cast<int>(textWidth(visual_.status_hint, scale)) + 24;
-            const int banner_height = static_cast<int>(7.0f * scale) + 16;
-            int button_top = layout.cancel.y;
-            if (button_top <= 0) button_top = height - 18;
             const construction::ConstructionHudRect banner{
-                (width - banner_width) / 2,
-                std::max(10, button_top - banner_height - 10),
-                banner_width,
-                banner_height};
+                layout.status.x + std::max(0, (layout.status.width -
+                    static_cast<int>(textWidth(status, scale)) - 24) / 2),
+                layout.status.y,
+                std::min(layout.status.width,
+                    static_cast<int>(textWidth(status, scale)) + 24),
+                layout.status.height};
             appendQuad(mesh, static_cast<float>(banner.x), static_cast<float>(banner.y),
                 static_cast<float>(banner.x + banner.width),
                 static_cast<float>(banner.y + banner.height), kPanel);
-            appendBorder(mesh, banner, 3.0f, kCancel);
-            appendCenteredText(mesh, banner, visual_.status_hint, scale, kGlyph);
+            appendBorder(mesh, banner, 2.0f,
+                visual_.status_hint.empty() ? kHistory : kCancel);
+            appendCenteredText(mesh, banner, status, scale, kGlyph);
         }
         if (mesh.vertices.empty()) return;
         float view[16], projection[16];

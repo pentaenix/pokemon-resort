@@ -86,6 +86,11 @@ struct ConstructionHudRect {
 };
 
 struct ConstructionHudLayout {
+    ConstructionHudRect safe_world;
+    ConstructionHudRect tool_panel;
+    ConstructionHudRect property_panel;
+    ConstructionHudRect property_options;
+    ConstructionHudRect status;
     ConstructionHudRect place;
     ConstructionHudRect select;
     ConstructionHudRect move;
@@ -107,14 +112,22 @@ struct ConstructionHudLayout {
     ConstructionHudRect exit;
 };
 
+struct ConstructionHudChoice {
+    ConstructionHudRect rect;
+    ConstructionHudAction action = ConstructionHudAction::None;
+    int value = 0;
+    bool selected = false;
+    bool enabled = true;
+};
+
+struct ConstructionHudHit {
+    ConstructionHudAction action = ConstructionHudAction::None;
+    std::optional<int> value;
+};
+
 enum class ConstructionGizmoKind {
     Move,
     Resize,
-    Height,
-    Rotation,
-    Roundness,
-    NotchWidth,
-    NotchDepth,
 };
 
 struct ConstructionGizmoHit {
@@ -153,6 +166,25 @@ ConstructionHudAction hitTestAquariumConstructionHud(
     int screen_y,
     ConstructionState state,
     bool property_draft = false);
+
+std::vector<ConstructionHudChoice> aquariumConstructionPropertyChoices(
+    const ConstructionHudLayout& layout,
+    const AquariumConstructionVisual& visual);
+
+ConstructionHudHit hitTestAquariumConstructionHud(
+    const ConstructionHudLayout& layout,
+    const AquariumConstructionVisual& visual,
+    int screen_x,
+    int screen_y);
+
+bool aquariumConstructionHudContainsUi(
+    const ConstructionHudLayout& layout,
+    int screen_x,
+    int screen_y);
+
+bool aquariumConstructionPropertyPanelVisible(
+    ConstructionState state,
+    bool has_tank);
 
 std::vector<ConstructionHudAction> aquariumConstructionHudActions(
     ConstructionState state, bool property_draft = false);

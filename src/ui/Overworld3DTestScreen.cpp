@@ -424,6 +424,9 @@ void Overworld3DTestScreen::reloadFollowCameraPresetConfig() {
 
         gameplay::world3d::camera::Gen4CameraPreset preset = follow_camera_base_preset_;
         preset.pitch_deg = static_cast<float>(pitch->asNumber());
+        // Construction derives its slightly elevated view from the same live
+        // gameplay pitch, rather than the scene's pre-hot-reload default.
+        follow_camera_base_preset_.pitch_deg = preset.pitch_deg;
         camera_ = gameplay::world3d::camera::Gen4FollowCamera(preset);
         camera_.setTarget(player_.position());
         std::cerr << "[Overworld3D] Reloaded follow camera preset "
@@ -1282,12 +1285,28 @@ bool Overworld3DTestScreen::renderBgfx(
         (aquarium_inspection_camera_ &&
          aquarium_inspection_camera_->hidesOverworldActors());
     bgfx_renderer_->setPlayerVisible(!aquarium_focus);
-    const float wall_clip_radius = aquarium_inspection_camera_
-        ? aquarium_inspection_camera_->wallClipRadiusWorld(scene_.grid.tile_size)
-        : 0.0f;
-    bgfx_renderer_->setInteriorWallCameraClip(
-        camera_.pose().position,
-        wall_clip_radius);
+    if (aquarium_construction_.active() &&
+        aquarium_construction_camera_tracking_.initialized) {
+        const float wall_height = std::max(scene_.grid.tile_size,
+            scene_.interior.default_room.wall_height_tiles * scene_.grid.tile_size);
+        // The construction camera always looks north. Cut a moving window in
+        // the near (south) procedural wall so the shallower camera angle never
+        // hides the active cells, while retaining the side and far walls for
+        // room context. This shader state is local to procedural interior
+        // walls and is cleared as soon as construction releases the camera.
+        bgfx_renderer_->setInteriorWallCameraClip({
+            aquarium_construction_camera_tracking_.center_x,
+            wall_height * 0.5f,
+            static_cast<float>(scene_.grid.height) * scene_.grid.tile_size,
+        }, scene_.grid.tile_size * 9.5f);
+    } else {
+        const float wall_clip_radius = aquarium_inspection_camera_
+            ? aquarium_inspection_camera_->wallClipRadiusWorld(scene_.grid.tile_size)
+            : 0.0f;
+        bgfx_renderer_->setInteriorWallCameraClip(
+            camera_.pose().position,
+            wall_clip_radius);
+    }
     std::vector<gameplay::world3d::rendering::CharacterBillboardDraw> character_draws;
     const int world_view_w = scene_.world_viewport.enabled
         ? gameplay::world3d::rendering::worldViewportBaseWidth(scene_)
@@ -1436,6 +1455,7 @@ void Overworld3DTestScreen::onNavigate2d(int dx, int dy) {
 
 void Overworld3DTestScreen::onAdvancePressed() {
     if (aquarium_construction_.active()) {
+        aquarium_pointer_controls_cursor_ = false;
         namespace aqc = gameplay::world3d::aquarium::construction;
         syncAquariumConstructionFocus();
         if (aquarium_construction_.state() == aqc::ConstructionState::Browse &&
@@ -1741,7 +1761,23 @@ SDL_Point Overworld3DTestScreen::mapPointerToLogical(int x, int y) const {
 bool Overworld3DTestScreen::handleUnroutedSdlEvent(const SDL_Event& event) {
     if (aquarium_construction_.active() && event.type == SDL_MOUSEWHEEL) {
         const int direction = event.wheel.y > 0 ? 1 : event.wheel.y < 0 ? -1 : 0;
-        if (direction != 0) adjustAquariumConstructionProperty(direction);
+        if (direction != 0 && aquarium_pointer_position_valid_) {
+            const auto hit = aquariumConstructionHudHitAt(
+                aquarium_pointer_position_.x, aquarium_pointer_position_.y);
+            switch (hit.action) {
+            case gameplay::world3d::aquarium::construction::ConstructionHudAction::Shape:
+            case gameplay::world3d::aquarium::construction::ConstructionHudAction::Height:
+            case gameplay::world3d::aquarium::construction::ConstructionHudAction::Roundness:
+            case gameplay::world3d::aquarium::construction::ConstructionHudAction::Rotate:
+            case gameplay::world3d::aquarium::construction::ConstructionHudAction::NotchWidth:
+            case gameplay::world3d::aquarium::construction::ConstructionHudAction::NotchDepth:
+                aquarium_construction_focused_action_ = hit.action;
+                adjustAquariumConstructionProperty(direction);
+                break;
+            default:
+                break;
+            }
+        }
         return true;
     }
     if (aquarium_construction_.active() && event.type == SDL_CONTROLLERAXISMOTION &&
@@ -1752,6 +1788,7 @@ bool Overworld3DTestScreen::handleUnroutedSdlEvent(const SDL_Event& event) {
             ? aquarium_left_trigger_down_ : aquarium_right_trigger_down_;
         const bool pressed = event.caxis.value >= kTriggerThreshold;
         if (pressed && !down) {
+            aquarium_pointer_controls_cursor_ = false;
             adjustAquariumConstructionProperty(
                 event.caxis.axis == SDL_CONTROLLER_AXIS_TRIGGERLEFT ? -1 : 1);
         }
@@ -1770,6 +1807,7 @@ bool Overworld3DTestScreen::handleUnroutedSdlEvent(const SDL_Event& event) {
         return true;
     }
     if (aquarium_construction_.active() && event.type == SDL_KEYDOWN) {
+        aquarium_pointer_controls_cursor_ = false;
         const SDL_Keycode key = event.key.keysym.sym;
         const SDL_Keymod modifiers = static_cast<SDL_Keymod>(event.key.keysym.mod);
         const bool command = (modifiers & (KMOD_CTRL | KMOD_GUI)) != 0;
@@ -1808,6 +1846,7 @@ bool Overworld3DTestScreen::handleUnroutedSdlEvent(const SDL_Event& event) {
         }
     }
     if (aquarium_construction_.active() && event.type == SDL_CONTROLLERBUTTONDOWN) {
+        aquarium_pointer_controls_cursor_ = false;
         switch (event.cbutton.button) {
             case SDL_CONTROLLER_BUTTON_LEFTSHOULDER:
                 cycleAquariumConstructionFocus(-1);

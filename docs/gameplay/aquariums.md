@@ -120,16 +120,31 @@ travel.
 Construction documents remain map-scoped, so the gallery and lab use distinct
 save files. Press Z on keyboard or Y on controller while standing on a yellow
 allowed cell to enter construction. Walk around the reserved doorway lane before
-pressing Z/Y. Construction changes to a close, north-oriented, near-top-down
-view. WASD/arrows, D-pad/left stick, or the mouse move the grid cursor. The
-camera remains still while the cursor is in the central zone and pans smoothly
-after the cursor crosses a view edge; a stationary mouse at the edge continues
-scrolling the cells beneath it. Keyboard/controller movement takes cursor
-ownership immediately, so an idle mouse cannot pull the cursor back. The player,
-follower, NPCs, and overworld effects are hidden while construction owns the
-room. Exiting restores normal movement and teleports the player to the reserved
-south-door circulation cell, facing into the room, so newly committed geometry
-cannot trap them.
+pressing Z/Y. Construction changes to a close, north-oriented perspective view
+only six degrees higher than the room's normal camera. The camera keeps a
+close, readable working area instead of fitting the whole room. WASD/arrows,
+D-pad/left stick, or the mouse move the grid cursor. It remains still while the
+cursor is in the central zone and pans smoothly after the cursor crosses a view
+edge; a stationary mouse at the edge continues scrolling the cells beneath it.
+Keyboard/controller movement takes cursor ownership immediately, so an idle
+mouse cannot pull the cursor back. A construction-only window follows the camera
+along the near procedural wall so the shallower angle cannot occlude active
+cells; it does not alter authored models or global render state.
+
+The left rail owns construction commands. Selecting or reviewing a tank opens a
+contextual tray along the bottom for shape, height, corner style, orientation,
+and shape-specific inset controls. The tray uses named silhouettes, compass
+directions, and discrete pips rather than numeric entry. Mouse users click a
+property and then its desired choice; keyboard/controller users focus a property
+with Tab or LB/RB and change it with Q/E, brackets, or LT/RT. Only spatial
+operations retain world-space gizmos: a centre handle moves a tank and its edge
+and corner handles resize it. This keeps style editing stable and prevents tiny
+perspective-projected controls from competing with the footprint.
+
+The player, follower, NPCs, and overworld effects are hidden while construction
+owns the room. Exiting restores normal movement and teleports the player to the
+reserved south-door circulation cell, facing into the room, so newly committed
+geometry cannot trap them.
 
 Aquarium Maker rock variation is stored as glTF `COLOR_0`, not as a redundant bitmap. Kelp uses material base colors plus exported node-rotation `WaterSway` clips. The shared GLB renderer consumes both contracts in bgfx and SDL fallback, so the model and its animation also appear in Map Studio's exact preview.
 

@@ -8,13 +8,14 @@ namespace pr::gameplay::world3d::aquarium::construction {
 struct AquariumConstructionCameraOverview {
     gameplay::world3d::camera::Vec3 position;
     float yaw_degrees = 180.0f;
-    float pitch_degrees = -80.0f;
+    float pitch_degrees = -61.0f;
 };
 
 struct AquariumConstructionCameraTrackingState {
     float center_x = 0.0f;
     float center_z = 0.0f;
     bool initialized = false;
+    bool property_panel_visible = false;
 };
 
 void resetAquariumConstructionCamera(AquariumConstructionCameraTrackingState& state);
@@ -27,7 +28,9 @@ AquariumConstructionCameraOverview trackAquariumConstructionCursor(
     float floor_y,
     float vertical_fov_degrees,
     float viewport_aspect,
-    ::pr::aquarium::geometry::GridCell cursor,
+    float normal_pitch_degrees,
+    ::pr::aquarium::geometry::GridCell focus,
+    bool property_panel_visible,
     double delta_seconds);
 
 } // namespace pr::gameplay::world3d::aquarium::construction

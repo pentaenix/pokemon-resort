@@ -496,59 +496,50 @@ void constructionVisualBuildsYellowCellsGizmosAndCanonicalHitTargets() {
             resize_gizmo->resize_handle == construction::AquariumResizeHandle::SouthEast,
         "south-east tank corner did not expose its directional resize gizmo");
 
-    require(camera.worldToScreen({184.0f, 64.0f, 184.0f}, 1280, 800,
-                screen_x, screen_y, depth),
-        "height property gizmo did not project into the construction viewport");
-    const auto height_gizmo = construction::hitTestAquariumConstructionGizmo(
-        visual, camera, static_cast<int>(screen_x), static_cast<int>(screen_y), 1280, 800);
-    require(height_gizmo && height_gizmo->kind == construction::ConstructionGizmoKind::Height,
-        "tank top did not expose a mouse-hit-testable discrete height gizmo");
-    require(camera.worldToScreen({184.0f, 0.72f, 149.6f}, 1280, 800,
-                screen_x, screen_y, depth),
-        "rotation property gizmo did not project into the construction viewport");
-    const auto rotation_gizmo = construction::hitTestAquariumConstructionGizmo(
-        visual, camera, static_cast<int>(screen_x), static_cast<int>(screen_y), 1280, 800);
-    require(rotation_gizmo && rotation_gizmo->kind == construction::ConstructionGizmoKind::Rotation,
-        "north rotation handle is not mouse-hit-testable");
-    require(camera.worldToScreen({152.8f, 0.72f, 152.8f}, 1280, 800,
-                screen_x, screen_y, depth),
-        "roundness property gizmo did not project into the construction viewport");
-    const auto roundness_gizmo = construction::hitTestAquariumConstructionGizmo(
-        visual, camera, static_cast<int>(screen_x), static_cast<int>(screen_y), 1280, 800);
-    require(roundness_gizmo &&
-            roundness_gizmo->kind == construction::ConstructionGizmoKind::Roundness,
-        "north-west radius handle is not mouse-hit-testable");
-
     selected.footprint.shape = geo::FootprintShape::L;
-    selected.footprint.width_cells = 5;
-    selected.footprint.depth_cells = 5;
-    selected.footprint.notch_width_cells = 3;
-    selected.footprint.notch_depth_cells = 3;
+    selected.footprint.width_cells = 6;
+    selected.footprint.depth_cells = 6;
+    selected.footprint.notch_width_cells = 2;
+    selected.footprint.notch_depth_cells = 2;
     visual.preview_tank = selected;
     visual.state = construction::ConstructionState::DraftReview;
-    require(camera.worldToScreen({212.48f, 0.72f, 216.0f}, 1280, 800,
-                screen_x, screen_y, depth),
-        "L-notch width gizmo did not project into the construction viewport");
-    const auto notch_gizmo = construction::hitTestAquariumConstructionGizmo(
-        visual, camera, static_cast<int>(screen_x), static_cast<int>(screen_y), 1280, 800);
-    require(notch_gizmo && notch_gizmo->kind == construction::ConstructionGizmoKind::NotchWidth,
-        "L-notch opening does not expose separate mouse property handles");
-    require(camera.worldToScreen({219.52f, 0.72f, 216.0f}, 1280, 800,
-                screen_x, screen_y, depth),
-        "L-notch depth gizmo did not project into the construction viewport");
-    const auto notch_depth_gizmo = construction::hitTestAquariumConstructionGizmo(
-        visual, camera, static_cast<int>(screen_x), static_cast<int>(screen_y), 1280, 800);
-    require(notch_depth_gizmo &&
-            notch_depth_gizmo->kind == construction::ConstructionGizmoKind::NotchDepth,
-        "L-notch opening depth is not independently mouse-hit-testable");
+    visual.property_draft = true;
+    visual.focused_action = construction::ConstructionHudAction::Shape;
 
     const auto hud = construction::aquariumConstructionHudLayout(
-        1280, 800, construction::ConstructionState::DraftReview);
+        1280, 800, construction::ConstructionState::DraftReview, true);
     require(construction::hitTestAquariumConstructionHud(
                 hud, hud.build.x + 2, hud.build.y + 2,
-                construction::ConstructionState::DraftReview) ==
+                construction::ConstructionState::DraftReview, true) ==
             construction::ConstructionHudAction::Build,
         "visible Draft Review build control is not hit-testable");
+    const auto shape_choices = construction::aquariumConstructionPropertyChoices(hud, visual);
+    require(shape_choices.size() == 3U && shape_choices[1].selected &&
+            construction::hitTestAquariumConstructionHud(
+                hud, visual, shape_choices[2].rect.x + 2, shape_choices[2].rect.y + 2).value == 2,
+        "shape silhouettes are not explicit, selected, and mouse-hit-testable");
+    visual.focused_action = construction::ConstructionHudAction::Height;
+    const auto height_choices = construction::aquariumConstructionPropertyChoices(hud, visual);
+    require(height_choices.size() == 9U,
+        "height tray does not expose every nonnumeric discrete layer choice");
+    visual.focused_action = construction::ConstructionHudAction::Roundness;
+    const auto radius_choices = construction::aquariumConstructionPropertyChoices(hud, visual);
+    require(radius_choices.size() >= 2U && radius_choices.size() <= 5U &&
+            std::any_of(radius_choices.begin(), radius_choices.end(),
+                [&](const auto& choice) {
+                    return choice.value == selected.corner_radius_steps && choice.selected;
+                }),
+        "roundness tray did not keep approachable presets and the exact current value");
+    visual.focused_action = construction::ConstructionHudAction::NotchWidth;
+    const auto inset_choices = construction::aquariumConstructionPropertyChoices(hud, visual);
+    require(inset_choices.size() == 3U && inset_choices[0].value == 1 &&
+            inset_choices[1].value == 2 && inset_choices[1].selected &&
+            inset_choices[2].value == 3,
+        "shape inset tray is not a bounded previous/current/next stepper");
+    require(!hud.safe_world.contains(hud.property_panel.x + 2, hud.property_panel.y + 2) &&
+            construction::aquariumConstructionHudContainsUi(
+                hud, hud.property_panel.x + 2, hud.property_panel.y + 2),
+        "property tray can leak pointer input into the construction world");
     const auto browse_hud = construction::aquariumConstructionHudLayout(
         1280, 800, construction::ConstructionState::Browse);
     require(construction::hitTestAquariumConstructionHud(
@@ -626,7 +617,7 @@ void constructionCameraTracksTheCursorInAReadableCentreZone() {
         tracking,
         24, 18, kTile, 0.0f, preset.fov_y_deg,
         static_cast<float>(kViewportWidth) / static_cast<float>(kViewportHeight),
-        {12, 9}, 0.0);
+        -55.0f, {12, 9}, false, 0.0);
     camera.setManualPose(initial.position, initial.yaw_degrees, initial.pitch_degrees);
     float first_x = 0.0f;
     float first_y = 0.0f;
@@ -634,25 +625,36 @@ void constructionCameraTracksTheCursorInAReadableCentreZone() {
     float adjacent_x = 0.0f;
     float adjacent_y = 0.0f;
     float adjacent_depth = 0.0f;
-    require(initial.pitch_degrees <= -78.0f &&
+    require(initial.pitch_degrees >= -62.0f && initial.pitch_degrees <= -60.0f &&
             camera.worldToScreen({12.5f * kTile, 0.0f, 9.5f * kTile},
                 kViewportWidth, kViewportHeight, first_x, first_y, first_depth) &&
             camera.worldToScreen({13.5f * kTile, 0.0f, 9.5f * kTile},
                 kViewportWidth, kViewportHeight, adjacent_x, adjacent_y, adjacent_depth) &&
-            adjacent_x - first_x >= 8.0f,
-        "closer construction camera does not keep whole-cell footprints distinguishable");
+            adjacent_x - first_x >= 12.0f,
+        "normal-style construction camera angle or whole-cell readability regressed");
 
     const float initial_center_x = tracking.center_x;
     const auto within_zone = construction::trackAquariumConstructionCursor(
         tracking, 24, 18, kTile, 0.0f, preset.fov_y_deg,
         static_cast<float>(kViewportWidth) / static_cast<float>(kViewportHeight),
-        {10, 9}, 1.0 / 60.0);
+        -55.0f, {10, 9}, false, 1.0 / 60.0);
     require(std::abs(tracking.center_x - initial_center_x) < 0.001f,
         "camera moved while the cursor remained in its centre zone");
+    const float before_panel_z = tracking.center_z;
+    construction::trackAquariumConstructionCursor(
+        tracking, 24, 18, kTile, 0.0f, preset.fov_y_deg,
+        static_cast<float>(kViewportWidth) / static_cast<float>(kViewportHeight),
+        -55.0f, {12, 9}, true, 0.25);
+    require(tracking.property_panel_visible && tracking.center_z > before_panel_z,
+        "opening the property tray did not recompose the tank into the safe view");
+    construction::trackAquariumConstructionCursor(
+        tracking, 24, 18, kTile, 0.0f, preset.fov_y_deg,
+        static_cast<float>(kViewportWidth) / static_cast<float>(kViewportHeight),
+        -55.0f, {12, 9}, false, 0.25);
     const auto left_edge = construction::trackAquariumConstructionCursor(
         tracking, 24, 18, kTile, 0.0f, preset.fov_y_deg,
         static_cast<float>(kViewportWidth) / static_cast<float>(kViewportHeight),
-        {1, 9}, 0.25);
+        -55.0f, {1, 9}, false, 0.25);
     require(tracking.center_x < initial_center_x &&
             left_edge.position.x < within_zone.position.x,
         "camera did not pan when the cursor crossed the left tracking edge");
@@ -661,7 +663,7 @@ void constructionCameraTracksTheCursorInAReadableCentreZone() {
         construction::trackAquariumConstructionCursor(
             tracking, 24, 18, kTile, 0.0f, preset.fov_y_deg,
             static_cast<float>(kViewportWidth) / static_cast<float>(kViewportHeight),
-            {1, 1}, 1.0 / 60.0);
+            -55.0f, {1, 1}, false, 1.0 / 60.0);
     }
     require(tracking.center_x <= left_limit && tracking.center_x >= 0.0f &&
             tracking.center_z >= 0.0f,

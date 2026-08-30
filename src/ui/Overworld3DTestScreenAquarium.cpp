@@ -427,9 +427,8 @@ void Overworld3DTestScreen::updateAquariumConstructionCommit() {
 void Overworld3DTestScreen::applyAquariumConstructionCamera(double delta_seconds) {
     if (!aquarium_construction_.active()) return;
     if (aquarium_pointer_controls_cursor_ && aquarium_pointer_position_valid_ &&
-        aquariumConstructionHudActionAt(
-            aquarium_pointer_position_.x, aquarium_pointer_position_.y) ==
-            gameplay::world3d::aquarium::construction::ConstructionHudAction::None) {
+        !aquariumConstructionUiAt(
+            aquarium_pointer_position_.x, aquarium_pointer_position_.y)) {
         if (const auto cell = aquariumConstructionCellAt(
                 aquarium_pointer_position_.x, aquarium_pointer_position_.y)) {
             aquarium_construction_.pointAt(*cell);
@@ -443,13 +442,19 @@ void Overworld3DTestScreen::applyAquariumConstructionCamera(double delta_seconds
     const int viewport_height = scene_.world_viewport.enabled
         ? gameplay::world3d::rendering::worldViewportBaseHeight(scene_)
         : std::max(1, app_config_.window.virtual_height);
+    const auto shown_tank = visual.preview_tank ? visual.preview_tank : visual.selected_tank;
+    const bool property_panel = gameplay::world3d::aquarium::construction::
+        aquariumConstructionPropertyPanelVisible(visual.state, shown_tank.has_value());
+    const auto focus = property_panel && shown_tank
+        ? gameplay::world3d::aquarium::construction::tankCentreCell(*shown_tank)
+        : aquarium_construction_.cursor();
     const auto overview = gameplay::world3d::aquarium::construction::
         trackAquariumConstructionCursor(
             aquarium_construction_camera_tracking_,
             scene_.grid.width, scene_.grid.height, scene_.grid.tile_size, floor_y,
             camera_.pose().preset.fov_y_deg,
             static_cast<float>(viewport_width) / static_cast<float>(viewport_height),
-            aquarium_construction_.cursor(), delta_seconds);
+            follow_camera_base_preset_.pitch_deg, focus, property_panel, delta_seconds);
     camera_.setManualPose(
         overview.position, overview.yaw_degrees, overview.pitch_degrees);
 }
@@ -469,8 +474,10 @@ Overworld3DTestScreen::aquariumConstructionVisual() const {
     visual.focused_action = aquarium_construction_focused_action_;
     switch (visual.state) {
     case aqc::ConstructionState::Browse:
-    case aqc::ConstructionState::Selected:
         visual.navigation_hint = "MOVE CURSOR  EDGES PAN VIEW";
+        break;
+    case aqc::ConstructionState::Selected:
+        visual.navigation_hint = "EDIT TANK  CHOOSE STYLE BELOW";
         break;
     case aqc::ConstructionState::ResizeFootprint:
     case aqc::ConstructionState::MoveTank:
@@ -478,7 +485,9 @@ Overworld3DTestScreen::aquariumConstructionVisual() const {
         visual.navigation_hint = "MOVE HANDLE  EDGES PAN VIEW";
         break;
     case aqc::ConstructionState::DraftReview:
-        visual.navigation_hint = "BUILD OR ADJUST";
+        visual.navigation_hint = visual.property_draft
+            ? "BUILD OR CHOOSE STYLE BELOW"
+            : "BUILD OR ADJUST FOOTPRINT";
         break;
     case aqc::ConstructionState::DeleteConfirm:
         visual.navigation_hint = "CONFIRM DELETE OR CANCEL";
