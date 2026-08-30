@@ -33,6 +33,16 @@ enum class ConstructionDraftOperation {
     Create,
     Move,
     Resize,
+    Properties,
+};
+
+enum class AquariumTankProperty {
+    Shape,
+    Height,
+    Roundness,
+    Rotation,
+    NotchWidth,
+    NotchDepth,
 };
 
 struct ConstructionDraft {
@@ -93,6 +103,7 @@ public:
     void clearSelection();
     bool beginMoveSelected();
     bool beginResizeSelected(AquariumResizeHandle handle);
+    bool adjustTankProperty(AquariumTankProperty property, int direction);
     bool requestDeleteSelected();
     bool cancelDelete();
     bool reviewDraft();
@@ -107,6 +118,8 @@ public:
     void rejectCommit(std::string message);
 
     std::vector<pr::aquarium::geometry::GridCell> draftCells() const;
+    std::optional<pr::aquarium::geometry::TankDesign> previewTank() const;
+    std::optional<ConstructionDraftOperation> draftOperation() const;
     bool draftValid() const;
     bool cellAllowed(pr::aquarium::geometry::GridCell cell) const;
     bool cellBlocked(pr::aquarium::geometry::GridCell cell) const;
@@ -122,6 +135,7 @@ private:
         ConstructionHistoryAction history_action);
     std::uint64_t beginPendingOperation();
     void refreshDraftValidation();
+    bool ensurePropertyDraft();
 
     bool available_ = false;
     std::string map_id_;

@@ -25,6 +25,18 @@ construction::AquariumDesignDocument documentFixture() {
     tank.footprint.depth_cells = 4;
     tank.height_steps = 8;
     document.tanks.push_back(std::move(tank));
+    geometry::TankDesign shaped;
+    shaped.id = "tank_golden_u_rotated";
+    shaped.footprint.shape = geometry::FootprintShape::U;
+    shaped.footprint.origin_cell = {2, 3};
+    shaped.footprint.width_cells = 7;
+    shaped.footprint.depth_cells = 5;
+    shaped.footprint.rotation_quarter_turns = 3;
+    shaped.footprint.notch_width_cells = 3;
+    shaped.footprint.notch_depth_cells = 3;
+    shaped.height_steps = 12;
+    shaped.corner_radius_steps = 2;
+    document.tanks.push_back(std::move(shaped));
     return document;
 }
 

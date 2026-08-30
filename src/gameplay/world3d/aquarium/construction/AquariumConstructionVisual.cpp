@@ -4,6 +4,7 @@
 #include <array>
 #include <cmath>
 #include <limits>
+#include <set>
 
 namespace pr::gameplay::world3d::aquarium::construction {
 namespace geo = pr::aquarium::geometry;
@@ -72,6 +73,52 @@ void appendDiamond(
     mesh.indices.insert(mesh.indices.end(), std::begin(indices), std::end(indices));
 }
 
+void appendLine(
+    ConstructionVisualMesh& mesh,
+    float x0, float z0, float x1, float z1, float y,
+    float thickness, std::uint32_t color) {
+    const float dx = x1 - x0;
+    const float dz = z1 - z0;
+    const float length = std::hypot(dx, dz);
+    if (length <= 0.001f) return;
+    const float nx = -dz / length * thickness * 0.5f;
+    const float nz = dx / length * thickness * 0.5f;
+    if (mesh.vertices.size() > std::numeric_limits<std::uint16_t>::max() - 4U) return;
+    const auto first = static_cast<std::uint16_t>(mesh.vertices.size());
+    mesh.vertices.push_back({x0 + nx, y, z0 + nz, color});
+    mesh.vertices.push_back({x1 + nx, y, z1 + nz, color});
+    mesh.vertices.push_back({x1 - nx, y, z1 - nz, color});
+    mesh.vertices.push_back({x0 - nx, y, z0 - nz, color});
+    mesh.indices.insert(mesh.indices.end(), {
+        first, static_cast<std::uint16_t>(first + 1U), static_cast<std::uint16_t>(first + 2U),
+        first, static_cast<std::uint16_t>(first + 2U), static_cast<std::uint16_t>(first + 3U),
+    });
+}
+
+void appendVerticalMarker(
+    ConstructionVisualMesh& mesh,
+    float center_x, float center_z, float bottom, float top,
+    float thickness, std::uint32_t color) {
+    if (top <= bottom || mesh.vertices.size() > std::numeric_limits<std::uint16_t>::max() - 8U) return;
+    const auto append_plane = [&](bool along_x) {
+        const auto first = static_cast<std::uint16_t>(mesh.vertices.size());
+        mesh.vertices.push_back({center_x - (along_x ? thickness : 0.0f), bottom,
+            center_z - (along_x ? 0.0f : thickness), color});
+        mesh.vertices.push_back({center_x + (along_x ? thickness : 0.0f), bottom,
+            center_z + (along_x ? 0.0f : thickness), color});
+        mesh.vertices.push_back({center_x + (along_x ? thickness : 0.0f), top,
+            center_z + (along_x ? 0.0f : thickness), color});
+        mesh.vertices.push_back({center_x - (along_x ? thickness : 0.0f), top,
+            center_z - (along_x ? 0.0f : thickness), color});
+        mesh.indices.insert(mesh.indices.end(), {
+            first, static_cast<std::uint16_t>(first + 1U), static_cast<std::uint16_t>(first + 2U),
+            first, static_cast<std::uint16_t>(first + 2U), static_cast<std::uint16_t>(first + 3U),
+        });
+    };
+    append_plane(true);
+    append_plane(false);
+}
+
 struct ScreenPoint {
     float x = 0.0f;
     float y = 0.0f;
@@ -96,27 +143,68 @@ struct GizmoWorldPoint {
 };
 
 std::vector<GizmoWorldPoint> gizmoWorldPoints(const AquariumConstructionVisual& visual) {
-    if (!visual.selected_tank) return {};
-    const auto& footprint = visual.selected_tank->footprint;
+    const auto tank = visual.preview_tank ? visual.preview_tank : visual.selected_tank;
+    if (!tank) return {};
+    const auto& footprint = tank->footprint;
     const float tile = visual.tile_world_units;
     const float west = static_cast<float>(footprint.origin_cell.column) * tile;
     const float north = static_cast<float>(footprint.origin_cell.row) * tile;
-    const float east = west + static_cast<float>(footprint.width_cells) * tile;
-    const float south = north + static_cast<float>(footprint.depth_cells) * tile;
+    const float east = west + static_cast<float>(geo::occupiedWidthCells(footprint)) * tile;
+    const float south = north + static_cast<float>(geo::occupiedDepthCells(footprint)) * tile;
     const float center_x = (west + east) * 0.5f;
     const float center_z = (north + south) * 0.5f;
-    const float y = floorForCell(visual, tankCentreCell(*visual.selected_tank)) + 0.72f;
-    return {
-        {{ConstructionGizmoKind::Move, AquariumResizeHandle::SouthEast}, {center_x, y, center_z}},
-        {{ConstructionGizmoKind::Resize, AquariumResizeHandle::NorthWest}, {west, y, north}},
-        {{ConstructionGizmoKind::Resize, AquariumResizeHandle::North}, {center_x, y, north}},
-        {{ConstructionGizmoKind::Resize, AquariumResizeHandle::NorthEast}, {east, y, north}},
-        {{ConstructionGizmoKind::Resize, AquariumResizeHandle::East}, {east, y, center_z}},
-        {{ConstructionGizmoKind::Resize, AquariumResizeHandle::SouthEast}, {east, y, south}},
-        {{ConstructionGizmoKind::Resize, AquariumResizeHandle::South}, {center_x, y, south}},
-        {{ConstructionGizmoKind::Resize, AquariumResizeHandle::SouthWest}, {west, y, south}},
-        {{ConstructionGizmoKind::Resize, AquariumResizeHandle::West}, {west, y, center_z}},
-    };
+    const float floor_y = floorForCell(visual, tankCentreCell(*tank));
+    const float y = floor_y + 0.72f;
+    std::vector<GizmoWorldPoint> points;
+    if (visual.state == ConstructionState::Selected) {
+        points = {
+            {{ConstructionGizmoKind::Move, AquariumResizeHandle::SouthEast}, {center_x, y, center_z}},
+            {{ConstructionGizmoKind::Resize, AquariumResizeHandle::NorthWest}, {west, y, north}},
+            {{ConstructionGizmoKind::Resize, AquariumResizeHandle::North}, {center_x, y, north}},
+            {{ConstructionGizmoKind::Resize, AquariumResizeHandle::NorthEast}, {east, y, north}},
+            {{ConstructionGizmoKind::Resize, AquariumResizeHandle::East}, {east, y, center_z}},
+            {{ConstructionGizmoKind::Resize, AquariumResizeHandle::SouthEast}, {east, y, south}},
+            {{ConstructionGizmoKind::Resize, AquariumResizeHandle::South}, {center_x, y, south}},
+            {{ConstructionGizmoKind::Resize, AquariumResizeHandle::SouthWest}, {west, y, south}},
+            {{ConstructionGizmoKind::Resize, AquariumResizeHandle::West}, {west, y, center_z}},
+        };
+    }
+    points.push_back({{ConstructionGizmoKind::Height, AquariumResizeHandle::SouthEast},
+        {center_x, floor_y + static_cast<float>(tank->height_steps * geo::kVerticalStepWorldUnits), center_z}});
+    points.push_back({{ConstructionGizmoKind::Rotation, AquariumResizeHandle::SouthEast},
+        {center_x, y, north - tile * 0.65f}});
+    points.push_back({{ConstructionGizmoKind::Roundness, AquariumResizeHandle::SouthEast},
+        {west - tile * 0.45f, y, north - tile * 0.45f}});
+    if (footprint.shape != geo::FootprintShape::Rectangle) {
+        const auto occupied = geo::footprintCells(footprint);
+        std::set<std::pair<int, int>> occupied_cells;
+        for (const auto cell : occupied) {
+            occupied_cells.emplace(cell.column, cell.row);
+        }
+        float opening_x = 0.0f;
+        float opening_z = 0.0f;
+        int opening_cells = 0;
+        for (int row = footprint.origin_cell.row;
+             row < footprint.origin_cell.row + geo::occupiedDepthCells(footprint); ++row) {
+            for (int column = footprint.origin_cell.column;
+                 column < footprint.origin_cell.column + geo::occupiedWidthCells(footprint); ++column) {
+                const bool filled = occupied_cells.find({column, row}) != occupied_cells.end();
+                if (filled) continue;
+                opening_x += (static_cast<float>(column) + 0.5f) * tile;
+                opening_z += (static_cast<float>(row) + 0.5f) * tile;
+                ++opening_cells;
+            }
+        }
+        if (opening_cells > 0) {
+            opening_x /= static_cast<float>(opening_cells);
+            opening_z /= static_cast<float>(opening_cells);
+            points.push_back({{ConstructionGizmoKind::NotchWidth, AquariumResizeHandle::SouthEast},
+                {opening_x - tile * 0.22f, y, opening_z}});
+            points.push_back({{ConstructionGizmoKind::NotchDepth, AquariumResizeHandle::SouthEast},
+                {opening_x + tile * 0.22f, y, opening_z}});
+        }
+    }
+    return points;
 }
 
 void appendCellCross(
@@ -128,53 +216,7 @@ void appendCellCross(
         x0 + tile * 0.57f, z0 + tile - 2.0f, y + 0.01f, color);
 }
 
-ConstructionHudRect* rectForAction(ConstructionHudLayout& layout, ConstructionHudAction action) {
-    switch (action) {
-        case ConstructionHudAction::Place: return &layout.place;
-        case ConstructionHudAction::Select: return &layout.select;
-        case ConstructionHudAction::Move: return &layout.move;
-        case ConstructionHudAction::Resize: return &layout.resize;
-        case ConstructionHudAction::Review: return &layout.review;
-        case ConstructionHudAction::Build: return &layout.build;
-        case ConstructionHudAction::Adjust: return &layout.adjust;
-        case ConstructionHudAction::Delete: return &layout.remove;
-        case ConstructionHudAction::Undo: return &layout.undo;
-        case ConstructionHudAction::Redo: return &layout.redo;
-        case ConstructionHudAction::Cancel: return &layout.cancel;
-        case ConstructionHudAction::Done: return &layout.done;
-        case ConstructionHudAction::Exit: return &layout.exit;
-        case ConstructionHudAction::None: return nullptr;
-    }
-    return nullptr;
-}
-
-const ConstructionHudRect* rectForAction(
-    const ConstructionHudLayout& layout, ConstructionHudAction action) {
-    switch (action) {
-        case ConstructionHudAction::Place: return &layout.place;
-        case ConstructionHudAction::Select: return &layout.select;
-        case ConstructionHudAction::Move: return &layout.move;
-        case ConstructionHudAction::Resize: return &layout.resize;
-        case ConstructionHudAction::Review: return &layout.review;
-        case ConstructionHudAction::Build: return &layout.build;
-        case ConstructionHudAction::Adjust: return &layout.adjust;
-        case ConstructionHudAction::Delete: return &layout.remove;
-        case ConstructionHudAction::Undo: return &layout.undo;
-        case ConstructionHudAction::Redo: return &layout.redo;
-        case ConstructionHudAction::Cancel: return &layout.cancel;
-        case ConstructionHudAction::Done: return &layout.done;
-        case ConstructionHudAction::Exit: return &layout.exit;
-        case ConstructionHudAction::None: return nullptr;
-    }
-    return nullptr;
-}
-
 } // namespace
-
-bool ConstructionHudRect::contains(int point_x, int point_y) const {
-    return width > 0 && height > 0 && point_x >= x && point_y >= y &&
-        point_x < x + width && point_y < y + height;
-}
 
 ConstructionVisualMesh buildAquariumConstructionWorldMesh(
     const AquariumConstructionVisual& visual) {
@@ -263,17 +305,65 @@ ConstructionVisualMesh buildAquariumConstructionWorldMesh(
         appendDiamond(mesh, cursor_x + tile * 0.5f, cursor_z + tile * 0.5f,
             cursor_y + 0.19f, 2.4f, visual.draft_valid ? kValidFill : kInvalidFill);
     }
-    if (visual.state == ConstructionState::Selected && visual.selected_tank) {
+    if ((visual.state == ConstructionState::Selected ||
+         visual.state == ConstructionState::DraftReview) &&
+        (visual.selected_tank || visual.preview_tank)) {
+        const auto shown_tank = visual.preview_tank ? visual.preview_tank : visual.selected_tank;
         for (const auto& gizmo : gizmoWorldPoints(visual)) {
             const bool move = gizmo.hit.kind == ConstructionGizmoKind::Move;
-            const bool active_resize = !move && visual.active_resize_handle &&
+            const bool resize = gizmo.hit.kind == ConstructionGizmoKind::Resize;
+            const bool active_resize = resize && visual.active_resize_handle &&
                 *visual.active_resize_handle == gizmo.hit.resize_handle;
+            const bool property = !move && !resize;
+            ConstructionHudAction property_action = ConstructionHudAction::None;
+            switch (gizmo.hit.kind) {
+            case ConstructionGizmoKind::Height: property_action = ConstructionHudAction::Height; break;
+            case ConstructionGizmoKind::Rotation: property_action = ConstructionHudAction::Rotate; break;
+            case ConstructionGizmoKind::Roundness: property_action = ConstructionHudAction::Roundness; break;
+            case ConstructionGizmoKind::NotchWidth: property_action = ConstructionHudAction::NotchWidth; break;
+            case ConstructionGizmoKind::NotchDepth: property_action = ConstructionHudAction::NotchDepth; break;
+            case ConstructionGizmoKind::Move:
+            case ConstructionGizmoKind::Resize:
+                break;
+            }
+            const bool property_focused = property && visual.focused_action == property_action;
+            if (gizmo.hit.kind == ConstructionGizmoKind::Height && shown_tank) {
+                appendVerticalMarker(mesh, gizmo.world.x, gizmo.world.z,
+                    floorForCell(visual, tankCentreCell(*shown_tank)) + 1.0f,
+                    gizmo.world.y, 0.65f, property_focused ? kCursor : kSelected);
+            }
             appendDiamond(mesh, gizmo.world.x, gizmo.world.z, gizmo.world.y,
-                move ? 5.0f : (active_resize ? 5.2f : 3.6f),
-                move ? kAnchor : (active_resize ? kSelected : kHandle));
+                move ? 5.0f : (active_resize ? 5.2f : (property ? 4.4f : 3.6f)),
+                move ? kAnchor : (active_resize ? kSelected :
+                    (property ? (property_focused ? kCursor : kSelected) : kHandle)));
             appendDiamond(mesh, gizmo.world.x, gizmo.world.z, gizmo.world.y + 0.04f,
-                move ? 2.8f : (active_resize ? 2.8f : 1.8f),
+                move ? 2.8f : (active_resize ? 2.8f : (property ? 2.2f : 1.8f)),
                 move ? kSelected : (active_resize ? kHandle : kAnchor));
+        }
+    }
+    if (visual.preview_tank) {
+        const auto& tank = *visual.preview_tank;
+        const float center_x = geo::footprintCentreWorld(
+            tank.footprint.origin_cell.column, geo::occupiedWidthCells(tank.footprint));
+        const float center_z = geo::footprintCentreWorld(
+            tank.footprint.origin_cell.row, geo::occupiedDepthCells(tank.footprint));
+        const float floor_y = floorForCell(visual, tankCentreCell(tank));
+        const auto boundary = geo::footprintBoundaryLocalWorld(
+            tank.footprint, tank.corner_radius_steps);
+        for (std::size_t index = 0; index < boundary.size(); ++index) {
+            const auto start = boundary[index];
+            const auto end = boundary[(index + 1U) % boundary.size()];
+            appendLine(mesh, center_x + start.x, center_z + start.y,
+                center_x + end.x, center_z + end.y,
+                floor_y + 0.62f, 0.9f, kAnchor);
+        }
+        const int tick_count = std::clamp(tank.height_steps - 3, 1, 9);
+        const float tick_x = center_x + 2.0f;
+        const float tick_z = center_z;
+        for (int tick = 0; tick < tick_count; ++tick) {
+            appendDiamond(mesh, tick_x, tick_z,
+                floor_y + static_cast<float>((tick + 4) * geo::kVerticalStepWorldUnits),
+                1.4f, tick + 1 == tick_count ? kCursor : kSelected);
         }
     }
     return mesh;
@@ -321,7 +411,9 @@ std::optional<ConstructionGizmoHit> hitTestAquariumConstructionGizmo(
     const AquariumConstructionVisual& visual,
     const gameplay::world3d::camera::Gen4FollowCamera& camera,
     int screen_x, int screen_y, int viewport_width, int viewport_height) {
-    if (!visual.visible || visual.state != ConstructionState::Selected ||
+    if (!visual.visible ||
+        (visual.state != ConstructionState::Selected &&
+         visual.state != ConstructionState::DraftReview) ||
         viewport_width <= 0 || viewport_height <= 0) return std::nullopt;
     constexpr float kHitRadiusSquared = 18.0f * 18.0f;
     float nearest_distance = kHitRadiusSquared;
@@ -341,68 +433,6 @@ std::optional<ConstructionGizmoHit> hitTestAquariumConstructionGizmo(
         }
     }
     return nearest;
-}
-
-ConstructionHudLayout aquariumConstructionHudLayout(
-    int viewport_width, int viewport_height, ConstructionState state) {
-    ConstructionHudLayout layout;
-    const int size = std::clamp(std::min(viewport_width, viewport_height) / 10, 48, 76);
-    const int gap = std::max(10, size / 5);
-    const int bottom = std::max(14, viewport_height / 28);
-    const auto actions = aquariumConstructionHudActions(state);
-    if (!actions.empty()) {
-        const int total = size * static_cast<int>(actions.size()) +
-            gap * static_cast<int>(actions.size() - 1U);
-        const int start = (viewport_width - total) / 2;
-        for (std::size_t index = 0; index < actions.size(); ++index) {
-            if (auto* rect = rectForAction(layout, actions[index])) {
-                *rect = {start + static_cast<int>(index) * (size + gap),
-                    viewport_height - bottom - size, size, size};
-            }
-        }
-    }
-    return layout;
-}
-
-ConstructionHudAction hitTestAquariumConstructionHud(
-    const ConstructionHudLayout& layout,
-    int screen_x, int screen_y, ConstructionState state) {
-    for (const auto action : aquariumConstructionHudActions(state)) {
-        const auto* rect = rectForAction(layout, action);
-        if (rect && rect->contains(screen_x, screen_y)) return action;
-    }
-    return ConstructionHudAction::None;
-}
-
-std::vector<ConstructionHudAction> aquariumConstructionHudActions(ConstructionState state) {
-    switch (state) {
-        case ConstructionState::Browse:
-            return {ConstructionHudAction::Place, ConstructionHudAction::Select,
-                ConstructionHudAction::Undo, ConstructionHudAction::Redo,
-                ConstructionHudAction::Exit};
-        case ConstructionState::Selected:
-            return {ConstructionHudAction::Move, ConstructionHudAction::Resize,
-                ConstructionHudAction::Delete, ConstructionHudAction::Undo,
-                ConstructionHudAction::Redo, ConstructionHudAction::Done};
-        case ConstructionState::ResizeFootprint:
-        case ConstructionState::MoveTank:
-        case ConstructionState::ResizeTank:
-            return {ConstructionHudAction::Review, ConstructionHudAction::Cancel};
-        case ConstructionState::DraftReview:
-            return {ConstructionHudAction::Build, ConstructionHudAction::Adjust,
-                ConstructionHudAction::Cancel};
-        case ConstructionState::DeleteConfirm:
-            return {ConstructionHudAction::Delete, ConstructionHudAction::Cancel};
-        case ConstructionState::Dormant:
-        case ConstructionState::Building:
-            return {};
-    }
-    return {};
-}
-
-ConstructionHudAction defaultAquariumConstructionHudAction(ConstructionState state) {
-    const auto actions = aquariumConstructionHudActions(state);
-    return actions.empty() ? ConstructionHudAction::None : actions.front();
 }
 
 std::vector<geo::GridCell> aquariumConstructionContextLockedCells(

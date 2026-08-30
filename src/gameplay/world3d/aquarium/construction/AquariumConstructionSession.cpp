@@ -1,9 +1,7 @@
 #include "gameplay/world3d/aquarium/construction/AquariumConstructionSession.hpp"
 
 #include <algorithm>
-#include <array>
 #include <cmath>
-#include <limits>
 #include <set>
 #include <utility>
 
@@ -14,26 +12,6 @@ namespace {
 
 bool sameCell(geo::GridCell lhs, geo::GridCell rhs) {
     return lhs.column == rhs.column && lhs.row == rhs.row;
-}
-
-geo::GridCell resizeHandleCell(const geo::TankDesign& tank, AquariumResizeHandle handle) {
-    const int left = tank.footprint.origin_cell.column;
-    const int top = tank.footprint.origin_cell.row;
-    const int right = left + tank.footprint.width_cells - 1;
-    const int bottom = top + tank.footprint.depth_cells - 1;
-    const int centre_column = left + (tank.footprint.width_cells - 1) / 2;
-    const int centre_row = top + (tank.footprint.depth_cells - 1) / 2;
-    switch (handle) {
-        case AquariumResizeHandle::NorthWest: return {left, top};
-        case AquariumResizeHandle::North: return {centre_column, top};
-        case AquariumResizeHandle::NorthEast: return {right, top};
-        case AquariumResizeHandle::East: return {right, centre_row};
-        case AquariumResizeHandle::SouthEast: return {right, bottom};
-        case AquariumResizeHandle::South: return {centre_column, bottom};
-        case AquariumResizeHandle::SouthWest: return {left, bottom};
-        case AquariumResizeHandle::West: return {left, centre_row};
-    }
-    return {right, bottom};
 }
 
 } // namespace
@@ -132,29 +110,7 @@ const geo::TankDesign* AquariumConstructionSession::selectedTank() const {
 AquariumResizeHandle AquariumConstructionSession::preferredResizeHandle() const {
     const geo::TankDesign* tank = selectedTank();
     if (!tank) return AquariumResizeHandle::SouthEast;
-    constexpr std::array<AquariumResizeHandle, 8> handles{
-        AquariumResizeHandle::SouthEast,
-        AquariumResizeHandle::NorthWest,
-        AquariumResizeHandle::North,
-        AquariumResizeHandle::NorthEast,
-        AquariumResizeHandle::East,
-        AquariumResizeHandle::South,
-        AquariumResizeHandle::SouthWest,
-        AquariumResizeHandle::West,
-    };
-    AquariumResizeHandle nearest = handles.front();
-    int nearest_distance = std::numeric_limits<int>::max();
-    for (const AquariumResizeHandle handle : handles) {
-        const geo::GridCell cell = resizeHandleCell(*tank, handle);
-        const int column_distance = cursor_.column - cell.column;
-        const int row_distance = cursor_.row - cell.row;
-        const int distance = column_distance * column_distance + row_distance * row_distance;
-        if (distance < nearest_distance) {
-            nearest = handle;
-            nearest_distance = distance;
-        }
-    }
-    return nearest;
+    return nearestResizeHandle(*tank, cursor_);
 }
 
 void AquariumConstructionSession::moveCursor(int column_delta, int row_delta) {
@@ -167,7 +123,15 @@ void AquariumConstructionSession::pointAt(geo::GridCell cell) {
     if (!draft_ || (state_ != ConstructionState::ResizeFootprint &&
         state_ != ConstructionState::MoveTank && state_ != ConstructionState::ResizeTank)) return;
     draft_->cursor = cell;
-    if (state_ == ConstructionState::MoveTank && draft_->original_tank) {
+    if (state_ == ConstructionState::ResizeFootprint && draft_->candidate_tank) {
+        const int min_column = std::min(draft_->anchor.column, cell.column);
+        const int min_row = std::min(draft_->anchor.row, cell.row);
+        draft_->candidate_tank->footprint.origin_cell = {min_column, min_row};
+        draft_->candidate_tank->footprint.width_cells =
+            std::abs(cell.column - draft_->anchor.column) + 1;
+        draft_->candidate_tank->footprint.depth_cells =
+            std::abs(cell.row - draft_->anchor.row) + 1;
+    } else if (state_ == ConstructionState::MoveTank && draft_->original_tank) {
         draft_->candidate_tank = moveTankByCells(
             *draft_->original_tank,
             cell.column - draft_->anchor.column,
@@ -261,6 +225,7 @@ bool AquariumConstructionSession::adjustDraft() {
         case ConstructionDraftOperation::Create: state_ = ConstructionState::ResizeFootprint; break;
         case ConstructionDraftOperation::Move: state_ = ConstructionState::MoveTank; break;
         case ConstructionDraftOperation::Resize: state_ = ConstructionState::ResizeTank; break;
+        case ConstructionDraftOperation::Properties: state_ = ConstructionState::DraftReview; break;
     }
     return true;
 }
@@ -321,10 +286,9 @@ bool AquariumConstructionSession::occupiedByCommitted(
             [&](auto occupied) { return sameCell(cell, occupied); })) return true;
     for (const geo::TankDesign& tank : committed_.tanks) {
         if (!ignored_tank_id.empty() && tank.id == ignored_tank_id) continue;
-        const int left = tank.footprint.origin_cell.column;
-        const int top = tank.footprint.origin_cell.row;
-        if (cell.column >= left && cell.column < left + tank.footprint.width_cells &&
-            cell.row >= top && cell.row < top + tank.footprint.depth_cells) return true;
+        const auto cells = tankFootprintCells(tank);
+        if (std::any_of(cells.begin(), cells.end(),
+                [&](geo::GridCell occupied) { return sameCell(cell, occupied); })) return true;
     }
     return false;
 }

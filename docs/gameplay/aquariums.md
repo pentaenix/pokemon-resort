@@ -95,6 +95,30 @@ Tank placements can use the map's half-tile offset convention when an installati
 
 The demo gallery is 24×18 cells. Tank geometry remains at scale `1.0`; the room was compacted around the installations instead of shrinking them, and every authored collision footprint moved with its tank.
 
+## Construction test route
+
+The normal playable route now separates presentation from unrestricted builder
+testing:
+
+```text
+Resort exterior → aquarium12 gallery → Aquarium Builder Lab → Resort exterior
+```
+
+`aquarium12` retains its three authored tanks, Pokémon, collision, and rounded
+floor cutout. Its existing south exit leads to
+`aquarium_builder_lab`, a separate 24×18 shell-less interior with no authored
+models or floor cutouts. The lab has a north arrival, a south exit, a clear
+walkable centre aisle, and 340 construction cells. The three-cell doorway lanes
+at both ends are intentionally outside its construction mask so a saved tank
+cannot block travel.
+
+Construction documents remain map-scoped, so the gallery and lab use distinct
+save files. Press Z on keyboard or Y on controller while standing on a yellow
+allowed cell to enter construction. The lab's direct map spawn is inside the
+build zone; when arriving from the gallery, walk two cells south from the north
+doorway before pressing Z/Y. Normal player movement is restored whenever
+construction is inactive.
+
 Aquarium Maker rock variation is stored as glTF `COLOR_0`, not as a redundant bitmap. Kelp uses material base colors plus exported node-rotation `WaterSway` clips. The shared GLB renderer consumes both contracts in bgfx and SDL fallback, so the model and its animation also appear in Map Studio's exact preview.
 
 Aquarium Pokémon poses are sampled at 24 Hz into persistent GPU buffers and reused by both opaque and translucent passes. This preserves handheld-style animation timing while avoiding host-refresh-rate CPU skinning and transient GPU uploads for every actor. Decoded Attend models are also shared between bounds measurement and rendering, and measured bounds are cached until the source asset changes. Entering a tank map therefore decompresses/parses each configured species once rather than twice, while live position edits reuse the existing results.

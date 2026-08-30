@@ -426,14 +426,16 @@ void Overworld3DTestScreen::applyAquariumConstructionCamera() {
     const float center_z = (static_cast<float>(min_row + max_row + 1) * 0.5f) * tile;
     constexpr float kYaw = 180.0f;
     constexpr float kPitch = -55.0f;
-    constexpr float kDistance = 320.0f;
+    const float span_x = static_cast<float>(max_column - min_column + 1) * tile;
+    const float span_z = static_cast<float>(max_row - min_row + 1) * tile;
+    const float distance = std::max(320.0f, std::max(span_x, span_z) * 0.95f);
     constexpr float kRadians = 3.1415926535f / 180.0f;
     const float pitch = kPitch * kRadians;
     const float floor_y = aquariumConstructionVisual().cells.front().floor_y;
     camera_.setManualPose({
         center_x,
-        floor_y - std::sin(pitch) * kDistance,
-        center_z - std::cos(kPitch * kRadians) * std::cos(kYaw * kRadians) * kDistance,
+        floor_y - std::sin(pitch) * distance,
+        center_z - std::cos(kPitch * kRadians) * std::cos(kYaw * kRadians) * distance,
     }, kYaw, kPitch);
 }
 
@@ -470,6 +472,10 @@ Overworld3DTestScreen::aquariumConstructionVisual() const {
                 *aquarium_construction_.draft()->original_tank);
         }
     }
+    visual.preview_tank = aquarium_construction_.previewTank();
+    visual.property_draft = aquarium_construction_.draftOperation() ==
+        gameplay::world3d::aquarium::construction::ConstructionDraftOperation::Properties;
+    if (!visual.preview_tank && visual.selected_tank) visual.preview_tank = visual.selected_tank;
     const float height_step = scene_.terrain.height_per_floor > 0.0f
         ? scene_.terrain.height_per_floor : scene_.grid.tile_size;
     for (const auto cell : aquarium_construction_.allowedCells()) {

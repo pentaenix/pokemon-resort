@@ -28,6 +28,21 @@ Authored aquarium documents contain only stable IDs and discrete design intent. 
 - Advanced maker-only terrain and decor remain on the legacy generator until explicitly migrated.
 - Kernel ABI or schema changes require new golden fixtures and compatible version handling.
 
+## Milestone 3 implementation record
+
+Kernel ABI 2 implements the Resort-compatible rectangle, L, and U footprint
+vocabulary, quarter-turn rotation, fitted quarter-cell corner radii, shaped
+semantic meshes, conservative collision, and matching navigation. Deterministic
+arc constants and canonical output quantization keep native and WASM arrays and
+content hashes identical rather than merely visually equivalent.
+
+The Aquarium Maker loads a browser-only build of these exact C++ sources. A
+strict compatibility mapper sends only whole-cell rectangle/L/U tanks with flat
+sand, uniform corner radii, fixed 55 mm glass, and no advanced passages or decor
+through the shared kernel. Unsupported developer features remain on the maker's
+legacy generator. The Resort executable still has no Emscripten, npm, Three.js,
+or maker dependency.
+
 ## Alternatives Considered
 
 - Separate C++ and TypeScript implementations constrained by golden files: lower initial porting cost, but still permits semantic drift.

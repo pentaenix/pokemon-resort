@@ -204,7 +204,7 @@ public:
         std::uint16_t view_id, int width, int height, bool homogeneous_depth) const {
         if (!initialized_ || !visual_.visible || width <= 0 || height <= 0) return;
         const auto layout = construction::aquariumConstructionHudLayout(
-            width, height, visual_.state);
+            width, height, visual_.state, visual_.property_draft);
         construction::ConstructionVisualMesh mesh;
         constexpr std::uint32_t kPanel = 0xd92b2b26U;
         constexpr std::uint32_t kBuild = 0xf065bd5aU;
@@ -237,6 +237,16 @@ public:
         button(layout.select, kSelect, "SELECT", Action::Select);
         button(layout.move, kEdit, "MOVE", Action::Move);
         button(layout.resize, kEdit, "RESIZE", Action::Resize);
+        button(layout.shape, kEdit, "SHAPE", Action::Shape);
+        button(layout.height, kEdit, "HEIGHT", Action::Height);
+        button(layout.roundness, kEdit, "ROUND", Action::Roundness);
+        button(layout.rotate, kEdit, "TURN", Action::Rotate);
+        const auto shown_tank = visual_.preview_tank
+            ? visual_.preview_tank : visual_.selected_tank;
+        const bool notch_enabled = shown_tank &&
+            shown_tank->footprint.shape != pr::aquarium::geometry::FootprintShape::Rectangle;
+        button(layout.notch_width, kEdit, "WIDTH", Action::NotchWidth, notch_enabled);
+        button(layout.notch_depth, kEdit, "DEPTH", Action::NotchDepth, notch_enabled);
         button(layout.review, kReview, "REVIEW", Action::Review);
         button(layout.build, kBuild, "BUILD", Action::Build);
         button(layout.adjust, kAdjust, "ADJUST", Action::Adjust);
@@ -246,6 +256,67 @@ public:
         button(layout.cancel, kCancel, "CANCEL", Action::Cancel);
         button(layout.done, kSelect, "DONE", Action::Done);
         button(layout.exit, kExit, "EXIT", Action::Exit);
+        if (visual_.preview_tank) {
+            const auto& tank = *visual_.preview_tank;
+            int current_tick = 0;
+            int maximum_tick = 0;
+            switch (visual_.focused_action) {
+            case Action::Shape:
+                current_tick = static_cast<int>(tank.footprint.shape) + 1;
+                maximum_tick = 3;
+                break;
+            case Action::Height:
+                current_tick = tank.height_steps - 3;
+                maximum_tick = 9;
+                break;
+            case Action::Roundness:
+                current_tick = tank.corner_radius_steps + 1;
+                maximum_tick = pr::aquarium::geometry::fittedCornerRadiusSteps(
+                    tank.footprint, 64) + 1;
+                break;
+            case Action::Rotate:
+                current_tick = tank.footprint.rotation_quarter_turns + 1;
+                maximum_tick = 4;
+                break;
+            case Action::NotchWidth:
+                current_tick = tank.footprint.notch_width_cells;
+                maximum_tick = tank.footprint.shape == pr::aquarium::geometry::FootprintShape::L
+                    ? tank.footprint.width_cells - 2 : tank.footprint.width_cells - 4;
+                break;
+            case Action::NotchDepth:
+                current_tick = tank.footprint.notch_depth_cells;
+                maximum_tick = tank.footprint.depth_cells - 2;
+                break;
+            default:
+                break;
+            }
+            maximum_tick = std::clamp(maximum_tick, 0, 12);
+            current_tick = std::clamp(current_tick, 0, maximum_tick);
+            if (maximum_tick > 0) {
+                constexpr float kTickSize = 9.0f;
+                constexpr float kTickGap = 5.0f;
+                const float total = static_cast<float>(maximum_tick) * kTickSize +
+                    static_cast<float>(maximum_tick - 1) * kTickGap;
+                const float left = (static_cast<float>(width) - total) * 0.5f;
+                int palette_top = height;
+                const construction::ConstructionHudRect* rects[]{
+                    &layout.place, &layout.select, &layout.move, &layout.resize,
+                    &layout.shape, &layout.height, &layout.roundness, &layout.rotate,
+                    &layout.notch_width, &layout.notch_depth, &layout.review,
+                    &layout.build, &layout.adjust, &layout.remove, &layout.undo,
+                    &layout.redo, &layout.cancel, &layout.done, &layout.exit,
+                };
+                for (const auto* rect : rects) {
+                    if (rect->height > 0) palette_top = std::min(palette_top, rect->y);
+                }
+                const float top = static_cast<float>(palette_top) - 28.0f;
+                for (int tick = 0; tick < maximum_tick; ++tick) {
+                    const float x = left + static_cast<float>(tick) * (kTickSize + kTickGap);
+                    appendQuad(mesh, x, top, x + kTickSize, top + kTickSize,
+                        tick < current_tick ? kFocus : kDisabled);
+                }
+            }
+        }
         if (!visual_.status_hint.empty() &&
             (visual_.state == construction::ConstructionState::ResizeFootprint ||
              visual_.state == construction::ConstructionState::MoveTank ||

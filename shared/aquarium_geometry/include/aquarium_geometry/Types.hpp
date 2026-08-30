@@ -6,7 +6,7 @@
 
 namespace pr::aquarium::geometry {
 
-inline constexpr std::uint32_t kKernelAbiVersion = 1;
+inline constexpr std::uint32_t kKernelAbiVersion = 2;
 inline constexpr std::uint32_t kDesignSchemaVersion = 1;
 inline constexpr std::int32_t kWorldUnitsPerCell = 16;
 inline constexpr std::int32_t kVerticalStepWorldUnits = 8;

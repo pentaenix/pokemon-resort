@@ -132,6 +132,10 @@ bool InputRouter::handleEvent(
         return true;
     }
 
+    if (event.type == SDL_MOUSEWHEEL && config.accept_mouse) {
+        return input && input->handleUnroutedSdlEvent(event);
+    }
+
     if (event.type == SDL_CONTROLLERBUTTONDOWN && config.accept_controller) {
         if (input && input->handleUnroutedSdlEvent(event)) {
             return true;
@@ -175,6 +179,13 @@ bool InputRouter::handleEvent(
             default:
                 return false;
         }
+    }
+
+    if (event.type == SDL_CONTROLLERAXISMOTION && config.accept_controller &&
+        (event.caxis.axis == SDL_CONTROLLER_AXIS_TRIGGERLEFT ||
+         event.caxis.axis == SDL_CONTROLLER_AXIS_TRIGGERRIGHT) && input &&
+        input->handleUnroutedSdlEvent(event)) {
+        return true;
     }
 
     if (event.type == SDL_CONTROLLERAXISMOTION && config.accept_controller &&

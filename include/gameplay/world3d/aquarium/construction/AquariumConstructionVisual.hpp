@@ -24,6 +24,12 @@ enum class ConstructionHudAction {
     Select,
     Move,
     Resize,
+    Shape,
+    Height,
+    Roundness,
+    Rotate,
+    NotchWidth,
+    NotchDepth,
     Review,
     Build,
     Adjust,
@@ -46,11 +52,13 @@ struct AquariumConstructionVisual {
     pr::aquarium::geometry::GridCell cursor{};
     std::optional<pr::aquarium::geometry::GridCell> anchor;
     std::optional<pr::aquarium::geometry::TankDesign> selected_tank;
+    std::optional<pr::aquarium::geometry::TankDesign> preview_tank;
     std::optional<AquariumResizeHandle> active_resize_handle;
     ConstructionState state = ConstructionState::Dormant;
     bool draft_valid = false;
     bool undo_available = false;
     bool redo_available = false;
+    bool property_draft = false;
     ConstructionHudAction focused_action = ConstructionHudAction::None;
     std::string status_hint;
 };
@@ -81,6 +89,12 @@ struct ConstructionHudLayout {
     ConstructionHudRect select;
     ConstructionHudRect move;
     ConstructionHudRect resize;
+    ConstructionHudRect shape;
+    ConstructionHudRect height;
+    ConstructionHudRect roundness;
+    ConstructionHudRect rotate;
+    ConstructionHudRect notch_width;
+    ConstructionHudRect notch_depth;
     ConstructionHudRect review;
     ConstructionHudRect build;
     ConstructionHudRect adjust;
@@ -95,6 +109,11 @@ struct ConstructionHudLayout {
 enum class ConstructionGizmoKind {
     Move,
     Resize,
+    Height,
+    Rotation,
+    Roundness,
+    NotchWidth,
+    NotchDepth,
 };
 
 struct ConstructionGizmoHit {
@@ -124,16 +143,20 @@ std::optional<ConstructionGizmoHit> hitTestAquariumConstructionGizmo(
 ConstructionHudLayout aquariumConstructionHudLayout(
     int viewport_width,
     int viewport_height,
-    ConstructionState state);
+    ConstructionState state,
+    bool property_draft = false);
 
 ConstructionHudAction hitTestAquariumConstructionHud(
     const ConstructionHudLayout& layout,
     int screen_x,
     int screen_y,
-    ConstructionState state);
+    ConstructionState state,
+    bool property_draft = false);
 
-std::vector<ConstructionHudAction> aquariumConstructionHudActions(ConstructionState state);
-ConstructionHudAction defaultAquariumConstructionHudAction(ConstructionState state);
+std::vector<ConstructionHudAction> aquariumConstructionHudActions(
+    ConstructionState state, bool property_draft = false);
+ConstructionHudAction defaultAquariumConstructionHudAction(
+    ConstructionState state, bool property_draft = false);
 
 std::vector<pr::aquarium::geometry::GridCell> aquariumConstructionContextLockedCells(
     const std::vector<pr::aquarium::geometry::GridCell>& allowed_cells,

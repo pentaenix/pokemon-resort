@@ -1,4 +1,6 @@
 add_library(aquarium_geometry STATIC
+    src/Footprint.cpp
+    src/GeometryBuilder.cpp
     src/Kernel.cpp
 )
 

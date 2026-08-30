@@ -145,8 +145,34 @@ void configuredDewgongMovesInsidePlacedTank() {
     require(aquarium_map && aquarium_map->tanks.size() == 3U,
         "aquarium12 camera/population config must load all three tanks");
     require(aquarium_map->construction.enabled &&
-            aquarium_map->construction.allowed_cells.size() == 72U,
-        "aquarium12 must expose only its explicit six-by-twelve construction mask");
+            aquarium_map->construction.allowed_cells.size() == 220U,
+        "aquarium12 must expose its audited room-wide construction mask");
+    const auto allows_construction = [&](int column, int row) {
+        return std::any_of(aquarium_map->construction.allowed_cells.begin(),
+            aquarium_map->construction.allowed_cells.end(), [&](const auto& cell) {
+                return cell.column == column && cell.row == row;
+            });
+    };
+    require(allows_construction(22, 16) && allows_construction(1, 1) &&
+            !allows_construction(12, 10) && !allows_construction(4, 11) &&
+            !allows_construction(17, 4),
+        "room-wide construction must preserve entrance circulation and authored tanks");
+    const aquarium::AquariumMapConfig* builder_lab =
+        aquarium::aquariumMapConfig(catalog, "aquarium_builder_lab");
+    require(builder_lab && builder_lab->tanks.empty() &&
+            builder_lab->construction.enabled &&
+            builder_lab->construction.allowed_cells.size() == 340U,
+        "builder lab must expose a separate empty full-room construction surface");
+    const auto lab_allows_construction = [&](int column, int row) {
+        return std::any_of(builder_lab->construction.allowed_cells.begin(),
+            builder_lab->construction.allowed_cells.end(), [&](const auto& cell) {
+                return cell.column == column && cell.row == row;
+            });
+    };
+    require(lab_allows_construction(1, 1) && lab_allows_construction(22, 16) &&
+            lab_allows_construction(12, 8) && !lab_allows_construction(12, 1) &&
+            !lab_allows_construction(12, 16),
+        "builder lab construction mask must keep both doorway circulation lanes clear");
     require(near(aquarium_map->pokemon_presentation.brightness, 1.08f) &&
             near(aquarium_map->pokemon_presentation.pokemon_brightness, 1.02f) &&
             near(aquarium_map->pokemon_presentation.ambient, 0.74f) &&

@@ -1,9 +1,9 @@
 #include "aquarium_geometry/Kernel.hpp"
 
+#include "GeometryBuilder.hpp"
+
 #include <algorithm>
-#include <array>
 #include <cmath>
-#include <cstring>
 #include <iomanip>
 #include <limits>
 #include <sstream>
@@ -12,11 +12,6 @@
 namespace pr::aquarium::geometry {
 
 namespace {
-
-constexpr float kGlassThickness =
-    static_cast<float>(kGlassThicknessMilliWorldUnits) / 1000.0F;
-constexpr float kFrameHeight = 1.0F;
-constexpr float kSandSurfaceY = 0.5F;
 
 void addError(ValidationReport& report, std::string code, std::string path, std::string message) {
     report.diagnostics.push_back({
@@ -27,60 +22,13 @@ void addError(ValidationReport& report, std::string code, std::string path, std:
     });
 }
 
-void addQuad(
-    SemanticMesh& mesh,
-    const std::array<Vec3, 4>& positions,
-    const Vec3& normal) {
-    const std::uint32_t base = static_cast<std::uint32_t>(mesh.vertices.size());
-    constexpr std::array<Vec2, 4> uvs{{{0.0F, 0.0F}, {1.0F, 0.0F}, {1.0F, 1.0F}, {0.0F, 1.0F}}};
-    for (std::size_t i = 0; i < positions.size(); ++i) {
-        mesh.vertices.push_back({positions[i], normal, uvs[i]});
-    }
-    mesh.indices.insert(mesh.indices.end(), {base, base + 1, base + 2, base, base + 2, base + 3});
-}
-
-void addBox(SemanticMesh& mesh, const Vec3& minimum, const Vec3& maximum) {
-    addQuad(mesh, {{{minimum.x, minimum.y, maximum.z}, {maximum.x, minimum.y, maximum.z},
-                    {maximum.x, maximum.y, maximum.z}, {minimum.x, maximum.y, maximum.z}}},
-            {0.0F, 0.0F, 1.0F});
-    addQuad(mesh, {{{maximum.x, minimum.y, minimum.z}, {minimum.x, minimum.y, minimum.z},
-                    {minimum.x, maximum.y, minimum.z}, {maximum.x, maximum.y, minimum.z}}},
-            {0.0F, 0.0F, -1.0F});
-    addQuad(mesh, {{{maximum.x, minimum.y, maximum.z}, {maximum.x, minimum.y, minimum.z},
-                    {maximum.x, maximum.y, minimum.z}, {maximum.x, maximum.y, maximum.z}}},
-            {1.0F, 0.0F, 0.0F});
-    addQuad(mesh, {{{minimum.x, minimum.y, minimum.z}, {minimum.x, minimum.y, maximum.z},
-                    {minimum.x, maximum.y, maximum.z}, {minimum.x, maximum.y, minimum.z}}},
-            {-1.0F, 0.0F, 0.0F});
-    addQuad(mesh, {{{minimum.x, maximum.y, maximum.z}, {maximum.x, maximum.y, maximum.z},
-                    {maximum.x, maximum.y, minimum.z}, {minimum.x, maximum.y, minimum.z}}},
-            {0.0F, 1.0F, 0.0F});
-    addQuad(mesh, {{{minimum.x, minimum.y, minimum.z}, {maximum.x, minimum.y, minimum.z},
-                    {maximum.x, minimum.y, maximum.z}, {minimum.x, minimum.y, maximum.z}}},
-            {0.0F, -1.0F, 0.0F});
-}
-
-SemanticMesh& addMesh(SemanticMeshSet& set, MeshMaterial material) {
-    set.meshes.push_back({});
-    set.meshes.back().material = material;
-    return set.meshes.back();
-}
-
-void addPerimeterBoxes(
-    SemanticMesh& mesh,
-    float half_width,
-    float half_depth,
-    float bottom,
-    float top,
-    float thickness) {
-    addBox(mesh, {-half_width, bottom, -half_depth}, {half_width, top, -half_depth + thickness});
-    addBox(mesh, {-half_width, bottom, half_depth - thickness}, {half_width, top, half_depth});
-    addBox(mesh,
-           {-half_width, bottom, -half_depth + thickness},
-           {-half_width + thickness, top, half_depth - thickness});
-    addBox(mesh,
-           {half_width - thickness, bottom, -half_depth + thickness},
-           {half_width, top, half_depth - thickness});
+void addWarning(ValidationReport& report, std::string code, std::string path, std::string message) {
+    report.diagnostics.push_back({
+        DiagnosticSeverity::Warning,
+        std::move(code),
+        std::move(path),
+        std::move(message),
+    });
 }
 
 class StableHasher {
@@ -224,18 +172,19 @@ ValidationReport validateAquarium(const AquariumBuildRequest& request) {
     if (request.tank.footprint.depth_cells < 3) {
         addError(report, "footprint_too_shallow", "/tank/footprint/depthCells", "Rectangle depth must be at least three cells");
     }
-    if (request.tank.footprint.width_cells > kMaxFootprintCells ||
-        request.tank.footprint.depth_cells > kMaxFootprintCells) {
+    const std::int64_t footprint_area =
+        static_cast<std::int64_t>(request.tank.footprint.width_cells) *
+        static_cast<std::int64_t>(request.tank.footprint.depth_cells);
+    const bool dimensions_safe = request.tank.footprint.width_cells > 0 &&
+        request.tank.footprint.depth_cells > 0 &&
+        request.tank.footprint.width_cells <= kMaxFootprintCells &&
+        request.tank.footprint.depth_cells <= kMaxFootprintCells &&
+        footprint_area <= kMaxFootprintCells;
+    if (!dimensions_safe) {
         addError(report, "footprint_too_large", "/tank/footprint", "Footprint dimensions exceed the kernel safety limit");
     }
-    const bool swaps_axes = (request.tank.footprint.rotation_quarter_turns == 1 ||
-                             request.tank.footprint.rotation_quarter_turns == 3);
-    const std::int32_t occupied_width = swaps_axes
-        ? request.tank.footprint.depth_cells
-        : request.tank.footprint.width_cells;
-    const std::int32_t occupied_depth = swaps_axes
-        ? request.tank.footprint.width_cells
-        : request.tank.footprint.depth_cells;
+    const std::int32_t occupied_width = occupiedWidthCells(request.tank.footprint);
+    const std::int32_t occupied_depth = occupiedDepthCells(request.tank.footprint);
     const std::int64_t max_column = static_cast<std::int64_t>(request.tank.footprint.origin_cell.column) +
                                     static_cast<std::int64_t>(occupied_width);
     const std::int64_t max_row = static_cast<std::int64_t>(request.tank.footprint.origin_cell.row) +
@@ -251,11 +200,36 @@ ValidationReport validateAquarium(const AquariumBuildRequest& request) {
         request.tank.footprint.rotation_quarter_turns > 3) {
         addError(report, "rotation_out_of_range", "/tank/footprint/rotationQuarterTurns", "Rotation must be a quarter turn from zero through three");
     }
-    if (request.tank.footprint.shape != FootprintShape::Rectangle) {
-        addError(report, "shape_not_implemented", "/tank/footprint/shape", "This kernel milestone supports rectangle footprints only");
+    const FootprintDesign& footprint = request.tank.footprint;
+    if (footprint.shape != FootprintShape::Rectangle &&
+        (footprint.width_cells < 5 || footprint.depth_cells < 5)) {
+        addError(report, "shaped_footprint_too_small", "/tank/footprint",
+            "L and U footprints require outer bounds of at least five cells");
     }
-    if (request.tank.corner_radius_steps != 0) {
-        addError(report, "roundness_not_implemented", "/tank/cornerRadiusSteps", "This kernel milestone supports square corners only");
+    if (footprint.shape == FootprintShape::L) {
+        if (footprint.notch_width_cells < 1 || footprint.notch_depth_cells < 1 ||
+            footprint.width_cells - footprint.notch_width_cells < 2 ||
+            footprint.depth_cells - footprint.notch_depth_cells < 2) {
+            addError(report, "invalid_l_arms", "/tank/footprint/notch",
+                "L footprint arms must be at least two cells thick");
+        }
+    } else if (footprint.shape == FootprintShape::U) {
+        const std::int32_t remaining_width =
+            footprint.width_cells - footprint.notch_width_cells;
+        if (footprint.notch_width_cells < 1 || footprint.notch_depth_cells < 1 ||
+            footprint.depth_cells - footprint.notch_depth_cells < 2 ||
+            remaining_width / 2 < 2 || remaining_width - remaining_width / 2 < 2) {
+            addError(report, "invalid_u_arms", "/tank/footprint/notch",
+                "U footprint arms and rear connector must be at least two cells thick");
+        }
+    }
+    if (request.tank.corner_radius_steps < 0) {
+        addError(report, "negative_corner_radius", "/tank/cornerRadiusSteps",
+            "Corner radius cannot be negative");
+    } else if (dimensions_safe && request.tank.corner_radius_steps >
+               fittedCornerRadiusSteps(footprint, request.tank.corner_radius_steps)) {
+        addWarning(report, "corner_radius_fitted", "/tank/cornerRadiusSteps",
+            "Corner radius was fitted to the available footprint");
     }
     if (!request.tank.tunnels.empty()) {
         addError(report, "tunnels_not_implemented", "/tank/tunnels", "This kernel milestone does not generate tunnels");
@@ -270,67 +244,7 @@ AquariumBuildResult buildAquarium(const AquariumBuildRequest& request) {
         return result;
     }
 
-    const bool swaps_axes = (request.tank.footprint.rotation_quarter_turns % 2) != 0;
-    const std::int32_t width_cells = swaps_axes
-        ? request.tank.footprint.depth_cells
-        : request.tank.footprint.width_cells;
-    const std::int32_t depth_cells = swaps_axes
-        ? request.tank.footprint.width_cells
-        : request.tank.footprint.depth_cells;
-    const float half_width = static_cast<float>(width_cells) * static_cast<float>(kWorldUnitsPerCell) * 0.5F;
-    const float half_depth = static_cast<float>(depth_cells) * static_cast<float>(kWorldUnitsPerCell) * 0.5F;
-    const float height = static_cast<float>(request.tank.height_steps * kVerticalStepWorldUnits);
-    const float inner_min_x = -half_width + kGlassThickness;
-    const float inner_max_x = half_width - kGlassThickness;
-    const float inner_min_z = -half_depth + kGlassThickness;
-    const float inner_max_z = half_depth - kGlassThickness;
-
-    SemanticMesh& structure = addMesh(result.meshes, MeshMaterial::Structure);
-    addPerimeterBoxes(structure, half_width, half_depth, 0.0F, kFrameHeight, kGlassThickness);
-    addPerimeterBoxes(structure, half_width, half_depth, height - kFrameHeight, height, kGlassThickness);
-
-    SemanticMesh& sand = addMesh(result.meshes, MeshMaterial::Sand);
-    addQuad(sand,
-            {{{inner_min_x, kSandSurfaceY, inner_max_z}, {inner_max_x, kSandSurfaceY, inner_max_z},
-              {inner_max_x, kSandSurfaceY, inner_min_z}, {inner_min_x, kSandSurfaceY, inner_min_z}}},
-            {0.0F, 1.0F, 0.0F});
-
-    SemanticMesh& water = addMesh(result.meshes, MeshMaterial::Water);
-    const float water_y = height - kGlassThickness;
-    addQuad(water,
-            {{{inner_min_x, water_y, inner_max_z}, {inner_max_x, water_y, inner_max_z},
-              {inner_max_x, water_y, inner_min_z}, {inner_min_x, water_y, inner_min_z}}},
-            {0.0F, 1.0F, 0.0F});
-
-    SemanticMesh& glass = addMesh(result.meshes, MeshMaterial::Glass);
-    addPerimeterBoxes(glass, half_width, half_depth, kFrameHeight, height - kFrameHeight, kGlassThickness);
-
-    const auto& footprint = request.tank.footprint;
-    for (std::int32_t row_offset = 0; row_offset < depth_cells; ++row_offset) {
-        for (std::int32_t column_offset = 0; column_offset < width_cells; ++column_offset) {
-            const bool perimeter = row_offset == 0 || column_offset == 0 ||
-                                   row_offset == depth_cells - 1 ||
-                                   column_offset == width_cells - 1;
-            if (perimeter) {
-                result.collision.blocked_cells.push_back({
-                    footprint.origin_cell.column + column_offset,
-                    footprint.origin_cell.row + row_offset,
-                });
-            }
-        }
-    }
-
-    NavigationLayer layer;
-    layer.floor_y = kSandSurfaceY;
-    layer.ceiling_y = water_y;
-    layer.area.outer = {
-        {inner_min_x, inner_min_z},
-        {inner_max_x, inner_min_z},
-        {inner_max_x, inner_max_z},
-        {inner_min_x, inner_max_z},
-    };
-    result.navigation.layers.push_back(std::move(layer));
-    result.navigation.suggested_spawns.push_back({0.0F, (kSandSurfaceY + water_y) * 0.5F, 0.0F});
+    detail::populateAquariumGeometry(request, result);
 
     populateStatistics(result);
     StableHasher hasher;

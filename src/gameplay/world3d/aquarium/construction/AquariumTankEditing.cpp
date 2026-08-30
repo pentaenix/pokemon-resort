@@ -1,34 +1,26 @@
 #include "gameplay/world3d/aquarium/construction/AquariumTankEditing.hpp"
 
+#include "aquarium_geometry/Kernel.hpp"
+
 #include <algorithm>
+#include <array>
+#include <limits>
 
 namespace pr::gameplay::world3d::aquarium::construction {
 namespace geo = pr::aquarium::geometry;
 
 std::vector<geo::GridCell> tankFootprintCells(const geo::TankDesign& tank) {
-    std::vector<geo::GridCell> cells;
-    const int width = std::max(0, tank.footprint.width_cells);
-    const int depth = std::max(0, tank.footprint.depth_cells);
-    cells.reserve(static_cast<std::size_t>(width * depth));
-    for (int row = tank.footprint.origin_cell.row;
-         row < tank.footprint.origin_cell.row + depth; ++row) {
-        for (int column = tank.footprint.origin_cell.column;
-             column < tank.footprint.origin_cell.column + width; ++column) {
-            cells.push_back({column, row});
-        }
-    }
-    return cells;
+    return geo::footprintCells(tank.footprint);
 }
 
 const geo::TankDesign* playerTankAtCell(
     const AquariumDesignDocument& document, geo::GridCell cell) {
     const auto found = std::find_if(document.tanks.rbegin(), document.tanks.rend(),
         [&](const auto& tank) {
-            const auto& footprint = tank.footprint;
-            return cell.column >= footprint.origin_cell.column &&
-                cell.column < footprint.origin_cell.column + footprint.width_cells &&
-                cell.row >= footprint.origin_cell.row &&
-                cell.row < footprint.origin_cell.row + footprint.depth_cells;
+            const auto cells = tankFootprintCells(tank);
+            return std::any_of(cells.begin(), cells.end(), [&](geo::GridCell occupied) {
+                return occupied.column == cell.column && occupied.row == cell.row;
+            });
         });
     return found == document.tanks.rend() ? nullptr : &*found;
 }
@@ -43,9 +35,53 @@ std::optional<std::size_t> playerTankIndex(
 
 geo::GridCell tankCentreCell(const geo::TankDesign& tank) {
     return {
-        tank.footprint.origin_cell.column + (tank.footprint.width_cells - 1) / 2,
-        tank.footprint.origin_cell.row + (tank.footprint.depth_cells - 1) / 2,
+        tank.footprint.origin_cell.column + (geo::occupiedWidthCells(tank.footprint) - 1) / 2,
+        tank.footprint.origin_cell.row + (geo::occupiedDepthCells(tank.footprint) - 1) / 2,
     };
+}
+
+geo::GridCell resizeHandleCell(const geo::TankDesign& tank, AquariumResizeHandle handle) {
+    const int left = tank.footprint.origin_cell.column;
+    const int top = tank.footprint.origin_cell.row;
+    const int width = geo::occupiedWidthCells(tank.footprint);
+    const int depth = geo::occupiedDepthCells(tank.footprint);
+    const int right = left + width - 1;
+    const int bottom = top + depth - 1;
+    const int centre_column = left + (width - 1) / 2;
+    const int centre_row = top + (depth - 1) / 2;
+    switch (handle) {
+    case AquariumResizeHandle::NorthWest: return {left, top};
+    case AquariumResizeHandle::North: return {centre_column, top};
+    case AquariumResizeHandle::NorthEast: return {right, top};
+    case AquariumResizeHandle::East: return {right, centre_row};
+    case AquariumResizeHandle::SouthEast: return {right, bottom};
+    case AquariumResizeHandle::South: return {centre_column, bottom};
+    case AquariumResizeHandle::SouthWest: return {left, bottom};
+    case AquariumResizeHandle::West: return {left, centre_row};
+    }
+    return {right, bottom};
+}
+
+AquariumResizeHandle nearestResizeHandle(const geo::TankDesign& tank, geo::GridCell cell) {
+    constexpr std::array<AquariumResizeHandle, 8> handles{
+        AquariumResizeHandle::SouthEast, AquariumResizeHandle::NorthWest,
+        AquariumResizeHandle::North, AquariumResizeHandle::NorthEast,
+        AquariumResizeHandle::East, AquariumResizeHandle::South,
+        AquariumResizeHandle::SouthWest, AquariumResizeHandle::West,
+    };
+    AquariumResizeHandle nearest = handles.front();
+    int nearest_distance = std::numeric_limits<int>::max();
+    for (const AquariumResizeHandle handle : handles) {
+        const geo::GridCell handle_cell = resizeHandleCell(tank, handle);
+        const int dx = cell.column - handle_cell.column;
+        const int dy = cell.row - handle_cell.row;
+        const int distance = dx * dx + dy * dy;
+        if (distance < nearest_distance) {
+            nearest = handle;
+            nearest_distance = distance;
+        }
+    }
+    return nearest;
 }
 
 geo::TankDesign moveTankByCells(const geo::TankDesign& tank, int column_delta, int row_delta) {
@@ -60,8 +96,8 @@ geo::TankDesign resizeTankToCell(
     geo::TankDesign resized = tank;
     const int original_left = tank.footprint.origin_cell.column;
     const int original_top = tank.footprint.origin_cell.row;
-    const int original_right = original_left + tank.footprint.width_cells;
-    const int original_bottom = original_top + tank.footprint.depth_cells;
+    const int original_right = original_left + geo::occupiedWidthCells(tank.footprint);
+    const int original_bottom = original_top + geo::occupiedDepthCells(tank.footprint);
     int left = original_left;
     int top = original_top;
     int right = original_right;
@@ -81,8 +117,15 @@ geo::TankDesign resizeTankToCell(
     if (south) bottom = std::max(cell.row + 1, original_top + 1);
 
     resized.footprint.origin_cell = {left, top};
-    resized.footprint.width_cells = right - left;
-    resized.footprint.depth_cells = bottom - top;
+    const int occupied_width = right - left;
+    const int occupied_depth = bottom - top;
+    if ((resized.footprint.rotation_quarter_turns & 1) != 0) {
+        resized.footprint.width_cells = occupied_depth;
+        resized.footprint.depth_cells = occupied_width;
+    } else {
+        resized.footprint.width_cells = occupied_width;
+        resized.footprint.depth_cells = occupied_depth;
+    }
     return resized;
 }
 

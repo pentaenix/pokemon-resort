@@ -45,14 +45,86 @@ Overworld3DTestScreen::aquariumConstructionGizmoAt(int logical_x, int logical_y)
         projection_w, projection_h);
 }
 
+bool Overworld3DTestScreen::handleAquariumConstructionPointerPressed(
+    int logical_x, int logical_y) {
+    namespace aqc = gameplay::world3d::aquarium::construction;
+    const auto hud_action = aquariumConstructionHudActionAt(logical_x, logical_y);
+    if (hud_action != aqc::ConstructionHudAction::None) {
+        aquarium_construction_focused_action_ = hud_action;
+        activateAquariumConstructionAction(hud_action);
+        return true;
+    }
+    if (const auto gizmo = aquariumConstructionGizmoAt(logical_x, logical_y)) {
+        bool began = false;
+        switch (gizmo->kind) {
+        case aqc::ConstructionGizmoKind::Move:
+            began = aquarium_construction_.beginMoveSelected();
+            break;
+        case aqc::ConstructionGizmoKind::Resize:
+            began = aquarium_construction_.beginResizeSelected(gizmo->resize_handle);
+            break;
+        case aqc::ConstructionGizmoKind::Height:
+            aquarium_construction_focused_action_ = aqc::ConstructionHudAction::Height;
+            began = adjustAquariumConstructionProperty(1);
+            break;
+        case aqc::ConstructionGizmoKind::Rotation:
+            aquarium_construction_focused_action_ = aqc::ConstructionHudAction::Rotate;
+            began = adjustAquariumConstructionProperty(1);
+            break;
+        case aqc::ConstructionGizmoKind::Roundness:
+            aquarium_construction_focused_action_ = aqc::ConstructionHudAction::Roundness;
+            began = adjustAquariumConstructionProperty(1);
+            break;
+        case aqc::ConstructionGizmoKind::NotchWidth:
+            aquarium_construction_focused_action_ = aqc::ConstructionHudAction::NotchWidth;
+            began = adjustAquariumConstructionProperty(1);
+            break;
+        case aqc::ConstructionGizmoKind::NotchDepth:
+            aquarium_construction_focused_action_ = aqc::ConstructionHudAction::NotchDepth;
+            began = adjustAquariumConstructionProperty(1);
+            break;
+        }
+        if (began) {
+            const bool manipulating_footprint =
+                gizmo->kind == aqc::ConstructionGizmoKind::Move ||
+                gizmo->kind == aqc::ConstructionGizmoKind::Resize;
+            aquarium_pointer_down_ = manipulating_footprint;
+            aquarium_pointer_dragged_ = false;
+            aquarium_pointer_second_click_ = false;
+            syncAquariumConstructionFocus();
+        }
+        return true;
+    }
+    if (const auto cell = aquariumConstructionCellAt(logical_x, logical_y)) {
+        aquarium_construction_.pointAt(*cell);
+        if (aquarium_construction_.state() == aqc::ConstructionState::Browse) {
+            if (!aquarium_construction_.selectAtCursor()) {
+                aquarium_construction_.beginRectangle();
+            }
+            aquarium_pointer_second_click_ = false;
+        } else if (aquarium_construction_.state() == aqc::ConstructionState::Selected) {
+            aquarium_construction_.selectAtCursor();
+        } else if (aquarium_construction_.state() == aqc::ConstructionState::ResizeFootprint) {
+            aquarium_pointer_second_click_ = true;
+        }
+        aquarium_pointer_down_ = true;
+        aquarium_pointer_dragged_ = false;
+        syncAquariumConstructionFocus();
+    }
+    return true;
+}
+
 gameplay::world3d::aquarium::construction::ConstructionHudAction
 Overworld3DTestScreen::aquariumConstructionHudActionAt(int logical_x, int logical_y) const {
     namespace aqc = gameplay::world3d::aquarium::construction;
     const int width = std::max(1, app_config_.window.virtual_width);
     const int height = std::max(1, app_config_.window.virtual_height);
+    const bool property_draft = aquarium_construction_.draftOperation() ==
+        aqc::ConstructionDraftOperation::Properties;
     return aqc::hitTestAquariumConstructionHud(
-        aqc::aquariumConstructionHudLayout(width, height, aquarium_construction_.state()),
-        logical_x, logical_y, aquarium_construction_.state());
+        aqc::aquariumConstructionHudLayout(
+            width, height, aquarium_construction_.state(), property_draft),
+        logical_x, logical_y, aquarium_construction_.state(), property_draft);
 }
 
 bool Overworld3DTestScreen::activateAquariumConstructionAction(
@@ -73,6 +145,15 @@ bool Overworld3DTestScreen::activateAquariumConstructionAction(
         case aqc::ConstructionHudAction::Resize:
             handled = aquarium_construction_.beginResizeSelected(
                 aquarium_construction_.preferredResizeHandle());
+            break;
+        case aqc::ConstructionHudAction::Shape:
+        case aqc::ConstructionHudAction::Height:
+        case aqc::ConstructionHudAction::Roundness:
+        case aqc::ConstructionHudAction::Rotate:
+        case aqc::ConstructionHudAction::NotchWidth:
+        case aqc::ConstructionHudAction::NotchDepth:
+            aquarium_construction_focused_action_ = action;
+            handled = adjustAquariumConstructionProperty(1);
             break;
         case aqc::ConstructionHudAction::Review:
             handled = aquarium_construction_.reviewDraft();
@@ -112,14 +193,37 @@ bool Overworld3DTestScreen::activateAquariumConstructionAction(
     return handled;
 }
 
+bool Overworld3DTestScreen::adjustAquariumConstructionProperty(int direction) {
+    namespace aqc = gameplay::world3d::aquarium::construction;
+    std::optional<aqc::AquariumTankProperty> property;
+    switch (aquarium_construction_focused_action_) {
+    case aqc::ConstructionHudAction::Shape: property = aqc::AquariumTankProperty::Shape; break;
+    case aqc::ConstructionHudAction::Height: property = aqc::AquariumTankProperty::Height; break;
+    case aqc::ConstructionHudAction::Roundness: property = aqc::AquariumTankProperty::Roundness; break;
+    case aqc::ConstructionHudAction::Rotate: property = aqc::AquariumTankProperty::Rotation; break;
+    case aqc::ConstructionHudAction::NotchWidth: property = aqc::AquariumTankProperty::NotchWidth; break;
+    case aqc::ConstructionHudAction::NotchDepth: property = aqc::AquariumTankProperty::NotchDepth; break;
+    default: break;
+    }
+    if (!property || direction == 0) return false;
+    const bool adjusted = aquarium_construction_.adjustTankProperty(*property, direction);
+    if (adjusted) aquarium_construction_move_sfx_requested_ = true;
+    else requestAquariumConstructionErrorFeedback();
+    syncAquariumConstructionFocus();
+    return adjusted;
+}
+
 void Overworld3DTestScreen::syncAquariumConstructionFocus() {
     namespace aqc = gameplay::world3d::aquarium::construction;
     const auto state = aquarium_construction_.state();
-    const auto actions = aqc::aquariumConstructionHudActions(state);
+    const bool property_draft = aquarium_construction_.draftOperation() ==
+        aqc::ConstructionDraftOperation::Properties;
+    const auto actions = aqc::aquariumConstructionHudActions(state, property_draft);
     if (state != aquarium_construction_focus_state_ ||
         std::find(actions.begin(), actions.end(), aquarium_construction_focused_action_) ==
             actions.end()) {
-        aquarium_construction_focused_action_ = aqc::defaultAquariumConstructionHudAction(state);
+        aquarium_construction_focused_action_ =
+            aqc::defaultAquariumConstructionHudAction(state, property_draft);
         aquarium_construction_focus_state_ = state;
     }
 }
@@ -127,7 +231,10 @@ void Overworld3DTestScreen::syncAquariumConstructionFocus() {
 void Overworld3DTestScreen::cycleAquariumConstructionFocus(int direction) {
     namespace aqc = gameplay::world3d::aquarium::construction;
     syncAquariumConstructionFocus();
-    const auto actions = aqc::aquariumConstructionHudActions(aquarium_construction_.state());
+    const bool property_draft = aquarium_construction_.draftOperation() ==
+        aqc::ConstructionDraftOperation::Properties;
+    const auto actions = aqc::aquariumConstructionHudActions(
+        aquarium_construction_.state(), property_draft);
     if (actions.empty() || direction == 0) return;
     auto found = std::find(actions.begin(), actions.end(), aquarium_construction_focused_action_);
     int index = found == actions.end() ? 0 : static_cast<int>(found - actions.begin());
@@ -159,6 +266,8 @@ void Overworld3DTestScreen::exitAquariumConstruction() {
     aquarium_pointer_down_ = false;
     aquarium_pointer_dragged_ = false;
     aquarium_pointer_second_click_ = false;
+    aquarium_left_trigger_down_ = false;
+    aquarium_right_trigger_down_ = false;
     aquarium_construction_focused_action_ =
         gameplay::world3d::aquarium::construction::ConstructionHudAction::None;
     aquarium_construction_focus_state_ =

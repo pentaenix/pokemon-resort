@@ -33,6 +33,14 @@ std::optional<std::size_t> playerTankIndex(
 pr::aquarium::geometry::GridCell tankCentreCell(
     const pr::aquarium::geometry::TankDesign& tank);
 
+pr::aquarium::geometry::GridCell resizeHandleCell(
+    const pr::aquarium::geometry::TankDesign& tank,
+    AquariumResizeHandle handle);
+
+AquariumResizeHandle nearestResizeHandle(
+    const pr::aquarium::geometry::TankDesign& tank,
+    pr::aquarium::geometry::GridCell cell);
+
 pr::aquarium::geometry::TankDesign moveTankByCells(
     const pr::aquarium::geometry::TankDesign& tank,
     int column_delta,

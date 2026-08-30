@@ -63,10 +63,9 @@ void testValidationIsStable() {
     request.tank.tunnels.push_back({"tunnel_1", TunnelRoute::Straight, {}});
     const ValidationReport report = validateAquarium(request);
     require(!report.valid(), "invalid request was accepted");
-    require(report.diagnostics.size() == 3, "unexpected diagnostic count");
+    require(report.diagnostics.size() == 2, "unexpected diagnostic count");
     require(report.diagnostics[0].code == "footprint_too_narrow", "diagnostic ordering changed");
-    require(report.diagnostics[1].code == "roundness_not_implemented", "roundness diagnostic missing");
-    require(report.diagnostics[2].code == "tunnels_not_implemented", "tunnel diagnostic missing");
+    require(report.diagnostics[1].code == "tunnels_not_implemented", "tunnel diagnostic missing");
 }
 
 void testValidationRejectsUnsafeDimensions() {
@@ -98,7 +97,7 @@ void testRectangleGolden() {
     require(result.statistics.collision_cell_count == 16, "collision perimeter changed");
     require(result.statistics.navigation_layer_count == 1, "navigation layer count changed");
     require(result.navigation.suggested_spawns.size() == 1, "spawn count changed");
-    require(result.content_hash == "fnv1a64:5f18ef72142032cb", "content hash changed: " + result.content_hash);
+    require(result.content_hash == "fnv1a64:ae7b0a30ce4c3d58", "content hash changed: " + result.content_hash);
 
     for (const SemanticMesh& mesh : result.meshes.meshes) {
         for (const Vertex& vertex : mesh.vertices) {
@@ -120,6 +119,29 @@ void testRectangleGolden() {
     }
 }
 
+void requireValidMeshSet(const AquariumBuildResult& result, const std::string& fixture) {
+    require(result.validation.valid(), fixture + " failed validation");
+    for (const SemanticMesh& mesh : result.meshes.meshes) {
+        for (const Vertex& vertex : mesh.vertices) {
+            require(std::isfinite(vertex.position.x) && std::isfinite(vertex.position.y) &&
+                        std::isfinite(vertex.position.z),
+                    fixture + " contains a non-finite vertex");
+        }
+        require(mesh.indices.size() % 3 == 0, fixture + " contains an incomplete triangle");
+        for (std::uint32_t index : mesh.indices) {
+            require(index < mesh.vertices.size(), fixture + " contains an out-of-range index");
+        }
+        for (std::size_t index = 0; index < mesh.indices.size(); index += 3) {
+            const Vertex& a = mesh.vertices[mesh.indices[index]];
+            const Vertex& b = mesh.vertices[mesh.indices[index + 1]];
+            const Vertex& c = mesh.vertices[mesh.indices[index + 2]];
+            const Vec3 face = cross(subtract(b.position, a.position), subtract(c.position, a.position));
+            require(dot(face, a.normal) > 0.0F,
+                fixture + " triangle winding opposes its declared normal");
+        }
+    }
+}
+
 
 void testQuarterTurnSwapsRectangleAxes() {
     AquariumBuildRequest request = rectangleRequest();
@@ -131,6 +153,82 @@ void testQuarterTurnSwapsRectangleAxes() {
     require(result.collision.blocked_cells.back().row == 11, "rotated depth did not use original width");
 }
 
+void testShapeOccupancyRotationAndValidation() {
+    FootprintDesign l_shape;
+    l_shape.shape = FootprintShape::L;
+    l_shape.origin_cell = {7, 6};
+    l_shape.width_cells = 5;
+    l_shape.depth_cells = 5;
+    l_shape.notch_width_cells = 3;
+    l_shape.notch_depth_cells = 3;
+    require(footprintCells(l_shape).size() == 16, "L footprint notch occupancy changed");
+    l_shape.rotation_quarter_turns = 1;
+    const auto rotated_l = footprintCells(l_shape);
+    require(rotated_l.size() == 16 && rotated_l.front().column == 7 &&
+            rotated_l.front().row == 6 && rotated_l.back().column == 11 &&
+            rotated_l.back().row == 10,
+        "rotated L footprint escaped its canonical occupied bounds");
+
+    AquariumBuildRequest l_request;
+    l_request.tank.id = "tank_l";
+    l_request.tank.footprint = l_shape;
+    l_request.tank.corner_radius_steps = 2;
+    const AquariumBuildResult l_result = buildAquarium(l_request);
+    require(l_result.validation.valid() && l_result.navigation.layers.size() == 1 &&
+            l_result.navigation.layers.front().area.outer.size() > 6,
+        "rounded L footprint did not produce one connected navigation polygon");
+    requireValidMeshSet(l_result, "rounded L footprint");
+
+    AquariumBuildRequest u_request;
+    u_request.tank.id = "tank_u";
+    u_request.tank.footprint.shape = FootprintShape::U;
+    u_request.tank.footprint.origin_cell = {3, 4};
+    u_request.tank.footprint.width_cells = 7;
+    u_request.tank.footprint.depth_cells = 5;
+    u_request.tank.footprint.notch_width_cells = 3;
+    u_request.tank.footprint.notch_depth_cells = 3;
+    u_request.tank.height_steps = 12;
+    const AquariumBuildResult u_result = buildAquarium(u_request);
+    require(u_result.validation.valid() && footprintCells(u_request.tank.footprint).size() == 26,
+        "valid U footprint was rejected or occupied its opening");
+    requireValidMeshSet(u_result, "U footprint");
+    requireNear(u_result.navigation.layers.front().ceiling_y, 95.12F,
+        "maximum height did not reach the expected discrete water ceiling");
+
+    u_request.tank.footprint.notch_width_cells = 4;
+    require(!validateAquarium(u_request).valid(), "U footprint accepted an arm thinner than two cells");
+}
+
+void testCornerRadiusIsFittedDeterministically() {
+    FootprintDesign footprint;
+    footprint.width_cells = 3;
+    footprint.depth_cells = 5;
+    require(fittedCornerRadiusSteps(footprint, 99) == 6,
+        "corner radius did not fit to half the shortest side");
+    AquariumBuildRequest request = rectangleRequest();
+    request.tank.corner_radius_steps = 99;
+    const ValidationReport validation = validateAquarium(request);
+    require(validation.valid() && validation.diagnostics.size() == 1 &&
+            validation.diagnostics.front().severity == DiagnosticSeverity::Warning &&
+            validation.diagnostics.front().code == "corner_radius_fitted",
+        "fitted corner radius did not remain buildable with a warning");
+    const AquariumBuildResult first = buildAquarium(request);
+    const AquariumBuildResult second = buildAquarium(request);
+    require(first.content_hash == second.content_hash &&
+            first.statistics.vertex_count > 296,
+        "rounded geometry is not deterministic or did not add curved segments");
+}
+
+void testUnsafeAreaDoesNotAllocateFootprintMemory() {
+    AquariumBuildRequest request = rectangleRequest();
+    request.tank.footprint.width_cells = kMaxFootprintCells;
+    request.tank.footprint.depth_cells = kMaxFootprintCells;
+    request.tank.corner_radius_steps = 4;
+    const ValidationReport report = validateAquarium(request);
+    require(!report.valid() && footprintCells(request.tank.footprint).empty(),
+        "unsafe footprint area was accepted or allocated");
+}
+
 } // namespace
 
 int main() {
@@ -140,6 +238,9 @@ int main() {
         testValidationRejectsUnsafeDimensions();
         testRectangleGolden();
         testQuarterTurnSwapsRectangleAxes();
+        testShapeOccupancyRotationAndValidation();
+        testCornerRadiusIsFittedDeterministically();
+        testUnsafeAreaDoesNotAllocateFootprintMemory();
         std::cout << "aquarium_geometry_tests: ok\n";
         return 0;
     } catch (const std::exception& error) {

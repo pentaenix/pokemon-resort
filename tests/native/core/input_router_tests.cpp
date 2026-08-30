@@ -51,6 +51,7 @@ struct FakeScreen final : pr::ScreenInput {
     bool last_nav2d_end_triggered = false;
     bool capture_right_mouse = false;
     bool capture_controller_extras = false;
+    bool capture_discrete_adjustment = false;
     int unrouted_mouse_calls = 0;
     int unrouted_controller_calls = 0;
 
@@ -110,6 +111,16 @@ struct FakeScreen final : pr::ScreenInput {
             (event.type == SDL_CONTROLLERBUTTONDOWN ||
              event.type == SDL_CONTROLLERBUTTONUP) &&
             event.cbutton.button == SDL_CONTROLLER_BUTTON_X) {
+            ++unrouted_controller_calls;
+            return true;
+        }
+        if (capture_discrete_adjustment && event.type == SDL_MOUSEWHEEL) {
+            ++unrouted_mouse_calls;
+            return true;
+        }
+        if (capture_discrete_adjustment && event.type == SDL_CONTROLLERAXISMOTION &&
+            (event.caxis.axis == SDL_CONTROLLER_AXIS_TRIGGERLEFT ||
+             event.caxis.axis == SDL_CONTROLLER_AXIS_TRIGGERRIGHT)) {
             ++unrouted_controller_calls;
             return true;
         }
@@ -183,6 +194,13 @@ SDL_Event mouseEvent(Uint32 type, Uint8 button = SDL_BUTTON_LEFT) {
     event.button.x = 12;
     event.button.y = 34;
     event.button.button = button;
+    return event;
+}
+
+SDL_Event mouseWheel(int y) {
+    SDL_Event event{};
+    event.type = SDL_MOUSEWHEEL;
+    event.wheel.y = y;
     return event;
 }
 
@@ -414,6 +432,19 @@ int main() {
            construction_controller.advance_calls == 0 &&
            construction_controller.back_calls == 0,
         "captured controller edit action does not leak into gameplay actions");
+
+    FakeScreen construction_adjustment;
+    construction_adjustment.capture_discrete_adjustment = true;
+    expect(router.handleEvent(mouseWheel(1), config, &construction_adjustment),
+        "construction context can capture a discrete mouse-wheel property adjustment");
+    expect(router.handleEvent(
+        controllerAxis(SDL_CONTROLLER_AXIS_TRIGGERRIGHT, 24000),
+        config, &construction_adjustment),
+        "construction context can capture a controller-trigger property adjustment");
+    expect(construction_adjustment.unrouted_mouse_calls == 1 &&
+           construction_adjustment.unrouted_controller_calls == 1 &&
+           construction_adjustment.navigate2d_calls == 0,
+        "property adjustment input leaked into ordinary navigation");
 
     config.accept_mouse = false;
     expect(!router.handleEvent(mouseEvent(SDL_MOUSEMOTION), config, &pointer), "mouse motion ignored when disabled");

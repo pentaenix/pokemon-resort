@@ -1,15 +1,15 @@
 # Aquarium Construction Implementation Checklist
 
-Updated: 2026-08-29
+Updated: 2026-08-30
 
 ## Working-state guardrails
 
-- Pokémon Resort branch: `codex/aquarium-construction-milestone-2` from the reviewed Milestone 1 commit `777a809a`.
-- Aquarium maker branch: `codex/aquarium-construction-milestone-2` from clean `main` at `85b75ed`.
+- Pokémon Resort branch: `codex/aquarium-construction-milestone-3` from the reviewed Milestone 2 checkpoint.
+- Aquarium maker branch: `codex/aquarium-construction-milestone-3` from the reviewed Milestone 2 checkpoint.
 - Pre-Milestone 1 aquarium work was integrated into both repositories before these branches were created.
-- Milestone 2 changes are confined to Pokémon Resort; the maker branch remains clean because the shared kernel contract did not change.
+- Milestone 3 changes span both repositories because kernel ABI 2 is consumed by the maker's browser-only WASM adapter.
 - No reset, clean, checkout, destructive operation, or broad reformat was performed.
-- Feature commits stage explicit Milestone 2 paths only.
+- Feature commits stage explicit Milestone 3 paths only.
 
 ## Milestone status
 
@@ -17,8 +17,8 @@ Updated: 2026-08-29
 |---|---|---|
 | 0 — branches, baseline, contracts, kernel harness | Complete | Approved 2026-08-28 |
 | 1 — fixed rectangle vertical slice | Complete | User authorized Milestone 2 on 2026-08-29; detailed usability comments deferred to review |
-| 2 — editing and history | Review checkpoint ready | Awaiting player review and revision comments |
-| 3 — height, L/U shapes, roundness | Not started | Blocked on Milestone 2 approval |
+| 2 — editing and history | Complete | User authorized Milestone 3 on 2026-08-29 |
+| 3 — height, L/U shapes, roundness | Review checkpoint ready | Awaiting player review and revision comments |
 | 4 — tunnels | Not started | Blocked on Milestone 3 approval |
 | 5 — recovery, performance, release hardening | Not started | Blocked on Milestone 4 approval |
 
@@ -47,16 +47,16 @@ Updated: 2026-08-29
 ## Current golden evidence
 
 - Fixture: `shared/aquarium_geometry/goldens/rectangle-even.aquarium.json`.
-- Kernel ABI: 1.
+- Kernel ABI: 2.
 - Design schema: 1.
-- Hash: `fnv1a64:5f18ef72142032cb`.
+- Rectangle hash: `fnv1a64:ae7b0a30ce4c3d58`.
 - Meshes: 4 semantic material groups.
 - Vertices: 296.
 - Indices: 444.
 - Triangles: 148.
 - Collision: 16 perimeter cells.
 - Navigation: 1 layer and 1 suggested spawn.
-- Native/WASM result: exact JSON equality.
+- Native/WASM result: exact JSON equality for rectangle, rounded L, and rotated U fixtures.
 
 ## Verification log
 
@@ -89,7 +89,9 @@ Render isolation was verified from the generated link graph: `title_screen_demo`
 
 ## Next milestone boundary
 
-Milestone 0 is approved. Milestone 1 begins from `codex/aquarium-construction-milestone-1` after both nested repositories' `main` branches contain the integrated pre-Milestone 1 state. It will add the first player-visible rectangle flow; no L/U, roundness, tunnel, or authored-tank editing work belongs in that milestone.
+Milestone 3 is at its review checkpoint. Milestone 4 must not begin without
+explicit user approval; straight and one-elbow tunnels, portal sockets, dry
+corridors, and layered tunnel navigation remain out of the current change.
 
 ## Milestone 1 work log
 
@@ -266,4 +268,73 @@ Shipping Metal inspection at the normal 800×500 game viewport showed both loade
 - Authored tanks are not part of the player document and cannot be selected or modified.
 - Cancel and stale worker publication leave document, collision, navigation, population, GPU ownership, history, and save revision unchanged.
 - Mouse users can select a tank/click its centre or edge gizmos/drag/review; keyboard and controller users can reach the same actions through semantic focus and whole-cell cursor movement.
-- Milestone 3 remains blocked until the user reviews this checkpoint and explicitly approves height, L/U shapes, and corner-roundness work.
+- The user explicitly approved Milestone 3 after this checkpoint.
+
+## Milestone 3 work log
+
+- [x] Bump the shared kernel to ABI 2 and retain schema version 1 compatibility.
+- [x] Add deterministic rectangle, L, and U occupancy with quarter-turn rotation.
+- [x] Add fitted quarter-cell corner roundness and deterministic rounded boundaries.
+- [x] Generate shaped structure, flat sand, water, glass, collision, and navigation from one footprint.
+- [x] Add native rectangle/L/U rotation, radius, winding, seam, finite, manifold, and safety-limit tests.
+- [x] Add rounded-L and rotated-U golden documents alongside the rectangle fixture.
+- [x] Make the Aquarium Maker browser runtime consume the exact kernel sources through WASM for the compatible subset.
+- [x] Reject stale WASM ABI artifacts and stale asynchronous maker results.
+- [x] Keep maker terrain, decor, rocks, plants, asymmetric profiles, and unsupported passages on its existing developer path.
+- [x] Add in-game shape, height, rotation, roundness, L-notch, and U-opening property commands.
+- [x] Keep property drafts immutable until review/build and make B/Escape discard only the property draft.
+- [x] Add shape-aware selection, move, resize, collision, overlap checks, tank centres, population positions, and runtime geometry.
+- [x] Add nonnumeric property ticks, live arcs, rotation/notch controls, and compact wrapping HUD layout.
+- [x] Add world-space height, rotation, roundness, notch-width, and notch-depth gizmos with projected mouse hit targets.
+- [x] Route mouse wheel, keyboard Q/E/brackets, and controller LT/RT through semantic property actions.
+- [x] Scale the construction camera from the audited room bounds.
+- [x] Preserve `aquarium12` as the authored three-tank gallery and add a separate empty `aquarium_builder_lab` test room.
+- [x] Add a playable exterior → gallery → builder-lab → exterior route, with both lab doorway lanes excluded from building.
+- [x] Verify the lab has no authored models/cutouts, 340 build cells, a walkable centre aisle, and its own map-scoped save identity.
+- [x] Keep the oversized overworld screen as an integration shell by moving construction pointer dispatch to `Overworld3DTestScreenAquariumConstructionUi.cpp`.
+- [x] Stop at the Milestone 3 review checkpoint; do not start tunnel work.
+- [ ] Player manual review: exercise every shape/property with mouse, keyboard, and controller in the Builder Lab.
+
+### Milestone 3 implementation inventory
+
+- `shared/aquarium_geometry/Footprint`: canonical integer occupancy, rotated dimensions, fitted radii, and deterministic boundary tracing.
+- `shared/aquarium_geometry/GeometryBuilder`: semantic shaped meshes plus collision and navigation derived from the same footprint.
+- `AquariumConstructionSessionProperties`: discrete property drafts and shape-specific notch/opening constraints.
+- `AquariumTankEditing`: shape-aware occupancy, selection, centres, movement, and eight-direction resizing.
+- `AquariumConstructionVisual` and `AquariumConstructionHudLayout`: property gizmos, hit testing, tick/arc feedback, and compact focusable controls without numeric labels.
+- `Overworld3DTestScreenAquariumConstructionUi`: construction-only pointer, HUD, gizmo, and semantic property dispatch.
+- `aquarium_builder_lab.owmap`: empty procedural construction room; its config owns the 340-cell safe mask and no authored tank catalog entries.
+- Aquarium Maker `resortKernel.ts`: strict whole-cell compatible-subset mapper with advanced-feature fallback.
+
+### Milestone 3 deterministic and performance evidence
+
+- Kernel ABI 2 native/WASM parity is exact for all three goldens.
+- Rectangle content hash: `fnv1a64:ae7b0a30ce4c3d58`.
+- Native rectangle generation p95: 1.1142 ms.
+- Native rounded-U generation p95: 5.3923 ms.
+- Maker WASM generation p95: 4.0981 ms.
+- All remain far below the 50 ms rectangle and 100 ms rounded-shape budgets.
+
+### Milestone 3 automated evidence
+
+| Command | Result |
+|---|---|
+| `cmake --build build -j4` | Pass; shipping executable, geometry benchmark, runtime tests, and Map Studio targets build |
+| Focused aquarium/design/runtime/input/map/headless selection | All feature tests pass; the OWMAP executable reaches only its documented baseline ramp assertion after the new project/door/lab checks pass |
+| `ctest --test-dir build --output-on-failure` | 69/74 pass; exactly the same five documented baseline failures and no Milestone 3 failure |
+| `pokemon_resort_map_maker --validate-project` | Pass; five maps and five unique sources, including both aquarium rooms |
+| `npm run check` | Pass; existing maker large-chunk warning only |
+| `npm run validate:kernel` | Pass; three exact native/WASM goldens, ABI 2, rectangle hash `fnv1a64:ae7b0a30ce4c3d58` |
+| `npm run validate:model` | Pass for the maker's complete existing standard, tunnel, below-floor, shape, passage, and decor matrix |
+
+The five full-suite failures remain the baseline gameplay-to-Resort module
+import, two Attend catalog expectations, compact window-width expectation, ramp
+entry expectation, and ocean sampling expectations. None of their files were
+changed for Milestone 3. The title-screen headless smoke, aquarium presentation,
+door resolution, project validation, and all new construction tests pass.
+
+### Milestone 3 review boundary
+
+- Height, rectangle/L/U shapes, rotations, fitted roundness, shape handles, and the separate empty test room are implemented.
+- Tunnels remain entirely Milestone 4 work.
+- Manual visual and control review in the Builder Lab is intentionally left to the user checkpoint; any corrections stay in Milestone 3 before tunnel work begins.

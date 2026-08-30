@@ -209,6 +209,57 @@ void editingHistoryIsTransactionalStableAndStaleSafe() {
         "undo deletion did not restore the stable tank");
 }
 
+void discreteShapePropertiesAreDraftedAndTransactional() {
+    auto document = emptyDocument();
+    document.revision = 2;
+    geo::TankDesign tank;
+    tank.id = "tank_properties";
+    tank.footprint.origin_cell = {10, 10};
+    tank.footprint.width_cells = 5;
+    tank.footprint.depth_cells = 5;
+    document.tanks.push_back(tank);
+    construction::AquariumConstructionSession session;
+    session.configure("aquarium12", constructionConfig(), {}, document);
+    require(session.enter({9, 9}), "property fixture did not enter construction");
+    session.pointAt({10, 10});
+    require(session.selectAtCursor(), "property fixture could not select its tank");
+    require(!session.adjustTankProperty(construction::AquariumTankProperty::NotchWidth, 1) &&
+            session.state() == construction::ConstructionState::Selected && !session.draft(),
+        "rectangle-only notch input created a draft");
+    require(session.adjustTankProperty(construction::AquariumTankProperty::Shape, 1) &&
+            session.adjustTankProperty(construction::AquariumTankProperty::Height, 1) &&
+            session.adjustTankProperty(construction::AquariumTankProperty::Roundness, 1) &&
+            session.adjustTankProperty(construction::AquariumTankProperty::Rotation, 1) &&
+            session.adjustTankProperty(construction::AquariumTankProperty::NotchWidth, -1) &&
+            session.adjustTankProperty(construction::AquariumTankProperty::NotchDepth, -1),
+        "discrete property controls did not update one shared draft");
+    const auto preview = session.previewTank();
+    require(preview && preview->footprint.shape == geo::FootprintShape::L &&
+            preview->height_steps == 9 && preview->corner_radius_steps == 1 &&
+            preview->footprint.rotation_quarter_turns == 1 &&
+            preview->footprint.notch_width_cells == 2 &&
+            preview->footprint.notch_depth_cells == 2 && session.draftValid(),
+        "property draft does not expose the expected discrete L-tank preview");
+    require(session.committedDesign().revision == 2 &&
+            session.committedDesign().tanks.front().footprint.shape == geo::FootprintShape::Rectangle,
+        "property preview mutated the authoritative design");
+    auto candidate = session.prepareCommit();
+    require(candidate && session.publish(std::move(*candidate)) &&
+            session.committedDesign().revision == 3 &&
+            session.committedDesign().tanks.front().id == "tank_properties" &&
+            session.committedDesign().tanks.front().footprint.shape == geo::FootprintShape::L,
+        "property command did not publish transactionally with stable identity");
+
+    require(session.adjustTankProperty(construction::AquariumTankProperty::Shape, 1),
+        "L tank did not cycle to U");
+    const auto u_preview = session.previewTank();
+    require(u_preview && u_preview->footprint.shape == geo::FootprintShape::U &&
+            session.cancel() && session.state() == construction::ConstructionState::Selected &&
+            session.committedDesign().revision == 3 &&
+            session.committedDesign().tanks.front().footprint.shape == geo::FootprintShape::L,
+        "cancelling a U-shape property draft changed the committed L tank");
+}
+
 void invalidMoveAndResizeCannotPrepareCommands() {
     auto document = emptyDocument();
     geo::TankDesign first;
@@ -443,6 +494,52 @@ void constructionVisualBuildsYellowCellsGizmosAndCanonicalHitTargets() {
             resize_gizmo->resize_handle == construction::AquariumResizeHandle::SouthEast,
         "south-east tank corner did not expose its directional resize gizmo");
 
+    require(camera.worldToScreen({184.0f, 64.0f, 184.0f}, 1280, 800,
+                screen_x, screen_y, depth),
+        "height property gizmo did not project into the construction viewport");
+    const auto height_gizmo = construction::hitTestAquariumConstructionGizmo(
+        visual, camera, static_cast<int>(screen_x), static_cast<int>(screen_y), 1280, 800);
+    require(height_gizmo && height_gizmo->kind == construction::ConstructionGizmoKind::Height,
+        "tank top did not expose a mouse-hit-testable discrete height gizmo");
+    require(camera.worldToScreen({184.0f, 0.72f, 149.6f}, 1280, 800,
+                screen_x, screen_y, depth),
+        "rotation property gizmo did not project into the construction viewport");
+    const auto rotation_gizmo = construction::hitTestAquariumConstructionGizmo(
+        visual, camera, static_cast<int>(screen_x), static_cast<int>(screen_y), 1280, 800);
+    require(rotation_gizmo && rotation_gizmo->kind == construction::ConstructionGizmoKind::Rotation,
+        "north rotation handle is not mouse-hit-testable");
+    require(camera.worldToScreen({152.8f, 0.72f, 152.8f}, 1280, 800,
+                screen_x, screen_y, depth),
+        "roundness property gizmo did not project into the construction viewport");
+    const auto roundness_gizmo = construction::hitTestAquariumConstructionGizmo(
+        visual, camera, static_cast<int>(screen_x), static_cast<int>(screen_y), 1280, 800);
+    require(roundness_gizmo &&
+            roundness_gizmo->kind == construction::ConstructionGizmoKind::Roundness,
+        "north-west radius handle is not mouse-hit-testable");
+
+    selected.footprint.shape = geo::FootprintShape::L;
+    selected.footprint.width_cells = 5;
+    selected.footprint.depth_cells = 5;
+    selected.footprint.notch_width_cells = 3;
+    selected.footprint.notch_depth_cells = 3;
+    visual.preview_tank = selected;
+    visual.state = construction::ConstructionState::DraftReview;
+    require(camera.worldToScreen({212.48f, 0.72f, 216.0f}, 1280, 800,
+                screen_x, screen_y, depth),
+        "L-notch width gizmo did not project into the construction viewport");
+    const auto notch_gizmo = construction::hitTestAquariumConstructionGizmo(
+        visual, camera, static_cast<int>(screen_x), static_cast<int>(screen_y), 1280, 800);
+    require(notch_gizmo && notch_gizmo->kind == construction::ConstructionGizmoKind::NotchWidth,
+        "L-notch opening does not expose separate mouse property handles");
+    require(camera.worldToScreen({219.52f, 0.72f, 216.0f}, 1280, 800,
+                screen_x, screen_y, depth),
+        "L-notch depth gizmo did not project into the construction viewport");
+    const auto notch_depth_gizmo = construction::hitTestAquariumConstructionGizmo(
+        visual, camera, static_cast<int>(screen_x), static_cast<int>(screen_y), 1280, 800);
+    require(notch_depth_gizmo &&
+            notch_depth_gizmo->kind == construction::ConstructionGizmoKind::NotchDepth,
+        "L-notch opening depth is not independently mouse-hit-testable");
+
     const auto hud = construction::aquariumConstructionHudLayout(
         1280, 800, construction::ConstructionState::DraftReview);
     require(construction::hitTestAquariumConstructionHud(
@@ -482,6 +579,26 @@ void constructionVisualBuildsYellowCellsGizmosAndCanonicalHitTargets() {
                 construction::ConstructionState::Selected) ==
             construction::ConstructionHudAction::Move,
         "selected-tank controller focus does not begin on the move gizmo action");
+    const auto property_actions = construction::aquariumConstructionHudActions(
+        construction::ConstructionState::DraftReview, true);
+    require(std::find(property_actions.begin(), property_actions.end(),
+                construction::ConstructionHudAction::Adjust) == property_actions.end() &&
+            property_actions.front() == construction::ConstructionHudAction::Build,
+        "property-only review exposes an inoperative footprint-adjust action");
+    const auto compact_hud = construction::aquariumConstructionHudLayout(
+        640, 480, construction::ConstructionState::Selected);
+    const construction::ConstructionHudRect compact_rects[]{
+        compact_hud.move, compact_hud.resize, compact_hud.shape, compact_hud.height,
+        compact_hud.roundness, compact_hud.rotate, compact_hud.notch_width,
+        compact_hud.notch_depth, compact_hud.remove, compact_hud.undo,
+        compact_hud.redo, compact_hud.done,
+    };
+    require(std::all_of(std::begin(compact_rects), std::end(compact_rects),
+                [](const auto& rect) {
+                    return rect.x >= 0 && rect.y >= 0 && rect.x + rect.width <= 640 &&
+                        rect.y + rect.height <= 480;
+                }),
+        "compact construction palette did not wrap inside the viewport");
 
     const std::string minimum_hint = construction::aquariumConstructionHintForValidation(
         "Expand the tank to at least three cells in both directions");
@@ -673,22 +790,30 @@ void resourceGenerationRejectsCandidatesWithoutTouchingActiveResources() {
 
 int main() {
     try {
-        stateMachinePreservesCommittedDataOnCancel();
-        stateMachineBuildsAndRejectsOverlap();
-        draftReviewIsNonMutatingAndAdjustmentIsReversible();
-        editingHistoryIsTransactionalStableAndStaleSafe();
-        invalidMoveAndResizeCannotPrepareCommands();
-        everyEditingStateCancelsWithoutChangingTheDocument();
-        newerAsyncOperationInvalidatesEveryOlderCandidate();
-        cursorChoosesEveryControllerResizeHandle();
-        authoredObstaclesRemainVisibleAtBuildZoneEdges();
-        constructionVisualBuildsYellowCellsGizmosAndCanonicalHitTargets();
-        loadedPlacementValidationRejectsBoundsAndOverlap();
-        storeRoundTripsAndRecoversBackup();
-        storePreservesNewerDocumentsAndFailedWrites();
-        collisionOverlayCombinesStaticAndDynamicCells();
-        populationPolicyIsReplaceableAndNavigationIsDerived();
-        resourceGenerationRejectsCandidatesWithoutTouchingActiveResources();
+        const auto run = [](const char* name, auto test) {
+            std::cerr << "running " << name << '\n';
+            try { test(); }
+            catch (const std::exception& error) {
+                throw std::runtime_error(std::string(name) + ": " + error.what());
+            }
+        };
+        run("stateMachinePreservesCommittedDataOnCancel", stateMachinePreservesCommittedDataOnCancel);
+        run("stateMachineBuildsAndRejectsOverlap", stateMachineBuildsAndRejectsOverlap);
+        run("draftReviewIsNonMutatingAndAdjustmentIsReversible", draftReviewIsNonMutatingAndAdjustmentIsReversible);
+        run("editingHistoryIsTransactionalStableAndStaleSafe", editingHistoryIsTransactionalStableAndStaleSafe);
+        run("discreteShapePropertiesAreDraftedAndTransactional", discreteShapePropertiesAreDraftedAndTransactional);
+        run("invalidMoveAndResizeCannotPrepareCommands", invalidMoveAndResizeCannotPrepareCommands);
+        run("everyEditingStateCancelsWithoutChangingTheDocument", everyEditingStateCancelsWithoutChangingTheDocument);
+        run("newerAsyncOperationInvalidatesEveryOlderCandidate", newerAsyncOperationInvalidatesEveryOlderCandidate);
+        run("cursorChoosesEveryControllerResizeHandle", cursorChoosesEveryControllerResizeHandle);
+        run("authoredObstaclesRemainVisibleAtBuildZoneEdges", authoredObstaclesRemainVisibleAtBuildZoneEdges);
+        run("constructionVisualBuildsYellowCellsGizmosAndCanonicalHitTargets", constructionVisualBuildsYellowCellsGizmosAndCanonicalHitTargets);
+        run("loadedPlacementValidationRejectsBoundsAndOverlap", loadedPlacementValidationRejectsBoundsAndOverlap);
+        run("storeRoundTripsAndRecoversBackup", storeRoundTripsAndRecoversBackup);
+        run("storePreservesNewerDocumentsAndFailedWrites", storePreservesNewerDocumentsAndFailedWrites);
+        run("collisionOverlayCombinesStaticAndDynamicCells", collisionOverlayCombinesStaticAndDynamicCells);
+        run("populationPolicyIsReplaceableAndNavigationIsDerived", populationPolicyIsReplaceableAndNavigationIsDerived);
+        run("resourceGenerationRejectsCandidatesWithoutTouchingActiveResources", resourceGenerationRejectsCandidatesWithoutTouchingActiveResources);
         std::cout << "aquarium_runtime_tests: ok\n";
         return 0;
     } catch (const std::exception& error) {

@@ -1589,6 +1589,40 @@ void testCurrentMapProjectSourcesLoadInRuntime() {
             expect(pr::gameplay::world3d::doors::findDoorTrigger(
                     room_chunks, 12, 16, 12, 17, 0, 1).has_value(),
                 "moving south into the threshold starts the one-cell pre-transfer exit step");
+        } else if (scene.id == "aquarium_builder_lab") {
+            expect(scene.map_type == "interior" && scene.grid.width == 24 &&
+                    scene.grid.height == 18 && scene.models.empty() &&
+                    scene.interior.floor_cutouts.empty(),
+                "builder lab is a separate empty procedural aquarium room");
+            expect(scene.interior.openings.size() == 2U &&
+                    !pr::gameplay::world3d::interiors::boundaryCellBlocked(scene, 12, 0) &&
+                    !pr::gameplay::world3d::interiors::boundaryCellBlocked(scene, 12, 17) &&
+                    pr::gameplay::world3d::interiors::boundaryCellBlocked(scene, 0, 8) &&
+                    pr::gameplay::world3d::interiors::boundaryCellBlocked(scene, 23, 8),
+                "builder lab keeps north/south circulation open and side walls closed");
+            pr::gameplay::world3d::characters::CharacterController movement(scene);
+            for (int row = 2; row <= 16; ++row) {
+                expect(movement.teleportToTile(
+                        12, row - 1, pr::gameplay::world3d::FacingDirection::South),
+                    "builder lab movement test can sample its center aisle");
+                const auto step = movement.moveInput(0, 1, 0.02);
+                expect(step.attempted_step && !step.blocked,
+                    "builder lab center aisle remains fully walkable for testing");
+            }
+            expect(scene.anchors.size() == 1U &&
+                    scene.anchors.front().id == "from_gallery" &&
+                    scene.anchors.front().tile_x == 12 &&
+                    scene.anchors.front().tile_y == 0 &&
+                    scene.anchors.front().facing ==
+                        pr::gameplay::world3d::FacingDirection::South,
+                "gallery exit arrives at the north edge of the builder lab facing inward");
+            expect(scene.door_triggers.size() == 1U &&
+                    scene.door_triggers.front().id == "builder_lab_exit" &&
+                    scene.door_triggers.front().tile_x == 12 &&
+                    scene.door_triggers.front().tile_y == 17 &&
+                    scene.links.size() == 1U &&
+                    scene.links.front().destination_map_id == "0",
+                "builder lab exits through its south threshold back to the resort");
         }
         chunks.push_back({id->asString(), scene, 0, 0});
     }

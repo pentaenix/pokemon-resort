@@ -136,6 +136,14 @@
       "id": "aquarium12",
       "linked": false,
       "name": "aquarium"
+    },
+    {
+      "file": "aquarium_builder_lab.owmap",
+      "gridX": 3,
+      "gridY": 0,
+      "id": "aquarium_builder_lab",
+      "linked": false,
+      "name": "Aquarium Builder Lab"
     }
   ],
   "name": "Pokemon Resort",

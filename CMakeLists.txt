@@ -187,8 +187,10 @@ add_executable(title_screen_demo
     src/gameplay/world3d/aquarium/AquariumSimulation.cpp
     src/gameplay/world3d/aquarium/construction/AquariumCollisionOverlay.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionCommand.cpp
+    src/gameplay/world3d/aquarium/construction/AquariumConstructionHudLayout.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionOverlay.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionSession.cpp
+    src/gameplay/world3d/aquarium/construction/AquariumConstructionSessionProperties.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionVisual.cpp
     src/gameplay/world3d/aquarium/construction/AquariumDesign.cpp
     src/gameplay/world3d/aquarium/construction/AquariumDesignStore.cpp
@@ -376,7 +378,9 @@ add_executable(aquarium_runtime_tests
     src/gameplay/attend/PokemonModelCatalog.cpp
     src/gameplay/world3d/aquarium/construction/AquariumCollisionOverlay.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionCommand.cpp
+    src/gameplay/world3d/aquarium/construction/AquariumConstructionHudLayout.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionSession.cpp
+    src/gameplay/world3d/aquarium/construction/AquariumConstructionSessionProperties.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionVisual.cpp
     src/gameplay/world3d/aquarium/construction/AquariumDesign.cpp
     src/gameplay/world3d/aquarium/construction/AquariumDesignStore.cpp

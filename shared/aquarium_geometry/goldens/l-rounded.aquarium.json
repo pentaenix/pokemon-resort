@@ -1,0 +1,34 @@
+{
+  "schema": "pokemon-resort-aquarium-design",
+  "schemaVersion": 1,
+  "designId": "aqd_golden_l_rounded",
+  "mapId": "aquarium12",
+  "revision": 1,
+  "grid": {
+    "tileWorldUnits": 16,
+    "metresPerCell": 1,
+    "verticalStepWorldUnits": 8,
+    "radiusStepWorldUnits": 4,
+    "origin": "map-north-west",
+    "cellConvention": "integer-boundaries-half-cell-centres"
+  },
+  "populationPolicy": { "id": "placeholder-wishiwashi", "version": 1 },
+  "tanks": [
+    {
+      "id": "tank_golden_l_rounded",
+      "footprint": {
+        "shape": "l",
+        "originCell": { "column": 4, "row": 3 },
+        "widthCells": 7,
+        "depthCells": 6,
+        "rotationQuarterTurns": 0,
+        "notch": { "widthCells": 3, "depthCells": 3 }
+      },
+      "heightSteps": 10,
+      "cornerRadiusSteps": 2,
+      "substrate": { "kind": "sand-flat" },
+      "glass": { "style": "clear-fixed-v1" },
+      "tunnels": []
+    }
+  ]
+}
