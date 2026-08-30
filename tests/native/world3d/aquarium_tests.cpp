@@ -145,7 +145,11 @@ void configuredDewgongMovesInsidePlacedTank() {
     require(aquarium_map && aquarium_map->tanks.size() == 3U,
         "aquarium12 camera/population config must load all three tanks");
     require(aquarium_map->construction.enabled &&
-            aquarium_map->construction.allowed_cells.size() == 220U,
+            aquarium_map->construction.allowed_cells.size() == 220U &&
+            aquarium_map->construction.has_return_cell &&
+            aquarium_map->construction.return_cell.column == 12 &&
+            aquarium_map->construction.return_cell.row == 16 &&
+            aquarium_map->construction.return_facing == "south",
         "aquarium12 must expose its audited room-wide construction mask");
     const auto allows_construction = [&](int column, int row) {
         return std::any_of(aquarium_map->construction.allowed_cells.begin(),
@@ -161,7 +165,11 @@ void configuredDewgongMovesInsidePlacedTank() {
         aquarium::aquariumMapConfig(catalog, "aquarium_builder_lab");
     require(builder_lab && builder_lab->tanks.empty() &&
             builder_lab->construction.enabled &&
-            builder_lab->construction.allowed_cells.size() == 340U,
+            builder_lab->construction.allowed_cells.size() == 340U &&
+            builder_lab->construction.has_return_cell &&
+            builder_lab->construction.return_cell.column == 12 &&
+            builder_lab->construction.return_cell.row == 1 &&
+            builder_lab->construction.return_facing == "south",
         "builder lab must expose a separate empty full-room construction surface");
     const auto lab_allows_construction = [&](int column, int row) {
         return std::any_of(builder_lab->construction.allowed_cells.begin(),

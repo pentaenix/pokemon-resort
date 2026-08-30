@@ -1499,7 +1499,16 @@ void testCurrentMapProjectSourcesLoadInRuntime() {
         const auto scene = pr::gameplay::world3d::data::loadSceneConfig(
             root.string(), path.string());
         expect(!scene.id.empty(), "current map '" + id->asString() + "' loads as a runtime scene");
-        if (scene.id == "aquarium12") {
+        if (scene.id == "0") {
+            const auto aquarium_link = std::find_if(
+                scene.links.begin(), scene.links.end(), [](const auto& link) {
+                    return link.id == "door_1_link";
+                });
+            expect(aquarium_link != scene.links.end() &&
+                    aquarium_link->destination_map_id == "aquarium_builder_lab" &&
+                    aquarium_link->destination_anchor_id == "from_resort",
+                "the resort aquarium entrance opens directly into the empty builder lab");
+        } else if (scene.id == "aquarium12") {
             expect(scene.grid.width == 24 && scene.grid.height == 18,
                 "aquarium gallery keeps its compact tank-focused footprint");
             expect(std::abs(scene.interior.default_room.wall_height_tiles - 4.0f) < 0.001f,
@@ -1584,6 +1593,9 @@ void testCurrentMapProjectSourcesLoadInRuntime() {
                     scene.door_triggers.front().script_id ==
                         "interior_exit_step_then_transfer",
                 "aquarium starts its scripted exit when entering the visible threshold row");
+            expect(scene.links.size() == 1U &&
+                    scene.links.front().destination_map_id == "0",
+                "the authored aquarium gallery exits directly back to the resort");
             const std::vector<pr::gameplay::world3d::characters::LoadedWorldChunk> room_chunks{{
                 scene.id, scene, 0, 0}};
             expect(pr::gameplay::world3d::doors::findDoorTrigger(
@@ -1610,19 +1622,39 @@ void testCurrentMapProjectSourcesLoadInRuntime() {
                     "builder lab center aisle remains fully walkable for testing");
             }
             expect(scene.anchors.size() == 1U &&
-                    scene.anchors.front().id == "from_gallery" &&
+                    scene.anchors.front().id == "from_resort" &&
                     scene.anchors.front().tile_x == 12 &&
                     scene.anchors.front().tile_y == 0 &&
                     scene.anchors.front().facing ==
                         pr::gameplay::world3d::FacingDirection::South,
-                "gallery exit arrives at the north edge of the builder lab facing inward");
-            expect(scene.door_triggers.size() == 1U &&
-                    scene.door_triggers.front().id == "builder_lab_exit" &&
-                    scene.door_triggers.front().tile_x == 12 &&
-                    scene.door_triggers.front().tile_y == 17 &&
-                    scene.links.size() == 1U &&
-                    scene.links.front().destination_map_id == "0",
-                "builder lab exits through its south threshold back to the resort");
+                "the resort entrance arrives at the north edge of the builder lab facing inward");
+            const auto gallery_door = std::find_if(
+                scene.door_triggers.begin(), scene.door_triggers.end(), [](const auto& door) {
+                    return door.id == "builder_lab_gallery";
+                });
+            const auto exit_door = std::find_if(
+                scene.door_triggers.begin(), scene.door_triggers.end(), [](const auto& door) {
+                    return door.id == "builder_lab_exit";
+                });
+            const auto gallery_link = std::find_if(
+                scene.links.begin(), scene.links.end(), [](const auto& link) {
+                    return link.id == "builder_lab_gallery_link";
+                });
+            const auto exit_link = std::find_if(
+                scene.links.begin(), scene.links.end(), [](const auto& link) {
+                    return link.id == "builder_lab_exit_link";
+                });
+            expect(scene.door_triggers.size() == 2U && scene.links.size() == 2U &&
+                    gallery_door != scene.door_triggers.end() &&
+                    gallery_door->tile_x == 12 && gallery_door->tile_y == 0 &&
+                    gallery_link != scene.links.end() &&
+                    gallery_link->destination_map_id == "aquarium12" &&
+                    gallery_link->destination_anchor_id == "anchor" &&
+                    exit_door != scene.door_triggers.end() &&
+                    exit_door->tile_x == 12 && exit_door->tile_y == 17 &&
+                    exit_link != scene.links.end() &&
+                    exit_link->destination_map_id == "0",
+                "builder lab links north to the authored gallery and south to the resort");
         }
         chunks.push_back({id->asString(), scene, 0, 0});
     }

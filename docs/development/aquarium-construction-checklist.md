@@ -289,11 +289,14 @@ Shipping Metal inspection at the normal 800×500 game viewport showed both loade
 - [x] Route mouse wheel, keyboard Q/E/brackets, and controller LT/RT through semantic property actions.
 - [x] Scale the construction camera from the audited room bounds.
 - [x] Preserve `aquarium12` as the authored three-tank gallery and add a separate empty `aquarium_builder_lab` test room.
-- [x] Add a playable exterior → gallery → builder-lab → exterior route, with both lab doorway lanes excluded from building.
+- [x] Add a playable exterior → builder-lab route, with optional north access to the authored gallery and south access back outside; keep both lab doorway lanes excluded from building.
 - [x] Verify the lab has no authored models/cutouts, 340 build cells, a walkable centre aisle, and its own map-scoped save identity.
 - [x] Keep the oversized overworld screen as an integration shell by moving construction pointer dispatch to `Overworld3DTestScreenAquariumConstructionUi.cpp`.
 - [x] Stop at the Milestone 3 review checkpoint; do not start tunnel work.
 - [ ] Player manual review: exercise every shape/property with mouse, keyboard, and controller in the Builder Lab.
+- [x] Revision: route the normal exterior aquarium entrance directly to the empty Builder Lab while retaining the authored gallery through the lab's north doorway.
+- [x] Revision: replace build-mask framing with a fixed north-oriented full-room overview and add an always-visible cursor-navigation banner.
+- [x] Revision: hide the player and other overworld actors during construction, then return the player to a configured non-buildable doorway cell on exit.
 
 ### Milestone 3 implementation inventory
 
@@ -326,6 +329,21 @@ Shipping Metal inspection at the normal 800×500 game viewport showed both loade
 | `npm run check` | Pass; existing maker large-chunk warning only |
 | `npm run validate:kernel` | Pass; three exact native/WASM goldens, ABI 2, rectangle hash `fnv1a64:ae7b0a30ce4c3d58` |
 | `npm run validate:model` | Pass for the maker's complete existing standard, tunnel, below-floor, shape, passage, and decor matrix |
+
+Revision verification:
+
+| Command | Result |
+|---|---|
+| Focused aquarium/runtime/map/headless build | Pass |
+| Focused aquarium/runtime/map/headless tests | Aquarium runtime, config, and headless smoke pass; OWMAP project/door checks pass before its unchanged baseline ramp assertion |
+| `pokemon_resort_map_maker --validate-project` | Pass; five maps and five unique sources |
+
+The full-room overview has a projection test covering all four 24×18 room
+corners, maximum v1 tank height, bottom-control clearance, and north
+orientation. Config tests require the safe return cell to be present, outside
+the build mask, and paired with a cardinal facing. Runtime rendering suppresses
+overworld actors only while construction is active; no shared rendering state
+or aquarium presentation material changed.
 
 The five full-suite failures remain the baseline gameplay-to-Resort module
 import, two Attend catalog expectations, compact window-width expectation, ramp

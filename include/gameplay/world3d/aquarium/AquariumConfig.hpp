@@ -102,6 +102,9 @@ struct AquariumConstructionConfig {
     };
     bool enabled = false;
     std::vector<Cell> allowed_cells;
+    bool has_return_cell = false;
+    Cell return_cell;
+    std::string return_facing = "south";
 };
 
 struct AquariumMapConfig {

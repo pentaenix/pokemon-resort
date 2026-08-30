@@ -74,6 +74,24 @@ AquariumConstructionConfig parseConstruction(const JsonValue* value) {
     if (const JsonValue* enabled = value->get("enabled"); enabled && enabled->isBool()) {
         out.enabled = enabled->asBool();
     }
+    if (const JsonValue* return_cell = value->get("returnCell")) {
+        if (!return_cell->isArray() || return_cell->asArray().size() != 2U) {
+            throw std::runtime_error("construction.returnCell must contain [column, row]");
+        }
+        const double column = numberOr(&return_cell->asArray()[0], -1.0);
+        const double row = numberOr(&return_cell->asArray()[1], -1.0);
+        if (!std::isfinite(column) || !std::isfinite(row) || column < 0.0 || row < 0.0 ||
+            std::floor(column) != column || std::floor(row) != row) {
+            throw std::runtime_error("construction.returnCell must contain non-negative integers");
+        }
+        out.has_return_cell = true;
+        out.return_cell = {static_cast<int>(column), static_cast<int>(row)};
+    }
+    out.return_facing = stringOr(value->get("returnFacing"), out.return_facing);
+    if (out.return_facing != "north" && out.return_facing != "south" &&
+        out.return_facing != "east" && out.return_facing != "west") {
+        throw std::runtime_error("construction.returnFacing must be north, south, east, or west");
+    }
     const JsonValue* rows = value->get("allowedCellRows");
     if (!rows || !rows->isArray()) return out;
     for (const JsonValue& row_value : rows->asArray()) {
@@ -90,6 +108,15 @@ AquariumConstructionConfig parseConstruction(const JsonValue* value) {
     }
     if (out.enabled && out.allowed_cells.empty()) {
         throw std::runtime_error("enabled aquarium construction requires allowedCellRows");
+    }
+    if (out.enabled && !out.has_return_cell) {
+        throw std::runtime_error("enabled aquarium construction requires a safe returnCell");
+    }
+    if (out.has_return_cell && std::any_of(
+            out.allowed_cells.begin(), out.allowed_cells.end(), [&](const auto& cell) {
+                return cell.column == out.return_cell.column && cell.row == out.return_cell.row;
+            })) {
+        throw std::runtime_error("construction.returnCell must remain outside the build mask");
     }
     return out;
 }

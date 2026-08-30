@@ -2,6 +2,7 @@
 
 #include "core/app/AppPaths.hpp"
 #include "core/config/ConfigLoader.hpp"
+#include "gameplay/world3d/aquarium/construction/AquariumConstructionCamera.hpp"
 #include "gameplay/world3d/rendering/PixelScale.hpp"
 
 #include <chrono>
@@ -41,6 +42,14 @@ std::vector<pr::aquarium::geometry::GridCell> authoredObstacleCells(
         }
     }
     return obstacles;
+}
+
+gameplay::world3d::FacingDirection constructionReturnFacing(
+    const std::string& facing) {
+    if (facing == "north") return gameplay::world3d::FacingDirection::North;
+    if (facing == "east") return gameplay::world3d::FacingDirection::East;
+    if (facing == "west") return gameplay::world3d::FacingDirection::West;
+    return gameplay::world3d::FacingDirection::South;
 }
 
 } // namespace
@@ -100,6 +109,8 @@ void Overworld3DTestScreen::configureAquariumConstruction(
     namespace aqc = gameplay::world3d::aquarium::construction;
     const auto configure_started = std::chrono::steady_clock::now();
     exitAquariumConstruction();
+    aquarium_construction_return_cell_.reset();
+    aquarium_construction_return_facing_ = gameplay::world3d::FacingDirection::South;
     aquarium_construction_controller_id_ = -1;
     aquarium_design_store_.reset();
     aquarium_population_policy_.reset();
@@ -114,6 +125,12 @@ void Overworld3DTestScreen::configureAquariumConstruction(
         }
         return;
     }
+    aquarium_construction_return_cell_ = pr::aquarium::geometry::GridCell{
+        map_config->construction.return_cell.column,
+        map_config->construction.return_cell.row,
+    };
+    aquarium_construction_return_facing_ = constructionReturnFacing(
+        map_config->construction.return_facing);
 
     const PersistenceConfig persistence = loadConfigFromJson(
         (std::filesystem::path(project_root_) / "config/title_screen.json").string()).persistence;
@@ -409,34 +426,21 @@ void Overworld3DTestScreen::updateAquariumConstructionCommit() {
 
 void Overworld3DTestScreen::applyAquariumConstructionCamera() {
     if (!aquarium_construction_.active()) return;
-    const auto& cells = aquarium_construction_.allowedCells();
-    if (cells.empty()) return;
-    int min_column = cells.front().column;
-    int max_column = cells.front().column;
-    int min_row = cells.front().row;
-    int max_row = cells.front().row;
-    for (const auto cell : cells) {
-        min_column = std::min(min_column, cell.column);
-        max_column = std::max(max_column, cell.column);
-        min_row = std::min(min_row, cell.row);
-        max_row = std::max(max_row, cell.row);
-    }
-    const float tile = scene_.grid.tile_size;
-    const float center_x = (static_cast<float>(min_column + max_column + 1) * 0.5f) * tile;
-    const float center_z = (static_cast<float>(min_row + max_row + 1) * 0.5f) * tile;
-    constexpr float kYaw = 180.0f;
-    constexpr float kPitch = -55.0f;
-    const float span_x = static_cast<float>(max_column - min_column + 1) * tile;
-    const float span_z = static_cast<float>(max_row - min_row + 1) * tile;
-    const float distance = std::max(320.0f, std::max(span_x, span_z) * 0.95f);
-    constexpr float kRadians = 3.1415926535f / 180.0f;
-    const float pitch = kPitch * kRadians;
-    const float floor_y = aquariumConstructionVisual().cells.front().floor_y;
-    camera_.setManualPose({
-        center_x,
-        floor_y - std::sin(pitch) * distance,
-        center_z - std::cos(kPitch * kRadians) * std::cos(kYaw * kRadians) * distance,
-    }, kYaw, kPitch);
+    const auto visual = aquariumConstructionVisual();
+    const float floor_y = visual.cells.empty() ? 0.0f : visual.cells.front().floor_y;
+    const int viewport_width = scene_.world_viewport.enabled
+        ? gameplay::world3d::rendering::worldViewportBaseWidth(scene_)
+        : std::max(1, app_config_.window.virtual_width);
+    const int viewport_height = scene_.world_viewport.enabled
+        ? gameplay::world3d::rendering::worldViewportBaseHeight(scene_)
+        : std::max(1, app_config_.window.virtual_height);
+    const auto overview = gameplay::world3d::aquarium::construction::
+        aquariumConstructionCameraOverview(
+            scene_.grid.width, scene_.grid.height, scene_.grid.tile_size, floor_y,
+            camera_.pose().preset.fov_y_deg,
+            static_cast<float>(viewport_width) / static_cast<float>(viewport_height));
+    camera_.setManualPose(
+        overview.position, overview.yaw_degrees, overview.pitch_degrees);
 }
 
 gameplay::world3d::aquarium::construction::AquariumConstructionVisual
@@ -452,6 +456,28 @@ Overworld3DTestScreen::aquariumConstructionVisual() const {
     visual.undo_available = aquarium_construction_.canUndo();
     visual.redo_available = aquarium_construction_.canRedo();
     visual.focused_action = aquarium_construction_focused_action_;
+    switch (visual.state) {
+    case aqc::ConstructionState::Browse:
+    case aqc::ConstructionState::Selected:
+        visual.navigation_hint = "MOVE CURSOR  WASD DPAD STICK MOUSE";
+        break;
+    case aqc::ConstructionState::ResizeFootprint:
+    case aqc::ConstructionState::MoveTank:
+    case aqc::ConstructionState::ResizeTank:
+        visual.navigation_hint = "MOVE HANDLE  CONFIRM TO REVIEW";
+        break;
+    case aqc::ConstructionState::DraftReview:
+        visual.navigation_hint = "BUILD OR ADJUST";
+        break;
+    case aqc::ConstructionState::DeleteConfirm:
+        visual.navigation_hint = "CONFIRM DELETE OR CANCEL";
+        break;
+    case aqc::ConstructionState::Building:
+        visual.navigation_hint = "BUILDING";
+        break;
+    case aqc::ConstructionState::Dormant:
+        break;
+    }
     visual.status_hint = aqc::aquariumConstructionHintForValidation(
         aquarium_construction_.validationMessage());
     if (const auto* selected = aquarium_construction_.selectedTank()) {

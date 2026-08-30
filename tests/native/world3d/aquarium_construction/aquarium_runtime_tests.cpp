@@ -1,4 +1,5 @@
 #include "gameplay/world3d/aquarium/construction/AquariumCollisionOverlay.hpp"
+#include "gameplay/world3d/aquarium/construction/AquariumConstructionCamera.hpp"
 #include "gameplay/world3d/aquarium/construction/AquariumConstructionSession.hpp"
 #include "gameplay/world3d/aquarium/construction/AquariumConstructionVisual.hpp"
 #include "gameplay/world3d/aquarium/construction/AquariumDesignStore.hpp"
@@ -423,6 +424,7 @@ void constructionVisualBuildsYellowCellsGizmosAndCanonicalHitTargets() {
     visual.cells = {{{10, 10}, 0.0f, false}, {{11, 10}, 0.0f, false}};
     visual.cursor = {10, 10};
     visual.state = construction::ConstructionState::Browse;
+    visual.navigation_hint = "MOVE CURSOR  WASD DPAD STICK MOUSE";
     const auto browse_mesh = construction::buildAquariumConstructionWorldMesh(visual);
     require(browse_mesh.vertices.size() >= 40 && !browse_mesh.indices.empty(),
         "visible allowed cells did not generate filled grid and border geometry");
@@ -608,6 +610,50 @@ void constructionVisualBuildsYellowCellsGizmosAndCanonicalHitTargets() {
     require(construction::aquariumConstructionHintForValidation(
                 "Tank footprint overlaps an existing obstacle") == "SPACE IS BLOCKED",
         "overlap feedback should identify blocked space without developer diagnostics");
+}
+
+void constructionCameraKeepsTheWholeRoomInView() {
+    constexpr int kViewportWidth = 1280;
+    constexpr int kViewportHeight = 800;
+    constexpr float kTile = 16.0f;
+    pr::gameplay::world3d::camera::Gen4CameraPreset preset;
+    preset.fov_y_deg = 25.0f;
+    preset.near_clip = 0.1f;
+    preset.far_clip = 4000.0f;
+    pr::gameplay::world3d::camera::Gen4FollowCamera camera(preset);
+    const auto overview = construction::aquariumConstructionCameraOverview(
+        24, 18, kTile, 0.0f, preset.fov_y_deg,
+        static_cast<float>(kViewportWidth) / static_cast<float>(kViewportHeight));
+    camera.setManualPose(overview.position, overview.yaw_degrees, overview.pitch_degrees);
+
+    const pr::gameplay::world3d::camera::Vec3 room_points[] = {
+        {0.0f, 0.0f, 0.0f}, {24.0f * kTile, 0.0f, 0.0f},
+        {24.0f * kTile, 0.0f, 18.0f * kTile}, {0.0f, 0.0f, 18.0f * kTile},
+        {12.0f * kTile, 96.0f, 9.0f * kTile},
+    };
+    for (const auto& point : room_points) {
+        float x = 0.0f;
+        float y = 0.0f;
+        float depth = 0.0f;
+        require(camera.worldToScreen(
+                    point, kViewportWidth, kViewportHeight, x, y, depth) &&
+                x >= 0.0f && x <= static_cast<float>(kViewportWidth) &&
+                y >= 0.0f && y <= static_cast<float>(kViewportHeight - 90),
+            "full-room construction overview clips room bounds, tank height, or bottom controls");
+    }
+
+    float north_x = 0.0f;
+    float north_y = 0.0f;
+    float north_depth = 0.0f;
+    float south_x = 0.0f;
+    float south_y = 0.0f;
+    float south_depth = 0.0f;
+    require(camera.worldToScreen({12.0f * kTile, 0.0f, 0.0f},
+                kViewportWidth, kViewportHeight, north_x, north_y, north_depth) &&
+            camera.worldToScreen({12.0f * kTile, 0.0f, 18.0f * kTile},
+                kViewportWidth, kViewportHeight, south_x, south_y, south_depth) &&
+            north_y < south_y,
+        "construction overview is not stably north-oriented");
 }
 
 void loadedPlacementValidationRejectsBoundsAndOverlap() {
@@ -808,6 +854,7 @@ int main() {
         run("cursorChoosesEveryControllerResizeHandle", cursorChoosesEveryControllerResizeHandle);
         run("authoredObstaclesRemainVisibleAtBuildZoneEdges", authoredObstaclesRemainVisibleAtBuildZoneEdges);
         run("constructionVisualBuildsYellowCellsGizmosAndCanonicalHitTargets", constructionVisualBuildsYellowCellsGizmosAndCanonicalHitTargets);
+        run("constructionCameraKeepsTheWholeRoomInView", constructionCameraKeepsTheWholeRoomInView);
         run("loadedPlacementValidationRejectsBoundsAndOverlap", loadedPlacementValidationRejectsBoundsAndOverlap);
         run("storeRoundTripsAndRecoversBackup", storeRoundTripsAndRecoversBackup);
         run("storePreservesNewerDocumentsAndFailedWrites", storePreservesNewerDocumentsAndFailedWrites);

@@ -256,6 +256,19 @@ public:
         button(layout.cancel, kCancel, "CANCEL", Action::Cancel);
         button(layout.done, kSelect, "DONE", Action::Done);
         button(layout.exit, kExit, "EXIT", Action::Exit);
+        if (!visual_.navigation_hint.empty()) {
+            const float scale = width >= 640 ? 2.0f : 1.0f;
+            const int banner_width = static_cast<int>(
+                textWidth(visual_.navigation_hint, scale)) + 24;
+            const int banner_height = static_cast<int>(7.0f * scale) + 14;
+            const construction::ConstructionHudRect banner{
+                (width - banner_width) / 2, 12, banner_width, banner_height};
+            appendQuad(mesh, static_cast<float>(banner.x), static_cast<float>(banner.y),
+                static_cast<float>(banner.x + banner.width),
+                static_cast<float>(banner.y + banner.height), kPanel);
+            appendBorder(mesh, banner, 2.0f, kHistory);
+            appendCenteredText(mesh, banner, visual_.navigation_hint, scale, kGlyph);
+        }
         if (visual_.preview_tank) {
             const auto& tank = *visual_.preview_tank;
             int current_tick = 0;

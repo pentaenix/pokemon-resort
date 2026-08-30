@@ -259,6 +259,19 @@ void Overworld3DTestScreen::requestAquariumConstructionErrorFeedback() {
 void Overworld3DTestScreen::exitAquariumConstruction() {
     if (!aquarium_construction_.active()) return;
     aquarium_construction_.exit();
+    if (aquarium_construction_return_cell_) {
+        const auto return_cell = *aquarium_construction_return_cell_;
+        if (player_.teleportToTile(
+                return_cell.column, return_cell.row,
+                aquarium_construction_return_facing_)) {
+            animator_.setFacing(aquarium_construction_return_facing_);
+            std::cerr << "[AquariumConstruction] event=player_returned cell=["
+                      << return_cell.column << ',' << return_cell.row << "]\n";
+        } else {
+            std::cerr << "[AquariumConstruction] event=player_return_failed cell=["
+                      << return_cell.column << ',' << return_cell.row << "]\n";
+        }
+    }
     player_.stop();
     animator_.setMoving(false);
     camera_.setTarget(player_.position());

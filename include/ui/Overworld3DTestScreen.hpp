@@ -209,6 +209,9 @@ private:
     gameplay::world3d::aquarium::AquariumInspectionFacing aquarium_inspection_facing_;
     gameplay::world3d::aquarium::construction::AquariumConstructionSession
         aquarium_construction_;
+    std::optional<pr::aquarium::geometry::GridCell> aquarium_construction_return_cell_;
+    gameplay::world3d::FacingDirection aquarium_construction_return_facing_ =
+        gameplay::world3d::FacingDirection::South;
     gameplay::world3d::aquarium::construction::AquariumConstructionOverlay
         aquarium_construction_overlay_;
     std::unique_ptr<gameplay::world3d::aquarium::construction::AquariumDesignStore>

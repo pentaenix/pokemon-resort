@@ -60,6 +60,7 @@ struct AquariumConstructionVisual {
     bool redo_available = false;
     bool property_draft = false;
     ConstructionHudAction focused_action = ConstructionHudAction::None;
+    std::string navigation_hint;
     std::string status_hint;
 };
 

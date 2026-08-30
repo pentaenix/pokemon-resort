@@ -101,23 +101,30 @@ The normal playable route now separates presentation from unrestricted builder
 testing:
 
 ```text
-Resort exterior → aquarium12 gallery → Aquarium Builder Lab → Resort exterior
+Resort exterior → Aquarium Builder Lab
+                         ├─ north doorway → aquarium12 authored gallery → Resort exterior
+                         └─ south doorway → Resort exterior
 ```
 
 `aquarium12` retains its three authored tanks, Pokémon, collision, and rounded
-floor cutout. Its existing south exit leads to
-`aquarium_builder_lab`, a separate 24×18 shell-less interior with no authored
-models or floor cutouts. The lab has a north arrival, a south exit, a clear
-walkable centre aisle, and 340 construction cells. The three-cell doorway lanes
-at both ends are intentionally outside its construction mask so a saved tank
-cannot block travel.
+floor cutout. The exterior aquarium door now enters `aquarium_builder_lab`, a
+separate 24×18 shell-less interior with no authored models or floor cutouts.
+The lab's north doorway provides an optional route to the authored gallery; its
+south doorway returns to the resort. It has a clear walkable centre aisle and
+340 construction cells. The three-cell doorway lanes at both ends are
+intentionally outside its construction mask so a saved tank cannot block
+travel.
 
 Construction documents remain map-scoped, so the gallery and lab use distinct
 save files. Press Z on keyboard or Y on controller while standing on a yellow
-allowed cell to enter construction. The lab's direct map spawn is inside the
-build zone; when arriving from the gallery, walk two cells south from the north
-doorway before pressing Z/Y. Normal player movement is restored whenever
-construction is inactive.
+allowed cell to enter construction. Walk two cells south from the lab's north
+arrival before pressing Z/Y. Construction changes to a fixed, north-oriented
+overview that frames the entire room; the camera does not pan. WASD/arrows,
+D-pad/left stick, or the mouse move the grid cursor instead. The player,
+follower, NPCs, and overworld effects are hidden while construction owns the
+room. Exiting restores normal movement and teleports the player to the reserved
+north-door circulation cell, facing into the room, so newly committed geometry
+cannot trap them.
 
 Aquarium Maker rock variation is stored as glTF `COLOR_0`, not as a redundant bitmap. Kelp uses material base colors plus exported node-rotation `WaterSway` clips. The shared GLB renderer consumes both contracts in bgfx and SDL fallback, so the model and its animation also appear in Map Studio's exact preview.
 

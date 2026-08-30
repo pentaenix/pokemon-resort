@@ -188,6 +188,7 @@ add_executable(title_screen_demo
     src/gameplay/world3d/aquarium/construction/AquariumCollisionOverlay.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionCommand.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionHudLayout.cpp
+    src/gameplay/world3d/aquarium/construction/AquariumConstructionCamera.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionOverlay.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionSession.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionSessionProperties.cpp
@@ -379,6 +380,7 @@ add_executable(aquarium_runtime_tests
     src/gameplay/world3d/aquarium/construction/AquariumCollisionOverlay.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionCommand.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionHudLayout.cpp
+    src/gameplay/world3d/aquarium/construction/AquariumConstructionCamera.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionSession.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionSessionProperties.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionVisual.cpp

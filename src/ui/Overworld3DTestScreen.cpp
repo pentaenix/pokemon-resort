@@ -1124,8 +1124,9 @@ void Overworld3DTestScreen::render(SDL_Renderer* renderer) {
             h);
     }
 
-    const bool aquarium_focus = aquarium_inspection_camera_ &&
-        aquarium_inspection_camera_->hidesOverworldActors();
+    const bool aquarium_focus = aquarium_construction_.active() ||
+        (aquarium_inspection_camera_ &&
+         aquarium_inspection_camera_->hidesOverworldActors());
     const auto draw_player = [&]() {
         if (aquarium_focus) return;
         if (sprite_renderer_ && sprite_renderer_->valid()) {
@@ -1277,8 +1278,9 @@ bool Overworld3DTestScreen::renderBgfx(
         pending_bgfx_screenshot_.clear();
     }
     refreshAquariumRenderActors();
-    const bool aquarium_focus = aquarium_inspection_camera_ &&
-        aquarium_inspection_camera_->hidesOverworldActors();
+    const bool aquarium_focus = aquarium_construction_.active() ||
+        (aquarium_inspection_camera_ &&
+         aquarium_inspection_camera_->hidesOverworldActors());
     bgfx_renderer_->setPlayerVisible(!aquarium_focus);
     const float wall_clip_radius = aquarium_inspection_camera_
         ? aquarium_inspection_camera_->wallClipRadiusWorld(scene_.grid.tile_size)
