@@ -612,48 +612,60 @@ void constructionVisualBuildsYellowCellsGizmosAndCanonicalHitTargets() {
         "overlap feedback should identify blocked space without developer diagnostics");
 }
 
-void constructionCameraKeepsTheWholeRoomInView() {
-    constexpr int kViewportWidth = 1280;
-    constexpr int kViewportHeight = 800;
+void constructionCameraTracksTheCursorInAReadableCentreZone() {
+    constexpr int kViewportWidth = 400;
+    constexpr int kViewportHeight = 250;
     constexpr float kTile = 16.0f;
     pr::gameplay::world3d::camera::Gen4CameraPreset preset;
     preset.fov_y_deg = 25.0f;
     preset.near_clip = 0.1f;
     preset.far_clip = 4000.0f;
     pr::gameplay::world3d::camera::Gen4FollowCamera camera(preset);
-    const auto overview = construction::aquariumConstructionCameraOverview(
+    construction::AquariumConstructionCameraTrackingState tracking;
+    const auto initial = construction::trackAquariumConstructionCursor(
+        tracking,
         24, 18, kTile, 0.0f, preset.fov_y_deg,
-        static_cast<float>(kViewportWidth) / static_cast<float>(kViewportHeight));
-    camera.setManualPose(overview.position, overview.yaw_degrees, overview.pitch_degrees);
+        static_cast<float>(kViewportWidth) / static_cast<float>(kViewportHeight),
+        {12, 9}, 0.0);
+    camera.setManualPose(initial.position, initial.yaw_degrees, initial.pitch_degrees);
+    float first_x = 0.0f;
+    float first_y = 0.0f;
+    float first_depth = 0.0f;
+    float adjacent_x = 0.0f;
+    float adjacent_y = 0.0f;
+    float adjacent_depth = 0.0f;
+    require(initial.pitch_degrees <= -78.0f &&
+            camera.worldToScreen({12.5f * kTile, 0.0f, 9.5f * kTile},
+                kViewportWidth, kViewportHeight, first_x, first_y, first_depth) &&
+            camera.worldToScreen({13.5f * kTile, 0.0f, 9.5f * kTile},
+                kViewportWidth, kViewportHeight, adjacent_x, adjacent_y, adjacent_depth) &&
+            adjacent_x - first_x >= 8.0f,
+        "closer construction camera does not keep whole-cell footprints distinguishable");
 
-    const pr::gameplay::world3d::camera::Vec3 room_points[] = {
-        {0.0f, 0.0f, 0.0f}, {24.0f * kTile, 0.0f, 0.0f},
-        {24.0f * kTile, 0.0f, 18.0f * kTile}, {0.0f, 0.0f, 18.0f * kTile},
-        {12.0f * kTile, 96.0f, 9.0f * kTile},
-    };
-    for (const auto& point : room_points) {
-        float x = 0.0f;
-        float y = 0.0f;
-        float depth = 0.0f;
-        require(camera.worldToScreen(
-                    point, kViewportWidth, kViewportHeight, x, y, depth) &&
-                x >= 0.0f && x <= static_cast<float>(kViewportWidth) &&
-                y >= 0.0f && y <= static_cast<float>(kViewportHeight - 90),
-            "full-room construction overview clips room bounds, tank height, or bottom controls");
+    const float initial_center_x = tracking.center_x;
+    const auto within_zone = construction::trackAquariumConstructionCursor(
+        tracking, 24, 18, kTile, 0.0f, preset.fov_y_deg,
+        static_cast<float>(kViewportWidth) / static_cast<float>(kViewportHeight),
+        {10, 9}, 1.0 / 60.0);
+    require(std::abs(tracking.center_x - initial_center_x) < 0.001f,
+        "camera moved while the cursor remained in its centre zone");
+    const auto left_edge = construction::trackAquariumConstructionCursor(
+        tracking, 24, 18, kTile, 0.0f, preset.fov_y_deg,
+        static_cast<float>(kViewportWidth) / static_cast<float>(kViewportHeight),
+        {1, 9}, 0.25);
+    require(tracking.center_x < initial_center_x &&
+            left_edge.position.x < within_zone.position.x,
+        "camera did not pan when the cursor crossed the left tracking edge");
+    const float left_limit = tracking.center_x;
+    for (int frame = 0; frame < 120; ++frame) {
+        construction::trackAquariumConstructionCursor(
+            tracking, 24, 18, kTile, 0.0f, preset.fov_y_deg,
+            static_cast<float>(kViewportWidth) / static_cast<float>(kViewportHeight),
+            {1, 1}, 1.0 / 60.0);
     }
-
-    float north_x = 0.0f;
-    float north_y = 0.0f;
-    float north_depth = 0.0f;
-    float south_x = 0.0f;
-    float south_y = 0.0f;
-    float south_depth = 0.0f;
-    require(camera.worldToScreen({12.0f * kTile, 0.0f, 0.0f},
-                kViewportWidth, kViewportHeight, north_x, north_y, north_depth) &&
-            camera.worldToScreen({12.0f * kTile, 0.0f, 18.0f * kTile},
-                kViewportWidth, kViewportHeight, south_x, south_y, south_depth) &&
-            north_y < south_y,
-        "construction overview is not stably north-oriented");
+    require(tracking.center_x <= left_limit && tracking.center_x >= 0.0f &&
+            tracking.center_z >= 0.0f,
+        "edge tracking escaped the room framing bounds");
 }
 
 void loadedPlacementValidationRejectsBoundsAndOverlap() {
@@ -854,7 +866,7 @@ int main() {
         run("cursorChoosesEveryControllerResizeHandle", cursorChoosesEveryControllerResizeHandle);
         run("authoredObstaclesRemainVisibleAtBuildZoneEdges", authoredObstaclesRemainVisibleAtBuildZoneEdges);
         run("constructionVisualBuildsYellowCellsGizmosAndCanonicalHitTargets", constructionVisualBuildsYellowCellsGizmosAndCanonicalHitTargets);
-        run("constructionCameraKeepsTheWholeRoomInView", constructionCameraKeepsTheWholeRoomInView);
+        run("constructionCameraTracksTheCursorInAReadableCentreZone", constructionCameraTracksTheCursorInAReadableCentreZone);
         run("loadedPlacementValidationRejectsBoundsAndOverlap", loadedPlacementValidationRejectsBoundsAndOverlap);
         run("storeRoundTripsAndRecoversBackup", storeRoundTripsAndRecoversBackup);
         run("storePreservesNewerDocumentsAndFailedWrites", storePreservesNewerDocumentsAndFailedWrites);

@@ -259,6 +259,10 @@ void Overworld3DTestScreen::requestAquariumConstructionErrorFeedback() {
 void Overworld3DTestScreen::exitAquariumConstruction() {
     if (!aquarium_construction_.active()) return;
     aquarium_construction_.exit();
+    gameplay::world3d::aquarium::construction::resetAquariumConstructionCamera(
+        aquarium_construction_camera_tracking_);
+    aquarium_pointer_controls_cursor_ = false;
+    aquarium_pointer_position_valid_ = false;
     if (aquarium_construction_return_cell_) {
         const auto return_cell = *aquarium_construction_return_cell_;
         if (player_.teleportToTile(

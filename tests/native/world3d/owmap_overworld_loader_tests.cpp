@@ -1594,8 +1594,9 @@ void testCurrentMapProjectSourcesLoadInRuntime() {
                         "interior_exit_step_then_transfer",
                 "aquarium starts its scripted exit when entering the visible threshold row");
             expect(scene.links.size() == 1U &&
-                    scene.links.front().destination_map_id == "0",
-                "the authored aquarium gallery exits directly back to the resort");
+                    scene.links.front().destination_map_id == "aquarium_builder_lab" &&
+                    scene.links.front().destination_anchor_id == "from_gallery",
+                "the authored aquarium gallery returns through the builder lab north door");
             const std::vector<pr::gameplay::world3d::characters::LoadedWorldChunk> room_chunks{{
                 scene.id, scene, 0, 0}};
             expect(pr::gameplay::world3d::doors::findDoorTrigger(
@@ -1621,13 +1622,24 @@ void testCurrentMapProjectSourcesLoadInRuntime() {
                 expect(step.attempted_step && !step.blocked,
                     "builder lab center aisle remains fully walkable for testing");
             }
-            expect(scene.anchors.size() == 1U &&
-                    scene.anchors.front().id == "from_resort" &&
-                    scene.anchors.front().tile_x == 12 &&
-                    scene.anchors.front().tile_y == 0 &&
-                    scene.anchors.front().facing ==
+            const auto resort_anchor = std::find_if(
+                scene.anchors.begin(), scene.anchors.end(), [](const auto& anchor) {
+                    return anchor.id == "from_resort";
+                });
+            const auto gallery_anchor = std::find_if(
+                scene.anchors.begin(), scene.anchors.end(), [](const auto& anchor) {
+                    return anchor.id == "from_gallery";
+                });
+            expect(scene.anchors.size() == 2U &&
+                    resort_anchor != scene.anchors.end() &&
+                    resort_anchor->tile_x == 12 && resort_anchor->tile_y == 17 &&
+                    resort_anchor->facing ==
+                        pr::gameplay::world3d::FacingDirection::North &&
+                    gallery_anchor != scene.anchors.end() &&
+                    gallery_anchor->tile_x == 12 && gallery_anchor->tile_y == 0 &&
+                    gallery_anchor->facing ==
                         pr::gameplay::world3d::FacingDirection::South,
-                "the resort entrance arrives at the north edge of the builder lab facing inward");
+                "resort and gallery travel arrive through their matching lab doorways");
             const auto gallery_door = std::find_if(
                 scene.door_triggers.begin(), scene.door_triggers.end(), [](const auto& door) {
                     return door.id == "builder_lab_gallery";

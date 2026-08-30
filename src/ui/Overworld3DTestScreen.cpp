@@ -875,7 +875,7 @@ void Overworld3DTestScreen::update(double dt) {
         player_.stop();
         animator_.setMoving(false);
         syncAquariumConstructionFocus();
-        applyAquariumConstructionCamera();
+        applyAquariumConstructionCamera(dt);
     } else if (!freecam_enabled_) {
         const Uint8* keys = SDL_GetKeyboardState(nullptr);
         const bool aquarium_movement_held =
@@ -1412,6 +1412,7 @@ void Overworld3DTestScreen::restoreAquariumInspectionFacing() {
 
 void Overworld3DTestScreen::onNavigate2d(int dx, int dy) {
     if (aquarium_construction_.active()) {
+        aquarium_pointer_controls_cursor_ = false;
         const auto before = aquarium_construction_.cursor();
         aquarium_construction_.moveCursor(dx, dy);
         const auto after = aquarium_construction_.cursor();
@@ -1485,6 +1486,9 @@ void Overworld3DTestScreen::onAdvancePressed() {
 void Overworld3DTestScreen::handlePointerMoved(int logical_x, int logical_y) {
     if (!aquarium_construction_.active()) return;
     const SDL_Point mapped = mapPointerToLogical(logical_x, logical_y);
+    aquarium_pointer_position_ = mapped;
+    aquarium_pointer_position_valid_ = true;
+    aquarium_pointer_controls_cursor_ = true;
     if (const auto cell = aquariumConstructionCellAt(mapped.x, mapped.y)) {
         const auto before = aquarium_construction_.cursor();
         aquarium_construction_.pointAt(*cell);
@@ -1500,6 +1504,9 @@ bool Overworld3DTestScreen::handlePointerPressed(int logical_x, int logical_y) {
     logical_x = mapped.x;
     logical_y = mapped.y;
     if (aquarium_construction_.active()) {
+        aquarium_pointer_position_ = {logical_x, logical_y};
+        aquarium_pointer_position_valid_ = true;
+        aquarium_pointer_controls_cursor_ = true;
         return handleAquariumConstructionPointerPressed(logical_x, logical_y);
     }
     const SDL_Point point{logical_x, logical_y};
@@ -1577,6 +1584,10 @@ void Overworld3DTestScreen::onAquariumConstructionPressed(SDL_JoystickID control
         door_sequence_.active() || transition_.active()) return;
     if (aquarium_inspection_camera_ && aquarium_inspection_camera_->active()) return;
     if (aquarium_construction_.enter({player_.tileX(), player_.tileY()})) {
+        gameplay::world3d::aquarium::construction::resetAquariumConstructionCamera(
+            aquarium_construction_camera_tracking_);
+        aquarium_pointer_controls_cursor_ = false;
+        aquarium_pointer_position_valid_ = false;
         player_.stop();
         animator_.setMoving(false);
         applyAquariumConstructionCamera();

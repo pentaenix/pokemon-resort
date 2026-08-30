@@ -21,6 +21,7 @@
 #include "gameplay/world3d/aquarium/AquariumInspectionFacing.hpp"
 #include "gameplay/world3d/aquarium/AquariumSimulation.hpp"
 #include "gameplay/world3d/aquarium/construction/AquariumCollisionOverlay.hpp"
+#include "gameplay/world3d/aquarium/construction/AquariumConstructionCamera.hpp"
 #include "gameplay/world3d/aquarium/construction/AquariumConstructionOverlay.hpp"
 #include "gameplay/world3d/aquarium/construction/AquariumDesignStore.hpp"
 #include "gameplay/world3d/aquarium/construction/AquariumPlayerRuntime.hpp"
@@ -115,7 +116,7 @@ private:
     bool redoAquariumConstruction();
     void updateAquariumConstructionCommit();
     void exitAquariumConstruction();
-    void applyAquariumConstructionCamera();
+    void applyAquariumConstructionCamera(double delta_seconds = 0.0);
     void requestAquariumConstructionErrorFeedback();
     gameplay::world3d::aquarium::construction::AquariumConstructionVisual
         aquariumConstructionVisual() const;
@@ -212,6 +213,8 @@ private:
     std::optional<pr::aquarium::geometry::GridCell> aquarium_construction_return_cell_;
     gameplay::world3d::FacingDirection aquarium_construction_return_facing_ =
         gameplay::world3d::FacingDirection::South;
+    gameplay::world3d::aquarium::construction::AquariumConstructionCameraTrackingState
+        aquarium_construction_camera_tracking_;
     gameplay::world3d::aquarium::construction::AquariumConstructionOverlay
         aquarium_construction_overlay_;
     std::unique_ptr<gameplay::world3d::aquarium::construction::AquariumDesignStore>
@@ -239,6 +242,9 @@ private:
     bool aquarium_pointer_down_ = false;
     bool aquarium_pointer_dragged_ = false;
     bool aquarium_pointer_second_click_ = false;
+    bool aquarium_pointer_controls_cursor_ = false;
+    bool aquarium_pointer_position_valid_ = false;
+    SDL_Point aquarium_pointer_position_{};
     bool aquarium_left_trigger_down_ = false;
     bool aquarium_right_trigger_down_ = false;
     gameplay::world3d::aquarium::construction::ConstructionHudAction

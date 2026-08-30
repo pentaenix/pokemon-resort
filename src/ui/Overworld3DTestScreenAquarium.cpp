@@ -424,8 +424,17 @@ void Overworld3DTestScreen::updateAquariumConstructionCommit() {
               << " uploadUs=" << upload_microseconds << '\n';
 }
 
-void Overworld3DTestScreen::applyAquariumConstructionCamera() {
+void Overworld3DTestScreen::applyAquariumConstructionCamera(double delta_seconds) {
     if (!aquarium_construction_.active()) return;
+    if (aquarium_pointer_controls_cursor_ && aquarium_pointer_position_valid_ &&
+        aquariumConstructionHudActionAt(
+            aquarium_pointer_position_.x, aquarium_pointer_position_.y) ==
+            gameplay::world3d::aquarium::construction::ConstructionHudAction::None) {
+        if (const auto cell = aquariumConstructionCellAt(
+                aquarium_pointer_position_.x, aquarium_pointer_position_.y)) {
+            aquarium_construction_.pointAt(*cell);
+        }
+    }
     const auto visual = aquariumConstructionVisual();
     const float floor_y = visual.cells.empty() ? 0.0f : visual.cells.front().floor_y;
     const int viewport_width = scene_.world_viewport.enabled
@@ -435,10 +444,12 @@ void Overworld3DTestScreen::applyAquariumConstructionCamera() {
         ? gameplay::world3d::rendering::worldViewportBaseHeight(scene_)
         : std::max(1, app_config_.window.virtual_height);
     const auto overview = gameplay::world3d::aquarium::construction::
-        aquariumConstructionCameraOverview(
+        trackAquariumConstructionCursor(
+            aquarium_construction_camera_tracking_,
             scene_.grid.width, scene_.grid.height, scene_.grid.tile_size, floor_y,
             camera_.pose().preset.fov_y_deg,
-            static_cast<float>(viewport_width) / static_cast<float>(viewport_height));
+            static_cast<float>(viewport_width) / static_cast<float>(viewport_height),
+            aquarium_construction_.cursor(), delta_seconds);
     camera_.setManualPose(
         overview.position, overview.yaw_degrees, overview.pitch_degrees);
 }
@@ -459,12 +470,12 @@ Overworld3DTestScreen::aquariumConstructionVisual() const {
     switch (visual.state) {
     case aqc::ConstructionState::Browse:
     case aqc::ConstructionState::Selected:
-        visual.navigation_hint = "MOVE CURSOR  WASD DPAD STICK MOUSE";
+        visual.navigation_hint = "MOVE CURSOR  EDGES PAN VIEW";
         break;
     case aqc::ConstructionState::ResizeFootprint:
     case aqc::ConstructionState::MoveTank:
     case aqc::ConstructionState::ResizeTank:
-        visual.navigation_hint = "MOVE HANDLE  CONFIRM TO REVIEW";
+        visual.navigation_hint = "MOVE HANDLE  EDGES PAN VIEW";
         break;
     case aqc::ConstructionState::DraftReview:
         visual.navigation_hint = "BUILD OR ADJUST";

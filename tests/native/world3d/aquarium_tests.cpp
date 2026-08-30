@@ -168,8 +168,8 @@ void configuredDewgongMovesInsidePlacedTank() {
             builder_lab->construction.allowed_cells.size() == 340U &&
             builder_lab->construction.has_return_cell &&
             builder_lab->construction.return_cell.column == 12 &&
-            builder_lab->construction.return_cell.row == 1 &&
-            builder_lab->construction.return_facing == "south",
+            builder_lab->construction.return_cell.row == 16 &&
+            builder_lab->construction.return_facing == "north",
         "builder lab must expose a separate empty full-room construction surface");
     const auto lab_allows_construction = [&](int column, int row) {
         return std::any_of(builder_lab->construction.allowed_cells.begin(),

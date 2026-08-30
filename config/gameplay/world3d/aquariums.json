@@ -249,8 +249,8 @@
       "mapId": "aquarium_builder_lab",
       "construction": {
         "enabled": true,
-        "returnCell": [12, 1],
-        "returnFacing": "south",
+        "returnCell": [12, 16],
+        "returnFacing": "north",
         "allowedCellRows": [
           { "row": 1, "fromColumn": 1, "toColumn": 10 },
           { "row": 1, "fromColumn": 14, "toColumn": 22 },
