@@ -59,6 +59,13 @@ for flat sand, rims, glass, and water level, and shares normals across rounded
 arc segments. The in-game handles, saved design, native runtime, and maker WASM
 preview therefore consume the same asymmetric-corner and material semantics.
 
+The Milestone 3 player-review correction advances the kernel to ABI 5 without
+changing design schema 3. ABI 5 adds the standard solid lower plinth beneath
+the lower rim and treats every occupied footprint cell as blocked overworld
+collision. This replaces the earlier perimeter-only collision result, which
+was insufficient for rounded tanks and multi-cell actor movement. The maker's
+WASM preview and Resort runtime continue to consume identical derived output.
+
 ## Alternatives Considered
 
 - Separate C++ and TypeScript implementations constrained by golden files: lower initial porting cost, but still permits semantic drift.

@@ -3880,6 +3880,14 @@ OverworldBgfxRenderer::EmbeddedViewportTexture OverworldBgfxRenderer::Impl::rend
         submitPixelWorldToBackbuffer(framebuffer_w, framebuffer_h, render_w, render_h);
     }
 
+    // The Metal view sits above SDL's presentation renderer, so construction
+    // controls must be composited on the bgfx backbuffer to remain visible.
+    // Geometry stays in the pixel-world view; these vector icons use the full
+    // logical canvas and therefore keep crisp, stable hit bounds.
+    aquarium_construction_renderer_.submitHud(
+        6, framebuffer_w, framebuffer_h, logical_w, logical_h,
+        backend_.homogeneousDepth());
+
     if (textbox_overlay_visible_ && ensureTextboxTexture()) {
         SDL_Rect world_viewport{0, 0, std::max(1, framebuffer_w), std::max(1, framebuffer_h)};
         int textbox_base_w = std::max(1, logical_w);

@@ -3,9 +3,8 @@
 #include <bx/math.h>
 
 #include <algorithm>
-#include <array>
+#include <cmath>
 #include <cstdint>
-#include <string_view>
 #include <vector>
 
 namespace pr::gameplay::world3d::aquarium::rendering {
@@ -42,85 +41,63 @@ void appendQuad(
         first, static_cast<std::uint16_t>(first + 2U), static_cast<std::uint16_t>(first + 3U)});
 }
 
-void appendBorder(
+void appendDisc(
     construction::ConstructionVisualMesh& mesh,
-    const construction::ConstructionHudRect& rect,
-    float thickness,
+    float center_x, float center_y, float radius,
     std::uint32_t color) {
-    const float x0 = static_cast<float>(rect.x);
-    const float y0 = static_cast<float>(rect.y);
-    const float x1 = static_cast<float>(rect.x + rect.width);
-    const float y1 = static_cast<float>(rect.y + rect.height);
-    appendQuad(mesh, x0, y0, x1, y0 + thickness, color);
-    appendQuad(mesh, x0, y1 - thickness, x1, y1, color);
-    appendQuad(mesh, x0, y0 + thickness, x0 + thickness, y1 - thickness, color);
-    appendQuad(mesh, x1 - thickness, y0 + thickness, x1, y1 - thickness, color);
-}
-
-std::array<std::uint8_t, 7> glyphRows(char glyph) {
-    switch (glyph) {
-        case 'A': return {14, 17, 17, 31, 17, 17, 17};
-        case 'B': return {30, 17, 17, 30, 17, 17, 30};
-        case 'C': return {15, 16, 16, 16, 16, 16, 15};
-        case 'D': return {30, 17, 17, 17, 17, 17, 30};
-        case 'E': return {31, 16, 16, 30, 16, 16, 31};
-        case 'F': return {31, 16, 16, 30, 16, 16, 16};
-        case 'G': return {15, 16, 16, 23, 17, 17, 15};
-        case 'H': return {17, 17, 17, 31, 17, 17, 17};
-        case 'I': return {31, 4, 4, 4, 4, 4, 31};
-        case 'J': return {7, 2, 2, 2, 18, 18, 12};
-        case 'K': return {17, 18, 20, 24, 20, 18, 17};
-        case 'L': return {16, 16, 16, 16, 16, 16, 31};
-        case 'M': return {17, 27, 21, 21, 17, 17, 17};
-        case 'N': return {17, 25, 21, 19, 17, 17, 17};
-        case 'O': return {14, 17, 17, 17, 17, 17, 14};
-        case 'P': return {30, 17, 17, 30, 16, 16, 16};
-        case 'Q': return {14, 17, 17, 17, 21, 18, 13};
-        case 'R': return {30, 17, 17, 30, 20, 18, 17};
-        case 'S': return {15, 16, 16, 14, 1, 1, 30};
-        case 'T': return {31, 4, 4, 4, 4, 4, 4};
-        case 'U': return {17, 17, 17, 17, 17, 17, 14};
-        case 'V': return {17, 17, 17, 17, 17, 10, 4};
-        case 'W': return {17, 17, 17, 17, 21, 27, 17};
-        case 'X': return {17, 17, 10, 4, 10, 17, 17};
-        case 'Y': return {17, 17, 10, 4, 4, 4, 4};
-        case 'Z': return {31, 1, 2, 4, 8, 16, 31};
-        default: return {};
+    constexpr int kSegments = 24;
+    if (mesh.vertices.size() > 65510U) return;
+    const auto center = static_cast<std::uint16_t>(mesh.vertices.size());
+    mesh.vertices.push_back({center_x, center_y, 0.0f, color});
+    for (int segment = 0; segment <= kSegments; ++segment) {
+        const float angle = bx::kPi2 * static_cast<float>(segment) /
+            static_cast<float>(kSegments);
+        mesh.vertices.push_back({
+            center_x + std::cos(angle) * radius,
+            center_y + std::sin(angle) * radius,
+            0.0f,
+            color});
+    }
+    for (int segment = 0; segment < kSegments; ++segment) {
+        mesh.indices.insert(mesh.indices.end(), {
+            center,
+            static_cast<std::uint16_t>(center + segment + 1),
+            static_cast<std::uint16_t>(center + segment + 2)});
     }
 }
 
-float textWidth(std::string_view label, float scale) {
-    if (label.empty()) return 0.0f;
-    return static_cast<float>(label.size() * 6U - 1U) * scale;
+void appendLine2d(
+    construction::ConstructionVisualMesh& mesh,
+    float x0, float y0, float x1, float y1,
+    float thickness, std::uint32_t color) {
+    const float dx = x1 - x0;
+    const float dy = y1 - y0;
+    const float length = std::max(0.001f, std::hypot(dx, dy));
+    const float px = -dy / length * thickness * 0.5f;
+    const float py = dx / length * thickness * 0.5f;
+    if (mesh.vertices.size() > 65531U) return;
+    const auto first = static_cast<std::uint16_t>(mesh.vertices.size());
+    mesh.vertices.push_back({x0 + px, y0 + py, 0.0f, color});
+    mesh.vertices.push_back({x1 + px, y1 + py, 0.0f, color});
+    mesh.vertices.push_back({x1 - px, y1 - py, 0.0f, color});
+    mesh.vertices.push_back({x0 - px, y0 - py, 0.0f, color});
+    mesh.indices.insert(mesh.indices.end(), {
+        first, static_cast<std::uint16_t>(first + 1U), static_cast<std::uint16_t>(first + 2U),
+        first, static_cast<std::uint16_t>(first + 2U), static_cast<std::uint16_t>(first + 3U)});
 }
 
-void appendText(
+void appendTriangle2d(
     construction::ConstructionVisualMesh& mesh,
-    std::string_view label, float x, float y, float scale,
+    float x0, float y0, float x1, float y1, float x2, float y2,
     std::uint32_t color) {
-    for (char glyph : label) {
-        const auto rows = glyphRows(glyph);
-        for (std::size_t row = 0; row < rows.size(); ++row) {
-            for (int column = 0; column < 5; ++column) {
-                if ((rows[row] & (1U << (4 - column))) == 0U) continue;
-                const float left = x + static_cast<float>(column) * scale;
-                const float top = y + static_cast<float>(row) * scale;
-                appendQuad(mesh, left, top, left + scale, top + scale, color);
-            }
-        }
-        x += 6.0f * scale;
-    }
-}
-
-void appendCenteredText(
-    construction::ConstructionVisualMesh& mesh,
-    const construction::ConstructionHudRect& rect,
-    std::string_view label, float scale, std::uint32_t color) {
-    const float width = textWidth(label, scale);
-    appendText(mesh, label,
-        static_cast<float>(rect.x) + (static_cast<float>(rect.width) - width) * 0.5f,
-        static_cast<float>(rect.y) + (static_cast<float>(rect.height) - 7.0f * scale) * 0.5f,
-        scale, color);
+    if (mesh.vertices.size() > 65532U) return;
+    const auto first = static_cast<std::uint16_t>(mesh.vertices.size());
+    mesh.vertices.push_back({x0, y0, 0.0f, color});
+    mesh.vertices.push_back({x1, y1, 0.0f, color});
+    mesh.vertices.push_back({x2, y2, 0.0f, color});
+    mesh.indices.insert(mesh.indices.end(), {
+        first, static_cast<std::uint16_t>(first + 1U),
+        static_cast<std::uint16_t>(first + 2U)});
 }
 
 } // namespace
@@ -222,147 +199,78 @@ public:
         const auto layout = construction::aquariumConstructionHudLayout(
             width, height, visual_.state, visual_.property_draft);
         construction::ConstructionVisualMesh mesh;
-        constexpr std::uint32_t kPanel = colorAbgr(248, 245, 232, 242);
-        constexpr std::uint32_t kPanelShadow = colorAbgr(16, 31, 54, 105);
-        constexpr std::uint32_t kNavy = colorAbgr(24, 43, 73);
-        constexpr std::uint32_t kBlue = colorAbgr(47, 111, 218);
-        constexpr std::uint32_t kAqua = colorAbgr(49, 174, 190);
+        constexpr std::uint32_t kCream = colorAbgr(246, 242, 221);
+        constexpr std::uint32_t kShadow = colorAbgr(16, 31, 54, 150);
+        constexpr std::uint32_t kNavy = colorAbgr(34, 59, 91);
+        constexpr std::uint32_t kBlue = colorAbgr(54, 132, 224);
+        constexpr std::uint32_t kGreen = colorAbgr(66, 183, 126);
+        constexpr std::uint32_t kMagenta = colorAbgr(196, 89, 142);
         constexpr std::uint32_t kYellow = colorAbgr(246, 199, 62);
-        constexpr std::uint32_t kRed = colorAbgr(211, 67, 79);
+        constexpr std::uint32_t kRed = colorAbgr(225, 91, 87);
         constexpr std::uint32_t kDisabled = colorAbgr(148, 155, 161);
-        constexpr std::uint32_t kWhite = colorAbgr(255, 255, 255);
-        const auto panel = [&](const construction::ConstructionHudRect& rect) {
-            if (rect.width <= 0) return;
-            appendQuad(mesh, static_cast<float>(rect.x + 3), static_cast<float>(rect.y + 4),
-                static_cast<float>(rect.x + rect.width + 3),
-                static_cast<float>(rect.y + rect.height + 4), kPanelShadow);
-            appendQuad(mesh, static_cast<float>(rect.x), static_cast<float>(rect.y),
-                static_cast<float>(rect.x + rect.width),
-                static_cast<float>(rect.y + rect.height), kPanel);
-            appendBorder(mesh, rect, 3.0f, kNavy);
-        };
-        if (layout.tool_panel.width > 0) {
-            panel(layout.tool_panel);
-        }
-        if (layout.property_panel.width > 0) {
-            panel(layout.property_panel);
-        }
+        constexpr std::uint32_t kWhite = colorAbgr(255, 255, 246);
+        using Action = construction::ConstructionHudAction;
         const auto button = [&](const construction::ConstructionHudRect& rect,
-                                std::uint32_t fill, std::string_view label,
-                                construction::ConstructionHudAction action,
-                                bool enabled = true) {
+                                Action action, std::uint32_t fill,
+                                bool enabled = true, bool active = false) {
             if (rect.width <= 0) return;
             const bool focused = visual_.focused_action == action;
-            appendQuad(mesh, static_cast<float>(rect.x + 2), static_cast<float>(rect.y + 3),
-                static_cast<float>(rect.x + rect.width + 2),
-                static_cast<float>(rect.y + rect.height + 3), kPanelShadow);
-            appendQuad(mesh, static_cast<float>(rect.x), static_cast<float>(rect.y),
-                static_cast<float>(rect.x + rect.width), static_cast<float>(rect.y + rect.height),
-                focused && enabled ? fill : kPanel);
-            appendBorder(mesh, rect, focused ? 4.0f : 3.0f,
-                !enabled ? kDisabled : focused ? kYellow : kNavy);
-            const float scale = rect.width >= 88 && label.size() <= 6U ? 2.0f : 1.0f;
-            appendCenteredText(mesh, rect, label, scale,
-                !enabled ? kDisabled : focused ? kWhite : kNavy);
-        };
-        using Action = construction::ConstructionHudAction;
-        button(layout.place, kBlue, "CREATE", Action::Place);
-        button(layout.select, kAqua, "SELECT", Action::Select);
-        button(layout.move, kBlue, "MOVE", Action::Move);
-        button(layout.resize, kBlue, "RESIZE", Action::Resize);
-        button(layout.subtract, kAqua, "CUT", Action::Subtract);
-        button(layout.shape, kBlue, "SHAPE", Action::Shape);
-        button(layout.height, kBlue, "HEIGHT", Action::Height);
-        button(layout.roundness, kAqua, "CORNERS", Action::Roundness);
-        button(layout.rotate, kBlue, "TURN", Action::Rotate);
-        const auto shown_tank = visual_.preview_tank
-            ? visual_.preview_tank : visual_.selected_tank;
-        const bool notch_enabled = shown_tank &&
-            shown_tank->footprint.shape != pr::aquarium::geometry::FootprintShape::Rectangle;
-        button(layout.notch_width, kBlue, "WIDTH", Action::NotchWidth, notch_enabled);
-        button(layout.notch_depth, kBlue, "DEPTH", Action::NotchDepth, notch_enabled);
-        button(layout.review, kAqua, "APPLY", Action::Review);
-        button(layout.build, kAqua, "BUILD", Action::Build);
-        button(layout.adjust, kBlue, "ADJUST", Action::Adjust);
-        button(layout.remove, kRed, "DELETE", Action::Delete);
-        button(layout.undo, kBlue, "UNDO", Action::Undo, visual_.undo_available);
-        button(layout.redo, kBlue, "REDO", Action::Redo, visual_.redo_available);
-        button(layout.cancel, kRed, "CANCEL", Action::Cancel);
-        button(layout.done, kAqua, "DONE", Action::Done);
-        button(layout.exit, kRed, "EXIT", Action::Exit);
-        const auto choices = construction::aquariumConstructionPropertyChoices(layout, visual_);
-        for (std::size_t index = 0; index < choices.size(); ++index) {
-            const auto& choice = choices[index];
-            appendQuad(mesh, static_cast<float>(choice.rect.x), static_cast<float>(choice.rect.y),
-                static_cast<float>(choice.rect.x + choice.rect.width),
-                static_cast<float>(choice.rect.y + choice.rect.height), kPanel);
-            appendBorder(mesh, choice.rect, choice.selected ? 3.0f : 2.0f,
-                choice.selected ? kNavy : choice.enabled ? kBlue : kDisabled);
-            std::string_view label;
-            if (choice.action == Action::Shape) {
-                constexpr std::string_view labels[]{"RECT", "L", "U"};
-                label = labels[std::clamp(choice.value, 0, 2)];
-            } else if (choice.action == Action::Rotate) {
-                constexpr std::string_view labels[]{"N", "E", "S", "W"};
-                label = labels[std::clamp(choice.value, 0, 3)];
-            } else if (choice.action == Action::NotchWidth ||
-                       choice.action == Action::NotchDepth) {
-                const int current = choice.action == Action::NotchWidth
-                    ? shown_tank->footprint.notch_width_cells
-                    : shown_tank->footprint.notch_depth_cells;
-                label = choice.value < current ? "BACK" :
-                    (choice.value > current ? "NEXT" : "SET");
-            }
-            if (!choice.selected && (choice.action == Action::Height ||
-                    choice.action == Action::Roundness)) {
-                label = index == 0 ? "LESS" : "MORE";
-            }
-            if (!label.empty()) {
-                appendCenteredText(mesh, choice.rect, label,
-                    choice.rect.width >= 72 ? 2.0f : 1.0f,
-                    choice.enabled || choice.selected ? kNavy : kDisabled);
-            } else {
-                const int minimum = choice.action == Action::Height ? 4 : 0;
-                const int maximum = choice.action == Action::Height ? 12 :
-                    pr::aquarium::geometry::fittedCornerRadiusSteps(shown_tank->footprint, 64);
-                constexpr int ticks = 9;
-                const float left = static_cast<float>(choice.rect.x + 12);
-                const float right = static_cast<float>(choice.rect.x + choice.rect.width - 12);
-                const float y = static_cast<float>(choice.rect.y + choice.rect.height / 2);
-                appendQuad(mesh, left, y - 2.0f, right, y + 2.0f, kDisabled);
-                for (int tick = 0; tick < ticks; ++tick) {
-                    const float x = left + (right - left) * static_cast<float>(tick) /
-                        static_cast<float>(ticks - 1);
-                    appendQuad(mesh, x - 1.0f, y - 6.0f, x + 1.0f, y + 6.0f, kNavy);
+            const float center_x = static_cast<float>(rect.x) + rect.width * 0.5f;
+            const float center_y = static_cast<float>(rect.y) + rect.height * 0.5f;
+            const float radius = std::min(rect.width, rect.height) * 0.5f;
+            appendDisc(mesh, center_x, center_y + 4.0f, radius, kShadow);
+            appendDisc(mesh, center_x, center_y, radius,
+                focused || active ? kYellow : kCream);
+            appendDisc(mesh, center_x, center_y, radius - 4.0f, kNavy);
+            appendDisc(mesh, center_x, center_y, radius - 9.0f,
+                enabled ? fill : kDisabled);
+            const float arm = radius * 0.38f;
+            if (action == Action::Place || action == Action::Subtract) {
+                appendLine2d(mesh, center_x - arm, center_y,
+                    center_x + arm, center_y, 6.0f, kWhite);
+                if (action == Action::Place) {
+                    appendLine2d(mesh, center_x, center_y - arm,
+                        center_x, center_y + arm, 6.0f, kWhite);
                 }
-                const float ratio = maximum > minimum
-                    ? static_cast<float>(choice.value - minimum) /
-                        static_cast<float>(maximum - minimum) : 0.0f;
-                const float knob = left + (right - left) * std::clamp(ratio, 0.0f, 1.0f);
-                appendQuad(mesh, knob - 6.0f, y - 10.0f, knob + 6.0f, y + 10.0f, kYellow);
-                const construction::ConstructionHudRect knob_border{
-                    static_cast<int>(knob - 6.0f), static_cast<int>(y - 10.0f), 12, 20};
-                appendBorder(mesh, knob_border, 2.0f, kNavy);
+            } else if (action == Action::Build || action == Action::Exit) {
+                appendLine2d(mesh, center_x - arm, center_y,
+                    center_x - arm * 0.2f, center_y + arm * 0.65f, 6.0f, kWhite);
+                appendLine2d(mesh, center_x - arm * 0.2f, center_y + arm * 0.65f,
+                    center_x + arm, center_y - arm * 0.65f, 6.0f, kWhite);
+            } else if (action == Action::Delete) {
+                appendQuad(mesh, center_x - arm * 0.62f, center_y - arm * 0.1f,
+                    center_x + arm * 0.62f, center_y + arm * 0.9f, kWhite);
+                appendLine2d(mesh, center_x - arm * 0.85f, center_y - arm * 0.35f,
+                    center_x + arm * 0.85f, center_y - arm * 0.35f, 5.0f, kWhite);
+                appendLine2d(mesh, center_x - arm * 0.3f, center_y - arm * 0.6f,
+                    center_x + arm * 0.3f, center_y - arm * 0.6f, 5.0f, kWhite);
+            } else if (action == Action::Undo || action == Action::Redo) {
+                const bool redo = action == Action::Redo;
+                const float direction = redo ? 1.0f : -1.0f;
+                float previous_x = center_x - direction * arm * 0.7f;
+                float previous_y = center_y + arm * 0.45f;
+                for (int segment = 1; segment <= 8; ++segment) {
+                    const float t = static_cast<float>(segment) / 8.0f;
+                    const float x = center_x + direction * (-arm * 0.7f + arm * 1.4f * t);
+                    const float y = center_y + arm * (0.45f - 1.2f * std::sin(t * bx::kPi));
+                    appendLine2d(mesh, previous_x, previous_y, x, y, 5.0f, kWhite);
+                    previous_x = x;
+                    previous_y = y;
+                }
+                appendTriangle2d(mesh,
+                    center_x - direction * arm * 0.9f, center_y + arm * 0.35f,
+                    center_x - direction * arm * 0.4f, center_y + arm * 0.05f,
+                    center_x - direction * arm * 0.4f, center_y + arm * 0.7f,
+                    kWhite);
             }
-        }
-        const std::string& status = !visual_.status_hint.empty()
-            ? visual_.status_hint : visual_.navigation_hint;
-        if (!status.empty() && layout.status.width > 0) {
-            const float scale = width >= 640 ? 2.0f : 1.0f;
-            const construction::ConstructionHudRect banner{
-                layout.status.x + std::max(0, (layout.status.width -
-                    static_cast<int>(textWidth(status, scale)) - 24) / 2),
-                layout.status.y,
-                std::min(layout.status.width,
-                    static_cast<int>(textWidth(status, scale)) + 24),
-                layout.status.height};
-            appendQuad(mesh, static_cast<float>(banner.x), static_cast<float>(banner.y),
-                static_cast<float>(banner.x + banner.width),
-                static_cast<float>(banner.y + banner.height), kPanel);
-            appendBorder(mesh, banner, 2.0f,
-                visual_.status_hint.empty() ? kBlue : kRed);
-            appendCenteredText(mesh, banner, status, scale, kNavy);
-        }
+        };
+        button(layout.place, Action::Place, kBlue, true, !visual_.subtract_mode);
+        button(layout.subtract, Action::Subtract, kMagenta, true, visual_.subtract_mode);
+        button(layout.undo, Action::Undo, kBlue, visual_.undo_available);
+        button(layout.redo, Action::Redo, kBlue, visual_.redo_available);
+        button(layout.remove, Action::Delete, kRed);
+        button(layout.build, Action::Build, kGreen);
+        button(layout.exit, Action::Exit, kGreen);
         if (mesh.vertices.empty()) return;
         float view[16], projection[16];
         bx::mtxIdentity(view);

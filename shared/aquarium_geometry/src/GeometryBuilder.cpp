@@ -6,7 +6,6 @@
 #include <array>
 #include <cmath>
 #include <limits>
-#include <set>
 #include <vector>
 
 namespace pr::aquarium::geometry::detail {
@@ -14,7 +13,11 @@ namespace {
 
 constexpr float kGlassThickness =
     static_cast<float>(kGlassThicknessMilliWorldUnits) / 1000.0F;
+constexpr float kBaseTop = 1.2F;
 constexpr float kBottomRimTop = 2.4F;
+constexpr float kBaseOverhang = 1.6F;
+constexpr float kFrameOverhang = 0.88F;
+constexpr float kFrameWidth = 1.6F;
 constexpr float kGlassBottom = 1.608F;
 constexpr float kSandSurfaceY = 3.016F;
 constexpr float kTopRimHeight = 1.52F;
@@ -123,6 +126,48 @@ std::vector<Vec2> perimeterOutwardNormals(const std::vector<Vec2>& boundary) {
     return result;
 }
 
+std::vector<Vec2> offsetBoundary(
+    const std::vector<Vec2>& boundary,
+    float distance) {
+    if (boundary.size() < 3 || std::abs(distance) <= 0.0001F) return boundary;
+    const auto segment_normals = [&]() {
+        std::vector<Vec2> normals;
+        normals.reserve(boundary.size());
+        for (std::size_t index = 0; index < boundary.size(); ++index) {
+            const Vec2 start = boundary[index];
+            const Vec2 end = boundary[(index + 1U) % boundary.size()];
+            const float dx = end.x - start.x;
+            const float dz = end.y - start.y;
+            const float length = std::max(0.0001F, std::hypot(dx, dz));
+            normals.push_back({dz / length, -dx / length});
+        }
+        return normals;
+    }();
+    std::vector<Vec2> result;
+    result.reserve(boundary.size());
+    for (std::size_t index = 0; index < boundary.size(); ++index) {
+        const Vec2 previous = segment_normals[
+            (index + boundary.size() - 1U) % boundary.size()];
+        const Vec2 next = segment_normals[index];
+        const float sum_x = previous.x + next.x;
+        const float sum_z = previous.y + next.y;
+        const float sum_length = std::hypot(sum_x, sum_z);
+        if (sum_length <= 0.0001F) {
+            result.push_back({
+                boundary[index].x + next.x * distance,
+                boundary[index].y + next.y * distance});
+            continue;
+        }
+        const Vec2 bisector{sum_x / sum_length, sum_z / sum_length};
+        const float projection = std::max(0.2F,
+            std::abs(bisector.x * next.x + bisector.y * next.y));
+        result.push_back({
+            boundary[index].x + bisector.x * distance / projection,
+            boundary[index].y + bisector.y * distance / projection});
+    }
+    return result;
+}
+
 void addPerimeterSides(
     SemanticMesh& mesh, const std::vector<Vec2>& boundary,
     float bottom, float top) {
@@ -162,7 +207,8 @@ void addWallSegment(
     Vec2 end,
     float bottom,
     float top,
-    bool cap_ends = false) {
+    bool cap_ends = false,
+    float thickness = kGlassThickness) {
     const float dx = end.x - start.x;
     const float dz = end.y - start.y;
     const float length = std::hypot(dx, dz);
@@ -170,12 +216,12 @@ void addWallSegment(
     const Vec2 direction{dx / length, dz / length};
     const Vec2 inward{-direction.y, direction.x};
     const Vec2 inner_start{
-        start.x + inward.x * kGlassThickness,
-        start.y + inward.y * kGlassThickness,
+        start.x + inward.x * thickness,
+        start.y + inward.y * thickness,
     };
     const Vec2 inner_end{
-        end.x + inward.x * kGlassThickness,
-        end.y + inward.y * kGlassThickness,
+        end.x + inward.x * thickness,
+        end.y + inward.y * thickness,
     };
     const Vec3 outward{-inward.x, 0.0F, -inward.y};
     const Vec3 inward_normal{inward.x, 0.0F, inward.y};
@@ -279,6 +325,15 @@ void addPolygonSurface(
     }
 }
 
+void addSolidPlinth(
+    SemanticMesh& mesh,
+    const std::vector<Vec2>& boundary,
+    float bottom,
+    float top) {
+    addPerimeterSides(mesh, boundary, bottom, top);
+    addPolygonSurface(mesh, boundary, top);
+}
+
 } // namespace
 
 void populateAquariumGeometry(
@@ -287,6 +342,8 @@ void populateAquariumGeometry(
     const auto& footprint = request.tank.footprint;
     const std::vector<Vec2> boundary = footprintBoundaryLocalWorld(
         footprint, request.tank.corner_radius_steps, request.tank.corner_radii);
+    const std::vector<Vec2> base_boundary = offsetBoundary(boundary, kBaseOverhang);
+    const std::vector<Vec2> frame_boundary = offsetBoundary(boundary, kFrameOverhang);
     const float height = static_cast<float>(request.tank.height_steps * kVerticalStepWorldUnits);
     const float top_rim_bottom = height - kTopRimHeight;
     const float glass_top = height - kGlassTopInset;
@@ -300,11 +357,12 @@ void populateAquariumGeometry(
     SemanticMesh& water_volume = addMesh(result.meshes, MeshMaterial::WaterVolume);
     SemanticMesh& water_surface = addMesh(result.meshes, MeshMaterial::WaterSurface);
     SemanticMesh& glass = addMesh(result.meshes, MeshMaterial::Glass);
-    for (std::size_t index = 0; index < boundary.size(); ++index) {
-        const Vec2 start = boundary[index];
-        const Vec2 end = boundary[(index + 1) % boundary.size()];
-        addWallSegment(structure, start, end, 0.0F, kBottomRimTop);
-        addWallSegment(structure, start, end, top_rim_bottom, height);
+    addSolidPlinth(structure, base_boundary, 0.0F, kBaseTop);
+    for (std::size_t index = 0; index < frame_boundary.size(); ++index) {
+        const Vec2 start = frame_boundary[index];
+        const Vec2 end = frame_boundary[(index + 1) % frame_boundary.size()];
+        addWallSegment(structure, start, end, kBaseTop, kBottomRimTop, false, kFrameWidth);
+        addWallSegment(structure, start, end, top_rim_bottom, height, false, kFrameWidth);
     }
     addPerimeterSides(glass, boundary, kGlassBottom, glass_top);
     addPerimeterSides(water_volume, boundary, kWaterBottom, water_y - 0.002F);
@@ -312,17 +370,10 @@ void populateAquariumGeometry(
     addPolygonSurface(water_surface, boundary, water_y);
 
     const std::vector<GridCell> occupied = footprintCells(footprint);
-    std::set<std::pair<std::int32_t, std::int32_t>> occupied_set;
-    for (const GridCell cell : occupied) occupied_set.emplace(cell.column, cell.row);
-    constexpr std::array<std::pair<std::int32_t, std::int32_t>, 4> neighbours{{
-        {0, -1}, {1, 0}, {0, 1}, {-1, 0},
-    }};
-    for (const GridCell cell : occupied) {
-        const bool perimeter = std::any_of(neighbours.begin(), neighbours.end(), [&](auto delta) {
-            return !occupied_set.count({cell.column + delta.first, cell.row + delta.second});
-        });
-        if (perimeter) result.collision.blocked_cells.push_back(cell);
-    }
+    // The complete above-floor tank footprint is solid to overworld actors.
+    // Blocking only the perimeter allowed actors to enter interior cells when
+    // rounding or follower movement crossed more than one grid boundary.
+    result.collision.blocked_cells = occupied;
 
     NavigationLayer layer;
     layer.floor_y = kSandSurfaceY;

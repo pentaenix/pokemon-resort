@@ -17,7 +17,8 @@ public:
     void configure(const AquariumConstructionConfig& config, std::string project_root);
     void render(SDL_Renderer* renderer, int logical_width, int logical_height,
         const AquariumConstructionSession& session,
-        ConstructionHudAction focused_action) const;
+        ConstructionHudAction focused_action,
+        bool subtract_mode) const;
 private:
     std::string project_root_;
     mutable FontHandle font_;

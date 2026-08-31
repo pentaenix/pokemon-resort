@@ -94,13 +94,28 @@ void testRectangleGolden() {
     require(result.validation.valid(), "golden rectangle failed validation");
     require(result.meshes.meshes.size() == 5, "semantic material partition changed");
     require(result.statistics.mesh_count == 5, "mesh count changed");
-    require(result.statistics.vertex_count == 168, "vertex count changed");
-    require(result.statistics.index_count == 252, "index count changed");
-    require(result.statistics.triangle_count == 84, "triangle count changed");
-    require(result.statistics.collision_cell_count == 16, "collision perimeter changed");
+    require(result.statistics.vertex_count == 188, "vertex count changed");
+    require(result.statistics.index_count == 282, "index count changed");
+    require(result.statistics.triangle_count == 94, "triangle count changed");
+    require(result.statistics.collision_cell_count == 24, "full-footprint collision changed");
+    require(std::any_of(result.collision.blocked_cells.begin(),
+                result.collision.blocked_cells.end(), [](GridCell cell) {
+                    return cell.column == 9 && cell.row == 7;
+                }),
+        "interior occupied cell is not blocked");
     require(result.statistics.navigation_layer_count == 1, "navigation layer count changed");
     require(result.navigation.suggested_spawns.size() == 1, "spawn count changed");
-    require(result.content_hash == "fnv1a64:b36e4dbc5fa24b00", "content hash changed: " + result.content_hash);
+    require(result.content_hash == "fnv1a64:536e7ce1f5e725f9", "content hash changed: " + result.content_hash);
+
+    const SemanticMesh& structure = result.meshes.meshes.front();
+    require(std::any_of(structure.vertices.begin(), structure.vertices.end(), [](const Vertex& vertex) {
+                return std::abs(vertex.position.y - 1.2F) < 0.0001F && vertex.normal.y > 0.9F;
+            }),
+        "solid lower plinth top is missing");
+    require(std::any_of(structure.vertices.begin(), structure.vertices.end(), [](const Vertex& vertex) {
+                return std::abs(vertex.position.x) > 49.5F && vertex.position.y <= 1.2F;
+            }),
+        "lower plinth overhang is missing");
 
     for (const SemanticMesh& mesh : result.meshes.meshes) {
         for (const Vertex& vertex : mesh.vertices) {
@@ -177,7 +192,7 @@ void testQuarterTurnSwapsRectangleAxes() {
     request.tank.footprint.rotation_quarter_turns = 1;
     const AquariumBuildResult result = buildAquarium(request);
     require(result.validation.valid(), "rotated rectangle failed validation");
-    require(result.collision.blocked_cells.size() == 16, "rotated collision perimeter changed");
+    require(result.collision.blocked_cells.size() == 24, "rotated full-footprint collision changed");
     require(result.collision.blocked_cells.back().column == 10, "rotated width did not use original depth");
     require(result.collision.blocked_cells.back().row == 11, "rotated depth did not use original width");
 }

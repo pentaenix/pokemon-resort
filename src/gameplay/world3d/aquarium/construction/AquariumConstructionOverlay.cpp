@@ -93,6 +93,18 @@ void drawTrash(SDL_Renderer* renderer, const ConstructionHudRect& rect) {
     SDL_RenderFillRect(renderer, &grip);
 }
 
+void drawModeSymbol(SDL_Renderer* renderer, const ConstructionHudRect& rect, bool add) {
+    color(renderer, {255, 255, 246, 255});
+    const int cx = rect.x + rect.width / 2;
+    const int cy = rect.y + rect.height / 2;
+    SDL_Rect horizontal{cx - rect.width / 5, cy - 3, rect.width * 2 / 5, 6};
+    SDL_RenderFillRect(renderer, &horizontal);
+    if (add) {
+        SDL_Rect vertical{cx - 3, cy - rect.height / 5, 6, rect.height * 2 / 5};
+        SDL_RenderFillRect(renderer, &vertical);
+    }
+}
+
 void drawPill(SDL_Renderer* renderer, SDL_Rect rect, Rgba fill) {
     const int radius = rect.h / 2;
     SDL_Rect middle{rect.x + radius, rect.y, std::max(0, rect.w - radius * 2), rect.h};
@@ -141,11 +153,23 @@ void AquariumConstructionOverlay::configure(
 void AquariumConstructionOverlay::render(
     SDL_Renderer* renderer, int width, int height,
     const AquariumConstructionSession& session,
-    ConstructionHudAction focused_action) const {
+    ConstructionHudAction focused_action,
+    bool subtract_mode) const {
     if (!renderer || !session.active()) return;
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
     const bool property_draft = session.draftOperation() == ConstructionDraftOperation::Properties;
     const auto layout = aquariumConstructionHudLayout(width, height, session.state(), property_draft);
+    if (layout.place.width > 0) {
+        drawButtonBase(renderer, layout.place, true,
+            focused_action == ConstructionHudAction::Place || !subtract_mode);
+        drawModeSymbol(renderer, layout.place, true);
+    }
+    if (layout.subtract.width > 0) {
+        drawButtonBase(renderer, layout.subtract, true,
+            focused_action == ConstructionHudAction::Subtract || subtract_mode,
+            {196, 89, 142, 255});
+        drawModeSymbol(renderer, layout.subtract, false);
+    }
     if (layout.undo.width > 0) {
         drawButtonBase(renderer, layout.undo, session.canUndo(),
             focused_action == ConstructionHudAction::Undo);

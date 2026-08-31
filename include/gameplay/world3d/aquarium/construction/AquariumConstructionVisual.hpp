@@ -62,6 +62,7 @@ struct AquariumConstructionVisual {
     bool undo_available = false;
     bool redo_available = false;
     bool property_draft = false;
+    bool subtract_mode = false;
     ConstructionHudAction focused_action = ConstructionHudAction::None;
     std::string navigation_hint;
     std::string status_hint;

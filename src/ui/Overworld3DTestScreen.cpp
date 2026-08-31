@@ -1390,7 +1390,7 @@ void Overworld3DTestScreen::renderPresentationOverlay(SDL_Renderer* renderer) {
     if (aquarium_construction_.active()) {
         aquarium_construction_overlay_.render(
             renderer, logical_w, logical_h, aquarium_construction_,
-            aquarium_construction_focused_action_);
+            aquarium_construction_focused_action_, aquarium_subtract_mode_);
     }
 
     if (!app_config_.enable_active_idle_behavior_debug || !debug_font_ || !follower_controller_) {
@@ -1476,19 +1476,25 @@ void Overworld3DTestScreen::onAdvancePressed() {
         aquarium_pointer_controls_cursor_ = false;
         namespace aqc = gameplay::world3d::aquarium::construction;
         const auto state = aquarium_construction_.state();
+        const bool subtract = aquarium_subtract_mode_ || aquarium_left_trigger_down_;
         if (state == aqc::ConstructionState::Browse) {
-            if (!aquarium_construction_.selectAtCursor()) {
+            if (aquarium_construction_.selectAtCursor()) {
+                if (subtract) aquarium_construction_.beginPaintSelected(true);
+            } else if (!subtract) {
                 aquarium_construction_.beginRectangle();
             }
         } else if (state == aqc::ConstructionState::Selected) {
-            if (!aquarium_construction_.beginPaintSelected(aquarium_left_trigger_down_)) {
+            if (!aquarium_construction_.beginPaintSelected(subtract)) {
                 aquarium_construction_.selectAtCursor();
             }
         } else if (state == aqc::ConstructionState::ResizeFootprint ||
                    state == aqc::ConstructionState::MoveTank ||
                    state == aqc::ConstructionState::ResizeTank ||
-                   state == aqc::ConstructionState::PaintFootprint) {
-            if (!aquarium_construction_.reviewDraft() || !commitAquariumConstruction()) {
+                   state == aqc::ConstructionState::PaintFootprint ||
+                   state == aqc::ConstructionState::DraftReview) {
+            const bool ready = state == aqc::ConstructionState::DraftReview ||
+                aquarium_construction_.reviewDraft();
+            if (!ready || !commitAquariumConstruction()) {
                 requestAquariumConstructionErrorFeedback();
             }
         }
@@ -1537,7 +1543,11 @@ void Overworld3DTestScreen::handlePointerMoved(int logical_x, int logical_y) {
     aquarium_pointer_position_ = mapped;
     aquarium_pointer_position_valid_ = true;
     aquarium_pointer_controls_cursor_ = true;
-    if (aquarium_pointer_down_ && aquarium_pointer_gizmo_) {
+    if (aquarium_pointer_operation_active_ && aquarium_pointer_gizmo_ &&
+        (*aquarium_pointer_gizmo_ == gameplay::world3d::aquarium::construction::
+                ConstructionGizmoKind::Height ||
+         *aquarium_pointer_gizmo_ == gameplay::world3d::aquarium::construction::
+                ConstructionGizmoKind::CornerRadius)) {
         constexpr int kPropertyDragPixels = 14;
         const int delta = aquarium_pointer_gizmo_y_ - mapped.y;
         if (std::abs(delta) >= kPropertyDragPixels) {
@@ -1554,7 +1564,7 @@ void Overworld3DTestScreen::handlePointerMoved(int logical_x, int logical_y) {
                 changed = aquarium_construction_.adjustCornerRadius(
                     *aquarium_pointer_corner_vertex_, direction);
             }
-            if (changed) aquarium_pointer_dragged_ = true;
+            if (changed) aquarium_construction_move_sfx_requested_ = true;
             aquarium_pointer_gizmo_y_ = mapped.y;
         }
         return;
@@ -1569,12 +1579,7 @@ void Overworld3DTestScreen::handlePointerMoved(int logical_x, int logical_y) {
         gameplay::world3d::aquarium::construction::ConstructionHudAction::None;
     if (aquariumConstructionUiAt(mapped.x, mapped.y)) return;
     if (const auto cell = aquariumConstructionCellAt(mapped.x, mapped.y)) {
-        const auto before = aquarium_construction_.cursor();
         aquarium_construction_.pointAt(*cell);
-        if (aquarium_pointer_down_ &&
-            (before.column != cell->column || before.row != cell->row)) {
-            aquarium_pointer_dragged_ = true;
-        }
     }
 }
 
@@ -1606,36 +1611,8 @@ bool Overworld3DTestScreen::handlePointerReleased(int logical_x, int logical_y) 
     logical_x = mapped.x;
     logical_y = mapped.y;
     if (aquarium_construction_.active()) {
-        if (aquarium_pointer_down_) {
-            if (!aquarium_pointer_gizmo_) {
-                if (const auto cell = aquariumConstructionCellAt(logical_x, logical_y)) {
-                    aquarium_construction_.pointAt(*cell);
-                }
-            }
-            const auto state = aquarium_construction_.state();
-            if (aquarium_pointer_gizmo_ && state ==
-                    gameplay::world3d::aquarium::construction::ConstructionState::DraftReview &&
-                aquarium_pointer_dragged_) {
-                commitAquariumConstruction();
-            }
-            if ((state == gameplay::world3d::aquarium::construction::ConstructionState::ResizeFootprint ||
-                 state == gameplay::world3d::aquarium::construction::ConstructionState::MoveTank ||
-                 state == gameplay::world3d::aquarium::construction::ConstructionState::ResizeTank ||
-                 state == gameplay::world3d::aquarium::construction::ConstructionState::PaintFootprint) &&
-                (state == gameplay::world3d::aquarium::construction::ConstructionState::PaintFootprint ||
-                 aquarium_pointer_dragged_ || aquarium_pointer_second_click_)) {
-                if (aquarium_construction_.reviewDraft()) {
-                    commitAquariumConstruction();
-                }
-            }
-        }
-        aquarium_pointer_down_ = false;
-        aquarium_pointer_dragged_ = false;
-        aquarium_pointer_second_click_ = false;
-        aquarium_pointer_subtract_ = false;
-        aquarium_pointer_gizmo_.reset();
-        aquarium_pointer_corner_vertex_.reset();
-        syncAquariumConstructionFocus();
+        // Construction gestures are click-to-start/click-to-finish. Releasing
+        // the physical button must never commit or cancel the latched gesture.
         return true;
     }
     if (attend_button_pressed_) {
@@ -1691,6 +1668,8 @@ void Overworld3DTestScreen::onAquariumConstructionPressed(SDL_JoystickID control
     if (aquarium_construction_.enter({player_.tileX(), player_.tileY()})) {
         gameplay::world3d::aquarium::construction::resetAquariumConstructionCamera(
             aquarium_construction_camera_tracking_);
+        resetAquariumConstructionPointerOperation();
+        aquarium_subtract_mode_ = false;
         aquarium_pointer_controls_cursor_ = false;
         aquarium_pointer_position_valid_ = false;
         player_.stop();
@@ -1723,6 +1702,7 @@ void Overworld3DTestScreen::onBackPressed() {
         } else if (!aquarium_construction_.cancel()) {
             exitAquariumConstruction();
         }
+        resetAquariumConstructionPointerOperation();
         syncAquariumConstructionFocus();
         return;
     }

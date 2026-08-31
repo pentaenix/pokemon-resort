@@ -141,18 +141,20 @@ std::vector<GizmoWorldPoint> gizmoWorldPoints(const AquariumConstructionVisual& 
     const float center_x = (west + east) * 0.5f;
     const float center_z = (north + south) * 0.5f;
     const float floor_y = floorForCell(visual, visualTankCentreCell(*tank));
-    const float y = floor_y + 0.72f;
+    // Tank editing handles sit just above the flat sand surface so committed
+    // opaque sand cannot hide them. Height remains at the actual tank top.
+    const float y = floor_y + 3.65f;
     std::vector<GizmoWorldPoint> points;
-    if (visual.state != ConstructionState::Selected) return {};
+    const bool editing_with_handles = visual.state == ConstructionState::Selected ||
+        visual.state == ConstructionState::MoveTank ||
+        visual.state == ConstructionState::ResizeTank ||
+        (visual.state == ConstructionState::DraftReview && visual.property_draft);
+    if (!editing_with_handles) return {};
     points = {
         {{ConstructionGizmoKind::Move, AquariumResizeHandle::SouthEast, std::nullopt}, {center_x, y, center_z}},
-        {{ConstructionGizmoKind::Resize, AquariumResizeHandle::NorthWest, std::nullopt}, {west, y, north}},
         {{ConstructionGizmoKind::Resize, AquariumResizeHandle::North, std::nullopt}, {center_x, y, north}},
-        {{ConstructionGizmoKind::Resize, AquariumResizeHandle::NorthEast, std::nullopt}, {east, y, north}},
         {{ConstructionGizmoKind::Resize, AquariumResizeHandle::East, std::nullopt}, {east, y, center_z}},
-        {{ConstructionGizmoKind::Resize, AquariumResizeHandle::SouthEast, std::nullopt}, {east, y, south}},
         {{ConstructionGizmoKind::Resize, AquariumResizeHandle::South, std::nullopt}, {center_x, y, south}},
-        {{ConstructionGizmoKind::Resize, AquariumResizeHandle::SouthWest, std::nullopt}, {west, y, south}},
         {{ConstructionGizmoKind::Resize, AquariumResizeHandle::West, std::nullopt}, {west, y, center_z}},
     };
     points.push_back({{ConstructionGizmoKind::Height, AquariumResizeHandle::SouthEast,
@@ -170,7 +172,7 @@ std::vector<GizmoWorldPoint> gizmoWorldPoints(const AquariumConstructionVisual& 
         points.push_back({{ConstructionGizmoKind::CornerRadius,
             AquariumResizeHandle::SouthEast, corner.vertex},
             {vertex_x + toward_center_x / toward_center_length * kCornerKnobInset,
-             y + 0.18f,
+             y + 0.12f,
              vertex_z + toward_center_z / toward_center_length * kCornerKnobInset}});
     }
     return points;
@@ -285,7 +287,9 @@ ConstructionVisualMesh buildAquariumConstructionWorldMesh(
             cursor_y + 0.19f, 2.4f, visual.draft_valid ? kValidFill : kInvalidFill);
     }
     if ((visual.state == ConstructionState::Selected ||
-         visual.state == ConstructionState::DraftReview) &&
+         visual.state == ConstructionState::MoveTank ||
+         visual.state == ConstructionState::ResizeTank ||
+         (visual.state == ConstructionState::DraftReview && visual.property_draft)) &&
         (visual.selected_tank || visual.preview_tank)) {
         for (const auto& gizmo : gizmoWorldPoints(visual)) {
             const bool move = gizmo.hit.kind == ConstructionGizmoKind::Move;
@@ -318,7 +322,7 @@ ConstructionVisualMesh buildAquariumConstructionWorldMesh(
             const auto end = boundary[(index + 1U) % boundary.size()];
             appendLine(mesh, center_x + start.x, center_z + start.y,
                 center_x + end.x, center_z + end.y,
-                floor_y + 0.62f, 0.9f, kAnchor);
+                floor_y + 3.48f, 0.9f, kAnchor);
         }
         const int tick_count = std::clamp(tank.height_steps - 3, 1, 9);
         const float tick_x = center_x + 2.0f;

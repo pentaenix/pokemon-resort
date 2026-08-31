@@ -130,10 +130,12 @@ std::vector<ConstructionHudAction> aquariumConstructionHudActions(
     (void)property_draft;
     switch (state) {
         case ConstructionState::Browse:
-            return {ConstructionHudAction::Undo, ConstructionHudAction::Redo,
+            return {ConstructionHudAction::Place, ConstructionHudAction::Subtract,
+                ConstructionHudAction::Undo, ConstructionHudAction::Redo,
                 ConstructionHudAction::Exit};
         case ConstructionState::Selected:
-            return {ConstructionHudAction::Undo, ConstructionHudAction::Redo,
+            return {ConstructionHudAction::Place, ConstructionHudAction::Subtract,
+                ConstructionHudAction::Undo, ConstructionHudAction::Redo,
                 ConstructionHudAction::Delete, ConstructionHudAction::Exit};
         case ConstructionState::ResizeFootprint:
         case ConstructionState::MoveTank:
@@ -168,6 +170,10 @@ ConstructionHudLayout aquariumConstructionHudLayout(
     layout.status = {margin, margin,
         std::max(180, layout.undo.x - gap - margin), 44};
     const int bottom = height - margin - icon;
+    if (state == ConstructionState::Browse || state == ConstructionState::Selected) {
+        layout.place = {margin, bottom, icon, icon};
+        layout.subtract = {margin + icon + gap, bottom, icon, icon};
+    }
     if (state == ConstructionState::ResizeFootprint ||
         state == ConstructionState::MoveTank || state == ConstructionState::ResizeTank ||
         state == ConstructionState::SubtractFootprint ||
@@ -257,6 +263,8 @@ bool aquariumConstructionHudContainsUi(
     const ConstructionHudLayout& layout,
     int screen_x, int screen_y) {
     return layout.status.contains(screen_x, screen_y) ||
+        layout.place.contains(screen_x, screen_y) ||
+        layout.subtract.contains(screen_x, screen_y) ||
         layout.undo.contains(screen_x, screen_y) ||
         layout.redo.contains(screen_x, screen_y) ||
         layout.build.contains(screen_x, screen_y) ||

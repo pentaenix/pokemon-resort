@@ -125,6 +125,8 @@ private:
     std::optional<gameplay::world3d::aquarium::construction::ConstructionGizmoHit>
         aquariumConstructionGizmoAt(int logical_x, int logical_y) const;
     bool handleAquariumConstructionPointerPressed(int logical_x, int logical_y);
+    bool finishAquariumConstructionPointerOperation(int logical_x, int logical_y);
+    void resetAquariumConstructionPointerOperation();
     gameplay::world3d::aquarium::construction::ConstructionHudHit
         aquariumConstructionHudHitAt(int logical_x, int logical_y) const;
     bool aquariumConstructionUiAt(int logical_x, int logical_y) const;
@@ -243,10 +245,9 @@ private:
     };
     std::future<AquariumGeneratedCommit> aquarium_commit_future_;
     bool aquarium_commit_cancelled_ = false;
-    bool aquarium_pointer_down_ = false;
-    bool aquarium_pointer_dragged_ = false;
-    bool aquarium_pointer_second_click_ = false;
+    bool aquarium_pointer_operation_active_ = false;
     bool aquarium_pointer_subtract_ = false;
+    bool aquarium_subtract_mode_ = false;
     std::optional<gameplay::world3d::aquarium::construction::ConstructionGizmoKind>
         aquarium_pointer_gizmo_;
     std::optional<pr::aquarium::geometry::GridCell> aquarium_pointer_corner_vertex_;

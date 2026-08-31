@@ -479,13 +479,14 @@ Overworld3DTestScreen::aquariumConstructionVisual() const {
     visual.draft_cells = aquarium_construction_.draftCells();
     visual.undo_available = aquarium_construction_.canUndo();
     visual.redo_available = aquarium_construction_.canRedo();
+    visual.subtract_mode = aquarium_subtract_mode_;
     visual.focused_action = aquarium_construction_focused_action_;
     switch (visual.state) {
     case aqc::ConstructionState::Browse:
-        visual.navigation_hint = "MOVE CURSOR  EDGES PAN VIEW";
+        visual.navigation_hint = "CHOOSE PLUS OR MINUS  CLICK A CELL";
         break;
     case aqc::ConstructionState::Selected:
-        visual.navigation_hint = "EDIT TANK  CHOOSE STYLE BELOW";
+        visual.navigation_hint = "CLICK A HANDLE  MOVE  CLICK TO APPLY";
         break;
     case aqc::ConstructionState::ResizeFootprint:
     case aqc::ConstructionState::MoveTank:
@@ -496,7 +497,7 @@ Overworld3DTestScreen::aquariumConstructionVisual() const {
         visual.navigation_hint = "A OR CLICK CUTS CELLS  X APPLIES";
         break;
     case aqc::ConstructionState::PaintFootprint:
-        visual.navigation_hint = "PAINT CELLS  RELEASE OR A APPLIES";
+        visual.navigation_hint = "MOVE ACROSS CELLS  CLICK OR A TO APPLY";
         break;
     case aqc::ConstructionState::DraftReview:
         visual.navigation_hint = visual.property_draft

@@ -572,21 +572,32 @@ void constructionVisualBuildsYellowCellsGizmosAndCanonicalHitTargets() {
     require(hit && hit->column == 10 && hit->row == 10,
         "rendered half-cell-offset surface and pointer hit target disagree");
 
-    require(camera.worldToScreen({192.0f, 0.72f, 192.0f}, 1280, 800,
+    require(camera.worldToScreen({192.0f, 3.65f, 192.0f}, 1280, 800,
                 screen_x, screen_y, depth),
         "selected tank move gizmo did not project into the construction viewport");
     const auto move_gizmo = construction::hitTestAquariumConstructionGizmo(
         visual, camera, static_cast<int>(screen_x), static_cast<int>(screen_y), 1280, 800);
     require(move_gizmo && move_gizmo->kind == construction::ConstructionGizmoKind::Move,
         "selected tank centre did not expose a mouse-hit-testable move gizmo");
-    require(camera.worldToScreen({216.0f, 0.72f, 216.0f}, 1280, 800,
+    require(camera.worldToScreen({216.0f, 3.65f, 192.0f}, 1280, 800,
                 screen_x, screen_y, depth),
         "selected tank resize gizmo did not project into the construction viewport");
     const auto resize_gizmo = construction::hitTestAquariumConstructionGizmo(
         visual, camera, static_cast<int>(screen_x), static_cast<int>(screen_y), 1280, 800);
     require(resize_gizmo && resize_gizmo->kind == construction::ConstructionGizmoKind::Resize &&
-            resize_gizmo->resize_handle == construction::AquariumResizeHandle::SouthEast,
-        "south-east tank corner did not expose its directional resize gizmo");
+            resize_gizmo->resize_handle == construction::AquariumResizeHandle::East,
+        "east tank side did not expose its directional resize gizmo");
+    require(camera.worldToScreen({212.464f, 3.77f, 212.464f}, 1280, 800,
+                screen_x, screen_y, depth),
+        "selected tank corner-radius gizmo did not project into the viewport");
+    const auto corner_gizmo = construction::hitTestAquariumConstructionGizmo(
+        visual, camera, static_cast<int>(screen_x), static_cast<int>(screen_y), 1280, 800);
+    require(corner_gizmo &&
+            corner_gizmo->kind == construction::ConstructionGizmoKind::CornerRadius &&
+            corner_gizmo->corner_vertex &&
+            corner_gizmo->corner_vertex->column == 3 &&
+            corner_gizmo->corner_vertex->row == 3,
+        "tank corner exposes resize instead of its dedicated roundness knob");
 
     selected.footprint.shape = geo::FootprintShape::L;
     selected.footprint.width_cells = 6;
@@ -619,6 +630,11 @@ void constructionVisualBuildsYellowCellsGizmosAndCanonicalHitTargets() {
                 construction::ConstructionState::Browse) ==
             construction::ConstructionHudAction::Exit,
         "visible Browse finish control is not hit-testable");
+    require(construction::hitTestAquariumConstructionHud(
+                browse_hud, browse_hud.subtract.x + 2, browse_hud.subtract.y + 2,
+                construction::ConstructionState::Browse) ==
+            construction::ConstructionHudAction::Subtract,
+        "visible minus-mode control is not hit-testable");
     const auto resize_hud = construction::aquariumConstructionHudLayout(
         1280, 800, construction::ConstructionState::ResizeFootprint);
     require(construction::hitTestAquariumConstructionHud(
@@ -635,15 +651,17 @@ void constructionVisualBuildsYellowCellsGizmosAndCanonicalHitTargets() {
         "selected tank delete control is not hit-testable");
     const auto browse_actions = construction::aquariumConstructionHudActions(
         construction::ConstructionState::Browse);
-    require(browse_actions.size() == 3 &&
-            browse_actions.front() == construction::ConstructionHudAction::Undo &&
-            browse_actions[1] == construction::ConstructionHudAction::Redo &&
-            browse_actions[2] == construction::ConstructionHudAction::Exit,
-        "minimal browse HUD does not expose history and finish actions");
+    require(browse_actions.size() == 5 &&
+            browse_actions[0] == construction::ConstructionHudAction::Place &&
+            browse_actions[1] == construction::ConstructionHudAction::Subtract &&
+            browse_actions[2] == construction::ConstructionHudAction::Undo &&
+            browse_actions[3] == construction::ConstructionHudAction::Redo &&
+            browse_actions[4] == construction::ConstructionHudAction::Exit,
+        "minimal browse HUD does not expose mode, history, and finish actions");
     require(construction::defaultAquariumConstructionHudAction(
                 construction::ConstructionState::Selected) ==
-            construction::ConstructionHudAction::Undo,
-        "minimal selected-tank focus does not begin on undo");
+            construction::ConstructionHudAction::Place,
+        "minimal selected-tank focus does not begin on add mode");
     const auto property_actions = construction::aquariumConstructionHudActions(
         construction::ConstructionState::DraftReview, true);
     require(std::find(property_actions.begin(), property_actions.end(),
@@ -884,8 +902,8 @@ void populationPolicyIsReplaceableAndNavigationIsDerived() {
         "replaceable population policy was not applied once per tank");
     require(runtime.tanks.front().build.navigation.layers.size() == 1,
         "committed rectangle did not derive a navigation volume");
-    require(runtime.collision_cells.size() == 8,
-        "committed 3x3 rectangle did not derive perimeter collision");
+    require(runtime.collision_cells.size() == 9,
+        "committed 3x3 rectangle did not block its complete footprint");
 }
 
 void resourceGenerationRejectsCandidatesWithoutTouchingActiveResources() {
