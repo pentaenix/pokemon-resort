@@ -140,9 +140,59 @@ std::int32_t fittedCornerRadiusSteps(
     return std::min(requested_steps, maximum_world / kRadiusStepWorldUnits);
 }
 
+std::vector<FootprintCorner> footprintCorners(const FootprintDesign& footprint) {
+    const auto boundary = simplifiedBoundary(footprint);
+    std::vector<FootprintCorner> result;
+    result.reserve(boundary.size());
+    for (std::size_t index = 0; index < boundary.size(); ++index) {
+        const auto previous = boundary[(index + boundary.size() - 1) % boundary.size()];
+        const auto point = boundary[index];
+        const auto next = boundary[(index + 1) % boundary.size()];
+        const std::int64_t incoming_x = point.first - previous.first;
+        const std::int64_t incoming_y = point.second - previous.second;
+        const std::int64_t outgoing_x = next.first - point.first;
+        const std::int64_t outgoing_y = next.second - point.second;
+        result.push_back({{point.first, point.second},
+            incoming_x * outgoing_y - incoming_y * outgoing_x > 0});
+    }
+    return result;
+}
+
+std::int32_t fittedCornerRadiusStepsAt(
+    const FootprintDesign& footprint, GridCell vertex, std::int32_t requested_steps) {
+    if (requested_steps <= 0) return 0;
+    const auto boundary = simplifiedBoundary(footprint);
+    for (std::size_t index = 0; index < boundary.size(); ++index) {
+        const auto point = boundary[index];
+        if (point.first != vertex.column || point.second != vertex.row) continue;
+        const auto previous = boundary[(index + boundary.size() - 1) % boundary.size()];
+        const auto next = boundary[(index + 1) % boundary.size()];
+        const std::int64_t incoming_x = point.first - previous.first;
+        const std::int64_t incoming_y = point.second - previous.second;
+        const std::int64_t outgoing_x = next.first - point.first;
+        const std::int64_t outgoing_y = next.second - point.second;
+        if (incoming_x * outgoing_y - incoming_y * outgoing_x <= 0) return 0;
+        const auto incoming_cells = static_cast<std::int32_t>(
+            std::abs(incoming_x) + std::abs(incoming_y));
+        const auto outgoing_cells = static_cast<std::int32_t>(
+            std::abs(outgoing_x) + std::abs(outgoing_y));
+        const std::int32_t maximum_world =
+            std::min(incoming_cells, outgoing_cells) * kWorldUnitsPerCell / 2;
+        return std::min(requested_steps, maximum_world / kRadiusStepWorldUnits);
+    }
+    return 0;
+}
+
 std::vector<Vec2> footprintBoundaryLocalWorld(
     const FootprintDesign& footprint,
     std::int32_t radius_steps) {
+    return footprintBoundaryLocalWorld(footprint, radius_steps, {});
+}
+
+std::vector<Vec2> footprintBoundaryLocalWorld(
+    const FootprintDesign& footprint,
+    std::int32_t default_radius_steps,
+    const std::vector<CornerRadiusDesign>& corner_radii) {
     const auto boundary = simplifiedBoundary(footprint);
     if (boundary.size() < 4) return {};
     const float offset_x = static_cast<float>(occupiedWidthCells(footprint) * kWorldUnitsPerCell) * 0.5F;
@@ -155,9 +205,6 @@ std::vector<Vec2> footprintBoundaryLocalWorld(
             static_cast<float>(y * kWorldUnitsPerCell) - offset_z,
         });
     }
-    const std::int32_t fitted_steps = fittedCornerRadiusSteps(footprint, radius_steps);
-    if (fitted_steps <= 0) return points;
-    const float radius = static_cast<float>(fitted_steps * kRadiusStepWorldUnits);
     constexpr int kArcSegments = 4;
     std::vector<Vec2> rounded;
     for (std::size_t index = 0; index < points.size(); ++index) {
@@ -168,6 +215,22 @@ std::vector<Vec2> footprintBoundaryLocalWorld(
             rounded.push_back(point);
             continue;
         }
+        const IntPoint vertex = boundary[index];
+        const std::int32_t vertex_x = vertex.first;
+        const std::int32_t vertex_y = vertex.second;
+        const auto override = std::find_if(corner_radii.begin(), corner_radii.end(),
+            [&](const CornerRadiusDesign& radius) {
+                return radius.vertex.column == vertex_x && radius.vertex.row == vertex_y;
+            });
+        const std::int32_t requested_steps = override == corner_radii.end()
+            ? default_radius_steps : override->radius_steps;
+        const std::int32_t fitted_steps = fittedCornerRadiusStepsAt(
+            footprint, {vertex_x, vertex_y}, requested_steps);
+        if (fitted_steps <= 0) {
+            rounded.push_back(point);
+            continue;
+        }
+        const float radius = static_cast<float>(fitted_steps * kRadiusStepWorldUnits);
         const float incoming_x = point.x - previous.x;
         const float incoming_z = point.y - previous.y;
         const float outgoing_x = next.x - point.x;

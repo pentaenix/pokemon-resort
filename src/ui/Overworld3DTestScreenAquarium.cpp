@@ -199,7 +199,7 @@ void Overworld3DTestScreen::configureAquariumConstruction(
     aquarium_construction_.configure(
         map_config->map_id, construction_config,
         std::move(authored_obstacles), std::move(document));
-    aquarium_construction_overlay_.configure(map_config->construction);
+    aquarium_construction_overlay_.configure(map_config->construction, project_root_);
     aquarium_population_policy_ = aqc::makePlaceholderWishiwashiPolicy();
     refreshPlayerAquariumRuntime();
     const auto load_microseconds = std::chrono::duration_cast<std::chrono::microseconds>(
@@ -494,6 +494,9 @@ Overworld3DTestScreen::aquariumConstructionVisual() const {
         break;
     case aqc::ConstructionState::SubtractFootprint:
         visual.navigation_hint = "A OR CLICK CUTS CELLS  X APPLIES";
+        break;
+    case aqc::ConstructionState::PaintFootprint:
+        visual.navigation_hint = "PAINT CELLS  RELEASE OR A APPLIES";
         break;
     case aqc::ConstructionState::DraftReview:
         visual.navigation_hint = visual.property_draft

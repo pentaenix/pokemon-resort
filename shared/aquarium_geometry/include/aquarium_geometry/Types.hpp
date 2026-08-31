@@ -6,8 +6,8 @@
 
 namespace pr::aquarium::geometry {
 
-inline constexpr std::uint32_t kKernelAbiVersion = 3;
-inline constexpr std::uint32_t kDesignSchemaVersion = 2;
+inline constexpr std::uint32_t kKernelAbiVersion = 4;
+inline constexpr std::uint32_t kDesignSchemaVersion = 3;
 inline constexpr std::int32_t kWorldUnitsPerCell = 16;
 inline constexpr std::int32_t kVerticalStepWorldUnits = 8;
 inline constexpr std::int32_t kRadiusStepWorldUnits = 4;
@@ -29,7 +29,8 @@ enum class TunnelRoute : std::uint8_t {
 enum class MeshMaterial : std::uint8_t {
     Structure,
     Sand,
-    Water,
+    WaterVolume,
+    WaterSurface,
     Glass,
 };
 
@@ -41,6 +42,12 @@ enum class DiagnosticSeverity : std::uint8_t {
 struct GridCell {
     std::int32_t column = 0;
     std::int32_t row = 0;
+};
+
+struct CornerRadiusDesign {
+    // Local boundary-grid vertex, relative to the footprint origin.
+    GridCell vertex;
+    std::int32_t radius_steps = 0;
 };
 
 struct CellPoint {
@@ -73,6 +80,7 @@ struct TankDesign {
     FootprintDesign footprint;
     std::int32_t height_steps = 8;
     std::int32_t corner_radius_steps = 0;
+    std::vector<CornerRadiusDesign> corner_radii;
     std::vector<TunnelDesign> tunnels;
 };
 

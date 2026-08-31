@@ -1,13 +1,13 @@
 # Aquarium Construction Implementation Checklist
 
-Updated: 2026-08-30
+Updated: 2026-08-31
 
 ## Working-state guardrails
 
 - Pokémon Resort branch: `codex/aquarium-construction-milestone-3` from the reviewed Milestone 2 checkpoint.
 - Aquarium maker branch: `codex/aquarium-construction-milestone-3` from the reviewed Milestone 2 checkpoint.
 - Pre-Milestone 1 aquarium work was integrated into both repositories before these branches were created.
-- Milestone 3 changes span both repositories because the current kernel ABI 3 is consumed by the maker's browser-only WASM adapter.
+- Milestone 3 changes span both repositories because the current kernel ABI 4 is consumed by the maker's browser-only WASM adapter.
 - No reset, clean, checkout, destructive operation, or broad reformat was performed.
 - Feature commits stage explicit Milestone 3 paths only.
 
@@ -47,13 +47,13 @@ Updated: 2026-08-30
 ## Current golden evidence
 
 - Fixture: `shared/aquarium_geometry/goldens/rectangle-even.aquarium.json`.
-- Kernel ABI: 3.
-- Current design schema: 2; schema 1 golden documents remain migration fixtures.
-- Rectangle hash: `fnv1a64:20cfbee8f80501f6`.
-- Meshes: 4 semantic material groups.
-- Vertices: 280.
-- Indices: 420.
-- Triangles: 140.
+- Kernel ABI: 4.
+- Current design schema: 3; schema 1/2 documents remain readable migration inputs.
+- Rectangle hash: `fnv1a64:b36e4dbc5fa24b00`.
+- Meshes: 5 semantic material groups (structure, flat sand, water volume, water surface, glass).
+- Vertices: 168.
+- Indices: 252.
+- Triangles: 84.
 - Collision: 16 perimeter cells.
 - Navigation: 1 layer and 1 suggested spawn.
 - Native/WASM result: exact JSON equality for rectangle, rounded L, and rotated U fixtures.
@@ -310,6 +310,29 @@ Shipping Metal inspection at the normal 800×500 game viewport showed both loade
 - [x] Usability revision: stow the follower during construction and after the exit teleport, then allow the ordinary follower controller to summon it only after the player takes a new step.
 - [x] Usability revision: restore flat sand visibility with double-sided substrate/water surfaces and improve tank corners with continuous rails and explicit structure posts.
 - [x] Usability revision: replace the Builder Lab's yellow procedural wall trim through map-scoped aquarium configuration without changing shared room materials or authored aquarium rendering.
+- [x] Direct-manipulation revision: remove the modal tool/property workflow; one draw/add/subtract/move/resize/property gesture now produces one transactional undoable command.
+- [x] Direct-manipulation revision: use left mouse/A for add, right mouse/ZL+A for subtract, L/R for undo/redo, X/contextual trash for delete, Y/checkmark for finish, and B for gesture cancellation.
+- [x] Direct-manipulation revision: move construction text and the four remaining icon controls to the sharp 1280×800 presentation canvas; remove the bgfx block-font HUD.
+- [x] Direct-manipulation revision: remove yellow-cell borders, retain separated inset fills, and add large screen-space move/resize/height/per-corner-radius knobs.
+- [x] Direct-manipulation revision: advance to schema 3/ABI 4 for independently authored corner radii and separate structure, flat sand, water-volume, water-surface, and glass geometry.
+- [x] Direct-manipulation revision: match the maker's standard vertical tank profile and smooth normals across rounded arcs; remove the rectangular corner posts that exposed polygon facets.
+- [ ] Player visual review: verify icon theme, pointer feel, knob separation, material colors/transparency, and full mouse/controller happy paths in the Builder Lab.
+
+### Milestone 3 direct-manipulation verification
+
+| Command | Result |
+|---|---|
+| `cmake --build build -j4` | Pass; shipping executable and 74 native targets compile |
+| Focused aquarium design/command/runtime/kernel, overlay, input, and headless tests | 7/7 pass |
+| `ctest --test-dir build --output-on-failure` | 69/74 pass; exactly the five documented baseline failures remain |
+| `npm run check` in aquarium maker | Pass; existing large-chunk warning only |
+| `npm run validate:kernel` in aquarium maker | Pass; three native/WASM goldens equal, ABI 4, hash `fnv1a64:b36e4dbc5fa24b00`, WASM p95 0.9579 ms |
+| `npm run validate:model` in aquarium maker | Pass for standard, tunnels, shaped tanks, independent corners, below-floor tanks, and decor scenarios |
+
+The SDL game window is not exposed through macOS accessibility, so this pass
+could not automate a real pointer walkthrough in the shipping window. The
+visual/manual items above remain the explicit player review boundary; tunnels
+remain out of scope until that review is accepted.
 
 ### Milestone 3 implementation inventory
 
@@ -325,11 +348,11 @@ Shipping Metal inspection at the normal 800×500 game viewport showed both loade
 
 ### Milestone 3 deterministic and performance evidence
 
-- Kernel ABI 3 native/WASM parity is exact for all three goldens.
-- Rectangle content hash: `fnv1a64:20cfbee8f80501f6`.
-- Native rectangle generation p95: 0.2328 ms.
-- Native rounded-U generation p95: 1.3301 ms.
-- Maker WASM generation p95: 1.0705 ms.
+- Kernel ABI 4 native/WASM parity is exact for all three goldens.
+- Rectangle content hash: `fnv1a64:b36e4dbc5fa24b00`.
+- Native rectangle generation p95: 0.2262 ms.
+- Native rounded-U generation p95: 2.0756 ms.
+- Maker WASM generation p95: 0.9579 ms.
 - All remain far below the 50 ms rectangle and 100 ms rounded-shape budgets.
 
 ### Milestone 3 automated evidence
@@ -341,7 +364,7 @@ Shipping Metal inspection at the normal 800×500 game viewport showed both loade
 | `ctest --test-dir build --output-on-failure` | 69/74 pass; exactly the same five documented baseline failures and no Milestone 3 failure |
 | `pokemon_resort_map_maker --validate-project` | Pass; five maps and five unique sources, including both aquarium rooms |
 | `npm run check` | Pass; existing maker large-chunk warning only |
-| `npm run validate:kernel` | Pass; three exact native/WASM goldens, ABI 3, rectangle hash `fnv1a64:20cfbee8f80501f6` |
+| `npm run validate:kernel` | Pass; three exact native/WASM goldens, ABI 4, rectangle hash `fnv1a64:b36e4dbc5fa24b00` |
 | `npm run validate:model` | Pass for the maker's complete existing standard, tunnel, below-floor, shape, passage, and decor matrix |
 
 Revision verification:
@@ -376,7 +399,7 @@ Latest usability-revision verification adds native kernel coverage for simple
 exterior-connected cuts, enclosed holes, and disconnected results; runtime
 coverage for cut/commit/undo/cancel; schema 1→2 compatibility; and an
 offset-sensitive rendered-grid pointer target. Maker `check`, kernel parity,
-and the complete model validator pass with ABI 3. Automated macOS visual
+and the complete model validator pass with ABI 4. Automated macOS visual
 control cannot attach to the bare SDL executable, so the player-visible and
 controller-only checks remain intentionally open for the review checkpoint.
 
@@ -386,7 +409,7 @@ controller-only checks remain intentionally open for the review checkpoint.
 | Focused aquarium/design/command/runtime/input/headless checks | Pass; OWMAP reaches only its unchanged ramp baseline assertion after builder-lab checks pass |
 | `ctest --test-dir build --output-on-failure` | 69/74 pass; exactly the same five baseline failures and no new failure |
 | `npm run check` | Pass; existing large-chunk warning only |
-| `npm run validate:kernel` | Pass; ABI 3 parity, rectangle hash `fnv1a64:20cfbee8f80501f6`, WASM p95 1.0705 ms |
+| `npm run validate:kernel` | Pass; ABI 4 parity, rectangle hash `fnv1a64:b36e4dbc5fa24b00`, WASM p95 0.9579 ms |
 | `npm run validate:model` | Pass for the maker's complete model-validation matrix |
 
 ### Milestone 3 review boundary

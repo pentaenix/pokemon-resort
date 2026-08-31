@@ -132,11 +132,14 @@ struct ConstructionHudHit {
 enum class ConstructionGizmoKind {
     Move,
     Resize,
+    Height,
+    CornerRadius,
 };
 
 struct ConstructionGizmoHit {
     ConstructionGizmoKind kind = ConstructionGizmoKind::Move;
     AquariumResizeHandle resize_handle = AquariumResizeHandle::SouthEast;
+    std::optional<pr::aquarium::geometry::GridCell> corner_vertex;
 };
 
 ConstructionVisualMesh buildAquariumConstructionWorldMesh(

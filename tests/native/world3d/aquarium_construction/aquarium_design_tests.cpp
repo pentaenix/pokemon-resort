@@ -25,6 +25,7 @@ construction::AquariumDesignDocument documentFixture() {
     tank.footprint.depth_cells = 4;
     tank.height_steps = 8;
     tank.footprint.subtracted_cells = {{2, 0}};
+    tank.corner_radii = {{{0, 0}, 1}, {{6, 4}, 2}};
     document.tanks.push_back(std::move(tank));
     geometry::TankDesign shaped;
     shaped.id = "tank_golden_u_rotated";
@@ -47,16 +48,19 @@ void testCanonicalRoundTrip() {
     const construction::AquariumDesignLoadResult parsed = construction::parseAquariumDesign(first);
     require(parsed.status == construction::AquariumDesignLoadStatus::Loaded, "canonical design did not load");
     require(parsed.document.has_value(), "loaded design is missing document");
+    require(parsed.document->tanks.front().corner_radii.size() == 2 &&
+            parsed.document->tanks.front().corner_radii.back().radius_steps == 2,
+        "per-corner radii did not survive serialization");
     require(construction::serializeAquariumDesignCanonical(*parsed.document) == first,
             "canonical round trip changed bytes");
 }
 
 void testNewerVersionIsReadOnly() {
     std::string text = construction::serializeAquariumDesignCanonical(documentFixture());
-    const std::string needle = "\"schemaVersion\": 2";
+    const std::string needle = "\"schemaVersion\": 3";
     const std::size_t position = text.find(needle);
     require(position != std::string::npos, "schema version fixture missing");
-    text.replace(position, needle.size(), "\"schemaVersion\": 3");
+    text.replace(position, needle.size(), "\"schemaVersion\": 4");
     const construction::AquariumDesignLoadResult result = construction::parseAquariumDesign(text);
     require(result.status == construction::AquariumDesignLoadStatus::NewerVersion,
             "newer design was not preserved as incompatible");

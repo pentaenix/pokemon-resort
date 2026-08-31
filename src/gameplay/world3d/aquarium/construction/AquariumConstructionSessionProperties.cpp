@@ -1,6 +1,7 @@
 #include "gameplay/world3d/aquarium/construction/AquariumConstructionSession.hpp"
 
 #include <algorithm>
+#include <limits>
 #include <utility>
 
 namespace pr::gameplay::world3d::aquarium::construction {
@@ -15,6 +16,61 @@ bool AquariumConstructionSession::ensurePropertyDraft() {
         ConstructionDraftOperation::Properties, centre, centre, *tank, *tank,
         AquariumResizeHandle::SouthEast};
     state_ = ConstructionState::DraftReview;
+    return true;
+}
+
+bool AquariumConstructionSession::beginPropertySelected() {
+    return ensurePropertyDraft();
+}
+
+std::optional<geo::GridCell> AquariumConstructionSession::nearestCornerVertex() const {
+    const geo::TankDesign* tank = selectedTank();
+    if (!tank) return std::nullopt;
+    const auto corners = geo::footprintCorners(tank->footprint);
+    std::optional<geo::GridCell> nearest;
+    int nearest_distance = std::numeric_limits<int>::max();
+    for (const auto& corner : corners) {
+        if (!corner.convex) continue;
+        const int world_column = tank->footprint.origin_cell.column + corner.vertex.column;
+        const int world_row = tank->footprint.origin_cell.row + corner.vertex.row;
+        const int dx = cursor_.column - world_column;
+        const int dy = cursor_.row - world_row;
+        const int distance = dx * dx + dy * dy;
+        if (distance < nearest_distance) {
+            nearest_distance = distance;
+            nearest = corner.vertex;
+        }
+    }
+    return nearest;
+}
+
+bool AquariumConstructionSession::adjustCornerRadius(
+    geo::GridCell corner_vertex, int direction) {
+    if (direction == 0 || !ensurePropertyDraft() || !draft_) return false;
+    geo::TankDesign tank = draftTank();
+    const auto corner = std::find_if(tank.corner_radii.begin(), tank.corner_radii.end(),
+        [&](const geo::CornerRadiusDesign& item) {
+            return item.vertex.column == corner_vertex.column &&
+                item.vertex.row == corner_vertex.row;
+        });
+    const int current = corner == tank.corner_radii.end()
+        ? tank.corner_radius_steps : corner->radius_steps;
+    const int maximum = geo::fittedCornerRadiusStepsAt(
+        tank.footprint, corner_vertex, 64);
+    if (maximum <= 0) return false;
+    const int next = std::clamp(current + (direction > 0 ? 1 : -1), 0, maximum);
+    if (next == current) return false;
+    if (corner == tank.corner_radii.end()) {
+        tank.corner_radii.push_back({corner_vertex, next});
+    } else {
+        corner->radius_steps = next;
+    }
+    std::sort(tank.corner_radii.begin(), tank.corner_radii.end(), [](const auto& lhs, const auto& rhs) {
+        return lhs.vertex.row < rhs.vertex.row ||
+            (lhs.vertex.row == rhs.vertex.row && lhs.vertex.column < rhs.vertex.column);
+    });
+    draft_->candidate_tank = std::move(tank);
+    refreshDraftValidation();
     return true;
 }
 
@@ -79,7 +135,8 @@ bool AquariumConstructionSession::adjustTankProperty(
 }
 
 std::optional<geo::TankDesign> AquariumConstructionSession::previewTank() const {
-    return draft_ ? std::optional<geo::TankDesign>(draftTank()) : std::nullopt;
+    return draft_ && !draft_->delete_candidate
+        ? std::optional<geo::TankDesign>(draftTank()) : std::nullopt;
 }
 
 std::optional<ConstructionDraftOperation> AquariumConstructionSession::draftOperation() const {

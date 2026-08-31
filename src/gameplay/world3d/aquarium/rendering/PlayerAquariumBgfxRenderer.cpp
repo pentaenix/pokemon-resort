@@ -24,8 +24,9 @@ std::array<float, 4> materialColor(geo::MeshMaterial material) {
     switch (material) {
     case geo::MeshMaterial::Structure: return {0.12f, 0.23f, 0.36f, 1.0f};
     case geo::MeshMaterial::Sand: return {0.88f, 0.76f, 0.50f, 1.0f};
-    case geo::MeshMaterial::Water: return {0.18f, 0.62f, 0.78f, 0.38f};
-    case geo::MeshMaterial::Glass: return {0.58f, 0.86f, 0.94f, 0.31f};
+    case geo::MeshMaterial::WaterVolume: return {0.10f, 0.48f, 0.68f, 0.11f};
+    case geo::MeshMaterial::WaterSurface: return {0.24f, 0.73f, 0.87f, 0.32f};
+    case geo::MeshMaterial::Glass: return {0.65f, 0.90f, 0.96f, 0.15f};
     }
     return {1.0f, 1.0f, 1.0f, 1.0f};
 }
@@ -191,7 +192,8 @@ public:
         }
         for (const Mesh* mesh_ptr : ordered) {
             const Mesh& mesh = *mesh_ptr;
-            const bool is_transparent = mesh.material == geo::MeshMaterial::Water ||
+            const bool is_transparent = mesh.material == geo::MeshMaterial::WaterVolume ||
+                                        mesh.material == geo::MeshMaterial::WaterSurface ||
                                         mesh.material == geo::MeshMaterial::Glass;
             if (is_transparent != transparent) continue;
             bgfx::setTransform(mesh.transform);
@@ -205,7 +207,7 @@ public:
             bgfx::setUniform(light_dir_uniform_, light_dir);
             bgfx::setUniform(light_params_uniform_, light_params);
             const bool double_sided_surface = mesh.material == geo::MeshMaterial::Sand ||
-                mesh.material == geo::MeshMaterial::Water;
+                mesh.material == geo::MeshMaterial::WaterSurface;
             const std::uint64_t culling = double_sided_surface ? 0 : BGFX_STATE_CULL_CCW;
             const std::uint64_t state = BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A |
                 BGFX_STATE_DEPTH_TEST_LESS | culling |

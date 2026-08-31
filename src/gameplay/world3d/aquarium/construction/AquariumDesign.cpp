@@ -112,6 +112,17 @@ geometry::TankDesign parseTank(const JsonValue& value) {
     }
     tank.height_steps = requiredInt32(value, "heightSteps");
     tank.corner_radius_steps = requiredInt32(value, "cornerRadiusSteps");
+    if (const JsonValue* radii = value.get("cornerRadii")) {
+        if (!radii->isArray()) throw std::runtime_error("cornerRadii must be an array");
+        for (const JsonValue& item : radii->asArray()) {
+            if (!item.isObject()) throw std::runtime_error("Corner radius must be an object");
+            const JsonValue& vertex = required(item, "vertex");
+            if (!vertex.isObject()) throw std::runtime_error("Corner vertex must be an object");
+            tank.corner_radii.push_back({
+                {requiredInt32(vertex, "column"), requiredInt32(vertex, "row")},
+                requiredInt32(item, "radiusSteps")});
+        }
+    }
 
     const JsonValue& substrate = required(value, "substrate");
     const JsonValue& glass = required(value, "glass");
@@ -192,7 +203,24 @@ JsonValue serializeTank(const geometry::TankDesign& tank) {
         });
     }
 
+    JsonValue::Array corner_radii;
+    auto radii = tank.corner_radii;
+    std::sort(radii.begin(), radii.end(), [](const auto& lhs, const auto& rhs) {
+        return lhs.vertex.row < rhs.vertex.row ||
+            (lhs.vertex.row == rhs.vertex.row && lhs.vertex.column < rhs.vertex.column);
+    });
+    for (const auto& radius : radii) {
+        corner_radii.emplace_back(JsonValue::Object{
+            {"radiusSteps", JsonValue(static_cast<double>(radius.radius_steps))},
+            {"vertex", JsonValue(JsonValue::Object{
+                {"column", JsonValue(static_cast<double>(radius.vertex.column))},
+                {"row", JsonValue(static_cast<double>(radius.vertex.row))},
+            })},
+        });
+    }
+
     return JsonValue(JsonValue::Object{
+        {"cornerRadii", JsonValue(std::move(corner_radii))},
         {"cornerRadiusSteps", JsonValue(static_cast<double>(tank.corner_radius_steps))},
         {"footprint", JsonValue(std::move(footprint))},
         {"glass", JsonValue(JsonValue::Object{{"style", JsonValue(std::string("clear-fixed-v1"))}})},

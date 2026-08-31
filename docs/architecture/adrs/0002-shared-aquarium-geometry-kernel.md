@@ -51,6 +51,14 @@ requires cuts to remain exterior-connected with one connected occupied water
 area. This keeps the in-game subtract tool, collision, navigation, native
 geometry, and maker WASM adapter on the same deterministic footprint rules.
 
+The direct-manipulation revision advances the boundary to kernel ABI 4 and
+design schema 3. Schema 3 adds stable per-convex-corner radius overrides while
+retaining the scalar radius as the migration/default value. ABI 4 separates
+the water volume from its surface, uses the maker's standard vertical profile
+for flat sand, rims, glass, and water level, and shares normals across rounded
+arc segments. The in-game handles, saved design, native runtime, and maker WASM
+preview therefore consume the same asymmetric-corner and material semantics.
+
 ## Alternatives Considered
 
 - Separate C++ and TypeScript implementations constrained by golden files: lower initial porting cost, but still permits semantic drift.

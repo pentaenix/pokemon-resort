@@ -119,10 +119,22 @@ void AquariumConstructionSession::moveCursor(int column_delta, int row_delta) {
 
 void AquariumConstructionSession::pointAt(geo::GridCell cell) {
     if (!active() || !cellAllowed(cell)) return;
+    if (state_ == ConstructionState::PaintFootprint && draft_) {
+        while (cursor_.column != cell.column) {
+            cursor_.column += cursor_.column < cell.column ? 1 : -1;
+            if (!cellAllowed(cursor_) || !paintCursorCell()) return;
+        }
+        while (cursor_.row != cell.row) {
+            cursor_.row += cursor_.row < cell.row ? 1 : -1;
+            if (!cellAllowed(cursor_) || !paintCursorCell()) return;
+        }
+        return;
+    }
     cursor_ = cell;
     if (!draft_ || (state_ != ConstructionState::ResizeFootprint &&
         state_ != ConstructionState::MoveTank && state_ != ConstructionState::ResizeTank &&
-        state_ != ConstructionState::SubtractFootprint)) return;
+        state_ != ConstructionState::SubtractFootprint &&
+        state_ != ConstructionState::PaintFootprint)) return;
     draft_->cursor = cell;
     if (state_ == ConstructionState::ResizeFootprint && draft_->candidate_tank) {
         const int min_column = std::min(draft_->anchor.column, cell.column);
@@ -215,7 +227,8 @@ bool AquariumConstructionSession::cancelDelete() {
 bool AquariumConstructionSession::reviewDraft() {
     if (!draft_ || (state_ != ConstructionState::ResizeFootprint &&
         state_ != ConstructionState::MoveTank && state_ != ConstructionState::ResizeTank &&
-        state_ != ConstructionState::SubtractFootprint)) return false;
+        state_ != ConstructionState::SubtractFootprint &&
+        state_ != ConstructionState::PaintFootprint)) return false;
     refreshDraftValidation();
     state_ = ConstructionState::DraftReview;
     return true;
@@ -228,6 +241,7 @@ bool AquariumConstructionSession::adjustDraft() {
         case ConstructionDraftOperation::Move: state_ = ConstructionState::MoveTank; break;
         case ConstructionDraftOperation::Resize: state_ = ConstructionState::ResizeTank; break;
         case ConstructionDraftOperation::Subtract: state_ = ConstructionState::SubtractFootprint; break;
+        case ConstructionDraftOperation::Add: state_ = ConstructionState::PaintFootprint; break;
         case ConstructionDraftOperation::Properties: state_ = ConstructionState::DraftReview; break;
     }
     return true;
@@ -241,6 +255,7 @@ bool AquariumConstructionSession::cancel() {
     if (state_ == ConstructionState::DeleteConfirm) return cancelDelete();
     if (state_ == ConstructionState::ResizeFootprint || state_ == ConstructionState::MoveTank ||
         state_ == ConstructionState::ResizeTank || state_ == ConstructionState::SubtractFootprint ||
+        state_ == ConstructionState::PaintFootprint ||
         state_ == ConstructionState::DraftReview ||
         state_ == ConstructionState::Building) {
         const bool editing_existing = draft_ &&
@@ -275,7 +290,8 @@ geo::TankDesign AquariumConstructionSession::draftTank() const {
 }
 
 std::vector<geo::GridCell> AquariumConstructionSession::draftCells() const {
-    return draft_ ? tankFootprintCells(draftTank()) : std::vector<geo::GridCell>{};
+    return draft_ && !draft_->delete_candidate
+        ? tankFootprintCells(draftTank()) : std::vector<geo::GridCell>{};
 }
 
 bool AquariumConstructionSession::cellAllowed(geo::GridCell cell) const {
@@ -304,6 +320,7 @@ bool AquariumConstructionSession::cellBlocked(geo::GridCell cell) const {
 void AquariumConstructionSession::refreshDraftValidation() {
     validation_message_.clear();
     if (!draft_) return;
+    if (draft_->delete_candidate) return;
     const geo::TankDesign tank = draftTank();
     if (tank.footprint.width_cells < 3 || tank.footprint.depth_cells < 3) {
         validation_message_ = "Expand the tank to at least three cells in both directions";
@@ -364,6 +381,18 @@ std::optional<ConstructionCommitCandidate> AquariumConstructionSession::prepareC
                           committed_.tanks.size() >= 8U)) {
         if (committed_.tanks.size() >= 8U) validation_message_ = "This room supports eight player tanks";
         return std::nullopt;
+    }
+    if (draft_->delete_candidate) {
+        if (!draft_->original_tank) return std::nullopt;
+        const auto index = playerTankIndex(committed_, draft_->original_tank->id);
+        if (!index) return std::nullopt;
+        AquariumConstructionCommand command;
+        command.kind = AquariumCommandKind::DeleteTank;
+        command.tank_id = draft_->original_tank->id;
+        command.before = *draft_->original_tank;
+        command.before_index = *index;
+        return prepareHistoryCommand(command, AquariumCommandDirection::Forward,
+            ConstructionHistoryAction::RecordNew);
     }
     const geo::TankDesign candidate_tank = draftTank();
     AquariumConstructionCommand command;

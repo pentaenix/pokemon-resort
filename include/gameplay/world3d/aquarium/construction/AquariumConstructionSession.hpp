@@ -25,6 +25,7 @@ enum class ConstructionState {
     MoveTank,
     ResizeTank,
     SubtractFootprint,
+    PaintFootprint,
     DraftReview,
     DeleteConfirm,
     Building,
@@ -35,6 +36,7 @@ enum class ConstructionDraftOperation {
     Move,
     Resize,
     Subtract,
+    Add,
     Properties,
 };
 
@@ -54,6 +56,7 @@ struct ConstructionDraft {
     std::optional<pr::aquarium::geometry::TankDesign> original_tank;
     std::optional<pr::aquarium::geometry::TankDesign> candidate_tank;
     AquariumResizeHandle resize_handle = AquariumResizeHandle::SouthEast;
+    bool delete_candidate = false;
 };
 
 enum class ConstructionHistoryAction {
@@ -91,6 +94,7 @@ public:
     const std::optional<std::string>& selectedTankId() const { return selected_tank_id_; }
     const pr::aquarium::geometry::TankDesign* selectedTank() const;
     AquariumResizeHandle preferredResizeHandle() const;
+    std::optional<pr::aquarium::geometry::GridCell> nearestCornerVertex() const;
     bool canUndo() const { return history_.canUndo() && state_ != ConstructionState::Building; }
     bool canRedo() const { return history_.canRedo() && state_ != ConstructionState::Building; }
     std::size_t undoCount() const { return history_.undoCount(); }
@@ -107,7 +111,12 @@ public:
     bool beginResizeSelected(AquariumResizeHandle handle);
     bool beginSubtractSelected();
     bool toggleSubtractedCell();
+    bool beginPaintSelected(bool subtract);
+    bool paintCursorCell();
     bool adjustTankProperty(AquariumTankProperty property, int direction);
+    bool beginPropertySelected();
+    bool adjustCornerRadius(
+        pr::aquarium::geometry::GridCell corner_vertex, int direction);
     bool requestDeleteSelected();
     bool cancelDelete();
     bool reviewDraft();

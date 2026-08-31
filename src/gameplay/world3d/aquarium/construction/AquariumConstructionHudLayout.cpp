@@ -120,36 +120,29 @@ bool ConstructionHudRect::contains(int point_x, int point_y) const {
 }
 
 bool aquariumConstructionPropertyPanelVisible(ConstructionState state, bool has_tank) {
-    return has_tank &&
-        (state == ConstructionState::Selected || state == ConstructionState::DraftReview);
+    (void)state;
+    (void)has_tank;
+    return false;
 }
 
 std::vector<ConstructionHudAction> aquariumConstructionHudActions(
     ConstructionState state, bool property_draft) {
+    (void)property_draft;
     switch (state) {
         case ConstructionState::Browse:
-            return {ConstructionHudAction::Place, ConstructionHudAction::Select,
-                ConstructionHudAction::Undo, ConstructionHudAction::Redo,
+            return {ConstructionHudAction::Undo, ConstructionHudAction::Redo,
                 ConstructionHudAction::Exit};
         case ConstructionState::Selected:
-            return {ConstructionHudAction::Move, ConstructionHudAction::Resize,
-                ConstructionHudAction::Subtract, ConstructionHudAction::Height,
-                ConstructionHudAction::Roundness,
-                ConstructionHudAction::Delete, ConstructionHudAction::Undo,
-                ConstructionHudAction::Redo, ConstructionHudAction::Done};
+            return {ConstructionHudAction::Undo, ConstructionHudAction::Redo,
+                ConstructionHudAction::Delete, ConstructionHudAction::Exit};
         case ConstructionState::ResizeFootprint:
         case ConstructionState::MoveTank:
         case ConstructionState::ResizeTank:
-            return {ConstructionHudAction::Review, ConstructionHudAction::Cancel};
         case ConstructionState::SubtractFootprint:
-            return {ConstructionHudAction::Review, ConstructionHudAction::Cancel};
+        case ConstructionState::PaintFootprint:
+            return {ConstructionHudAction::Build};
         case ConstructionState::DraftReview:
-            if (property_draft) return {ConstructionHudAction::Build,
-                ConstructionHudAction::Height, ConstructionHudAction::Roundness,
-                ConstructionHudAction::Cancel};
-            return {ConstructionHudAction::Build, ConstructionHudAction::Adjust,
-                ConstructionHudAction::Height, ConstructionHudAction::Roundness,
-                ConstructionHudAction::Cancel};
+            return {ConstructionHudAction::Build};
         case ConstructionState::DeleteConfirm:
             return {ConstructionHudAction::Delete, ConstructionHudAction::Cancel};
         case ConstructionState::Dormant:
@@ -165,67 +158,27 @@ ConstructionHudLayout aquariumConstructionHudLayout(
     ConstructionHudLayout layout;
     const int width = std::max(1, viewport_width);
     const int height = std::max(1, viewport_height);
-    const int margin = std::clamp(std::min(width, height) / 42, 10, 18);
-    const int gap = std::clamp(height / 80, 5, 8);
-    const int top = std::max(48, margin + 32);
-    const int button_height = std::clamp(height / 12, 38, 48);
-    const int button_width = std::clamp(width * 14 / 100, 92, 118);
-    const auto actions = aquariumConstructionHudActions(state, property_draft);
-    std::vector<ConstructionHudAction> tools;
-    std::vector<ConstructionHudAction> properties;
-    for (const auto action : actions) {
-        (propertyAction(action) ? properties : tools).push_back(action);
+    (void)property_draft;
+    const int margin = std::clamp(std::min(width, height) / 36, 12, 22);
+    const int icon = std::clamp(height / 11, 52, 68);
+    const int gap = std::clamp(icon / 6, 8, 12);
+    layout.safe_world = {0, 0, width, height};
+    layout.redo = {width - margin - icon, margin, icon, icon};
+    layout.undo = {layout.redo.x - gap - icon, margin, icon, icon};
+    layout.status = {margin, margin,
+        std::max(180, layout.undo.x - gap - margin), 44};
+    const int bottom = height - margin - icon;
+    if (state == ConstructionState::ResizeFootprint ||
+        state == ConstructionState::MoveTank || state == ConstructionState::ResizeTank ||
+        state == ConstructionState::SubtractFootprint ||
+        state == ConstructionState::PaintFootprint || state == ConstructionState::DraftReview) {
+        layout.build = {width - margin - icon, bottom, icon, icon};
+    } else {
+        layout.exit = {width - margin - icon, bottom, icon, icon};
     }
-
-    const int tool_height = tools.empty() ? 0 :
-        button_height * static_cast<int>(tools.size()) +
-            gap * (static_cast<int>(tools.size()) - 1);
-    layout.tool_panel = {margin, top - gap,
-        tools.empty() ? 0 : button_width + gap * 2,
-        tools.empty() ? 0 : std::min(height - top - margin + gap, tool_height + gap * 2)};
-    for (std::size_t index = 0; index < tools.size(); ++index) {
-        if (auto* rect = rectForAction(layout, tools[index])) {
-            *rect = {margin + gap, top + static_cast<int>(index) * (button_height + gap),
-                button_width, button_height};
-        }
+    if (state == ConstructionState::Selected) {
+        layout.remove = {width - margin - icon * 2 - gap, bottom, icon, icon};
     }
-
-    const bool show_properties = !properties.empty() &&
-        (state == ConstructionState::Selected || state == ConstructionState::DraftReview);
-    if (show_properties) {
-        const int panel_left = layout.tool_panel.x + layout.tool_panel.width + gap;
-        const int panel_height = std::clamp(height * 23 / 100, 104, 132);
-        layout.property_panel = {
-            panel_left, height - margin - panel_height,
-            std::max(1, width - panel_left - margin), panel_height};
-        const int group_gap = gap;
-        const int group_height = std::clamp(panel_height - gap * 2, 42, 56);
-        const int group_width = std::clamp(layout.property_panel.width / 6, 92, 124);
-        const int group_left = layout.property_panel.x + group_gap;
-        for (std::size_t index = 0; index < properties.size(); ++index) {
-            if (auto* rect = rectForAction(layout, properties[index])) {
-                *rect = {group_left + static_cast<int>(index) * (group_width + group_gap),
-                    layout.property_panel.y + (panel_height - group_height) / 2,
-                    group_width, group_height};
-            }
-        }
-        const int options_left = group_left +
-            static_cast<int>(properties.size()) * (group_width + group_gap) + group_gap;
-        layout.property_options = {
-            options_left, layout.property_panel.y + (panel_height - group_height) / 2,
-            std::max(1, layout.property_panel.x + layout.property_panel.width -
-                group_gap - options_left), group_height};
-    }
-
-    const int world_left = margin + (layout.tool_panel.width > 0 ? layout.tool_panel.width + gap : 0);
-    const int world_bottom = layout.property_panel.height > 0
-        ? layout.property_panel.y - gap : height - margin;
-    layout.safe_world = {
-        world_left, top,
-        std::max(1, width - margin - world_left),
-        std::max(1, world_bottom - top)};
-    layout.status = {layout.safe_world.x, margin,
-        layout.safe_world.width, std::max(24, top - margin - gap)};
     return layout;
 }
 
@@ -303,9 +256,12 @@ ConstructionHudHit hitTestAquariumConstructionHud(
 bool aquariumConstructionHudContainsUi(
     const ConstructionHudLayout& layout,
     int screen_x, int screen_y) {
-    return layout.tool_panel.contains(screen_x, screen_y) ||
-        layout.property_panel.contains(screen_x, screen_y) ||
-        layout.status.contains(screen_x, screen_y);
+    return layout.status.contains(screen_x, screen_y) ||
+        layout.undo.contains(screen_x, screen_y) ||
+        layout.redo.contains(screen_x, screen_y) ||
+        layout.build.contains(screen_x, screen_y) ||
+        layout.remove.contains(screen_x, screen_y) ||
+        layout.exit.contains(screen_x, screen_y);
 }
 
 ConstructionHudAction defaultAquariumConstructionHudAction(

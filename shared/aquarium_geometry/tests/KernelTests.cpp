@@ -92,15 +92,15 @@ void testValidationRejectsUnsafeDimensions() {
 void testRectangleGolden() {
     const AquariumBuildResult result = buildAquarium(rectangleRequest());
     require(result.validation.valid(), "golden rectangle failed validation");
-    require(result.meshes.meshes.size() == 4, "semantic material partition changed");
-    require(result.statistics.mesh_count == 4, "mesh count changed");
-    require(result.statistics.vertex_count == 280, "vertex count changed");
-    require(result.statistics.index_count == 420, "index count changed");
-    require(result.statistics.triangle_count == 140, "triangle count changed");
+    require(result.meshes.meshes.size() == 5, "semantic material partition changed");
+    require(result.statistics.mesh_count == 5, "mesh count changed");
+    require(result.statistics.vertex_count == 168, "vertex count changed");
+    require(result.statistics.index_count == 252, "index count changed");
+    require(result.statistics.triangle_count == 84, "triangle count changed");
     require(result.statistics.collision_cell_count == 16, "collision perimeter changed");
     require(result.statistics.navigation_layer_count == 1, "navigation layer count changed");
     require(result.navigation.suggested_spawns.size() == 1, "spawn count changed");
-    require(result.content_hash == "fnv1a64:20cfbee8f80501f6", "content hash changed: " + result.content_hash);
+    require(result.content_hash == "fnv1a64:b36e4dbc5fa24b00", "content hash changed: " + result.content_hash);
 
     for (const SemanticMesh& mesh : result.meshes.meshes) {
         for (const Vertex& vertex : mesh.vertices) {
@@ -221,7 +221,7 @@ void testShapeOccupancyRotationAndValidation() {
     require(u_result.validation.valid() && footprintCells(u_request.tank.footprint).size() == 26,
         "valid U footprint was rejected or occupied its opening");
     requireValidMeshSet(u_result, "U footprint");
-    requireNear(u_result.navigation.layers.front().ceiling_y, 95.12F,
+    requireNear(u_result.navigation.layers.front().ceiling_y, 85.4474F,
         "maximum height did not reach the expected discrete water ceiling");
 
     u_request.tank.footprint.notch_width_cells = 4;
@@ -244,8 +244,31 @@ void testCornerRadiusIsFittedDeterministically() {
     const AquariumBuildResult first = buildAquarium(request);
     const AquariumBuildResult second = buildAquarium(request);
     require(first.content_hash == second.content_hash &&
-            first.statistics.vertex_count > 280,
+            first.statistics.vertex_count > 168,
         "rounded geometry is not deterministic or did not add curved segments");
+}
+
+void testCornerRadiiAreIndependentAndStable() {
+    AquariumBuildRequest request = rectangleRequest();
+    request.tank.corner_radii = {
+        {{0, 0}, 1},
+        {{6, 0}, 3},
+        {{6, 4}, 0},
+        {{0, 4}, 2},
+    };
+    const AquariumBuildResult result = buildAquarium(request);
+    requireValidMeshSet(result, "independent corner radii");
+    const auto boundary = footprintBoundaryLocalWorld(
+        request.tank.footprint, request.tank.corner_radius_steps,
+        request.tank.corner_radii);
+    require(boundary.size() == 16U,
+        "independent corner radii did not create three rounded arcs and one square corner");
+    request.tank.corner_radii.push_back({{0, 0}, 2});
+    const ValidationReport duplicate = validateAquarium(request);
+    require(!duplicate.valid() && std::any_of(duplicate.diagnostics.begin(),
+            duplicate.diagnostics.end(), [](const auto& diagnostic) {
+                return diagnostic.code == "duplicate_corner_radius";
+            }), "duplicate per-corner override was accepted");
 }
 
 void testUnsafeAreaDoesNotAllocateFootprintMemory() {
@@ -270,6 +293,7 @@ int main() {
         testShapeOccupancyRotationAndValidation();
         testSubtractedFootprintsStaySimpleAndConnected();
         testCornerRadiusIsFittedDeterministically();
+        testCornerRadiiAreIndependentAndStable();
         testUnsafeAreaDoesNotAllocateFootprintMemory();
         std::cout << "aquarium_geometry_tests: ok\n";
         return 0;

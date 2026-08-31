@@ -87,14 +87,21 @@ bool Overworld3DTestScreen::handleAquariumConstructionPointerPressed(
         case aqc::ConstructionGizmoKind::Resize:
             began = aquarium_construction_.beginResizeSelected(gizmo->resize_handle);
             break;
+        case aqc::ConstructionGizmoKind::Height:
+            began = aquarium_construction_.beginPropertySelected();
+            break;
+        case aqc::ConstructionGizmoKind::CornerRadius:
+            began = gizmo->corner_vertex.has_value() &&
+                aquarium_construction_.beginPropertySelected();
+            break;
         }
         if (began) {
-            const bool manipulating_footprint =
-                gizmo->kind == aqc::ConstructionGizmoKind::Move ||
-                gizmo->kind == aqc::ConstructionGizmoKind::Resize;
-            aquarium_pointer_down_ = manipulating_footprint;
+            aquarium_pointer_down_ = true;
             aquarium_pointer_dragged_ = false;
             aquarium_pointer_second_click_ = false;
+            aquarium_pointer_gizmo_ = gizmo->kind;
+            aquarium_pointer_corner_vertex_ = gizmo->corner_vertex;
+            aquarium_pointer_gizmo_y_ = logical_y;
             syncAquariumConstructionFocus();
         }
         return true;
@@ -102,12 +109,31 @@ bool Overworld3DTestScreen::handleAquariumConstructionPointerPressed(
     if (const auto cell = aquariumConstructionCellAt(logical_x, logical_y)) {
         aquarium_construction_.pointAt(*cell);
         if (aquarium_construction_.state() == aqc::ConstructionState::Browse) {
-            if (!aquarium_construction_.selectAtCursor()) {
+            if (aquarium_construction_.selectAtCursor()) {
+                if (aquarium_pointer_subtract_) {
+                    aquarium_construction_.beginPaintSelected(true);
+                }
+            } else if (!aquarium_pointer_subtract_) {
                 aquarium_construction_.beginRectangle();
             }
             aquarium_pointer_second_click_ = false;
         } else if (aquarium_construction_.state() == aqc::ConstructionState::Selected) {
-            aquarium_construction_.selectAtCursor();
+            const auto* selected = aquarium_construction_.selectedTank();
+            const auto selected_cells = selected
+                ? aqc::tankFootprintCells(*selected)
+                : std::vector<pr::aquarium::geometry::GridCell>{};
+            const bool on_selected = std::any_of(
+                selected_cells.begin(), selected_cells.end(), [&](auto occupied) {
+                    return occupied.column == cell->column && occupied.row == cell->row;
+                });
+            if (on_selected && aquarium_pointer_subtract_) {
+                aquarium_construction_.beginPaintSelected(true);
+            } else if (!on_selected &&
+                       aquarium_construction_.beginPaintSelected(aquarium_pointer_subtract_)) {
+                // The first cell is applied when the paint gesture begins.
+            } else {
+                aquarium_construction_.selectAtCursor();
+            }
         } else if (aquarium_construction_.state() == aqc::ConstructionState::ResizeFootprint) {
             aquarium_pointer_second_click_ = true;
         } else if (aquarium_construction_.state() == aqc::ConstructionState::SubtractFootprint) {
@@ -182,15 +208,19 @@ bool Overworld3DTestScreen::activateAquariumConstructionAction(
             handled = aquarium_construction_.reviewDraft();
             break;
         case aqc::ConstructionHudAction::Build:
+            if (aquarium_construction_.state() != aqc::ConstructionState::DraftReview) {
+                aquarium_construction_.reviewDraft();
+            }
             handled = commitAquariumConstruction();
             break;
         case aqc::ConstructionHudAction::Adjust:
             handled = aquarium_construction_.adjustDraft();
             break;
         case aqc::ConstructionHudAction::Delete:
-            handled = aquarium_construction_.state() == aqc::ConstructionState::DeleteConfirm
-                ? commitAquariumConstruction()
-                : aquarium_construction_.requestDeleteSelected();
+            if (aquarium_construction_.state() != aqc::ConstructionState::DeleteConfirm) {
+                aquarium_construction_.requestDeleteSelected();
+            }
+            handled = commitAquariumConstruction();
             break;
         case aqc::ConstructionHudAction::Undo:
             handled = aquarium_construction_.canUndo() && undoAquariumConstruction();
@@ -290,6 +320,13 @@ void Overworld3DTestScreen::syncAquariumConstructionFocus() {
     const bool property_draft = aquarium_construction_.draftOperation() ==
         aqc::ConstructionDraftOperation::Properties;
     const auto actions = aqc::aquariumConstructionHudActions(state, property_draft);
+    if (aquarium_pointer_controls_cursor_ &&
+        (aquarium_construction_focused_action_ == aqc::ConstructionHudAction::None ||
+         std::find(actions.begin(), actions.end(), aquarium_construction_focused_action_) !=
+             actions.end())) {
+        aquarium_construction_focus_state_ = state;
+        return;
+    }
     if (state != aquarium_construction_focus_state_ ||
         std::find(actions.begin(), actions.end(), aquarium_construction_focused_action_) ==
             actions.end()) {
@@ -357,6 +394,9 @@ void Overworld3DTestScreen::exitAquariumConstruction() {
     aquarium_pointer_down_ = false;
     aquarium_pointer_dragged_ = false;
     aquarium_pointer_second_click_ = false;
+    aquarium_pointer_subtract_ = false;
+    aquarium_pointer_gizmo_.reset();
+    aquarium_pointer_corner_vertex_.reset();
     aquarium_left_trigger_down_ = false;
     aquarium_right_trigger_down_ = false;
     aquarium_construction_focused_action_ =

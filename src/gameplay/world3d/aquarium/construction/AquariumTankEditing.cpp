@@ -140,6 +140,10 @@ geo::TankDesign resizeTankToCell(
             }
         }
     }
+    if (left != original_left || top != original_top ||
+        right != original_right || bottom != original_bottom) {
+        resized.corner_radii.clear();
+    }
     return resized;
 }
 

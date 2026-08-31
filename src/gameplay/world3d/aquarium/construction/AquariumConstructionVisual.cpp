@@ -145,16 +145,34 @@ std::vector<GizmoWorldPoint> gizmoWorldPoints(const AquariumConstructionVisual& 
     std::vector<GizmoWorldPoint> points;
     if (visual.state != ConstructionState::Selected) return {};
     points = {
-        {{ConstructionGizmoKind::Move, AquariumResizeHandle::SouthEast}, {center_x, y, center_z}},
-        {{ConstructionGizmoKind::Resize, AquariumResizeHandle::NorthWest}, {west, y, north}},
-        {{ConstructionGizmoKind::Resize, AquariumResizeHandle::North}, {center_x, y, north}},
-        {{ConstructionGizmoKind::Resize, AquariumResizeHandle::NorthEast}, {east, y, north}},
-        {{ConstructionGizmoKind::Resize, AquariumResizeHandle::East}, {east, y, center_z}},
-        {{ConstructionGizmoKind::Resize, AquariumResizeHandle::SouthEast}, {east, y, south}},
-        {{ConstructionGizmoKind::Resize, AquariumResizeHandle::South}, {center_x, y, south}},
-        {{ConstructionGizmoKind::Resize, AquariumResizeHandle::SouthWest}, {west, y, south}},
-        {{ConstructionGizmoKind::Resize, AquariumResizeHandle::West}, {west, y, center_z}},
+        {{ConstructionGizmoKind::Move, AquariumResizeHandle::SouthEast, std::nullopt}, {center_x, y, center_z}},
+        {{ConstructionGizmoKind::Resize, AquariumResizeHandle::NorthWest, std::nullopt}, {west, y, north}},
+        {{ConstructionGizmoKind::Resize, AquariumResizeHandle::North, std::nullopt}, {center_x, y, north}},
+        {{ConstructionGizmoKind::Resize, AquariumResizeHandle::NorthEast, std::nullopt}, {east, y, north}},
+        {{ConstructionGizmoKind::Resize, AquariumResizeHandle::East, std::nullopt}, {east, y, center_z}},
+        {{ConstructionGizmoKind::Resize, AquariumResizeHandle::SouthEast, std::nullopt}, {east, y, south}},
+        {{ConstructionGizmoKind::Resize, AquariumResizeHandle::South, std::nullopt}, {center_x, y, south}},
+        {{ConstructionGizmoKind::Resize, AquariumResizeHandle::SouthWest, std::nullopt}, {west, y, south}},
+        {{ConstructionGizmoKind::Resize, AquariumResizeHandle::West, std::nullopt}, {west, y, center_z}},
     };
+    points.push_back({{ConstructionGizmoKind::Height, AquariumResizeHandle::SouthEast,
+        std::nullopt}, {center_x, floor_y + tank->height_steps * geo::kVerticalStepWorldUnits,
+        center_z}});
+    for (const auto& corner : geo::footprintCorners(footprint)) {
+        if (!corner.convex) continue;
+        const float vertex_x = west + corner.vertex.column * tile;
+        const float vertex_z = north + corner.vertex.row * tile;
+        const float toward_center_x = center_x - vertex_x;
+        const float toward_center_z = center_z - vertex_z;
+        const float toward_center_length = std::max(0.001f,
+            std::hypot(toward_center_x, toward_center_z));
+        constexpr float kCornerKnobInset = 5.0f;
+        points.push_back({{ConstructionGizmoKind::CornerRadius,
+            AquariumResizeHandle::SouthEast, corner.vertex},
+            {vertex_x + toward_center_x / toward_center_length * kCornerKnobInset,
+             y + 0.18f,
+             vertex_z + toward_center_z / toward_center_length * kCornerKnobInset}});
+    }
     return points;
 }
 
@@ -175,9 +193,7 @@ ConstructionVisualMesh buildAquariumConstructionWorldMesh(
     if (!visual.visible || visual.cells.empty()) return mesh;
     const float tile = visual.tile_world_units;
     constexpr std::uint32_t kAllowedFill = colorAbgr(244, 194, 55, 88);
-    constexpr std::uint32_t kAllowedBorder = colorAbgr(255, 219, 79, 220);
     constexpr std::uint32_t kBlockedFill = colorAbgr(66, 64, 58, 150);
-    constexpr std::uint32_t kBlockedBorder = colorAbgr(242, 155, 62, 220);
     constexpr std::uint32_t kValidFill = colorAbgr(62, 210, 140, 145);
     constexpr std::uint32_t kInvalidFill = colorAbgr(224, 67, 73, 170);
     constexpr std::uint32_t kLockedFill = colorAbgr(85, 68, 42, 190);
@@ -198,8 +214,6 @@ ConstructionVisualMesh buildAquariumConstructionWorldMesh(
         const float y = surface.floor_y + 0.16f;
         appendQuad(mesh, x0 + 2.0f, z0 + 2.0f, x0 + tile - 2.0f, z0 + tile - 2.0f,
             y, surface.blocked ? kBlockedFill : kAllowedFill);
-        appendBorder(mesh, x0 + 1.7f, z0 + 1.7f, x0 + tile - 1.7f, z0 + tile - 1.7f,
-            y + 0.03f, 0.34f, surface.blocked ? kBlockedBorder : kAllowedBorder);
     }
 
     for (const geo::GridCell cell : visual.locked_cells) {
@@ -263,6 +277,7 @@ ConstructionVisualMesh buildAquariumConstructionWorldMesh(
     if (visual.state == ConstructionState::ResizeFootprint ||
         visual.state == ConstructionState::MoveTank ||
         visual.state == ConstructionState::ResizeTank ||
+        visual.state == ConstructionState::PaintFootprint ||
         visual.state == ConstructionState::DraftReview) {
         appendDiamond(mesh, cursor_x + tile * 0.5f, cursor_z + tile * 0.5f,
             cursor_y + 0.16f, 4.0f, kHandle);
@@ -275,15 +290,18 @@ ConstructionVisualMesh buildAquariumConstructionWorldMesh(
         for (const auto& gizmo : gizmoWorldPoints(visual)) {
             const bool move = gizmo.hit.kind == ConstructionGizmoKind::Move;
             const bool resize = gizmo.hit.kind == ConstructionGizmoKind::Resize;
+            const bool height = gizmo.hit.kind == ConstructionGizmoKind::Height;
+            const bool corner = gizmo.hit.kind == ConstructionGizmoKind::CornerRadius;
             const bool active_resize = resize && visual.active_resize_handle &&
                 *visual.active_resize_handle == gizmo.hit.resize_handle;
             appendDiamond(mesh, gizmo.world.x, gizmo.world.z, gizmo.world.y,
-                move ? 5.0f : (active_resize ? 5.2f : 3.6f),
-                move ? kAnchor : (active_resize ? kSelected :
-                    kHandle));
+                move ? 5.0f : (height ? 4.8f : (active_resize ? 5.2f : 3.6f)),
+                height ? kSelected : (corner ? kAnchor :
+                    (move ? kAnchor : (active_resize ? kSelected : kHandle))));
             appendDiamond(mesh, gizmo.world.x, gizmo.world.z, gizmo.world.y + 0.04f,
-                move ? 2.8f : (active_resize ? 2.8f : 1.8f),
-                move ? kSelected : (active_resize ? kHandle : kAnchor));
+                move ? 2.8f : (height ? 2.6f : (active_resize ? 2.8f : 1.8f)),
+                corner ? kSelected : (move ? kSelected :
+                    (active_resize ? kHandle : kAnchor)));
         }
     }
     if (visual.preview_tank) {
@@ -294,7 +312,7 @@ ConstructionVisualMesh buildAquariumConstructionWorldMesh(
             tank.footprint.origin_cell.row, geo::occupiedDepthCells(tank.footprint)) + offset;
         const float floor_y = floorForCell(visual, visualTankCentreCell(tank));
         const auto boundary = geo::footprintBoundaryLocalWorld(
-            tank.footprint, tank.corner_radius_steps);
+            tank.footprint, tank.corner_radius_steps, tank.corner_radii);
         for (std::size_t index = 0; index < boundary.size(); ++index) {
             const auto start = boundary[index];
             const auto end = boundary[(index + 1U) % boundary.size()];
@@ -362,7 +380,7 @@ std::optional<ConstructionGizmoHit> hitTestAquariumConstructionGizmo(
         (visual.state != ConstructionState::Selected &&
          visual.state != ConstructionState::DraftReview) ||
         viewport_width <= 0 || viewport_height <= 0) return std::nullopt;
-    constexpr float kHitRadiusSquared = 18.0f * 18.0f;
+    constexpr float kHitRadiusSquared = 26.0f * 26.0f;
     float nearest_distance = kHitRadiusSquared;
     std::optional<ConstructionGizmoHit> nearest;
     for (const auto& gizmo : gizmoWorldPoints(visual)) {

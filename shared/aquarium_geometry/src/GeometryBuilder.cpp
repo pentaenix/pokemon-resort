@@ -14,8 +14,14 @@ namespace {
 
 constexpr float kGlassThickness =
     static_cast<float>(kGlassThicknessMilliWorldUnits) / 1000.0F;
-constexpr float kFrameHeight = 1.0F;
-constexpr float kSandSurfaceY = 0.5F;
+constexpr float kBottomRimTop = 2.4F;
+constexpr float kGlassBottom = 1.608F;
+constexpr float kSandSurfaceY = 3.016F;
+constexpr float kTopRimHeight = 1.52F;
+constexpr float kGlassTopInset = 0.5168F;
+constexpr float kWaterCeilingInset = 0.88F;
+constexpr float kWaterLevel = 0.91F;
+constexpr float kWaterBottom = 2.504F;
 
 float canonicalFloat(float value) {
     constexpr double kOutputStepsPerWorldUnit = 10000.0;
@@ -77,6 +83,79 @@ void addQuad(
         {base, base + 1, base + 2, base, base + 2, base + 3});
 }
 
+void addQuadWithNormals(
+    SemanticMesh& mesh, const std::array<Vec3, 4>& positions,
+    const std::array<Vec3, 4>& normals) {
+    const auto base = static_cast<std::uint32_t>(mesh.vertices.size());
+    constexpr std::array<Vec2, 4> uvs{{{0.0F, 0.0F}, {1.0F, 0.0F}, {1.0F, 1.0F}, {0.0F, 1.0F}}};
+    for (std::size_t index = 0; index < positions.size(); ++index) {
+        mesh.vertices.push_back({positions[index], normals[index], uvs[index]});
+    }
+    mesh.indices.insert(mesh.indices.end(),
+        {base, base + 1, base + 2, base, base + 2, base + 3});
+}
+
+std::vector<Vec2> perimeterOutwardNormals(const std::vector<Vec2>& boundary) {
+    std::vector<Vec2> segment_normals;
+    segment_normals.reserve(boundary.size());
+    for (std::size_t index = 0; index < boundary.size(); ++index) {
+        const Vec2 start = boundary[index];
+        const Vec2 end = boundary[(index + 1) % boundary.size()];
+        const float dx = end.x - start.x;
+        const float dz = end.y - start.y;
+        const float length = std::max(0.0001F, std::hypot(dx, dz));
+        segment_normals.push_back({dz / length, -dx / length});
+    }
+    std::vector<Vec2> result;
+    result.reserve(boundary.size());
+    for (std::size_t index = 0; index < boundary.size(); ++index) {
+        const Vec2 previous = segment_normals[(index + boundary.size() - 1) % boundary.size()];
+        const Vec2 next = segment_normals[index];
+        const float dot = previous.x * next.x + previous.y * next.y;
+        if (dot < 0.6F) {
+            result.push_back(next);
+        } else {
+            const float length = std::max(0.0001F,
+                std::hypot(previous.x + next.x, previous.y + next.y));
+            result.push_back({(previous.x + next.x) / length, (previous.y + next.y) / length});
+        }
+    }
+    return result;
+}
+
+void addPerimeterSides(
+    SemanticMesh& mesh, const std::vector<Vec2>& boundary,
+    float bottom, float top) {
+    const auto normals = perimeterOutwardNormals(boundary);
+    for (std::size_t index = 0; index < boundary.size(); ++index) {
+        const std::size_t next = (index + 1) % boundary.size();
+        const Vec2 start = boundary[index];
+        const Vec2 end = boundary[next];
+        const Vec3 start_normal{normals[index].x, 0.0F, normals[index].y};
+        const float dx = end.x - start.x;
+        const float dz = end.y - start.y;
+        const float length = std::max(0.0001F, std::hypot(dx, dz));
+        const Vec2 segment_normal{dz / length, -dx / length};
+        const Vec2 following = [&]() {
+            const Vec2 following_end = boundary[(next + 1) % boundary.size()];
+            const float following_dx = following_end.x - end.x;
+            const float following_dz = following_end.y - end.y;
+            const float following_length = std::max(0.0001F,
+                std::hypot(following_dx, following_dz));
+            return Vec2{following_dz / following_length, -following_dx / following_length};
+        }();
+        const bool hard_end = segment_normal.x * following.x +
+            segment_normal.y * following.y < 0.6F;
+        const Vec3 end_normal = hard_end
+            ? Vec3{segment_normal.x, 0.0F, segment_normal.y}
+            : Vec3{normals[next].x, 0.0F, normals[next].y};
+        addQuadWithNormals(mesh,
+            {{{end.x, bottom, end.y}, {start.x, bottom, start.y},
+              {start.x, top, start.y}, {end.x, top, end.y}}},
+            {{end_normal, start_normal, start_normal, end_normal}});
+    }
+}
+
 void addWallSegment(
     SemanticMesh& mesh,
     Vec2 start,
@@ -119,24 +198,6 @@ void addWallSegment(
     addQuad(mesh, {{{end.x, bottom, end.y}, {inner_end.x, bottom, inner_end.y},
                     {inner_start.x, bottom, inner_start.y}, {start.x, bottom, start.y}}},
         {0.0F, -1.0F, 0.0F});
-}
-
-void addCornerPost(SemanticMesh& mesh, Vec2 center, float top) {
-    constexpr float half = 0.72F;
-    const float west = center.x - half;
-    const float east = center.x + half;
-    const float north = center.y - half;
-    const float south = center.y + half;
-    addQuad(mesh, {{{east, 0.0F, north}, {west, 0.0F, north},
-                    {west, top, north}, {east, top, north}}}, {0.0F, 0.0F, -1.0F});
-    addQuad(mesh, {{{east, 0.0F, south}, {east, 0.0F, north},
-                    {east, top, north}, {east, top, south}}}, {1.0F, 0.0F, 0.0F});
-    addQuad(mesh, {{{west, 0.0F, south}, {east, 0.0F, south},
-                    {east, top, south}, {west, top, south}}}, {0.0F, 0.0F, 1.0F});
-    addQuad(mesh, {{{west, 0.0F, north}, {west, 0.0F, south},
-                    {west, top, south}, {west, top, north}}}, {-1.0F, 0.0F, 0.0F});
-    addQuad(mesh, {{{west, top, north}, {west, top, south},
-                    {east, top, south}, {east, top, north}}}, {0.0F, 1.0F, 0.0F});
 }
 
 float polygonCross(Vec2 a, Vec2 b, Vec2 c) {
@@ -224,39 +285,31 @@ void populateAquariumGeometry(
     const AquariumBuildRequest& request,
     AquariumBuildResult& result) {
     const auto& footprint = request.tank.footprint;
-    const std::int32_t radius_steps = fittedCornerRadiusSteps(
-        footprint, request.tank.corner_radius_steps);
-    const std::vector<Vec2> boundary = footprintBoundaryLocalWorld(footprint, radius_steps);
+    const std::vector<Vec2> boundary = footprintBoundaryLocalWorld(
+        footprint, request.tank.corner_radius_steps, request.tank.corner_radii);
     const float height = static_cast<float>(request.tank.height_steps * kVerticalStepWorldUnits);
-    const float water_y = height - kGlassThickness;
+    const float top_rim_bottom = height - kTopRimHeight;
+    const float glass_top = height - kGlassTopInset;
+    const float water_ceiling = top_rim_bottom - kWaterCeilingInset;
+    const float water_y = kSandSurfaceY +
+        (water_ceiling - kSandSurfaceY) * kWaterLevel;
 
-    result.meshes.meshes.reserve(result.meshes.meshes.size() + 4U);
+    result.meshes.meshes.reserve(result.meshes.meshes.size() + 5U);
     SemanticMesh& structure = addMesh(result.meshes, MeshMaterial::Structure);
     SemanticMesh& sand = addMesh(result.meshes, MeshMaterial::Sand);
-    SemanticMesh& water = addMesh(result.meshes, MeshMaterial::Water);
+    SemanticMesh& water_volume = addMesh(result.meshes, MeshMaterial::WaterVolume);
+    SemanticMesh& water_surface = addMesh(result.meshes, MeshMaterial::WaterSurface);
     SemanticMesh& glass = addMesh(result.meshes, MeshMaterial::Glass);
     for (std::size_t index = 0; index < boundary.size(); ++index) {
         const Vec2 start = boundary[index];
         const Vec2 end = boundary[(index + 1) % boundary.size()];
-        addWallSegment(structure, start, end, 0.0F, kFrameHeight);
-        addWallSegment(structure, start, end, height - kFrameHeight, height);
-        addWallSegment(glass, start, end, kFrameHeight, height - kFrameHeight);
+        addWallSegment(structure, start, end, 0.0F, kBottomRimTop);
+        addWallSegment(structure, start, end, top_rim_bottom, height);
     }
-    for (std::size_t index = 0; index < boundary.size(); ++index) {
-        const Vec2 previous = boundary[(index + boundary.size() - 1U) % boundary.size()];
-        const Vec2 point = boundary[index];
-        const Vec2 next = boundary[(index + 1U) % boundary.size()];
-        const float in_x = point.x - previous.x;
-        const float in_z = point.y - previous.y;
-        const float out_x = next.x - point.x;
-        const float out_z = next.y - point.y;
-        const float lengths = std::hypot(in_x, in_z) * std::hypot(out_x, out_z);
-        const float turn = lengths > 0.0001F
-            ? std::abs(in_x * out_z - in_z * out_x) / lengths : 0.0F;
-        if (turn > 0.7F) addCornerPost(structure, point, height);
-    }
+    addPerimeterSides(glass, boundary, kGlassBottom, glass_top);
+    addPerimeterSides(water_volume, boundary, kWaterBottom, water_y - 0.002F);
     addPolygonSurface(sand, boundary, kSandSurfaceY);
-    addPolygonSurface(water, boundary, water_y);
+    addPolygonSurface(water_surface, boundary, water_y);
 
     const std::vector<GridCell> occupied = footprintCells(footprint);
     std::set<std::pair<std::int32_t, std::int32_t>> occupied_set;

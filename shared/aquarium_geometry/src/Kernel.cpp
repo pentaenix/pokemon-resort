@@ -325,6 +325,32 @@ ValidationReport validateAquarium(const AquariumBuildRequest& request) {
         addWarning(report, "corner_radius_fitted", "/tank/cornerRadiusSteps",
             "Corner radius was fitted to the available footprint");
     }
+    std::set<CellKey> corner_keys;
+    const auto corners = footprintCorners(footprint);
+    for (std::size_t index = 0; index < request.tank.corner_radii.size(); ++index) {
+        const CornerRadiusDesign& radius = request.tank.corner_radii[index];
+        const std::string path = "/tank/cornerRadii/" + std::to_string(index);
+        if (!corner_keys.emplace(radius.vertex.column, radius.vertex.row).second) {
+            addError(report, "duplicate_corner_radius", path,
+                "Each footprint corner may have only one radius");
+            continue;
+        }
+        const auto corner = std::find_if(corners.begin(), corners.end(), [&](const auto& item) {
+            return item.vertex.column == radius.vertex.column &&
+                item.vertex.row == radius.vertex.row && item.convex;
+        });
+        if (corner == corners.end()) {
+            addError(report, "unknown_corner_radius", path,
+                "Corner radius must reference a convex footprint corner");
+        } else if (radius.radius_steps < 0) {
+            addError(report, "negative_corner_radius", path,
+                "Corner radius cannot be negative");
+        } else if (radius.radius_steps > fittedCornerRadiusStepsAt(
+                       footprint, radius.vertex, radius.radius_steps)) {
+            addWarning(report, "corner_radius_fitted", path,
+                "Corner radius was fitted to the available footprint");
+        }
+    }
     if (!request.tank.tunnels.empty()) {
         addError(report, "tunnels_not_implemented", "/tank/tunnels", "This kernel milestone does not generate tunnels");
     }
@@ -351,7 +377,8 @@ const char* meshMaterialName(MeshMaterial material) {
     switch (material) {
     case MeshMaterial::Structure: return "structure";
     case MeshMaterial::Sand: return "sand";
-    case MeshMaterial::Water: return "water";
+    case MeshMaterial::WaterVolume: return "water-volume";
+    case MeshMaterial::WaterSurface: return "water-surface";
     case MeshMaterial::Glass: return "glass";
     }
     return "unknown";

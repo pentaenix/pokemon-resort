@@ -3908,9 +3908,6 @@ OverworldBgfxRenderer::EmbeddedViewportTexture OverworldBgfxRenderer::Impl::rend
     if (attend_button_visible_ && ensureAttendButtonTexture()) {
         submitAttendButtonOverlay(framebuffer_w, framebuffer_h, logical_w, logical_h);
     }
-    aquarium_construction_renderer_.submitHud(
-        6, framebuffer_w, framebuffer_h, logical_w, logical_h,
-        backend_.homogeneousDepth());
     submitBlackIrisTransition(framebuffer_w, framebuffer_h, logical_w, logical_h);
 
     if (!debug_frame_counter_label.empty()) {

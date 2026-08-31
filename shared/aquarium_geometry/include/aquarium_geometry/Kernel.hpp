@@ -12,9 +12,20 @@ std::vector<GridCell> footprintCells(const FootprintDesign& footprint);
 std::int32_t fittedCornerRadiusSteps(
     const FootprintDesign& footprint,
     std::int32_t requested_steps);
+struct FootprintCorner {
+    GridCell vertex;
+    bool convex = false;
+};
+std::vector<FootprintCorner> footprintCorners(const FootprintDesign& footprint);
+std::int32_t fittedCornerRadiusStepsAt(
+    const FootprintDesign& footprint, GridCell vertex, std::int32_t requested_steps);
 std::vector<Vec2> footprintBoundaryLocalWorld(
     const FootprintDesign& footprint,
     std::int32_t radius_steps);
+std::vector<Vec2> footprintBoundaryLocalWorld(
+    const FootprintDesign& footprint,
+    std::int32_t default_radius_steps,
+    const std::vector<CornerRadiusDesign>& corner_radii);
 
 ValidationReport validateAquarium(const AquariumBuildRequest& request);
 AquariumBuildResult buildAquarium(const AquariumBuildRequest& request);

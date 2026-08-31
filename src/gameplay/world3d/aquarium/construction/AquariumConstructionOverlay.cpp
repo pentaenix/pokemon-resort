@@ -1,126 +1,196 @@
 #include "gameplay/world3d/aquarium/construction/AquariumConstructionOverlay.hpp"
 
+#include "gameplay/world3d/aquarium/construction/AquariumConstructionVisual.hpp"
+
 #include <algorithm>
+#include <cmath>
+#include <utility>
 
 namespace pr::gameplay::world3d::aquarium::construction {
+namespace {
 
-void AquariumConstructionOverlay::configure(const AquariumConstructionConfig& config) {
-    config_ = config;
-    if (config_.allowed_cells.empty()) return;
-    min_column_ = max_column_ = config_.allowed_cells.front().column;
-    min_row_ = max_row_ = config_.allowed_cells.front().row;
-    for (const auto cell : config_.allowed_cells) {
-        min_column_ = std::min(min_column_, cell.column);
-        max_column_ = std::max(max_column_, cell.column);
-        min_row_ = std::min(min_row_, cell.row);
-        max_row_ = std::max(max_row_, cell.row);
+struct Rgba { Uint8 r, g, b, a; };
+
+void color(SDL_Renderer* renderer, Rgba value) {
+    SDL_SetRenderDrawColor(renderer, value.r, value.g, value.b, value.a);
+}
+
+void fillCircle(SDL_Renderer* renderer, const ConstructionHudRect& rect, Rgba value) {
+    color(renderer, value);
+    const int cx = rect.x + rect.width / 2;
+    const int cy = rect.y + rect.height / 2;
+    const int radius = std::max(1, std::min(rect.width, rect.height) / 2);
+    for (int y = -radius; y <= radius; ++y) {
+        const int x = static_cast<int>(std::sqrt(
+            static_cast<double>(radius * radius - y * y)));
+        SDL_RenderDrawLine(renderer, cx - x, cy + y, cx + x, cy + y);
     }
 }
 
-SDL_Rect AquariumConstructionOverlay::gridRect(int width, int height) const {
-    const int columns = std::max(1, max_column_ - min_column_ + 1);
-    const int rows = std::max(1, max_row_ - min_row_ + 1);
-    const int available_w = std::max(1, width - 160);
-    const int available_h = std::max(1, height - 180);
-    const int cell = std::max(8, std::min(available_w / columns, available_h / rows));
-    const int grid_w = cell * columns;
-    const int grid_h = cell * rows;
-    return {(width - grid_w) / 2, (height - grid_h) / 2 + 28, grid_w, grid_h};
+ConstructionHudRect inset(ConstructionHudRect rect, int amount) {
+    return {rect.x + amount, rect.y + amount,
+        std::max(0, rect.width - amount * 2), std::max(0, rect.height - amount * 2)};
 }
 
-SDL_Rect AquariumConstructionOverlay::cellRect(
-    pr::aquarium::geometry::GridCell cell, int width, int height) const {
-    const SDL_Rect grid = gridRect(width, height);
-    const int columns = std::max(1, max_column_ - min_column_ + 1);
-    const int cell_size = grid.w / columns;
-    return {
-        grid.x + (cell.column - min_column_) * cell_size,
-        grid.y + (cell.row - min_row_) * cell_size,
-        cell_size,
-        cell_size,
-    };
+void drawButtonBase(
+    SDL_Renderer* renderer, const ConstructionHudRect& rect,
+    bool enabled, bool focused, Rgba accent = {54, 171, 224, 255}) {
+    ConstructionHudRect shadow = rect;
+    shadow.y += 5;
+    fillCircle(renderer, shadow, {20, 35, 60, 150});
+    fillCircle(renderer, rect,
+        focused ? Rgba{255, 207, 67, 255} : Rgba{246, 242, 221, 255});
+    fillCircle(renderer, inset(rect, 4), {34, 59, 91, 255});
+    fillCircle(renderer, inset(rect, 9), enabled ? accent : Rgba{92, 107, 120, 235});
 }
 
-std::optional<pr::aquarium::geometry::GridCell> AquariumConstructionOverlay::cellAt(
-    int x, int y, int width, int height) const {
-    if (config_.allowed_cells.empty()) return std::nullopt;
-    const SDL_Rect grid = gridRect(width, height);
-    const SDL_Point point{x, y};
-    if (!SDL_PointInRect(&point, &grid)) return std::nullopt;
-    const int columns = std::max(1, max_column_ - min_column_ + 1);
-    const int rows = std::max(1, max_row_ - min_row_ + 1);
-    const int column = min_column_ + (x - grid.x) * columns / std::max(1, grid.w);
-    const int row = min_row_ + (y - grid.y) * rows / std::max(1, grid.h);
-    const pr::aquarium::geometry::GridCell cell{column, row};
-    const bool allowed = std::any_of(config_.allowed_cells.begin(), config_.allowed_cells.end(),
-        [&](auto item) { return item.column == column && item.row == row; });
-    return allowed ? std::optional{cell} : std::nullopt;
+void drawArrow(SDL_Renderer* renderer, const ConstructionHudRect& rect, bool clockwise) {
+    color(renderer, {255, 255, 246, 255});
+    const int cx = rect.x + rect.width / 2;
+    const int cy = rect.y + rect.height / 2;
+    const float radius = static_cast<float>(rect.width) * 0.21f;
+    const float start = clockwise ? -2.6f : -0.55f;
+    const float direction = clockwise ? 1.0f : -1.0f;
+    int previous_x = cx + static_cast<int>(std::cos(start) * radius);
+    int previous_y = cy + static_cast<int>(std::sin(start) * radius);
+    for (int step = 1; step <= 12; ++step) {
+        const float angle = start + direction * static_cast<float>(step) * 0.23f;
+        const int x = cx + static_cast<int>(std::cos(angle) * radius);
+        const int y = cy + static_cast<int>(std::sin(angle) * radius);
+        for (int thickness = -2; thickness <= 2; ++thickness) {
+            SDL_RenderDrawLine(renderer, previous_x, previous_y + thickness, x, y + thickness);
+        }
+        previous_x = x;
+        previous_y = y;
+    }
+    const int side = clockwise ? -1 : 1;
+    SDL_RenderDrawLine(renderer, previous_x, previous_y, previous_x + side * 9, previous_y - 5);
+    SDL_RenderDrawLine(renderer, previous_x, previous_y, previous_x + side * 7, previous_y + 7);
+}
+
+void drawCheck(SDL_Renderer* renderer, const ConstructionHudRect& rect) {
+    color(renderer, {255, 255, 246, 255});
+    const int x = rect.x + rect.width / 4;
+    const int y = rect.y + rect.height / 2;
+    for (int offset = -2; offset <= 2; ++offset) {
+        SDL_RenderDrawLine(renderer, x, y + offset,
+            x + rect.width / 6, y + rect.height / 7 + offset);
+        SDL_RenderDrawLine(renderer, x + rect.width / 6, y + rect.height / 7 + offset,
+            x + rect.width / 2, y - rect.height / 6 + offset);
+    }
+}
+
+void drawTrash(SDL_Renderer* renderer, const ConstructionHudRect& rect) {
+    color(renderer, {255, 255, 246, 255});
+    SDL_Rect body{rect.x + rect.width * 34 / 100, rect.y + rect.height * 39 / 100,
+        rect.width * 32 / 100, rect.height * 34 / 100};
+    SDL_RenderFillRect(renderer, &body);
+    SDL_Rect lid{rect.x + rect.width * 29 / 100, rect.y + rect.height * 31 / 100,
+        rect.width * 42 / 100, 4};
+    SDL_RenderFillRect(renderer, &lid);
+    SDL_Rect grip{rect.x + rect.width * 43 / 100, rect.y + rect.height * 25 / 100,
+        rect.width * 14 / 100, 5};
+    SDL_RenderFillRect(renderer, &grip);
+}
+
+void drawPill(SDL_Renderer* renderer, SDL_Rect rect, Rgba fill) {
+    const int radius = rect.h / 2;
+    SDL_Rect middle{rect.x + radius, rect.y, std::max(0, rect.w - radius * 2), rect.h};
+    color(renderer, fill);
+    SDL_RenderFillRect(renderer, &middle);
+    fillCircle(renderer, {rect.x, rect.y, rect.h, rect.h}, fill);
+    fillCircle(renderer, {rect.x + rect.w - rect.h, rect.y, rect.h, rect.h}, fill);
+}
+
+std::string hintFor(const AquariumConstructionSession& session) {
+    if (!session.validationMessage().empty()) {
+        return aquariumConstructionHintForValidation(session.validationMessage());
+    }
+    switch (session.state()) {
+    case ConstructionState::Browse:
+        return "Draw a tank  •  Left/A add  •  Right/ZL+A subtract";
+    case ConstructionState::Selected:
+        return "Drag handles  •  RT + ↑↓ height  •  RT + ←→ corner";
+    case ConstructionState::ResizeFootprint: return "Drag to draw  •  Release to build";
+    case ConstructionState::PaintFootprint:
+        return session.draftOperation() == ConstructionDraftOperation::Subtract
+            ? "Paint cells away  •  Release to apply"
+            : "Paint beside the tank to expand it";
+    case ConstructionState::MoveTank: return "Drag the centre handle to move";
+    case ConstructionState::ResizeTank: return "Drag an edge handle to resize";
+    case ConstructionState::SubtractFootprint: return "Paint cells away";
+    case ConstructionState::DraftReview:
+    case ConstructionState::DeleteConfirm:
+    case ConstructionState::Building: return "Building tank…";
+    case ConstructionState::Dormant: return {};
+    }
+    return {};
+}
+
+} // namespace
+
+void AquariumConstructionOverlay::configure(
+    const AquariumConstructionConfig& config, std::string project_root) {
+    (void)config;
+    project_root_ = std::move(project_root);
+    cached_hint_.clear();
+    hint_texture_ = {};
+    font_ = {};
 }
 
 void AquariumConstructionOverlay::render(
     SDL_Renderer* renderer, int width, int height,
-    const AquariumConstructionSession& session) const {
+    const AquariumConstructionSession& session,
+    ConstructionHudAction focused_action) const {
     if (!renderer || !session.active()) return;
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-    SDL_SetRenderDrawColor(renderer, 5, 18, 30, 178);
-    const SDL_Rect shade{0, 0, width, height};
-    SDL_RenderFillRect(renderer, &shade);
-
-    const SDL_Rect grid = gridRect(width, height);
-    SDL_SetRenderDrawColor(renderer, 10, 32, 48, 230);
-    SDL_Rect frame{grid.x - 10, grid.y - 10, grid.w + 20, grid.h + 20};
-    SDL_RenderFillRect(renderer, &frame);
-
-    for (const auto cell : config_.allowed_cells) {
-        SDL_Rect rect = cellRect({cell.column, cell.row}, width, height);
-        SDL_SetRenderDrawColor(renderer, 35, 64, 77, 220);
-        SDL_RenderFillRect(renderer, &rect);
-        SDL_SetRenderDrawColor(renderer, 82, 121, 132, 210);
-        SDL_RenderDrawRect(renderer, &rect);
+    const bool property_draft = session.draftOperation() == ConstructionDraftOperation::Properties;
+    const auto layout = aquariumConstructionHudLayout(width, height, session.state(), property_draft);
+    if (layout.undo.width > 0) {
+        drawButtonBase(renderer, layout.undo, session.canUndo(),
+            focused_action == ConstructionHudAction::Undo);
+        drawArrow(renderer, layout.undo, false);
     }
-    for (const auto cell : session.draftCells()) {
-        SDL_Rect rect = cellRect(cell, width, height);
-        if (session.draftValid()) SDL_SetRenderDrawColor(renderer, 40, 178, 135, 205);
-        else SDL_SetRenderDrawColor(renderer, 212, 76, 72, 205);
-        SDL_RenderFillRect(renderer, &rect);
-        if (!session.draftValid()) {
-            SDL_RenderDrawLine(renderer, rect.x, rect.y, rect.x + rect.w, rect.y + rect.h);
-            SDL_RenderDrawLine(renderer, rect.x + rect.w, rect.y, rect.x, rect.y + rect.h);
-        }
+    if (layout.redo.width > 0) {
+        drawButtonBase(renderer, layout.redo, session.canRedo(),
+            focused_action == ConstructionHudAction::Redo);
+        drawArrow(renderer, layout.redo, true);
     }
-    SDL_Rect cursor = cellRect(session.cursor(), width, height);
-    cursor.x += 2; cursor.y += 2; cursor.w -= 4; cursor.h -= 4;
-    SDL_SetRenderDrawColor(renderer, 250, 246, 184, 255);
-    SDL_RenderDrawRect(renderer, &cursor);
-    cursor.x += 2; cursor.y += 2; cursor.w -= 4; cursor.h -= 4;
-    SDL_RenderDrawRect(renderer, &cursor);
+    if (layout.remove.width > 0) {
+        drawButtonBase(renderer, layout.remove, true,
+            focused_action == ConstructionHudAction::Delete, {225, 91, 87, 255});
+        drawTrash(renderer, layout.remove);
+    }
+    const ConstructionHudRect finish = layout.build.width > 0 ? layout.build : layout.exit;
+    if (finish.width > 0) {
+        const ConstructionHudAction finish_action = layout.build.width > 0
+            ? ConstructionHudAction::Build : ConstructionHudAction::Exit;
+        drawButtonBase(renderer, finish, true, focused_action == finish_action,
+            {66, 183, 126, 255});
+        drawCheck(renderer, finish);
+    }
 
-    // Shape, fixed-height, confirm, and cancel glyphs communicate the v1 tools
-    // without exposing authored numeric values.
-    const int palette_y = std::max(20, grid.y - 76);
-    SDL_Rect shape{grid.x, palette_y, 52, 42};
-    SDL_SetRenderDrawColor(renderer, 22, 48, 65, 245);
-    SDL_RenderFillRect(renderer, &shape);
-    SDL_SetRenderDrawColor(renderer, 137, 220, 228, 255);
-    SDL_Rect rectangle_icon{shape.x + 10, shape.y + 9, 32, 24};
-    SDL_RenderDrawRect(renderer, &rectangle_icon);
-    for (int tick = 0; tick < 4; ++tick) {
-        SDL_Rect pip{shape.x + 70 + tick * 18, shape.y + 25 - tick * 4, 10, 8 + tick * 4};
-        SDL_SetRenderDrawColor(renderer, 91, 176, 210, 255);
-        SDL_RenderFillRect(renderer, &pip);
+    const std::string hint = hintFor(session);
+    if (!font_) {
+        font_ = loadFontPreferringUnicode(
+            "assets/fonts/power clear bold.ttf", 20, project_root_);
     }
-    const SDL_Rect confirm{grid.x + grid.w - 94, palette_y, 42, 42};
-    const SDL_Rect cancel{grid.x + grid.w - 42, palette_y, 42, 42};
-    SDL_SetRenderDrawColor(renderer, 35, 110, 79, 245);
-    SDL_RenderFillRect(renderer, &confirm);
-    SDL_SetRenderDrawColor(renderer, 235, 255, 220, 255);
-    SDL_RenderDrawLine(renderer, confirm.x + 10, confirm.y + 23, confirm.x + 18, confirm.y + 31);
-    SDL_RenderDrawLine(renderer, confirm.x + 18, confirm.y + 31, confirm.x + 33, confirm.y + 11);
-    SDL_SetRenderDrawColor(renderer, 116, 45, 48, 245);
-    SDL_RenderFillRect(renderer, &cancel);
-    SDL_SetRenderDrawColor(renderer, 255, 220, 220, 255);
-    SDL_RenderDrawLine(renderer, cancel.x + 10, cancel.y + 10, cancel.x + 32, cancel.y + 32);
-    SDL_RenderDrawLine(renderer, cancel.x + 32, cancel.y + 10, cancel.x + 10, cancel.y + 32);
+    if (font_ && hint != cached_hint_) {
+        cached_hint_ = hint;
+        hint_texture_ = renderTextTexture(renderer, font_.get(), hint, {255, 251, 230, 255});
+    }
+    if (hint_texture_.texture) {
+        SDL_Rect pill{layout.status.x, layout.status.y,
+            std::min(layout.status.width, hint_texture_.width + 34),
+            std::max(layout.status.height, hint_texture_.height + 16)};
+        SDL_Rect shadow = pill;
+        shadow.y += 4;
+        drawPill(renderer, shadow, {16, 29, 52, 135});
+        drawPill(renderer, pill, {30, 54, 83, 232});
+        SDL_Rect dst{pill.x + 17, pill.y + (pill.h - hint_texture_.height) / 2,
+            hint_texture_.width, hint_texture_.height};
+        SDL_RenderCopy(renderer, hint_texture_.texture.get(), nullptr, &dst);
+    }
 }
 
 } // namespace pr::gameplay::world3d::aquarium::construction

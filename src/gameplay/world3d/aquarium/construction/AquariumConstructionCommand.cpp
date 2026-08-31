@@ -41,7 +41,15 @@ bool tankDesignEquivalent(const geo::TankDesign& lhs, const geo::TankDesign& rhs
         a.notch_depth_cells != b.notch_depth_cells ||
         lhs.height_steps != rhs.height_steps ||
         lhs.corner_radius_steps != rhs.corner_radius_steps ||
+        lhs.corner_radii.size() != rhs.corner_radii.size() ||
         lhs.tunnels.size() != rhs.tunnels.size()) return false;
+    for (std::size_t index = 0; index < lhs.corner_radii.size(); ++index) {
+        const auto& left = lhs.corner_radii[index];
+        const auto& right = rhs.corner_radii[index];
+        if (left.vertex.column != right.vertex.column ||
+            left.vertex.row != right.vertex.row ||
+            left.radius_steps != right.radius_steps) return false;
+    }
     for (std::size_t index = 0; index < lhs.tunnels.size(); ++index) {
         if (!tunnelEquivalent(lhs.tunnels[index], rhs.tunnels[index])) return false;
     }

@@ -246,6 +246,11 @@ private:
     bool aquarium_pointer_down_ = false;
     bool aquarium_pointer_dragged_ = false;
     bool aquarium_pointer_second_click_ = false;
+    bool aquarium_pointer_subtract_ = false;
+    std::optional<gameplay::world3d::aquarium::construction::ConstructionGizmoKind>
+        aquarium_pointer_gizmo_;
+    std::optional<pr::aquarium::geometry::GridCell> aquarium_pointer_corner_vertex_;
+    int aquarium_pointer_gizmo_y_ = 0;
     bool aquarium_pointer_controls_cursor_ = false;
     bool aquarium_pointer_position_valid_ = false;
     SDL_Point aquarium_pointer_position_{};

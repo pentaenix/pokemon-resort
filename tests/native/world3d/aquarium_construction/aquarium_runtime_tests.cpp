@@ -6,6 +6,7 @@
 #include "gameplay/world3d/aquarium/construction/AquariumPlayerRuntime.hpp"
 #include "gameplay/world3d/aquarium/rendering/AquariumResourceGeneration.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -98,6 +99,55 @@ void stateMachineBuildsAndRejectsOverlap() {
     require(session.reviewDraft(), "overlap draft did not enter review");
     require(!session.draftValid() && !session.prepareCommit(),
         "overlapping tank was allowed to commit");
+}
+
+void directPaintGesturesCommitAsSingleUndoableCommands() {
+    construction::AquariumConstructionSession session;
+    session.configure("aquarium12", constructionConfig(), {}, emptyDocument());
+    require(session.enter({9, 9}), "paint fixture did not enter construction");
+    auto created = buildFirstTank(session);
+    require(session.publish(std::move(created)), "paint fixture tank did not publish");
+    session.pointAt({10, 10});
+    require(session.selectAtCursor(), "paint fixture tank was not selected");
+    session.pointAt({13, 11});
+    require(session.beginPaintSelected(false) && session.draftValid(),
+        "adjacent add gesture did not expand the selected tank");
+    require(session.reviewDraft(), "add gesture did not finish");
+    auto expanded = session.prepareCommit();
+    require(expanded && expanded->document.tanks.front().footprint.width_cells == 4,
+        "add gesture did not prepare one expanded footprint command");
+    require(session.publish(std::move(*expanded)) && session.undoCount() == 2,
+        "add gesture was not recorded as one undoable command");
+
+    const auto expanded_cells = geo::footprintCells(
+        session.committedDesign().tanks.front().footprint);
+    int min_column = expanded_cells.front().column;
+    int min_row = expanded_cells.front().row;
+    for (const geo::GridCell cell : expanded_cells) {
+        min_column = std::min(min_column, cell.column);
+        min_row = std::min(min_row, cell.row);
+    }
+    session.pointAt({min_column, min_row});
+    require(session.beginPaintSelected(true) && session.draftValid(),
+        "corner subtraction did not begin");
+    const auto corner_cut_cells = session.draftCells();
+    require(std::any_of(corner_cut_cells.begin(), corner_cut_cells.end(),
+                [&](geo::GridCell cell) {
+                    return cell.row == min_row && cell.column != min_column;
+                }),
+        "irregular paint bounds cropped rows outside the leftmost column");
+    require(session.cancel(), "corner-subtraction regression draft did not cancel");
+
+    session.pointAt({10, 10});
+    require(session.beginPaintSelected(true), "subtract gesture did not begin");
+    const auto occupied = geo::footprintCells(session.committedDesign().tanks.front().footprint);
+    for (const geo::GridCell cell : occupied) session.pointAt(cell);
+    require(session.draftCells().empty() && session.draftValid(),
+        "subtracting every cell did not become a valid delete gesture");
+    require(session.reviewDraft(), "delete-by-subtraction did not finish");
+    auto removed = session.prepareCommit();
+    require(removed && removed->document.tanks.empty(),
+        "delete-by-subtraction did not prepare a delete command");
 }
 
 void draftReviewIsNonMutatingAndAdjustmentIsReversible() {
@@ -468,8 +518,8 @@ void constructionVisualBuildsYellowCellsGizmosAndCanonicalHitTargets() {
     visual.state = construction::ConstructionState::Browse;
     visual.navigation_hint = "MOVE CURSOR  WASD DPAD STICK MOUSE";
     const auto browse_mesh = construction::buildAquariumConstructionWorldMesh(visual);
-    require(browse_mesh.vertices.size() >= 40 && !browse_mesh.indices.empty(),
-        "visible allowed cells did not generate filled grid and border geometry");
+    require(browse_mesh.vertices.size() >= 24 && !browse_mesh.indices.empty(),
+        "visible allowed cells did not generate separated fill geometry");
 
     visual.anchor = geo::GridCell{10, 10};
     visual.draft_cells = {{10, 10}, {11, 10}};
@@ -556,34 +606,26 @@ void constructionVisualBuildsYellowCellsGizmosAndCanonicalHitTargets() {
             construction::ConstructionHudAction::Build,
         "visible Draft Review build control is not hit-testable");
     const auto height_choices = construction::aquariumConstructionPropertyChoices(hud, visual);
-    require(height_choices.size() == 3U && height_choices[1].selected &&
-            !height_choices[1].enabled &&
-            construction::hitTestAquariumConstructionHud(
-                hud, visual, height_choices[2].rect.x + 2,
-                height_choices[2].rect.y + 2).value == selected.height_steps + 1,
-        "height control is not a nonnumeric less/knob/more stepper");
+    require(height_choices.empty(),
+        "minimal construction HUD still exposes the retired height stepper");
     visual.focused_action = construction::ConstructionHudAction::Roundness;
     const auto radius_choices = construction::aquariumConstructionPropertyChoices(hud, visual);
-    require(radius_choices.size() == 3U && radius_choices[1].selected,
-        "roundness control is not a nonnumeric less/knob/more stepper");
-    require(!hud.safe_world.contains(hud.property_panel.x + 2, hud.property_panel.y + 2) &&
-            construction::aquariumConstructionHudContainsUi(
-                hud, hud.property_panel.x + 2, hud.property_panel.y + 2),
-        "property tray can leak pointer input into the construction world");
+    require(radius_choices.empty(),
+        "minimal construction HUD still exposes the retired roundness stepper");
     const auto browse_hud = construction::aquariumConstructionHudLayout(
         1280, 800, construction::ConstructionState::Browse);
     require(construction::hitTestAquariumConstructionHud(
-                browse_hud, browse_hud.place.x + 2, browse_hud.place.y + 2,
+                browse_hud, browse_hud.exit.x + 2, browse_hud.exit.y + 2,
                 construction::ConstructionState::Browse) ==
-            construction::ConstructionHudAction::Place,
-        "visible Browse place control is not hit-testable");
+            construction::ConstructionHudAction::Exit,
+        "visible Browse finish control is not hit-testable");
     const auto resize_hud = construction::aquariumConstructionHudLayout(
         1280, 800, construction::ConstructionState::ResizeFootprint);
     require(construction::hitTestAquariumConstructionHud(
-                resize_hud, resize_hud.review.x + 2, resize_hud.review.y + 2,
+                resize_hud, resize_hud.build.x + 2, resize_hud.build.y + 2,
                 construction::ConstructionState::ResizeFootprint) ==
-            construction::ConstructionHudAction::Review,
-        "visible Resize review control is not hit-testable");
+            construction::ConstructionHudAction::Build,
+        "visible gesture finish control is not hit-testable");
     const auto selected_hud = construction::aquariumConstructionHudLayout(
         1280, 800, construction::ConstructionState::Selected);
     require(construction::hitTestAquariumConstructionHud(
@@ -593,15 +635,15 @@ void constructionVisualBuildsYellowCellsGizmosAndCanonicalHitTargets() {
         "selected tank delete control is not hit-testable");
     const auto browse_actions = construction::aquariumConstructionHudActions(
         construction::ConstructionState::Browse);
-    require(browse_actions.size() == 5 &&
-            browse_actions.front() == construction::ConstructionHudAction::Place &&
-            browse_actions[2] == construction::ConstructionHudAction::Undo &&
-            browse_actions[3] == construction::ConstructionHudAction::Redo,
-        "browse palette does not expose controller-reachable place/select/history actions");
+    require(browse_actions.size() == 3 &&
+            browse_actions.front() == construction::ConstructionHudAction::Undo &&
+            browse_actions[1] == construction::ConstructionHudAction::Redo &&
+            browse_actions[2] == construction::ConstructionHudAction::Exit,
+        "minimal browse HUD does not expose history and finish actions");
     require(construction::defaultAquariumConstructionHudAction(
                 construction::ConstructionState::Selected) ==
-            construction::ConstructionHudAction::Move,
-        "selected-tank controller focus does not begin on the move gizmo action");
+            construction::ConstructionHudAction::Undo,
+        "minimal selected-tank focus does not begin on undo");
     const auto property_actions = construction::aquariumConstructionHudActions(
         construction::ConstructionState::DraftReview, true);
     require(std::find(property_actions.begin(), property_actions.end(),
@@ -611,9 +653,7 @@ void constructionVisualBuildsYellowCellsGizmosAndCanonicalHitTargets() {
     const auto compact_hud = construction::aquariumConstructionHudLayout(
         640, 480, construction::ConstructionState::Selected);
     const construction::ConstructionHudRect compact_rects[]{
-        compact_hud.move, compact_hud.resize, compact_hud.subtract, compact_hud.height,
-        compact_hud.roundness, compact_hud.remove, compact_hud.undo,
-        compact_hud.redo, compact_hud.done,
+        compact_hud.remove, compact_hud.undo, compact_hud.redo, compact_hud.exit,
     };
     require(std::all_of(std::begin(compact_rects), std::end(compact_rects),
                 [](const auto& rect) {
@@ -759,10 +799,10 @@ void storePreservesNewerDocumentsAndFailedWrites() {
     std::string error;
     require(store.saveTransactionally(document, &error), "fault fixture save failed");
     std::string newer = construction::serializeAquariumDesignCanonical(document);
-    const std::string old_version = "\"schemaVersion\": 2";
+    const std::string old_version = "\"schemaVersion\": 3";
     const auto version_position = newer.find(old_version);
     require(version_position != std::string::npos, "fault fixture schema version missing");
-    newer.replace(version_position, old_version.size(), "\"schemaVersion\": 3");
+    newer.replace(version_position, old_version.size(), "\"schemaVersion\": 4");
     {
         std::ofstream primary(store.primaryPath(), std::ios::trunc);
         primary << newer;
@@ -888,6 +928,7 @@ int main() {
         };
         run("stateMachinePreservesCommittedDataOnCancel", stateMachinePreservesCommittedDataOnCancel);
         run("stateMachineBuildsAndRejectsOverlap", stateMachineBuildsAndRejectsOverlap);
+        run("directPaintGesturesCommitAsSingleUndoableCommands", directPaintGesturesCommitAsSingleUndoableCommands);
         run("draftReviewIsNonMutatingAndAdjustmentIsReversible", draftReviewIsNonMutatingAndAdjustmentIsReversible);
         run("editingHistoryIsTransactionalStableAndStaleSafe", editingHistoryIsTransactionalStableAndStaleSafe);
         run("subtractEditingCommitsUndoablyAndRejectsEnclosedCuts", subtractEditingCommitsUndoablyAndRejectsEnclosedCuts);
