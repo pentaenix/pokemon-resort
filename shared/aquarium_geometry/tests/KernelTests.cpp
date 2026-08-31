@@ -1,5 +1,6 @@
 #include "aquarium_geometry/Kernel.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <iostream>
 #include <limits>
@@ -49,6 +50,8 @@ AquariumBuildRequest rectangleRequest() {
     return request;
 }
 
+void requireValidMeshSet(const AquariumBuildResult& result, const std::string& fixture);
+
 void testCanonicalTransforms() {
     requireNear(cellCentreWorld(0), 8.0F, "cell zero centre");
     requireNear(cellCentreWorld(7), 120.0F, "cell seven centre");
@@ -91,13 +94,13 @@ void testRectangleGolden() {
     require(result.validation.valid(), "golden rectangle failed validation");
     require(result.meshes.meshes.size() == 4, "semantic material partition changed");
     require(result.statistics.mesh_count == 4, "mesh count changed");
-    require(result.statistics.vertex_count == 296, "vertex count changed");
-    require(result.statistics.index_count == 444, "index count changed");
-    require(result.statistics.triangle_count == 148, "triangle count changed");
+    require(result.statistics.vertex_count == 280, "vertex count changed");
+    require(result.statistics.index_count == 420, "index count changed");
+    require(result.statistics.triangle_count == 140, "triangle count changed");
     require(result.statistics.collision_cell_count == 16, "collision perimeter changed");
     require(result.statistics.navigation_layer_count == 1, "navigation layer count changed");
     require(result.navigation.suggested_spawns.size() == 1, "spawn count changed");
-    require(result.content_hash == "fnv1a64:ae7b0a30ce4c3d58", "content hash changed: " + result.content_hash);
+    require(result.content_hash == "fnv1a64:20cfbee8f80501f6", "content hash changed: " + result.content_hash);
 
     for (const SemanticMesh& mesh : result.meshes.meshes) {
         for (const Vertex& vertex : mesh.vertices) {
@@ -117,6 +120,32 @@ void testRectangleGolden() {
             require(dot(face, a.normal) > 0.0F, "triangle winding opposes its declared normal");
         }
     }
+}
+
+void testSubtractedFootprintsStaySimpleAndConnected() {
+    AquariumBuildRequest request = rectangleRequest();
+    request.tank.footprint.width_cells = 5;
+    request.tank.footprint.depth_cells = 5;
+    request.tank.footprint.subtracted_cells = {{2, 0}, {2, 1}};
+    const AquariumBuildResult result = buildAquarium(request);
+    requireValidMeshSet(result, "subtracted footprint");
+    require(footprintCells(request.tank.footprint).size() == 23U &&
+            result.navigation.layers.front().area.holes.empty(),
+        "exterior-connected subtraction did not produce one simple water polygon");
+
+    request.tank.footprint.subtracted_cells = {{2, 2}};
+    ValidationReport validation = validateAquarium(request);
+    require(!validation.valid() && std::any_of(validation.diagnostics.begin(),
+            validation.diagnostics.end(), [](const auto& diagnostic) {
+                return diagnostic.code == "enclosed_subtracted_footprint";
+            }), "interior subtraction was not rejected as an enclosed hole");
+
+    request.tank.footprint.subtracted_cells = {{2, 0}, {2, 1}, {2, 2}, {2, 3}, {2, 4}};
+    validation = validateAquarium(request);
+    require(!validation.valid() && std::any_of(validation.diagnostics.begin(),
+            validation.diagnostics.end(), [](const auto& diagnostic) {
+                return diagnostic.code == "disconnected_subtracted_footprint";
+            }), "subtraction that splits the tank was accepted");
 }
 
 void requireValidMeshSet(const AquariumBuildResult& result, const std::string& fixture) {
@@ -215,7 +244,7 @@ void testCornerRadiusIsFittedDeterministically() {
     const AquariumBuildResult first = buildAquarium(request);
     const AquariumBuildResult second = buildAquarium(request);
     require(first.content_hash == second.content_hash &&
-            first.statistics.vertex_count > 296,
+            first.statistics.vertex_count > 280,
         "rounded geometry is not deterministic or did not add curved segments");
 }
 
@@ -239,6 +268,7 @@ int main() {
         testRectangleGolden();
         testQuarterTurnSwapsRectangleAxes();
         testShapeOccupancyRotationAndValidation();
+        testSubtractedFootprintsStaySimpleAndConnected();
         testCornerRadiusIsFittedDeterministically();
         testUnsafeAreaDoesNotAllocateFootprintMemory();
         std::cout << "aquarium_geometry_tests: ok\n";

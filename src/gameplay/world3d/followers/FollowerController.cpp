@@ -137,6 +137,32 @@ void FollowerController::setTerrainQuery(std::shared_ptr<characters::CharacterTe
     }
 }
 
+void FollowerController::stowUntilPlayerMoves(int player_tile_x, int player_tile_y) {
+    state_ = State::Hidden;
+    state_elapsed_seconds_ = 0.0;
+    path_.clear();
+    player_step_trail_.clear();
+    idle_actions_.clear();
+    motor_.stop();
+    replay_step_motor_ = {};
+    follower_moving_ = false;
+    replay_follow_active_ = false;
+    idle_behavior_active_ = false;
+    returning_to_origin_ = false;
+    cancel_return_active_ = false;
+    interaction_locked_ = false;
+    manual_debug_action_ = ManualDebugActionType::None;
+    render_offset_ = {};
+    pending_landing_dust_spawn_.reset();
+    const TilePoint player_tile{player_tile_x, player_tile_y};
+    player_tile_ = player_tile;
+    last_player_tile_ = player_tile;
+    follower_tile_ = player_tile;
+    player_step_trail_.push_back(player_tile);
+    have_last_player_tile_ = true;
+    have_last_player_segment_ = false;
+}
+
 terrain::ActorTerrainBinding FollowerController::terrainBinding() const {
     terrain::TileCoord sample{follower_tile_.x, follower_tile_.y};
     if (replay_follow_active_) {

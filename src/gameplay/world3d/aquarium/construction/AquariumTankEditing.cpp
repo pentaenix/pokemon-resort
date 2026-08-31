@@ -126,6 +126,20 @@ geo::TankDesign resizeTankToCell(
         resized.footprint.width_cells = occupied_width;
         resized.footprint.depth_cells = occupied_depth;
     }
+    if (!tank.footprint.subtracted_cells.empty() &&
+        tank.footprint.rotation_quarter_turns == 0) {
+        resized.footprint.subtracted_cells.clear();
+        for (const geo::GridCell cut : tank.footprint.subtracted_cells) {
+            const int world_column = original_left + cut.column;
+            const int world_row = original_top + cut.row;
+            const geo::GridCell shifted{world_column - left, world_row - top};
+            if (shifted.column >= 0 && shifted.row >= 0 &&
+                shifted.column < resized.footprint.width_cells &&
+                shifted.row < resized.footprint.depth_cells) {
+                resized.footprint.subtracted_cells.push_back(shifted);
+            }
+        }
+    }
     return resized;
 }
 

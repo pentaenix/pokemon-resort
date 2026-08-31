@@ -6,6 +6,8 @@
 #include <cmath>
 #include <iomanip>
 #include <limits>
+#include <queue>
+#include <set>
 #include <sstream>
 #include <string_view>
 
@@ -29,6 +31,57 @@ void addWarning(ValidationReport& report, std::string code, std::string path, st
         std::move(path),
         std::move(message),
     });
+}
+
+using CellKey = std::pair<std::int32_t, std::int32_t>;
+
+bool connectedCells(const std::set<CellKey>& cells) {
+    if (cells.empty()) return false;
+    std::set<CellKey> visited;
+    std::queue<CellKey> pending;
+    pending.push(*cells.begin());
+    visited.insert(*cells.begin());
+    constexpr CellKey neighbours[]{{0, -1}, {1, 0}, {0, 1}, {-1, 0}};
+    while (!pending.empty()) {
+        const CellKey current = pending.front();
+        pending.pop();
+        for (const CellKey delta : neighbours) {
+            const CellKey next{current.first + delta.first, current.second + delta.second};
+            if (cells.count(next) && visited.insert(next).second) pending.push(next);
+        }
+    }
+    return visited.size() == cells.size();
+}
+
+bool allCutComponentsReachExterior(const FootprintDesign& footprint) {
+    std::set<CellKey> remaining;
+    for (const GridCell cell : footprint.subtracted_cells) {
+        remaining.emplace(cell.column, cell.row);
+    }
+    constexpr CellKey neighbours[]{{0, -1}, {1, 0}, {0, 1}, {-1, 0}};
+    while (!remaining.empty()) {
+        std::queue<CellKey> pending;
+        pending.push(*remaining.begin());
+        remaining.erase(remaining.begin());
+        bool reaches_exterior = false;
+        while (!pending.empty()) {
+            const CellKey current = pending.front();
+            pending.pop();
+            reaches_exterior = reaches_exterior || current.first == 0 || current.second == 0 ||
+                current.first == footprint.width_cells - 1 ||
+                current.second == footprint.depth_cells - 1;
+            for (const CellKey delta : neighbours) {
+                const CellKey next{current.first + delta.first, current.second + delta.second};
+                const auto found = remaining.find(next);
+                if (found != remaining.end()) {
+                    pending.push(next);
+                    remaining.erase(found);
+                }
+            }
+        }
+        if (!reaches_exterior) return false;
+    }
+    return true;
 }
 
 class StableHasher {
@@ -183,6 +236,48 @@ ValidationReport validateAquarium(const AquariumBuildRequest& request) {
     if (!dimensions_safe) {
         addError(report, "footprint_too_large", "/tank/footprint", "Footprint dimensions exceed the kernel safety limit");
     }
+    const FootprintDesign& footprint = request.tank.footprint;
+    if (!footprint.subtracted_cells.empty()) {
+        if (footprint.shape != FootprintShape::Rectangle) {
+            addError(report, "subtraction_requires_rectangle", "/tank/footprint/subtractedCells",
+                "Subtracted cells require a rectangular base footprint");
+        }
+        if (footprint.rotation_quarter_turns != 0) {
+            addError(report, "subtraction_requires_unrotated_footprint",
+                "/tank/footprint/rotationQuarterTurns",
+                "Subtracted footprints use their authored north-facing cell layout");
+        }
+        std::set<CellKey> cuts;
+        bool cut_out_of_bounds = false;
+        bool duplicate_cut = false;
+        for (const GridCell cell : footprint.subtracted_cells) {
+            cut_out_of_bounds = cut_out_of_bounds || cell.column < 0 || cell.row < 0 ||
+                cell.column >= footprint.width_cells || cell.row >= footprint.depth_cells;
+            duplicate_cut = duplicate_cut || !cuts.emplace(cell.column, cell.row).second;
+        }
+        if (cut_out_of_bounds) {
+            addError(report, "subtracted_cell_out_of_bounds", "/tank/footprint/subtractedCells",
+                "Subtracted cells must remain inside the tank's outer bounds");
+        }
+        if (duplicate_cut) {
+            addError(report, "duplicate_subtracted_cell", "/tank/footprint/subtractedCells",
+                "Each subtracted cell must appear exactly once");
+        }
+        if (!cut_out_of_bounds && !duplicate_cut) {
+            std::set<CellKey> occupied;
+            for (const GridCell cell : footprintCells(footprint)) {
+                occupied.emplace(cell.column, cell.row);
+            }
+            if (occupied.size() < 9U || !connectedCells(occupied)) {
+                addError(report, "disconnected_subtracted_footprint", "/tank/footprint/subtractedCells",
+                    "Subtracting those cells would disconnect or collapse the tank");
+            }
+            if (!allCutComponentsReachExterior(footprint)) {
+                addError(report, "enclosed_subtracted_footprint", "/tank/footprint/subtractedCells",
+                    "Subtracted cells must form an opening connected to the tank exterior");
+            }
+        }
+    }
     const std::int32_t occupied_width = occupiedWidthCells(request.tank.footprint);
     const std::int32_t occupied_depth = occupiedDepthCells(request.tank.footprint);
     const std::int64_t max_column = static_cast<std::int64_t>(request.tank.footprint.origin_cell.column) +
@@ -200,7 +295,6 @@ ValidationReport validateAquarium(const AquariumBuildRequest& request) {
         request.tank.footprint.rotation_quarter_turns > 3) {
         addError(report, "rotation_out_of_range", "/tank/footprint/rotationQuarterTurns", "Rotation must be a quarter turn from zero through three");
     }
-    const FootprintDesign& footprint = request.tank.footprint;
     if (footprint.shape != FootprintShape::Rectangle &&
         (footprint.width_cells < 5 || footprint.depth_cells < 5)) {
         addError(report, "shaped_footprint_too_small", "/tank/footprint",

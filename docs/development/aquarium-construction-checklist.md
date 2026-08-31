@@ -7,7 +7,7 @@ Updated: 2026-08-30
 - Pokémon Resort branch: `codex/aquarium-construction-milestone-3` from the reviewed Milestone 2 checkpoint.
 - Aquarium maker branch: `codex/aquarium-construction-milestone-3` from the reviewed Milestone 2 checkpoint.
 - Pre-Milestone 1 aquarium work was integrated into both repositories before these branches were created.
-- Milestone 3 changes span both repositories because kernel ABI 2 is consumed by the maker's browser-only WASM adapter.
+- Milestone 3 changes span both repositories because the current kernel ABI 3 is consumed by the maker's browser-only WASM adapter.
 - No reset, clean, checkout, destructive operation, or broad reformat was performed.
 - Feature commits stage explicit Milestone 3 paths only.
 
@@ -47,13 +47,13 @@ Updated: 2026-08-30
 ## Current golden evidence
 
 - Fixture: `shared/aquarium_geometry/goldens/rectangle-even.aquarium.json`.
-- Kernel ABI: 2.
-- Design schema: 1.
-- Rectangle hash: `fnv1a64:ae7b0a30ce4c3d58`.
+- Kernel ABI: 3.
+- Current design schema: 2; schema 1 golden documents remain migration fixtures.
+- Rectangle hash: `fnv1a64:20cfbee8f80501f6`.
 - Meshes: 4 semantic material groups.
-- Vertices: 296.
-- Indices: 444.
-- Triangles: 148.
+- Vertices: 280.
+- Indices: 420.
+- Triangles: 140.
 - Collision: 16 perimeter cells.
 - Navigation: 1 layer and 1 suggested spawn.
 - Native/WASM result: exact JSON equality for rectangle, rounded L, and rotated U fixtures.
@@ -301,12 +301,22 @@ Shipping Metal inspection at the normal 800×500 game viewport showed both loade
 - [x] Revision: cut away only the tracked section of the near procedural wall during construction so the normal-style camera remains readable without changing authored geometry or shared render state.
 - [x] Revision: hide the player and other overworld actors during construction, then return the player to a configured non-buildable doorway cell on exit.
 - [x] Revision: make travel topology directional and reversible: resort → lab south door, lab north door ⇄ gallery, and lab south door → resort.
+- [x] Usability revision: make framebuffer-scaled HUD drawing and logical-pointer hit testing share one coordinate contract so every button responds inside its visible bounds.
+- [x] Usability revision: replace separate player-facing L/U choices and notch controls with rectangle-first cell subtraction; preserve legacy L/U documents and convert them to equivalent cuts only when editing.
+- [x] Usability revision: reject enclosed, disconnected, overlapping, duplicate, and out-of-bounds cuts in the shared kernel; make cut commands transactional, cancellable, and undoable.
+- [x] Usability revision: replace dot-choice rows with labeled Height and Corners cards plus nonnumeric less/rail/more steppers; keep mouse wheel, keyboard, and controller parity.
+- [x] Usability revision: restyle the HUD as a cream/navy/cobalt/aqua game palette with wide labeled controls, clear hover/focus states, and restrained yellow accents.
+- [x] Usability revision: inset yellow floor cells to create visible seams and apply the canonical `(+0.5, +0.5)` cell installation transform to grid rendering, picking, gizmos, camera focus, committed meshes, navigation, and Pokémon placement.
+- [x] Usability revision: stow the follower during construction and after the exit teleport, then allow the ordinary follower controller to summon it only after the player takes a new step.
+- [x] Usability revision: restore flat sand visibility with double-sided substrate/water surfaces and improve tank corners with continuous rails and explicit structure posts.
+- [x] Usability revision: replace the Builder Lab's yellow procedural wall trim through map-scoped aquarium configuration without changing shared room materials or authored aquarium rendering.
 
 ### Milestone 3 implementation inventory
 
 - `shared/aquarium_geometry/Footprint`: canonical integer occupancy, rotated dimensions, fitted radii, and deterministic boundary tracing.
 - `shared/aquarium_geometry/GeometryBuilder`: semantic shaped meshes plus collision and navigation derived from the same footprint.
 - `AquariumConstructionSessionProperties`: discrete property drafts and shape-specific notch/opening constraints.
+- `AquariumConstructionSessionSubtract`: rectangle-first exterior-connected cell cuts, including legacy L/U conversion and draft validation.
 - `AquariumTankEditing`: shape-aware occupancy, selection, centres, movement, and eight-direction resizing.
 - `AquariumConstructionVisual` and `AquariumConstructionHudLayout`: spatial move/resize gizmos, safe-view hit testing, contextual property choices, tick/arc feedback, and compact focusable controls without numeric labels.
 - `Overworld3DTestScreenAquariumConstructionUi`: construction-only pointer, HUD, gizmo, and semantic property dispatch.
@@ -315,11 +325,11 @@ Shipping Metal inspection at the normal 800×500 game viewport showed both loade
 
 ### Milestone 3 deterministic and performance evidence
 
-- Kernel ABI 2 native/WASM parity is exact for all three goldens.
-- Rectangle content hash: `fnv1a64:ae7b0a30ce4c3d58`.
-- Native rectangle generation p95: 1.1142 ms.
-- Native rounded-U generation p95: 5.3923 ms.
-- Maker WASM generation p95: 4.0981 ms.
+- Kernel ABI 3 native/WASM parity is exact for all three goldens.
+- Rectangle content hash: `fnv1a64:20cfbee8f80501f6`.
+- Native rectangle generation p95: 0.2328 ms.
+- Native rounded-U generation p95: 1.3301 ms.
+- Maker WASM generation p95: 1.0705 ms.
 - All remain far below the 50 ms rectangle and 100 ms rounded-shape budgets.
 
 ### Milestone 3 automated evidence
@@ -331,7 +341,7 @@ Shipping Metal inspection at the normal 800×500 game viewport showed both loade
 | `ctest --test-dir build --output-on-failure` | 69/74 pass; exactly the same five documented baseline failures and no Milestone 3 failure |
 | `pokemon_resort_map_maker --validate-project` | Pass; five maps and five unique sources, including both aquarium rooms |
 | `npm run check` | Pass; existing maker large-chunk warning only |
-| `npm run validate:kernel` | Pass; three exact native/WASM goldens, ABI 2, rectangle hash `fnv1a64:ae7b0a30ce4c3d58` |
+| `npm run validate:kernel` | Pass; three exact native/WASM goldens, ABI 3, rectangle hash `fnv1a64:20cfbee8f80501f6` |
 | `npm run validate:model` | Pass for the maker's complete existing standard, tunnel, below-floor, shape, passage, and decor matrix |
 
 Revision verification:
@@ -362,8 +372,25 @@ entry expectation, and ocean sampling expectations. None of their files were
 changed for Milestone 3. The title-screen headless smoke, aquarium presentation,
 door resolution, project validation, and all new construction tests pass.
 
+Latest usability-revision verification adds native kernel coverage for simple
+exterior-connected cuts, enclosed holes, and disconnected results; runtime
+coverage for cut/commit/undo/cancel; schema 1→2 compatibility; and an
+offset-sensitive rendered-grid pointer target. Maker `check`, kernel parity,
+and the complete model validator pass with ABI 3. Automated macOS visual
+control cannot attach to the bare SDL executable, so the player-visible and
+controller-only checks remain intentionally open for the review checkpoint.
+
+| Latest revision command | Result |
+|---|---|
+| `cmake --build build -j4` | Pass; shipping executable and all native targets link |
+| Focused aquarium/design/command/runtime/input/headless checks | Pass; OWMAP reaches only its unchanged ramp baseline assertion after builder-lab checks pass |
+| `ctest --test-dir build --output-on-failure` | 69/74 pass; exactly the same five baseline failures and no new failure |
+| `npm run check` | Pass; existing large-chunk warning only |
+| `npm run validate:kernel` | Pass; ABI 3 parity, rectangle hash `fnv1a64:20cfbee8f80501f6`, WASM p95 1.0705 ms |
+| `npm run validate:model` | Pass for the maker's complete model-validation matrix |
+
 ### Milestone 3 review boundary
 
-- Height, rectangle/L/U shapes, rotations, fitted roundness, shape handles, and the separate empty test room are implemented.
+- Height, fitted roundness, rectangle-first subtraction, legacy L/U compatibility, spatial handles, and the separate empty test room are implemented.
 - Tunnels remain entirely Milestone 4 work.
 - Manual visual and control review in the Builder Lab is intentionally left to the user checkpoint; any corrections stay in Milestone 3 before tunnel work begins.

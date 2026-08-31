@@ -169,7 +169,13 @@ void configuredDewgongMovesInsidePlacedTank() {
             builder_lab->construction.has_return_cell &&
             builder_lab->construction.return_cell.column == 12 &&
             builder_lab->construction.return_cell.row == 16 &&
-            builder_lab->construction.return_facing == "north",
+            builder_lab->construction.return_facing == "north" &&
+            builder_lab->construction.has_room_trim_color &&
+            builder_lab->construction.room_trim_color[0] == 67 &&
+            builder_lab->construction.room_trim_color[1] == 105 &&
+            builder_lab->construction.room_trim_color[2] == 148 &&
+            builder_lab->construction.room_trim_color[3] == 255 &&
+            !aquarium_map->construction.has_room_trim_color,
         "builder lab must expose a separate empty full-room construction surface");
     const auto lab_allows_construction = [&](int column, int row) {
         return std::any_of(builder_lab->construction.allowed_cells.begin(),

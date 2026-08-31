@@ -13,6 +13,10 @@ using IntPoint = std::pair<std::int32_t, std::int32_t>;
 
 bool canonicalCellOccupied(const FootprintDesign& footprint, std::int32_t x, std::int32_t y) {
     if (x < 0 || y < 0 || x >= footprint.width_cells || y >= footprint.depth_cells) return false;
+    if (std::any_of(footprint.subtracted_cells.begin(), footprint.subtracted_cells.end(),
+            [&](GridCell cell) { return cell.column == x && cell.row == y; })) {
+        return false;
+    }
     if (footprint.shape == FootprintShape::Rectangle) return true;
     if (footprint.shape == FootprintShape::L) {
         return x < footprint.width_cells - footprint.notch_width_cells ||

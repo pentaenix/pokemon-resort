@@ -125,6 +125,11 @@ void Overworld3DTestScreen::configureAquariumConstruction(
         }
         return;
     }
+    if (map_config->construction.has_room_trim_color) {
+        const auto& color = map_config->construction.room_trim_color;
+        scene_.interior.default_room.trim_color = {
+            color[0], color[1], color[2], color[3]};
+    }
     aquarium_construction_return_cell_ = pr::aquarium::geometry::GridCell{
         map_config->construction.return_cell.column,
         map_config->construction.return_cell.row,
@@ -454,7 +459,8 @@ void Overworld3DTestScreen::applyAquariumConstructionCamera(double delta_seconds
             scene_.grid.width, scene_.grid.height, scene_.grid.tile_size, floor_y,
             camera_.pose().preset.fov_y_deg,
             static_cast<float>(viewport_width) / static_cast<float>(viewport_height),
-            follow_camera_base_preset_.pitch_deg, focus, property_panel, delta_seconds);
+            follow_camera_base_preset_.pitch_deg, focus, property_panel, delta_seconds,
+            visual.placement_offset_world_units);
     camera_.setManualPose(
         overview.position, overview.yaw_degrees, overview.pitch_degrees);
 }
@@ -467,6 +473,8 @@ Overworld3DTestScreen::aquariumConstructionVisual() const {
     visual.tile_world_units = scene_.grid.tile_size;
     visual.cursor = aquarium_construction_.cursor();
     visual.state = aquarium_construction_.state();
+    visual.property_draft = aquarium_construction_.draftOperation() ==
+        gameplay::world3d::aquarium::construction::ConstructionDraftOperation::Properties;
     visual.draft_valid = aquarium_construction_.draftValid();
     visual.draft_cells = aquarium_construction_.draftCells();
     visual.undo_available = aquarium_construction_.canUndo();
@@ -483,6 +491,9 @@ Overworld3DTestScreen::aquariumConstructionVisual() const {
     case aqc::ConstructionState::MoveTank:
     case aqc::ConstructionState::ResizeTank:
         visual.navigation_hint = "MOVE HANDLE  EDGES PAN VIEW";
+        break;
+    case aqc::ConstructionState::SubtractFootprint:
+        visual.navigation_hint = "A OR CLICK CUTS CELLS  X APPLIES";
         break;
     case aqc::ConstructionState::DraftReview:
         visual.navigation_hint = visual.property_draft
@@ -519,9 +530,15 @@ Overworld3DTestScreen::aquariumConstructionVisual() const {
         }
     }
     visual.preview_tank = aquarium_construction_.previewTank();
-    visual.property_draft = aquarium_construction_.draftOperation() ==
-        gameplay::world3d::aquarium::construction::ConstructionDraftOperation::Properties;
     if (!visual.preview_tank && visual.selected_tank) visual.preview_tank = visual.selected_tank;
+    if (visual.preview_tank) {
+        const auto& footprint = visual.preview_tank->footprint;
+        for (const auto cell : footprint.subtracted_cells) {
+            visual.cut_cells.push_back({
+                footprint.origin_cell.column + cell.column,
+                footprint.origin_cell.row + cell.row});
+        }
+    }
     const float height_step = scene_.terrain.height_per_floor > 0.0f
         ? scene_.terrain.height_per_floor : scene_.grid.tile_size;
     for (const auto cell : aquarium_construction_.allowedCells()) {

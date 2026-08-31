@@ -82,7 +82,8 @@ void addWallSegment(
     Vec2 start,
     Vec2 end,
     float bottom,
-    float top) {
+    float top,
+    bool cap_ends = false) {
     const float dx = end.x - start.x;
     const float dz = end.y - start.y;
     const float length = std::hypot(dx, dz);
@@ -104,18 +105,38 @@ void addWallSegment(
     addQuad(mesh, {{{inner_start.x, bottom, inner_start.y}, {inner_end.x, bottom, inner_end.y},
                     {inner_end.x, top, inner_end.y}, {inner_start.x, top, inner_start.y}}},
         inward_normal);
-    addQuad(mesh, {{{start.x, bottom, start.y}, {inner_start.x, bottom, inner_start.y},
-                    {inner_start.x, top, inner_start.y}, {start.x, top, start.y}}},
-        {-direction.x, 0.0F, -direction.y});
-    addQuad(mesh, {{{inner_end.x, bottom, inner_end.y}, {end.x, bottom, end.y},
-                    {end.x, top, end.y}, {inner_end.x, top, inner_end.y}}},
-        {direction.x, 0.0F, direction.y});
+    if (cap_ends) {
+        addQuad(mesh, {{{start.x, bottom, start.y}, {inner_start.x, bottom, inner_start.y},
+                        {inner_start.x, top, inner_start.y}, {start.x, top, start.y}}},
+            {-direction.x, 0.0F, -direction.y});
+        addQuad(mesh, {{{inner_end.x, bottom, inner_end.y}, {end.x, bottom, end.y},
+                        {end.x, top, end.y}, {inner_end.x, top, inner_end.y}}},
+            {direction.x, 0.0F, direction.y});
+    }
     addQuad(mesh, {{{start.x, top, start.y}, {inner_start.x, top, inner_start.y},
                     {inner_end.x, top, inner_end.y}, {end.x, top, end.y}}},
         {0.0F, 1.0F, 0.0F});
     addQuad(mesh, {{{end.x, bottom, end.y}, {inner_end.x, bottom, inner_end.y},
                     {inner_start.x, bottom, inner_start.y}, {start.x, bottom, start.y}}},
         {0.0F, -1.0F, 0.0F});
+}
+
+void addCornerPost(SemanticMesh& mesh, Vec2 center, float top) {
+    constexpr float half = 0.72F;
+    const float west = center.x - half;
+    const float east = center.x + half;
+    const float north = center.y - half;
+    const float south = center.y + half;
+    addQuad(mesh, {{{east, 0.0F, north}, {west, 0.0F, north},
+                    {west, top, north}, {east, top, north}}}, {0.0F, 0.0F, -1.0F});
+    addQuad(mesh, {{{east, 0.0F, south}, {east, 0.0F, north},
+                    {east, top, north}, {east, top, south}}}, {1.0F, 0.0F, 0.0F});
+    addQuad(mesh, {{{west, 0.0F, south}, {east, 0.0F, south},
+                    {east, top, south}, {west, top, south}}}, {0.0F, 0.0F, 1.0F});
+    addQuad(mesh, {{{west, 0.0F, north}, {west, 0.0F, south},
+                    {west, top, south}, {west, top, north}}}, {-1.0F, 0.0F, 0.0F});
+    addQuad(mesh, {{{west, top, north}, {west, top, south},
+                    {east, top, south}, {east, top, north}}}, {0.0F, 1.0F, 0.0F});
 }
 
 float polygonCross(Vec2 a, Vec2 b, Vec2 c) {
@@ -220,6 +241,19 @@ void populateAquariumGeometry(
         addWallSegment(structure, start, end, 0.0F, kFrameHeight);
         addWallSegment(structure, start, end, height - kFrameHeight, height);
         addWallSegment(glass, start, end, kFrameHeight, height - kFrameHeight);
+    }
+    for (std::size_t index = 0; index < boundary.size(); ++index) {
+        const Vec2 previous = boundary[(index + boundary.size() - 1U) % boundary.size()];
+        const Vec2 point = boundary[index];
+        const Vec2 next = boundary[(index + 1U) % boundary.size()];
+        const float in_x = point.x - previous.x;
+        const float in_z = point.y - previous.y;
+        const float out_x = next.x - point.x;
+        const float out_z = next.y - point.y;
+        const float lengths = std::hypot(in_x, in_z) * std::hypot(out_x, out_z);
+        const float turn = lengths > 0.0001F
+            ? std::abs(in_x * out_z - in_z * out_x) / lengths : 0.0F;
+        if (turn > 0.7F) addCornerPost(structure, point, height);
     }
     addPolygonSurface(sand, boundary, kSandSurfaceY);
     addPolygonSurface(water, boundary, water_y);

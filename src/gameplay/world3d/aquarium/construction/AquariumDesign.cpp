@@ -3,6 +3,7 @@
 #include "aquarium_geometry/Kernel.hpp"
 #include "core/config/Json.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <limits>
 #include <set>
@@ -97,6 +98,18 @@ geometry::TankDesign parseTank(const JsonValue& value) {
         tank.footprint.notch_width_cells = requiredInt32(*notch, "widthCells");
         tank.footprint.notch_depth_cells = requiredInt32(*notch, "depthCells");
     }
+    if (const JsonValue* subtracted = footprint.get("subtractedCells")) {
+        if (!subtracted->isArray()) {
+            throw std::runtime_error("subtractedCells must be an array");
+        }
+        for (const JsonValue& cell : subtracted->asArray()) {
+            if (!cell.isObject()) {
+                throw std::runtime_error("Subtracted footprint cell must be an object");
+            }
+            tank.footprint.subtracted_cells.push_back({
+                requiredInt32(cell, "column"), requiredInt32(cell, "row")});
+        }
+    }
     tank.height_steps = requiredInt32(value, "heightSteps");
     tank.corner_radius_steps = requiredInt32(value, "cornerRadiusSteps");
 
@@ -150,6 +163,20 @@ JsonValue serializeTank(const geometry::TankDesign& tank) {
             {"depthCells", JsonValue(static_cast<double>(tank.footprint.notch_depth_cells))},
             {"widthCells", JsonValue(static_cast<double>(tank.footprint.notch_width_cells))},
         }));
+    }
+    if (!tank.footprint.subtracted_cells.empty()) {
+        JsonValue::Array subtracted;
+        auto cells = tank.footprint.subtracted_cells;
+        std::sort(cells.begin(), cells.end(), [](geometry::GridCell lhs, geometry::GridCell rhs) {
+            return lhs.row < rhs.row || (lhs.row == rhs.row && lhs.column < rhs.column);
+        });
+        for (const geometry::GridCell cell : cells) {
+            subtracted.emplace_back(JsonValue::Object{
+                {"column", JsonValue(static_cast<double>(cell.column))},
+                {"row", JsonValue(static_cast<double>(cell.row))},
+            });
+        }
+        footprint.emplace("subtractedCells", JsonValue(std::move(subtracted)));
     }
 
     JsonValue::Array tunnels;
@@ -217,7 +244,7 @@ AquariumDesignLoadResult parseAquariumDesign(const std::string& text) {
             result.diagnostics.push_back("newer_schema_version");
             return result;
         }
-        if (version != geometry::kDesignSchemaVersion) {
+        if (version < 1 || version > geometry::kDesignSchemaVersion) {
             throw std::runtime_error("No migration exists for aquarium design schema version " + std::to_string(version));
         }
 
@@ -227,11 +254,19 @@ AquariumDesignLoadResult parseAquariumDesign(const std::string& text) {
             requiredInt32(grid, "radiusStepWorldUnits") != geometry::kRadiusStepWorldUnits ||
             requiredString(grid, "origin") != "map-north-west" ||
             requiredString(grid, "cellConvention") != "integer-boundaries-half-cell-centres") {
-            throw std::runtime_error("Aquarium grid contract does not match version 1");
+            throw std::runtime_error("Aquarium grid contract does not match a supported version");
+        }
+        if (version >= 2) {
+            const JsonValue& offset = required(grid, "placementOffsetCells");
+            if (!offset.isArray() || offset.asArray().size() != 2U ||
+                !offset.asArray()[0].isNumber() || !offset.asArray()[1].isNumber() ||
+                offset.asArray()[0].asNumber() != 0.5 || offset.asArray()[1].asNumber() != 0.5) {
+                throw std::runtime_error("Aquarium placement offset must be half a cell on both axes");
+            }
         }
         const JsonValue& metres = required(grid, "metresPerCell");
         if (!metres.isNumber() || metres.asNumber() != 1.0) {
-            throw std::runtime_error("Version 1 requires one metre per cell");
+            throw std::runtime_error("Aquarium designs require one metre per cell");
         }
 
         AquariumDesignDocument document;
@@ -275,6 +310,7 @@ std::string serializeAquariumDesignCanonical(const AquariumDesignDocument& docum
              {"cellConvention", JsonValue(std::string("integer-boundaries-half-cell-centres"))},
              {"metresPerCell", JsonValue(1.0)},
              {"origin", JsonValue(std::string("map-north-west"))},
+             {"placementOffsetCells", JsonValue(JsonValue::Array{JsonValue(0.5), JsonValue(0.5)})},
              {"radiusStepWorldUnits", JsonValue(static_cast<double>(geometry::kRadiusStepWorldUnits))},
              {"tileWorldUnits", JsonValue(static_cast<double>(geometry::kWorldUnitsPerCell))},
              {"verticalStepWorldUnits", JsonValue(static_cast<double>(geometry::kVerticalStepWorldUnits))},

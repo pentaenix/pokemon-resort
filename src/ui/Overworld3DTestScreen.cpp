@@ -189,11 +189,11 @@ void Overworld3DTestScreen::initializeSceneState(bool reload_primary_scene) {
         movement_config_.turnStepDelaySeconds());
     animator_.~SpriteSheetAnimator();
     new (&animator_) gameplay::world3d::characters::SpriteSheetAnimator(character_);
-    map_ = gameplay::world3d::rendering::OverworldMapRenderer(scene_);
     follower_summon_config_ = gameplay::world3d::followers::loadFollowerSummonConfig(project_root_);
     follower_session_config_ = gameplay::world3d::followers::loadFollowerSessionConfig(project_root_);
     npc_actor_driver_ = std::make_unique<gameplay::world3d::npc::NpcActorDriver>(project_root_, scene_);
     reloadAquariumConfig(true);
+    map_ = gameplay::world3d::rendering::OverworldMapRenderer(scene_);
     const std::vector<gameplay::world3d::npc::ResortPokemonSpawnInfo> resort_pokemon =
         npc_actor_driver_->resortPokemonSpawnList();
     follower_session_config_.enabled = !resort_pokemon.empty();
@@ -584,8 +584,6 @@ bool Overworld3DTestScreen::activateWorldMap(
     rebuildActiveWorldChunks();
     if (active_world_chunks_.empty()) return false;
 
-    map_ = gameplay::world3d::rendering::OverworldMapRenderer(scene_);
-    map_loaded_ = map_.load();
     placed_models_.clear();
     placed_models_load_attempted_ = false;
 
@@ -607,6 +605,8 @@ bool Overworld3DTestScreen::activateWorldMap(
 
     npc_actor_driver_ = std::make_unique<gameplay::world3d::npc::NpcActorDriver>(project_root_, scene_);
     reloadAquariumConfig(true);
+    map_ = gameplay::world3d::rendering::OverworldMapRenderer(scene_);
+    map_loaded_ = map_.load();
     follower_controller_ = std::make_unique<gameplay::world3d::followers::FollowerController>(
         project_root_, scene_, follower_summon_config_, follower_session_config_);
     follower_controller_->initializeResources();
@@ -1458,6 +1458,12 @@ void Overworld3DTestScreen::onAdvancePressed() {
         aquarium_pointer_controls_cursor_ = false;
         namespace aqc = gameplay::world3d::aquarium::construction;
         syncAquariumConstructionFocus();
+        if (aquarium_construction_.state() == aqc::ConstructionState::SubtractFootprint) {
+            if (!aquarium_construction_.toggleSubtractedCell()) {
+                requestAquariumConstructionErrorFeedback();
+            }
+            return;
+        }
         if (aquarium_construction_.state() == aqc::ConstructionState::Browse &&
             aquarium_construction_focused_action_ == aqc::ConstructionHudAction::Place &&
             aquarium_construction_.selectAtCursor()) {
@@ -1509,6 +1515,13 @@ void Overworld3DTestScreen::handlePointerMoved(int logical_x, int logical_y) {
     aquarium_pointer_position_ = mapped;
     aquarium_pointer_position_valid_ = true;
     aquarium_pointer_controls_cursor_ = true;
+    const auto hud_hit = aquariumConstructionHudHitAt(mapped.x, mapped.y);
+    if (hud_hit.action !=
+        gameplay::world3d::aquarium::construction::ConstructionHudAction::None) {
+        aquarium_construction_focused_action_ = hud_hit.action;
+        return;
+    }
+    if (aquariumConstructionUiAt(mapped.x, mapped.y)) return;
     if (const auto cell = aquariumConstructionCellAt(mapped.x, mapped.y)) {
         const auto before = aquarium_construction_.cursor();
         aquarium_construction_.pointAt(*cell);
@@ -1610,6 +1623,9 @@ void Overworld3DTestScreen::onAquariumConstructionPressed(SDL_JoystickID control
         aquarium_pointer_position_valid_ = false;
         player_.stop();
         animator_.setMoving(false);
+        if (follower_controller_) {
+            follower_controller_->stowUntilPlayerMoves(player_.tileX(), player_.tileY());
+        }
         applyAquariumConstructionCamera();
         syncAquariumConstructionFocus();
         std::cerr << "[AquariumConstruction] event=enter map="
@@ -1823,6 +1839,14 @@ bool Overworld3DTestScreen::handleUnroutedSdlEvent(const SDL_Event& event) {
             adjustAquariumConstructionProperty(1);
             return true;
         }
+        if (key == SDLK_x && aquarium_construction_.state() ==
+            gameplay::world3d::aquarium::construction::ConstructionState::SubtractFootprint) {
+            if (!aquarium_construction_.reviewDraft()) {
+                requestAquariumConstructionErrorFeedback();
+            }
+            syncAquariumConstructionFocus();
+            return true;
+        }
         if (key == SDLK_DELETE) {
             activateAquariumConstructionAction(
                 gameplay::world3d::aquarium::construction::ConstructionHudAction::Delete);
@@ -1855,8 +1879,13 @@ bool Overworld3DTestScreen::handleUnroutedSdlEvent(const SDL_Event& event) {
                 cycleAquariumConstructionFocus(1);
                 return true;
             case SDL_CONTROLLER_BUTTON_X:
-                activateAquariumConstructionAction(
-                    gameplay::world3d::aquarium::construction::ConstructionHudAction::Resize);
+                if (aquarium_construction_.state() ==
+                    gameplay::world3d::aquarium::construction::ConstructionState::SubtractFootprint) {
+                    aquarium_construction_.reviewDraft();
+                } else {
+                    activateAquariumConstructionAction(
+                        gameplay::world3d::aquarium::construction::ConstructionHudAction::Resize);
+                }
                 return true;
             case SDL_CONTROLLER_BUTTON_BACK:
                 undoAquariumConstruction();

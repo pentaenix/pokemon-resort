@@ -6,11 +6,12 @@
 
 namespace pr::aquarium::geometry {
 
-inline constexpr std::uint32_t kKernelAbiVersion = 2;
-inline constexpr std::uint32_t kDesignSchemaVersion = 1;
+inline constexpr std::uint32_t kKernelAbiVersion = 3;
+inline constexpr std::uint32_t kDesignSchemaVersion = 2;
 inline constexpr std::int32_t kWorldUnitsPerCell = 16;
 inline constexpr std::int32_t kVerticalStepWorldUnits = 8;
 inline constexpr std::int32_t kRadiusStepWorldUnits = 4;
+inline constexpr std::int32_t kPlacementOffsetWorldUnits = 8;
 inline constexpr std::int32_t kGlassThicknessMilliWorldUnits = 880;
 inline constexpr std::int32_t kMaxFootprintCells = 4096;
 
@@ -61,6 +62,10 @@ struct FootprintDesign {
     std::int32_t rotation_quarter_turns = 0;
     std::int32_t notch_width_cells = 0;
     std::int32_t notch_depth_cells = 0;
+    // Canonical, unrotated cells removed from the outer bounds. Resort's
+    // subtract tool only permits cuts connected to the exterior, so the
+    // resulting footprint remains one simple water polygon.
+    std::vector<GridCell> subtracted_cells;
 };
 
 struct TankDesign {

@@ -24,6 +24,7 @@ enum class ConstructionState {
     ResizeFootprint,
     MoveTank,
     ResizeTank,
+    SubtractFootprint,
     DraftReview,
     DeleteConfirm,
     Building,
@@ -33,6 +34,7 @@ enum class ConstructionDraftOperation {
     Create,
     Move,
     Resize,
+    Subtract,
     Properties,
 };
 
@@ -103,6 +105,8 @@ public:
     void clearSelection();
     bool beginMoveSelected();
     bool beginResizeSelected(AquariumResizeHandle handle);
+    bool beginSubtractSelected();
+    bool toggleSubtractedCell();
     bool adjustTankProperty(AquariumTankProperty property, int direction);
     bool requestDeleteSelected();
     bool cancelDelete();

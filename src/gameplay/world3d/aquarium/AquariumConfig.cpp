@@ -92,6 +92,21 @@ AquariumConstructionConfig parseConstruction(const JsonValue* value) {
         out.return_facing != "east" && out.return_facing != "west") {
         throw std::runtime_error("construction.returnFacing must be north, south, east, or west");
     }
+    if (const JsonValue* trim = value->get("roomTrimColor")) {
+        if (!trim->isArray() || trim->asArray().size() != 4U) {
+            throw std::runtime_error("construction.roomTrimColor must contain [r, g, b, a]");
+        }
+        for (std::size_t channel = 0; channel < 4U; ++channel) {
+            const double component = numberOr(&trim->asArray()[channel], -1.0);
+            if (!std::isfinite(component) || component < 0.0 || component > 255.0 ||
+                std::floor(component) != component) {
+                throw std::runtime_error(
+                    "construction.roomTrimColor components must be integer bytes");
+            }
+            out.room_trim_color[channel] = static_cast<std::uint8_t>(component);
+        }
+        out.has_room_trim_color = true;
+    }
     const JsonValue* rows = value->get("allowedCellRows");
     if (!rows || !rows->isArray()) return out;
     for (const JsonValue& row_value : rows->asArray()) {

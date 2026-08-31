@@ -249,6 +249,7 @@
       "mapId": "aquarium_builder_lab",
       "construction": {
         "enabled": true,
+        "roomTrimColor": [67, 105, 148, 255],
         "returnCell": [12, 16],
         "returnFacing": "north",
         "allowedCellRows": [

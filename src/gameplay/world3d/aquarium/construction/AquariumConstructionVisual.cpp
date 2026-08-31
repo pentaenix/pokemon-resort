@@ -133,8 +133,9 @@ std::vector<GizmoWorldPoint> gizmoWorldPoints(const AquariumConstructionVisual& 
     if (!tank) return {};
     const auto& footprint = tank->footprint;
     const float tile = visual.tile_world_units;
-    const float west = static_cast<float>(footprint.origin_cell.column) * tile;
-    const float north = static_cast<float>(footprint.origin_cell.row) * tile;
+    const float offset = visual.placement_offset_world_units;
+    const float west = static_cast<float>(footprint.origin_cell.column) * tile + offset;
+    const float north = static_cast<float>(footprint.origin_cell.row) * tile + offset;
     const float east = west + static_cast<float>(geo::occupiedWidthCells(footprint)) * tile;
     const float south = north + static_cast<float>(geo::occupiedDepthCells(footprint)) * tile;
     const float center_x = (west + east) * 0.5f;
@@ -186,20 +187,24 @@ ConstructionVisualMesh buildAquariumConstructionWorldMesh(
     constexpr std::uint32_t kCursor = colorAbgr(255, 250, 184, 255);
     constexpr std::uint32_t kAnchor = colorAbgr(255, 197, 45, 255);
     constexpr std::uint32_t kHandle = colorAbgr(255, 255, 255, 255);
+    constexpr std::uint32_t kCutFill = colorAbgr(71, 57, 104, 185);
+    constexpr std::uint32_t kCutMark = colorAbgr(248, 214, 86, 255);
+
+    const float offset = visual.placement_offset_world_units;
 
     for (const ConstructionCellSurface& surface : visual.cells) {
-        const float x0 = static_cast<float>(surface.cell.column) * tile;
-        const float z0 = static_cast<float>(surface.cell.row) * tile;
+        const float x0 = static_cast<float>(surface.cell.column) * tile + offset;
+        const float z0 = static_cast<float>(surface.cell.row) * tile + offset;
         const float y = surface.floor_y + 0.16f;
-        appendQuad(mesh, x0 + 0.7f, z0 + 0.7f, x0 + tile - 0.7f, z0 + tile - 0.7f,
+        appendQuad(mesh, x0 + 2.0f, z0 + 2.0f, x0 + tile - 2.0f, z0 + tile - 2.0f,
             y, surface.blocked ? kBlockedFill : kAllowedFill);
-        appendBorder(mesh, x0 + 0.35f, z0 + 0.35f, x0 + tile - 0.35f, z0 + tile - 0.35f,
-            y + 0.03f, 0.38f, surface.blocked ? kBlockedBorder : kAllowedBorder);
+        appendBorder(mesh, x0 + 1.7f, z0 + 1.7f, x0 + tile - 1.7f, z0 + tile - 1.7f,
+            y + 0.03f, 0.34f, surface.blocked ? kBlockedBorder : kAllowedBorder);
     }
 
     for (const geo::GridCell cell : visual.locked_cells) {
-        const float x0 = static_cast<float>(cell.column) * tile;
-        const float z0 = static_cast<float>(cell.row) * tile;
+        const float x0 = static_cast<float>(cell.column) * tile + offset;
+        const float z0 = static_cast<float>(cell.row) * tile + offset;
         const float y = floorForCell(visual, cell) + 0.27f;
         appendQuad(mesh, x0 + 1.0f, z0 + 1.0f, x0 + tile - 1.0f, z0 + tile - 1.0f,
             y, kLockedFill);
@@ -207,22 +212,22 @@ ConstructionVisualMesh buildAquariumConstructionWorldMesh(
     }
 
     for (const geo::GridCell cell : visual.original_cells) {
-        const float x0 = static_cast<float>(cell.column) * tile;
-        const float z0 = static_cast<float>(cell.row) * tile;
+        const float x0 = static_cast<float>(cell.column) * tile + offset;
+        const float z0 = static_cast<float>(cell.row) * tile + offset;
         appendBorder(mesh, x0 + 1.4f, z0 + 1.4f, x0 + tile - 1.4f, z0 + tile - 1.4f,
             floorForCell(visual, cell) + 0.31f, 0.55f, kOriginal);
     }
 
     for (const geo::GridCell cell : visual.selected_cells) {
-        const float x0 = static_cast<float>(cell.column) * tile;
-        const float z0 = static_cast<float>(cell.row) * tile;
+        const float x0 = static_cast<float>(cell.column) * tile + offset;
+        const float z0 = static_cast<float>(cell.row) * tile + offset;
         appendBorder(mesh, x0 + 0.8f, z0 + 0.8f, x0 + tile - 0.8f, z0 + tile - 0.8f,
             floorForCell(visual, cell) + 0.39f, 0.8f, kSelected);
     }
 
     for (const geo::GridCell cell : visual.draft_cells) {
-        const float x0 = static_cast<float>(cell.column) * tile;
-        const float z0 = static_cast<float>(cell.row) * tile;
+        const float x0 = static_cast<float>(cell.column) * tile + offset;
+        const float z0 = static_cast<float>(cell.row) * tile + offset;
         const float y = floorForCell(visual, cell) + 0.24f;
         appendQuad(mesh, x0 + 1.0f, z0 + 1.0f, x0 + tile - 1.0f, z0 + tile - 1.0f,
             y, visual.draft_valid ? kValidFill : kInvalidFill);
@@ -234,15 +239,24 @@ ConstructionVisualMesh buildAquariumConstructionWorldMesh(
         }
     }
 
-    const float cursor_x = static_cast<float>(visual.cursor.column) * tile;
-    const float cursor_z = static_cast<float>(visual.cursor.row) * tile;
+    for (const geo::GridCell cell : visual.cut_cells) {
+        const float x0 = static_cast<float>(cell.column) * tile + offset;
+        const float z0 = static_cast<float>(cell.row) * tile + offset;
+        const float y = floorForCell(visual, cell) + 0.32f;
+        appendQuad(mesh, x0 + 2.2f, z0 + 2.2f, x0 + tile - 2.2f, z0 + tile - 2.2f,
+            y, kCutFill);
+        appendCellCross(mesh, x0, z0, tile, y + 0.03f, kCutMark);
+    }
+
+    const float cursor_x = static_cast<float>(visual.cursor.column) * tile + offset;
+    const float cursor_z = static_cast<float>(visual.cursor.row) * tile + offset;
     const float cursor_y = floorForCell(visual, visual.cursor) + 0.35f;
     appendBorder(mesh, cursor_x + 1.0f, cursor_z + 1.0f,
         cursor_x + tile - 1.0f, cursor_z + tile - 1.0f, cursor_y, 0.9f, kCursor);
 
     if (visual.anchor) {
-        const float center_x = (static_cast<float>(visual.anchor->column) + 0.5f) * tile;
-        const float center_z = (static_cast<float>(visual.anchor->row) + 0.5f) * tile;
+        const float center_x = (static_cast<float>(visual.anchor->column) + 0.5f) * tile + offset;
+        const float center_z = (static_cast<float>(visual.anchor->row) + 0.5f) * tile + offset;
         appendDiamond(mesh, center_x, center_z,
             floorForCell(visual, *visual.anchor) + 0.48f, 3.1f, kAnchor);
     }
@@ -275,9 +289,9 @@ ConstructionVisualMesh buildAquariumConstructionWorldMesh(
     if (visual.preview_tank) {
         const auto& tank = *visual.preview_tank;
         const float center_x = geo::footprintCentreWorld(
-            tank.footprint.origin_cell.column, geo::occupiedWidthCells(tank.footprint));
+            tank.footprint.origin_cell.column, geo::occupiedWidthCells(tank.footprint)) + offset;
         const float center_z = geo::footprintCentreWorld(
-            tank.footprint.origin_cell.row, geo::occupiedDepthCells(tank.footprint));
+            tank.footprint.origin_cell.row, geo::occupiedDepthCells(tank.footprint)) + offset;
         const float floor_y = floorForCell(visual, visualTankCentreCell(tank));
         const auto boundary = geo::footprintBoundaryLocalWorld(
             tank.footprint, tank.corner_radius_steps);
@@ -310,8 +324,10 @@ std::optional<geo::GridCell> hitTestAquariumConstructionCell(
     float nearest_depth = std::numeric_limits<float>::max();
     std::optional<geo::GridCell> nearest;
     for (const ConstructionCellSurface& surface : visual.cells) {
-        const float x0 = static_cast<float>(surface.cell.column) * tile;
-        const float z0 = static_cast<float>(surface.cell.row) * tile;
+        const float x0 = static_cast<float>(surface.cell.column) * tile +
+            visual.placement_offset_world_units;
+        const float z0 = static_cast<float>(surface.cell.row) * tile +
+            visual.placement_offset_world_units;
         const float y = surface.floor_y + 0.35f;
         const std::array<gameplay::world3d::camera::Vec3, 4> corners{{
             {x0, y, z0}, {x0 + tile, y, z0},

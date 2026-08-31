@@ -105,6 +105,8 @@ struct AquariumConstructionConfig {
     bool has_return_cell = false;
     Cell return_cell;
     std::string return_facing = "south";
+    bool has_room_trim_color = false;
+    std::array<std::uint8_t, 4> room_trim_color{96, 104, 122, 255};
 };
 
 struct AquariumMapConfig {

@@ -24,6 +24,7 @@ construction::AquariumDesignDocument documentFixture() {
     tank.footprint.width_cells = 6;
     tank.footprint.depth_cells = 4;
     tank.height_steps = 8;
+    tank.footprint.subtracted_cells = {{2, 0}};
     document.tanks.push_back(std::move(tank));
     geometry::TankDesign shaped;
     shaped.id = "tank_golden_u_rotated";
@@ -52,10 +53,10 @@ void testCanonicalRoundTrip() {
 
 void testNewerVersionIsReadOnly() {
     std::string text = construction::serializeAquariumDesignCanonical(documentFixture());
-    const std::string needle = "\"schemaVersion\": 1";
+    const std::string needle = "\"schemaVersion\": 2";
     const std::size_t position = text.find(needle);
     require(position != std::string::npos, "schema version fixture missing");
-    text.replace(position, needle.size(), "\"schemaVersion\": 2");
+    text.replace(position, needle.size(), "\"schemaVersion\": 3");
     const construction::AquariumDesignLoadResult result = construction::parseAquariumDesign(text);
     require(result.status == construction::AquariumDesignLoadStatus::NewerVersion,
             "newer design was not preserved as incompatible");

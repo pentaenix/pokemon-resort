@@ -24,6 +24,7 @@ enum class ConstructionHudAction {
     Select,
     Move,
     Resize,
+    Subtract,
     Shape,
     Height,
     Roundness,
@@ -44,11 +45,13 @@ enum class ConstructionHudAction {
 struct AquariumConstructionVisual {
     bool visible = false;
     float tile_world_units = 16.0f;
+    float placement_offset_world_units = 8.0f;
     std::vector<ConstructionCellSurface> cells;
     std::vector<pr::aquarium::geometry::GridCell> locked_cells;
     std::vector<pr::aquarium::geometry::GridCell> draft_cells;
     std::vector<pr::aquarium::geometry::GridCell> selected_cells;
     std::vector<pr::aquarium::geometry::GridCell> original_cells;
+    std::vector<pr::aquarium::geometry::GridCell> cut_cells;
     pr::aquarium::geometry::GridCell cursor{};
     std::optional<pr::aquarium::geometry::GridCell> anchor;
     std::optional<pr::aquarium::geometry::TankDesign> selected_tank;
@@ -95,6 +98,7 @@ struct ConstructionHudLayout {
     ConstructionHudRect select;
     ConstructionHudRect move;
     ConstructionHudRect resize;
+    ConstructionHudRect subtract;
     ConstructionHudRect shape;
     ConstructionHudRect height;
     ConstructionHudRect roundness;

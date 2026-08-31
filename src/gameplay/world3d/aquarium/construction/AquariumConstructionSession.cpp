@@ -121,7 +121,8 @@ void AquariumConstructionSession::pointAt(geo::GridCell cell) {
     if (!active() || !cellAllowed(cell)) return;
     cursor_ = cell;
     if (!draft_ || (state_ != ConstructionState::ResizeFootprint &&
-        state_ != ConstructionState::MoveTank && state_ != ConstructionState::ResizeTank)) return;
+        state_ != ConstructionState::MoveTank && state_ != ConstructionState::ResizeTank &&
+        state_ != ConstructionState::SubtractFootprint)) return;
     draft_->cursor = cell;
     if (state_ == ConstructionState::ResizeFootprint && draft_->candidate_tank) {
         const int min_column = std::min(draft_->anchor.column, cell.column);
@@ -213,7 +214,8 @@ bool AquariumConstructionSession::cancelDelete() {
 
 bool AquariumConstructionSession::reviewDraft() {
     if (!draft_ || (state_ != ConstructionState::ResizeFootprint &&
-        state_ != ConstructionState::MoveTank && state_ != ConstructionState::ResizeTank)) return false;
+        state_ != ConstructionState::MoveTank && state_ != ConstructionState::ResizeTank &&
+        state_ != ConstructionState::SubtractFootprint)) return false;
     refreshDraftValidation();
     state_ = ConstructionState::DraftReview;
     return true;
@@ -225,6 +227,7 @@ bool AquariumConstructionSession::adjustDraft() {
         case ConstructionDraftOperation::Create: state_ = ConstructionState::ResizeFootprint; break;
         case ConstructionDraftOperation::Move: state_ = ConstructionState::MoveTank; break;
         case ConstructionDraftOperation::Resize: state_ = ConstructionState::ResizeTank; break;
+        case ConstructionDraftOperation::Subtract: state_ = ConstructionState::SubtractFootprint; break;
         case ConstructionDraftOperation::Properties: state_ = ConstructionState::DraftReview; break;
     }
     return true;
@@ -237,7 +240,8 @@ bool AquariumConstructionSession::cancel() {
     }
     if (state_ == ConstructionState::DeleteConfirm) return cancelDelete();
     if (state_ == ConstructionState::ResizeFootprint || state_ == ConstructionState::MoveTank ||
-        state_ == ConstructionState::ResizeTank || state_ == ConstructionState::DraftReview ||
+        state_ == ConstructionState::ResizeTank || state_ == ConstructionState::SubtractFootprint ||
+        state_ == ConstructionState::DraftReview ||
         state_ == ConstructionState::Building) {
         const bool editing_existing = draft_ &&
             draft_->operation != ConstructionDraftOperation::Create && selectedTank();

@@ -22,8 +22,8 @@ std::uint32_t packAbgr(float r, float g, float b, float a) {
 
 std::array<float, 4> materialColor(geo::MeshMaterial material) {
     switch (material) {
-    case geo::MeshMaterial::Structure: return {0.18f, 0.30f, 0.38f, 1.0f};
-    case geo::MeshMaterial::Sand: return {0.82f, 0.68f, 0.39f, 1.0f};
+    case geo::MeshMaterial::Structure: return {0.12f, 0.23f, 0.36f, 1.0f};
+    case geo::MeshMaterial::Sand: return {0.88f, 0.76f, 0.50f, 1.0f};
     case geo::MeshMaterial::Water: return {0.18f, 0.62f, 0.78f, 0.38f};
     case geo::MeshMaterial::Glass: return {0.58f, 0.86f, 0.94f, 0.31f};
     }
@@ -204,8 +204,11 @@ public:
             bgfx::setUniform(uv_offset_uniform_, zeros);
             bgfx::setUniform(light_dir_uniform_, light_dir);
             bgfx::setUniform(light_params_uniform_, light_params);
+            const bool double_sided_surface = mesh.material == geo::MeshMaterial::Sand ||
+                mesh.material == geo::MeshMaterial::Water;
+            const std::uint64_t culling = double_sided_surface ? 0 : BGFX_STATE_CULL_CCW;
             const std::uint64_t state = BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A |
-                BGFX_STATE_DEPTH_TEST_LESS | BGFX_STATE_CULL_CCW |
+                BGFX_STATE_DEPTH_TEST_LESS | culling |
                 (transparent ? BGFX_STATE_BLEND_ALPHA : BGFX_STATE_WRITE_Z);
             bgfx::setState(state);
             bgfx::submit(view_id, program_);

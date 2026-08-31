@@ -49,6 +49,7 @@ public:
     bool initializeResources();
     bool resourcesReady() const { return resources_ready_; }
     void setTerrainQuery(std::shared_ptr<characters::CharacterTerrainQuery> terrain_query);
+    void stowUntilPlayerMoves(int player_tile_x, int player_tile_y);
 
     void collectBillboardDraws(
         const camera::Gen4FollowCamera& camera,

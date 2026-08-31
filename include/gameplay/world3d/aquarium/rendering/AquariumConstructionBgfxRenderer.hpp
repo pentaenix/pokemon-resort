@@ -33,6 +33,8 @@ public:
         std::uint16_t view_id,
         int framebuffer_width,
         int framebuffer_height,
+        int logical_width,
+        int logical_height,
         bool homogeneous_depth);
 
 private:

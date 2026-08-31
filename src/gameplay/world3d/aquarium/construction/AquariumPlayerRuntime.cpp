@@ -81,9 +81,11 @@ PlayerAquariumRuntimeSet buildPlayerAquariumRuntime(
         PlayerTankRuntime runtime;
         runtime.design = design;
         runtime.world_center_x = geo::footprintCentreWorld(
-            design.footprint.origin_cell.column, geo::occupiedWidthCells(design.footprint));
+            design.footprint.origin_cell.column, geo::occupiedWidthCells(design.footprint)) +
+            static_cast<float>(geo::kPlacementOffsetWorldUnits);
         runtime.world_center_z = geo::footprintCentreWorld(
-            design.footprint.origin_cell.row, geo::occupiedDepthCells(design.footprint));
+            design.footprint.origin_cell.row, geo::occupiedDepthCells(design.footprint)) +
+            static_cast<float>(geo::kPlacementOffsetWorldUnits);
         const int sample_row = std::clamp(
             design.footprint.origin_cell.row, 0, std::max(0, scene.grid.height - 1));
         const int sample_column = std::clamp(

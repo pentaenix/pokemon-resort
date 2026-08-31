@@ -132,19 +132,32 @@ along the near procedural wall so the shallower angle cannot occlude active
 cells; it does not alter authored models or global render state.
 
 The left rail owns construction commands. Selecting or reviewing a tank opens a
-contextual tray along the bottom for shape, height, corner style, orientation,
-and shape-specific inset controls. The tray uses named silhouettes, compass
-directions, and discrete pips rather than numeric entry. Mouse users click a
-property and then its desired choice; keyboard/controller users focus a property
-with Tab or LB/RB and change it with Q/E, brackets, or LT/RT. Only spatial
+compact tray along the bottom for Height and Corners. Each property is a labeled
+card with less/more arrows and a nonnumeric rail, not a row of dot buttons.
+Mouse users click the arrows or use the wheel; keyboard/controller users focus a
+property with Tab or LB/RB and change it with Q/E, brackets, or LT/RT.
+
+Player-facing shape editing starts from a rectangle and uses Subtract. Move the
+cursor onto an occupied cell and press A/Space/click to cut or restore it; press
+X or click Apply to review the result. Cuts must reach an outside edge and may
+not split the remaining tank, create an enclosed hole, or reduce it below the
+minimum usable area. Existing L/U documents remain loadable and are converted
+to an equivalent rectangular cut pattern only when Subtract is opened. Spatial
 operations retain world-space gizmos: a centre handle moves a tank and its edge
-and corner handles resize it. This keeps style editing stable and prevents tiny
-perspective-projected controls from competing with the footprint.
+and corner handles resize it.
+
+Construction HUD layout and pointer hit testing use the same logical viewport,
+including on scaled framebuffers. The yellow grid, picking surface, committed
+tank, navigation, and population all use the schema-2 half-cell installation
+offset on both horizontal axes. Grid tiles are inset so neighboring cells remain
+visually distinct.
 
 The player, follower, NPCs, and overworld effects are hidden while construction
 owns the room. Exiting restores normal movement and teleports the player to the
 reserved south-door circulation cell, facing into the room, so newly committed
-geometry cannot trap them.
+geometry cannot trap them. The follower remains stowed through that teleport
+and is summoned by its ordinary controller only after the player takes a new
+step.
 
 Aquarium Maker rock variation is stored as glTF `COLOR_0`, not as a redundant bitmap. Kelp uses material base colors plus exported node-rotation `WaterSway` clips. The shared GLB renderer consumes both contracts in bgfx and SDL fallback, so the model and its animation also appear in Map Studio's exact preview.
 

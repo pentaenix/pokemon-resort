@@ -110,6 +110,10 @@ bool Overworld3DTestScreen::handleAquariumConstructionPointerPressed(
             aquarium_construction_.selectAtCursor();
         } else if (aquarium_construction_.state() == aqc::ConstructionState::ResizeFootprint) {
             aquarium_pointer_second_click_ = true;
+        } else if (aquarium_construction_.state() == aqc::ConstructionState::SubtractFootprint) {
+            if (!aquarium_construction_.toggleSubtractedCell()) {
+                requestAquariumConstructionErrorFeedback();
+            }
         }
         aquarium_pointer_down_ = true;
         aquarium_pointer_dragged_ = false;
@@ -162,6 +166,9 @@ bool Overworld3DTestScreen::activateAquariumConstructionAction(
             handled = aquarium_construction_.beginResizeSelected(
                 aquarium_construction_.preferredResizeHandle());
             break;
+        case aqc::ConstructionHudAction::Subtract:
+            handled = aquarium_construction_.beginSubtractSelected();
+            break;
         case aqc::ConstructionHudAction::Shape:
         case aqc::ConstructionHudAction::Height:
         case aqc::ConstructionHudAction::Roundness:
@@ -169,7 +176,7 @@ bool Overworld3DTestScreen::activateAquariumConstructionAction(
         case aqc::ConstructionHudAction::NotchWidth:
         case aqc::ConstructionHudAction::NotchDepth:
             aquarium_construction_focused_action_ = action;
-            handled = adjustAquariumConstructionProperty(1);
+            handled = true;
             break;
         case aqc::ConstructionHudAction::Review:
             handled = aquarium_construction_.reviewDraft();
@@ -342,6 +349,9 @@ void Overworld3DTestScreen::exitAquariumConstruction() {
     }
     player_.stop();
     animator_.setMoving(false);
+    if (follower_controller_) {
+        follower_controller_->stowUntilPlayerMoves(player_.tileX(), player_.tileY());
+    }
     camera_.setTarget(player_.position());
     SDL_SetRelativeMouseMode(SDL_FALSE);
     aquarium_pointer_down_ = false;

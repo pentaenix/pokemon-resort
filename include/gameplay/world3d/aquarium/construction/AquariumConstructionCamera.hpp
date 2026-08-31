@@ -31,6 +31,7 @@ AquariumConstructionCameraOverview trackAquariumConstructionCursor(
     float normal_pitch_degrees,
     ::pr::aquarium::geometry::GridCell focus,
     bool property_panel_visible,
-    double delta_seconds);
+    double delta_seconds,
+    float placement_offset_world_units = 0.0f);
 
 } // namespace pr::gameplay::world3d::aquarium::construction

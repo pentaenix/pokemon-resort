@@ -210,6 +210,48 @@ void editingHistoryIsTransactionalStableAndStaleSafe() {
         "undo deletion did not restore the stable tank");
 }
 
+void subtractEditingCommitsUndoablyAndRejectsEnclosedCuts() {
+    auto document = emptyDocument();
+    geo::TankDesign tank;
+    tank.id = "tank_subtract";
+    tank.footprint.origin_cell = {10, 10};
+    tank.footprint.width_cells = 5;
+    tank.footprint.depth_cells = 5;
+    document.tanks.push_back(tank);
+
+    construction::AquariumConstructionSession session;
+    session.configure("aquarium12", constructionConfig(), {}, document);
+    require(session.enter({9, 9}), "subtract fixture did not enter construction");
+    session.pointAt({12, 10});
+    require(session.selectAtCursor() && session.beginSubtractSelected(),
+        "selected rectangle did not enter subtract editing");
+    session.pointAt({12, 10});
+    require(session.toggleSubtractedCell() && session.draftValid(),
+        "edge-connected subtraction was not accepted as a valid draft");
+    require(session.reviewDraft(), "valid subtraction did not enter review");
+    auto cut = session.prepareCommit();
+    require(cut && session.publish(std::move(*cut)) &&
+            session.committedDesign().revision == 1 &&
+            session.committedDesign().tanks[0].footprint.subtracted_cells.size() == 1,
+        "subtraction did not publish as one transactional command");
+
+    auto undo = session.prepareUndo();
+    require(undo && session.publish(std::move(*undo)) &&
+            session.committedDesign().revision == 2 &&
+            session.committedDesign().tanks[0].footprint.subtracted_cells.empty(),
+        "undo did not restore the uncut rectangle through a new revision");
+
+    session.pointAt({12, 12});
+    require(session.beginSubtractSelected() && session.toggleSubtractedCell(),
+        "enclosed-cut fixture could not toggle its interior cell");
+    require(!session.draftValid(), "an enclosed interior cut was accepted");
+    require(session.reviewDraft() && !session.prepareCommit(),
+        "an enclosed interior cut prepared a commit");
+    require(session.cancel() && session.committedDesign().revision == 2 &&
+            session.committedDesign().tanks[0].footprint.subtracted_cells.empty(),
+        "cancelling the invalid subtraction changed committed data");
+}
+
 void discreteShapePropertiesAreDraftedAndTransactional() {
     auto document = emptyDocument();
     document.revision = 2;
@@ -472,22 +514,22 @@ void constructionVisualBuildsYellowCellsGizmosAndCanonicalHitTargets() {
     float screen_x = 0.0f;
     float screen_y = 0.0f;
     float depth = 0.0f;
-    require(camera.worldToScreen({168.0f, 0.35f, 168.0f}, 1280, 800,
+    require(camera.worldToScreen({179.0f, 0.35f, 176.0f}, 1280, 800,
                 screen_x, screen_y, depth),
-        "canonical cell centre did not project into the construction viewport");
+        "half-cell-offset grid surface did not project into the construction viewport");
     const auto hit = construction::hitTestAquariumConstructionCell(
         visual, camera, static_cast<int>(screen_x), static_cast<int>(screen_y), 1280, 800);
     require(hit && hit->column == 10 && hit->row == 10,
-        "rendered canonical cell and pointer hit target disagree");
+        "rendered half-cell-offset surface and pointer hit target disagree");
 
-    require(camera.worldToScreen({184.0f, 0.72f, 184.0f}, 1280, 800,
+    require(camera.worldToScreen({192.0f, 0.72f, 192.0f}, 1280, 800,
                 screen_x, screen_y, depth),
         "selected tank move gizmo did not project into the construction viewport");
     const auto move_gizmo = construction::hitTestAquariumConstructionGizmo(
         visual, camera, static_cast<int>(screen_x), static_cast<int>(screen_y), 1280, 800);
     require(move_gizmo && move_gizmo->kind == construction::ConstructionGizmoKind::Move,
         "selected tank centre did not expose a mouse-hit-testable move gizmo");
-    require(camera.worldToScreen({208.0f, 0.72f, 208.0f}, 1280, 800,
+    require(camera.worldToScreen({216.0f, 0.72f, 216.0f}, 1280, 800,
                 screen_x, screen_y, depth),
         "selected tank resize gizmo did not project into the construction viewport");
     const auto resize_gizmo = construction::hitTestAquariumConstructionGizmo(
@@ -504,7 +546,7 @@ void constructionVisualBuildsYellowCellsGizmosAndCanonicalHitTargets() {
     visual.preview_tank = selected;
     visual.state = construction::ConstructionState::DraftReview;
     visual.property_draft = true;
-    visual.focused_action = construction::ConstructionHudAction::Shape;
+    visual.focused_action = construction::ConstructionHudAction::Height;
 
     const auto hud = construction::aquariumConstructionHudLayout(
         1280, 800, construction::ConstructionState::DraftReview, true);
@@ -513,29 +555,17 @@ void constructionVisualBuildsYellowCellsGizmosAndCanonicalHitTargets() {
                 construction::ConstructionState::DraftReview, true) ==
             construction::ConstructionHudAction::Build,
         "visible Draft Review build control is not hit-testable");
-    const auto shape_choices = construction::aquariumConstructionPropertyChoices(hud, visual);
-    require(shape_choices.size() == 3U && shape_choices[1].selected &&
-            construction::hitTestAquariumConstructionHud(
-                hud, visual, shape_choices[2].rect.x + 2, shape_choices[2].rect.y + 2).value == 2,
-        "shape silhouettes are not explicit, selected, and mouse-hit-testable");
-    visual.focused_action = construction::ConstructionHudAction::Height;
     const auto height_choices = construction::aquariumConstructionPropertyChoices(hud, visual);
-    require(height_choices.size() == 9U,
-        "height tray does not expose every nonnumeric discrete layer choice");
+    require(height_choices.size() == 3U && height_choices[1].selected &&
+            !height_choices[1].enabled &&
+            construction::hitTestAquariumConstructionHud(
+                hud, visual, height_choices[2].rect.x + 2,
+                height_choices[2].rect.y + 2).value == selected.height_steps + 1,
+        "height control is not a nonnumeric less/knob/more stepper");
     visual.focused_action = construction::ConstructionHudAction::Roundness;
     const auto radius_choices = construction::aquariumConstructionPropertyChoices(hud, visual);
-    require(radius_choices.size() >= 2U && radius_choices.size() <= 5U &&
-            std::any_of(radius_choices.begin(), radius_choices.end(),
-                [&](const auto& choice) {
-                    return choice.value == selected.corner_radius_steps && choice.selected;
-                }),
-        "roundness tray did not keep approachable presets and the exact current value");
-    visual.focused_action = construction::ConstructionHudAction::NotchWidth;
-    const auto inset_choices = construction::aquariumConstructionPropertyChoices(hud, visual);
-    require(inset_choices.size() == 3U && inset_choices[0].value == 1 &&
-            inset_choices[1].value == 2 && inset_choices[1].selected &&
-            inset_choices[2].value == 3,
-        "shape inset tray is not a bounded previous/current/next stepper");
+    require(radius_choices.size() == 3U && radius_choices[1].selected,
+        "roundness control is not a nonnumeric less/knob/more stepper");
     require(!hud.safe_world.contains(hud.property_panel.x + 2, hud.property_panel.y + 2) &&
             construction::aquariumConstructionHudContainsUi(
                 hud, hud.property_panel.x + 2, hud.property_panel.y + 2),
@@ -581,9 +611,8 @@ void constructionVisualBuildsYellowCellsGizmosAndCanonicalHitTargets() {
     const auto compact_hud = construction::aquariumConstructionHudLayout(
         640, 480, construction::ConstructionState::Selected);
     const construction::ConstructionHudRect compact_rects[]{
-        compact_hud.move, compact_hud.resize, compact_hud.shape, compact_hud.height,
-        compact_hud.roundness, compact_hud.rotate, compact_hud.notch_width,
-        compact_hud.notch_depth, compact_hud.remove, compact_hud.undo,
+        compact_hud.move, compact_hud.resize, compact_hud.subtract, compact_hud.height,
+        compact_hud.roundness, compact_hud.remove, compact_hud.undo,
         compact_hud.redo, compact_hud.done,
     };
     require(std::all_of(std::begin(compact_rects), std::end(compact_rects),
@@ -730,10 +759,10 @@ void storePreservesNewerDocumentsAndFailedWrites() {
     std::string error;
     require(store.saveTransactionally(document, &error), "fault fixture save failed");
     std::string newer = construction::serializeAquariumDesignCanonical(document);
-    const std::string old_version = "\"schemaVersion\": 1";
+    const std::string old_version = "\"schemaVersion\": 2";
     const auto version_position = newer.find(old_version);
     require(version_position != std::string::npos, "fault fixture schema version missing");
-    newer.replace(version_position, old_version.size(), "\"schemaVersion\": 2");
+    newer.replace(version_position, old_version.size(), "\"schemaVersion\": 3");
     {
         std::ofstream primary(store.primaryPath(), std::ios::trunc);
         primary << newer;
@@ -861,6 +890,7 @@ int main() {
         run("stateMachineBuildsAndRejectsOverlap", stateMachineBuildsAndRejectsOverlap);
         run("draftReviewIsNonMutatingAndAdjustmentIsReversible", draftReviewIsNonMutatingAndAdjustmentIsReversible);
         run("editingHistoryIsTransactionalStableAndStaleSafe", editingHistoryIsTransactionalStableAndStaleSafe);
+        run("subtractEditingCommitsUndoablyAndRejectsEnclosedCuts", subtractEditingCommitsUndoablyAndRejectsEnclosedCuts);
         run("discreteShapePropertiesAreDraftedAndTransactional", discreteShapePropertiesAreDraftedAndTransactional);
         run("invalidMoveAndResizeCannotPrepareCommands", invalidMoveAndResizeCannotPrepareCommands);
         run("everyEditingStateCancelsWithoutChangingTheDocument", everyEditingStateCancelsWithoutChangingTheDocument);

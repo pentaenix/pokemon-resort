@@ -20,7 +20,8 @@ AquariumConstructionCameraOverview trackAquariumConstructionCursor(
     float normal_pitch_degrees,
     ::pr::aquarium::geometry::GridCell focus,
     bool property_panel_visible,
-    double delta_seconds) {
+    double delta_seconds,
+    float placement_offset_world_units) {
     constexpr float kRadians = 3.1415926535f / 180.0f;
     AquariumConstructionCameraOverview overview;
     overview.pitch_degrees = std::clamp(normal_pitch_degrees - 6.0f, -68.0f, -61.0f);
@@ -37,8 +38,10 @@ AquariumConstructionCameraOverview trackAquariumConstructionCursor(
         (tile * 5.0f) / std::max(0.1f, tangent_vertical), tile * 20.0f, tile * 28.0f);
     const float composition_x = property_panel_visible ? -tile * 0.75f : -tile * 0.35f;
     const float composition_z = property_panel_visible ? tile * 1.75f : 0.0f;
-    const float focus_x = (static_cast<float>(focus.column) + 0.5f) * tile + composition_x;
-    const float focus_z = (static_cast<float>(focus.row) + 0.5f) * tile + composition_z;
+    const float focus_x = (static_cast<float>(focus.column) + 0.5f) * tile +
+        placement_offset_world_units + composition_x;
+    const float focus_z = (static_cast<float>(focus.row) + 0.5f) * tile +
+        placement_offset_world_units + composition_z;
     if (!state.initialized) {
         state.center_x = focus_x;
         state.center_z = focus_z;

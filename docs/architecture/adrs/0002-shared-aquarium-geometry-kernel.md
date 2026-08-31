@@ -43,6 +43,14 @@ through the shared kernel. Unsupported developer features remain on the maker's
 legacy generator. The Resort executable still has no Emscripten, npm, Three.js,
 or maker dependency.
 
+The Milestone 3 usability revision advances the boundary to kernel ABI 3 and
+design schema 2. Schema 2 makes the player installation transform explicit as
+`placementOffsetCells: [0.5, 0.5]` while retaining schema 1 reads. The kernel
+also accepts canonical local `subtractedCells` for rectangle-first editing and
+requires cuts to remain exterior-connected with one connected occupied water
+area. This keeps the in-game subtract tool, collision, navigation, native
+geometry, and maker WASM adapter on the same deterministic footprint rules.
+
 ## Alternatives Considered
 
 - Separate C++ and TypeScript implementations constrained by golden files: lower initial porting cost, but still permits semantic drift.
