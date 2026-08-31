@@ -39,10 +39,15 @@ bool tankDesignEquivalent(const geo::TankDesign& lhs, const geo::TankDesign& rhs
         a.rotation_quarter_turns != b.rotation_quarter_turns ||
         a.notch_width_cells != b.notch_width_cells ||
         a.notch_depth_cells != b.notch_depth_cells ||
+        a.subtracted_cells.size() != b.subtracted_cells.size() ||
         lhs.height_steps != rhs.height_steps ||
         lhs.corner_radius_steps != rhs.corner_radius_steps ||
         lhs.corner_radii.size() != rhs.corner_radii.size() ||
         lhs.tunnels.size() != rhs.tunnels.size()) return false;
+    for (std::size_t index = 0; index < a.subtracted_cells.size(); ++index) {
+        if (a.subtracted_cells[index].column != b.subtracted_cells[index].column ||
+            a.subtracted_cells[index].row != b.subtracted_cells[index].row) return false;
+    }
     for (std::size_t index = 0; index < lhs.corner_radii.size(); ++index) {
         const auto& left = lhs.corner_radii[index];
         const auto& right = rhs.corner_radii[index];
@@ -65,6 +70,25 @@ std::optional<AquariumDesignDocument> applyAquariumConstructionCommand(
         if (error) *error = std::move(message);
         return std::nullopt;
     };
+    if (command.kind == AquariumCommandKind::EditTankSet) {
+        const auto& expected_tanks = direction == AquariumCommandDirection::Forward
+            ? command.tanks_before : command.tanks_after;
+        const auto& replacement_tanks = direction == AquariumCommandDirection::Forward
+            ? command.tanks_after : command.tanks_before;
+        if (current.tanks.size() != expected_tanks.size()) {
+            return fail("Tank-set command no longer matches the aquarium document");
+        }
+        for (std::size_t index = 0; index < current.tanks.size(); ++index) {
+            if (!tankDesignEquivalent(current.tanks[index], expected_tanks[index])) {
+                return fail("Tank-set command target changed before publication");
+            }
+        }
+        AquariumDesignDocument result = current;
+        result.tanks = replacement_tanks;
+        ++result.revision;
+        if (error) error->clear();
+        return result;
+    }
     const auto& expected = direction == AquariumCommandDirection::Forward
         ? command.before : command.after;
     const auto& replacement = direction == AquariumCommandDirection::Forward

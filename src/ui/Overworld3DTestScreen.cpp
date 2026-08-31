@@ -1480,6 +1480,8 @@ void Overworld3DTestScreen::onAdvancePressed() {
         if (state == aqc::ConstructionState::Browse) {
             if (aquarium_construction_.selectAtCursor()) {
                 if (subtract) aquarium_construction_.beginPaintSelected(true);
+            } else if (subtract) {
+                aquarium_construction_.beginPaintSelected(true);
             } else if (!subtract) {
                 aquarium_construction_.beginRectangle();
             }

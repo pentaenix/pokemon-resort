@@ -120,6 +120,41 @@ void staleCommandIsRejectedWithoutMutation() {
         "stale command changed the current document or failed silently");
 }
 
+void tankSetCommandRoundTripsMergesAndMultiDeletes() {
+    const auto original = documentWithTwoTanks();
+    auto merged = original.tanks.front();
+    merged.footprint.origin_cell = {4, 5};
+    merged.footprint.width_cells = 12;
+    merged.footprint.depth_cells = 3;
+
+    construction::AquariumConstructionCommand command;
+    command.kind = construction::AquariumCommandKind::EditTankSet;
+    command.tank_id = "tank_alpha";
+    command.tanks_before = original.tanks;
+    command.tanks_after = {merged};
+    const auto forward = construction::applyAquariumConstructionCommand(
+        original, command, construction::AquariumCommandDirection::Forward);
+    require(forward && forward->tanks.size() == 1 &&
+            forward->tanks.front().id == "tank_alpha" && forward->revision == 8,
+        "tank-set merge did not preserve the primary ID in one revision");
+    const auto restored = construction::applyAquariumConstructionCommand(
+        *forward, command, construction::AquariumCommandDirection::Reverse);
+    require(restored && restored->tanks.size() == 2 &&
+            construction::tankDesignEquivalent(restored->tanks[0], original.tanks[0]) &&
+            construction::tankDesignEquivalent(restored->tanks[1], original.tanks[1]),
+        "undo did not restore every merged tank exactly");
+    const auto redone = construction::applyAquariumConstructionCommand(
+        *restored, command, construction::AquariumCommandDirection::Forward);
+    require(redone && redone->tanks.size() == 1 && redone->revision == 10,
+        "redo did not reapply the multi-tank merge");
+
+    command.tanks_after.clear();
+    const auto deleted = construction::applyAquariumConstructionCommand(
+        original, command, construction::AquariumCommandDirection::Forward);
+    require(deleted && deleted->tanks.empty(),
+        "one tank-set command could not delete multiple complete tanks");
+}
+
 void selectionMovementAndEveryResizeHandleStayCellAligned() {
     const auto document = documentWithTwoTanks();
     const auto* selected = construction::playerTankAtCell(document, {13, 6});
@@ -158,6 +193,7 @@ int main() {
         deleteCommandIsReversibleAndRedoable();
         historyPublishesOnlyAtCommitBoundariesAndBranches();
         staleCommandIsRejectedWithoutMutation();
+        tankSetCommandRoundTripsMergesAndMultiDeletes();
         selectionMovementAndEveryResizeHandleStayCellAligned();
         std::cout << "aquarium_command_tests: ok\n";
         return EXIT_SUCCESS;

@@ -135,6 +135,15 @@ bool AquariumConstructionSession::adjustTankProperty(
 }
 
 std::optional<geo::TankDesign> AquariumConstructionSession::previewTank() const {
+    if (draft_ && !draft_->paint_original_tanks.empty()) {
+        if (!draft_->original_tank) return std::nullopt;
+        const auto found = std::find_if(
+            draft_->paint_candidate_tanks.begin(), draft_->paint_candidate_tanks.end(),
+            [&](const auto& tank) { return tank.id == draft_->original_tank->id; });
+        return found == draft_->paint_candidate_tanks.end()
+            ? std::optional<geo::TankDesign>{}
+            : std::optional<geo::TankDesign>{*found};
+    }
     return draft_ && !draft_->delete_candidate
         ? std::optional<geo::TankDesign>(draftTank()) : std::nullopt;
 }

@@ -449,6 +449,10 @@ std::string aquariumConstructionHintForValidation(std::string_view validation_me
     if (validation_message.find("eight player tanks") != std::string_view::npos) {
         return "ROOM IS FULL";
     }
+    if (validation_message.find("Move the path") != std::string_view::npos) {
+        return validation_message.find("edge") != std::string_view::npos
+            ? "MOVE TO A TANK EDGE" : "MOVE ACROSS A TANK";
+    }
     return "CANNOT BUILD HERE";
 }
 

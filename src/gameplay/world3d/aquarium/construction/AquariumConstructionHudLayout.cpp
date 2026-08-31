@@ -47,6 +47,14 @@ bool propertyAction(ConstructionHudAction action) {
         action == ConstructionHudAction::Roundness;
 }
 
+bool containsWithPadding(
+    const ConstructionHudRect& rect, int point_x, int point_y, int padding) {
+    return rect.width > 0 && rect.height > 0 &&
+        point_x >= rect.x - padding && point_y >= rect.y - padding &&
+        point_x < rect.x + rect.width + padding &&
+        point_y < rect.y + rect.height + padding;
+}
+
 std::vector<ConstructionHudChoice> choicesForValues(
     const ConstructionHudRect& area,
     ConstructionHudAction action,
@@ -228,7 +236,19 @@ std::vector<ConstructionHudChoice> aquariumConstructionPropertyChoices(
 ConstructionHudAction hitTestAquariumConstructionHud(
     const ConstructionHudLayout& layout,
     int screen_x, int screen_y, ConstructionState state, bool property_draft) {
-    for (const auto action : aquariumConstructionHudActions(state, property_draft)) {
+    // History buttons are small corner icons and need a forgiving mouse target.
+    // Test them explicitly so edge clicks never fall through into the world.
+    const auto actions = aquariumConstructionHudActions(state, property_draft);
+    constexpr int kHistoryHitPadding = 7;
+    if (std::find(actions.begin(), actions.end(), ConstructionHudAction::Undo) != actions.end() &&
+        containsWithPadding(layout.undo, screen_x, screen_y, kHistoryHitPadding)) {
+        return ConstructionHudAction::Undo;
+    }
+    if (std::find(actions.begin(), actions.end(), ConstructionHudAction::Redo) != actions.end() &&
+        containsWithPadding(layout.redo, screen_x, screen_y, kHistoryHitPadding)) {
+        return ConstructionHudAction::Redo;
+    }
+    for (const auto action : actions) {
         const auto* rect = rectForAction(layout, action);
         if (rect && rect->contains(screen_x, screen_y)) return action;
     }

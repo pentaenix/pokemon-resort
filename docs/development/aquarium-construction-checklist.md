@@ -320,6 +320,8 @@ Shipping Metal inspection at the normal 800×500 game viewport showed both loade
 - [x] Player-review correction: replace press-drag-release with click-start, pointer-move, click-finish for drawing, painting, movement, resizing, height, and corner roundness.
 - [x] Player-review correction: expose four side-only resize handles and dedicated convex-corner radius handles above the flat sand surface.
 - [x] Player-review correction: advance to ABI 5, block every occupied footprint cell, and add the standard solid lower plinth beneath the lower rim.
+- [x] Player-review correction: let plus/minus gestures arm in empty exterior cells; allow plus paths to grow irregular footprints and merge player tanks, and minus paths to erase cells across multiple tanks.
+- [x] Player-review correction: represent multi-tank paint as one exact tank-set command so merge and multi-delete preserve IDs/properties and undo/redo atomically; enlarge the visible undo/redo pointer targets.
 - [ ] Player visual review: verify icon theme, pointer feel, knob separation, material colors/transparency, and full mouse/controller happy paths in the Builder Lab.
 
 ### Milestone 3 direct-manipulation verification
@@ -332,6 +334,21 @@ Shipping Metal inspection at the normal 800×500 game viewport showed both loade
 | `npm run check` in aquarium maker | Pass; existing large-chunk warning only |
 | `npm run validate:kernel` in aquarium maker | Pass; three native/WASM goldens equal, ABI 5, hash `fnv1a64:536e7ce1f5e725f9`, WASM p95 1.2703 ms |
 | `npm run validate:model` in aquarium maker | Pass for standard, tunnels, shaped tanks, independent corners, below-floor tanks, and decor scenarios |
+
+Latest paint-control correction: the native command/runtime tests now cover an
+exterior-start L-shaped add, bridging and merging two tanks under the selected
+stable ID, exterior-start subtraction across two tanks, complete multi-delete,
+matching generated collision, and exact undo/redo restoration. The overlay and
+input tests also verify forgiving undo/redo icon-edge hit targets. No schema,
+kernel ABI, maker artifact, shader, or shared render state changed in this
+correction.
+
+| Paint-control correction command | Result |
+|---|---|
+| Shipping executable build | Pass |
+| Aquarium design/command/runtime/catalog/kernel, overlay, and input selection | 8/8 pass |
+| `title_screen_headless_smoke` | Pass |
+| `owmap_overworld_loader_tests` | Reaches only the unchanged ramp-entry baseline assertion after all project/map checks pass |
 
 The SDL game window is not exposed through macOS accessibility, so this pass
 could not automate a real pointer walkthrough in the shipping window. The

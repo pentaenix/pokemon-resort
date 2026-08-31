@@ -57,6 +57,10 @@ struct ConstructionDraft {
     std::optional<pr::aquarium::geometry::TankDesign> candidate_tank;
     AquariumResizeHandle resize_handle = AquariumResizeHandle::SouthEast;
     bool delete_candidate = false;
+    bool paint_changed = false;
+    std::vector<pr::aquarium::geometry::TankDesign> paint_original_tanks;
+    std::vector<pr::aquarium::geometry::TankDesign> paint_candidate_tanks;
+    std::vector<std::string> paint_affected_ids;
 };
 
 enum class ConstructionHistoryAction {
@@ -131,6 +135,8 @@ public:
     void rejectCommit(std::string message);
 
     std::vector<pr::aquarium::geometry::GridCell> draftCells() const;
+    std::vector<pr::aquarium::geometry::GridCell> draftOriginalCells() const;
+    std::vector<pr::aquarium::geometry::GridCell> draftCutCells() const;
     std::optional<pr::aquarium::geometry::TankDesign> previewTank() const;
     std::optional<ConstructionDraftOperation> draftOperation() const;
     bool draftValid() const;

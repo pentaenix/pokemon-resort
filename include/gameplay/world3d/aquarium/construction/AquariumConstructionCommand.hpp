@@ -13,6 +13,7 @@ enum class AquariumCommandKind {
     CreateTank,
     EditTank,
     DeleteTank,
+    EditTankSet,
 };
 
 enum class AquariumCommandDirection {
@@ -27,6 +28,11 @@ struct AquariumConstructionCommand {
     std::optional<pr::aquarium::geometry::TankDesign> after;
     std::size_t before_index = 0;
     std::size_t after_index = 0;
+    // Multi-tank paint uses an exact document-tank patch so one gesture can
+    // merge or erase several tanks and still reverse without losing IDs,
+    // ordering, or per-tank properties.
+    std::vector<pr::aquarium::geometry::TankDesign> tanks_before;
+    std::vector<pr::aquarium::geometry::TankDesign> tanks_after;
 };
 
 bool tankDesignEquivalent(

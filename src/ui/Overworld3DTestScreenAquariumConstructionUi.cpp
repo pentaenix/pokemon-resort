@@ -114,6 +114,11 @@ bool Overworld3DTestScreen::handleAquariumConstructionPointerPressed(
         if (aquarium_construction_.state() == aqc::ConstructionState::Browse) {
             if (aquarium_construction_.selectAtCursor()) {
                 if (subtract) began = aquarium_construction_.beginPaintSelected(true);
+            } else if (subtract) {
+                // Minus may be armed in empty space and then swept through one
+                // or more tanks. The session chooses a temporary primary only
+                // to preserve selection/history identity.
+                began = aquarium_construction_.beginPaintSelected(true);
             } else if (!subtract) {
                 began = aquarium_construction_.beginRectangle();
             }

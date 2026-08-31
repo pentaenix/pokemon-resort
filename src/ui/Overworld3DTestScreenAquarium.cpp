@@ -528,14 +528,12 @@ Overworld3DTestScreen::aquariumConstructionVisual() const {
     if (aquarium_construction_.draft()) {
         visual.anchor = aquarium_construction_.draft()->anchor;
         visual.active_resize_handle = aquarium_construction_.draft()->resize_handle;
-        if (aquarium_construction_.draft()->original_tank) {
-            visual.original_cells = aqc::tankFootprintCells(
-                *aquarium_construction_.draft()->original_tank);
-        }
+        visual.original_cells = aquarium_construction_.draftOriginalCells();
+        visual.cut_cells = aquarium_construction_.draftCutCells();
     }
     visual.preview_tank = aquarium_construction_.previewTank();
     if (!visual.preview_tank && visual.selected_tank) visual.preview_tank = visual.selected_tank;
-    if (visual.preview_tank) {
+    if (visual.preview_tank && visual.cut_cells.empty()) {
         const auto& footprint = visual.preview_tank->footprint;
         for (const auto cell : footprint.subtracted_cells) {
             visual.cut_cells.push_back({

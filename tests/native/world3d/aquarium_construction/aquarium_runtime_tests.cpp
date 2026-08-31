@@ -150,6 +150,82 @@ void directPaintGesturesCommitAsSingleUndoableCommands() {
         "delete-by-subtraction did not prepare a delete command");
 }
 
+void exteriorPaintMergesAndErasesMultipleTanksUndoably() {
+    auto document = emptyDocument();
+    geo::TankDesign alpha;
+    alpha.id = "tank_alpha";
+    alpha.footprint.origin_cell = {10, 10};
+    alpha.footprint.width_cells = 3;
+    alpha.footprint.depth_cells = 3;
+    geo::TankDesign beta = alpha;
+    beta.id = "tank_beta";
+    beta.footprint.origin_cell = {16, 10};
+    document.tanks = {alpha, beta};
+
+    construction::AquariumConstructionSession merge;
+    merge.configure("aquarium12", constructionConfig(), {}, document);
+    require(merge.enter({21, 15}), "merge fixture did not enter construction");
+    merge.pointAt({10, 11});
+    require(merge.selectAtCursor(), "merge fixture did not select its primary tank");
+    merge.pointAt({14, 13});
+    require(merge.beginPaintSelected(false) && !merge.draftValid(),
+        "plus paint could not arm from empty exterior space");
+    merge.pointAt({13, 11});
+    merge.pointAt({16, 11});
+    require(merge.draftValid(), "exterior bridge into a second tank was invalid");
+    require(merge.reviewDraft(), "merged paint gesture did not enter review");
+    auto merged = merge.prepareCommit();
+    require(merged && merged->document.tanks.size() == 1 &&
+            merged->document.tanks.front().id == "tank_alpha",
+        "plus paint did not merge tanks under the selected stable ID");
+    geo::AquariumBuildRequest merged_request;
+    merged_request.tank = merged->document.tanks.front();
+    const auto merged_build = geo::buildAquarium(merged_request);
+    require(merged_build.validation.valid() &&
+            merged_build.collision.blocked_cells.size() ==
+                geo::footprintCells(merged_request.tank.footprint).size(),
+        "merged L-shaped footprint did not generate matching geometry and collision");
+    require(merge.publish(std::move(*merged)) && merge.canUndo(),
+        "merged tank command was not published to undo history");
+    auto undo_merge = merge.prepareUndo();
+    require(undo_merge && merge.publish(std::move(*undo_merge)) &&
+            merge.committedDesign().tanks.size() == 2 && merge.canRedo(),
+        "undo did not restore both tanks after a merge");
+    auto redo_merge = merge.prepareRedo();
+    require(redo_merge && merge.publish(std::move(*redo_merge)) &&
+            merge.committedDesign().tanks.size() == 1,
+        "redo did not reapply the exterior merge");
+
+    construction::AquariumConstructionSession erase;
+    erase.configure("aquarium12", constructionConfig(), {}, document);
+    require(erase.enter({21, 15}), "erase fixture did not enter construction");
+    erase.pointAt({14, 15});
+    require(erase.beginPaintSelected(true),
+        "minus paint could not arm from empty space without a prior selection");
+    const auto original_cells = [&]() {
+        std::vector<geo::GridCell> cells = geo::footprintCells(alpha.footprint);
+        const auto beta_cells = geo::footprintCells(beta.footprint);
+        cells.insert(cells.end(), beta_cells.begin(), beta_cells.end());
+        return cells;
+    }();
+    for (const auto cell : original_cells) erase.pointAt(cell);
+    require(erase.draftCells().empty() && erase.draftValid(),
+        "one exterior minus gesture did not fully erase multiple tanks");
+    require(erase.reviewDraft(), "multi-delete paint did not enter review");
+    auto deleted = erase.prepareCommit();
+    require(deleted && deleted->document.tanks.empty(),
+        "multi-delete did not prepare one empty tank-set transaction");
+    require(erase.publish(std::move(*deleted)), "multi-delete did not publish");
+    auto undo_delete = erase.prepareUndo();
+    require(undo_delete && erase.publish(std::move(*undo_delete)) &&
+            erase.committedDesign().tanks.size() == 2 && erase.canRedo(),
+        "undo arrow history could not restore all erased tanks");
+    auto redo_delete = erase.prepareRedo();
+    require(redo_delete && erase.publish(std::move(*redo_delete)) &&
+            erase.committedDesign().tanks.empty(),
+        "redo arrow history could not erase all tanks again");
+}
+
 void draftReviewIsNonMutatingAndAdjustmentIsReversible() {
     construction::AquariumConstructionSession session;
     session.configure("aquarium12", constructionConfig(), {}, emptyDocument());
@@ -635,6 +711,17 @@ void constructionVisualBuildsYellowCellsGizmosAndCanonicalHitTargets() {
                 construction::ConstructionState::Browse) ==
             construction::ConstructionHudAction::Subtract,
         "visible minus-mode control is not hit-testable");
+    require(construction::hitTestAquariumConstructionHud(
+                browse_hud, browse_hud.undo.x - 5,
+                browse_hud.undo.y + browse_hud.undo.height / 2,
+                construction::ConstructionState::Browse) ==
+            construction::ConstructionHudAction::Undo &&
+            construction::hitTestAquariumConstructionHud(
+                browse_hud, browse_hud.redo.x + browse_hud.redo.width + 5,
+                browse_hud.redo.y + browse_hud.redo.height / 2,
+                construction::ConstructionState::Browse) ==
+            construction::ConstructionHudAction::Redo,
+        "undo/redo mouse targets do not include their visible icon edges");
     const auto resize_hud = construction::aquariumConstructionHudLayout(
         1280, 800, construction::ConstructionState::ResizeFootprint);
     require(construction::hitTestAquariumConstructionHud(
@@ -947,6 +1034,7 @@ int main() {
         run("stateMachinePreservesCommittedDataOnCancel", stateMachinePreservesCommittedDataOnCancel);
         run("stateMachineBuildsAndRejectsOverlap", stateMachineBuildsAndRejectsOverlap);
         run("directPaintGesturesCommitAsSingleUndoableCommands", directPaintGesturesCommitAsSingleUndoableCommands);
+        run("exteriorPaintMergesAndErasesMultipleTanksUndoably", exteriorPaintMergesAndErasesMultipleTanksUndoably);
         run("draftReviewIsNonMutatingAndAdjustmentIsReversible", draftReviewIsNonMutatingAndAdjustmentIsReversible);
         run("editingHistoryIsTransactionalStableAndStaleSafe", editingHistoryIsTransactionalStableAndStaleSafe);
         run("subtractEditingCommitsUndoablyAndRejectsEnclosedCuts", subtractEditingCommitsUndoablyAndRejectsEnclosedCuts);

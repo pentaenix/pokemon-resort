@@ -120,16 +120,16 @@ std::string hintFor(const AquariumConstructionSession& session) {
     }
     switch (session.state()) {
     case ConstructionState::Browse:
-        return "Draw a tank  •  Left/A add  •  Right/ZL+A subtract";
+        return "Choose + or −  •  Click/A starts  •  Click/A applies";
     case ConstructionState::Selected:
-        return "Drag handles  •  RT + ↑↓ height  •  RT + ←→ corner";
-    case ConstructionState::ResizeFootprint: return "Drag to draw  •  Release to build";
+        return "Click a handle or paint outside  •  RT adjusts shape";
+    case ConstructionState::ResizeFootprint: return "Move to size  •  Click/A applies";
     case ConstructionState::PaintFootprint:
         return session.draftOperation() == ConstructionDraftOperation::Subtract
-            ? "Paint cells away  •  Release to apply"
-            : "Paint beside the tank to expand it";
-    case ConstructionState::MoveTank: return "Drag the centre handle to move";
-    case ConstructionState::ResizeTank: return "Drag an edge handle to resize";
+            ? "Move across tanks to erase  •  Click/A applies"
+            : "Move from an edge to grow or merge tanks";
+    case ConstructionState::MoveTank: return "Move the centre handle  •  Click/A applies";
+    case ConstructionState::ResizeTank: return "Move an edge handle  •  Click/A applies";
     case ConstructionState::SubtractFootprint: return "Paint cells away";
     case ConstructionState::DraftReview:
     case ConstructionState::DeleteConfirm:
