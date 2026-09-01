@@ -150,6 +150,7 @@ std::vector<ConstructionHudAction> aquariumConstructionHudActions(
         case ConstructionState::ResizeTank:
         case ConstructionState::SubtractFootprint:
         case ConstructionState::PaintFootprint:
+        case ConstructionState::TunnelRoute:
             return {ConstructionHudAction::Build, ConstructionHudAction::Cancel};
         case ConstructionState::DraftReview:
             return {ConstructionHudAction::Build, ConstructionHudAction::Cancel};
@@ -189,7 +190,8 @@ ConstructionHudLayout aquariumConstructionHudLayout(
     if (state == ConstructionState::ResizeFootprint ||
         state == ConstructionState::MoveTank || state == ConstructionState::ResizeTank ||
         state == ConstructionState::SubtractFootprint ||
-        state == ConstructionState::PaintFootprint || state == ConstructionState::DraftReview) {
+        state == ConstructionState::PaintFootprint ||
+        state == ConstructionState::TunnelRoute || state == ConstructionState::DraftReview) {
         layout.build = {width - margin - icon, bottom, icon, icon};
         layout.cancel = {layout.build.x - gap - icon, bottom, icon, icon};
     } else {

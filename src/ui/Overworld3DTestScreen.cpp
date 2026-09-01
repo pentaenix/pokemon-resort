@@ -1489,13 +1489,17 @@ void Overworld3DTestScreen::onAdvancePressed() {
                 aquarium_construction_.beginRectangle();
             }
         } else if (state == aqc::ConstructionState::Selected) {
-            if (!aquarium_construction_.beginPaintSelected(subtract)) {
+            if (!subtract && aquarium_construction_.isTunnelPortalCell(
+                    aquarium_construction_.cursor())) {
+                aquarium_construction_.beginTunnelSelected();
+            } else if (!aquarium_construction_.beginPaintSelected(subtract)) {
                 aquarium_construction_.selectAtCursor();
             }
         } else if (state == aqc::ConstructionState::ResizeFootprint ||
                    state == aqc::ConstructionState::MoveTank ||
                    state == aqc::ConstructionState::ResizeTank ||
                    state == aqc::ConstructionState::PaintFootprint ||
+                   state == aqc::ConstructionState::TunnelRoute ||
                    state == aqc::ConstructionState::DraftReview) {
             const bool ready = state == aqc::ConstructionState::DraftReview ||
                 aquarium_construction_.reviewDraft();

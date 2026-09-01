@@ -1,6 +1,7 @@
 #include "aquarium_geometry/Kernel.hpp"
 
 #include "GeometryBuilder.hpp"
+#include "Tunnel.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -152,6 +153,11 @@ void hashResult(StableHasher& hasher, const AquariumBuildResult& result) {
         hasher.addSigned(cell.column);
         hasher.addSigned(cell.row);
     }
+    hasher.addUnsigned(result.collision.dry_corridor_cells.size());
+    for (const GridCell& cell : result.collision.dry_corridor_cells) {
+        hasher.addSigned(cell.column);
+        hasher.addSigned(cell.row);
+    }
     hasher.addUnsigned(result.navigation.layers.size());
     for (const NavigationLayer& layer : result.navigation.layers) {
         hasher.addFloat(layer.floor_y);
@@ -168,6 +174,17 @@ void hashResult(StableHasher& hasher, const AquariumBuildResult& result) {
                 hasher.addFloat(point.x);
                 hasher.addFloat(point.y);
             }
+        }
+    }
+    hasher.addUnsigned(result.navigation.dry_volumes.size());
+    for (const NavigationDryVolume& volume : result.navigation.dry_volumes) {
+        hasher.addString(volume.tunnel_id);
+        hasher.addFloat(volume.floor_y);
+        hasher.addFloat(volume.ceiling_y);
+        hasher.addUnsigned(volume.area.outer.size());
+        for (const Vec2& point : volume.area.outer) {
+            hasher.addFloat(point.x);
+            hasher.addFloat(point.y);
         }
     }
     hasher.addUnsigned(result.navigation.suggested_spawns.size());
@@ -356,9 +373,9 @@ ValidationReport validateAquarium(const AquariumBuildRequest& request) {
                 "Corner radius was fitted to the available footprint");
         }
     }
-    if (!request.tank.tunnels.empty()) {
-        addError(report, "tunnels_not_implemented", "/tank/tunnels", "This kernel milestone does not generate tunnels");
-    }
+    const auto tunnel_diagnostics = detail::validateAndResolveTunnels(request.tank);
+    report.diagnostics.insert(report.diagnostics.end(),
+        tunnel_diagnostics.begin(), tunnel_diagnostics.end());
     return report;
 }
 

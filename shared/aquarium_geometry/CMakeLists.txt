@@ -1,7 +1,10 @@
 add_library(aquarium_geometry STATIC
+    src/CellRegions.cpp
     src/Footprint.cpp
     src/GeometryBuilder.cpp
     src/Kernel.cpp
+    src/Tunnel.cpp
+    src/TunnelGeometry.cpp
 )
 
 target_include_directories(aquarium_geometry

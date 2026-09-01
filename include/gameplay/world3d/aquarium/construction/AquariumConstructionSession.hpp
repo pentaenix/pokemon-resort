@@ -26,6 +26,7 @@ enum class ConstructionState {
     ResizeTank,
     SubtractFootprint,
     PaintFootprint,
+    TunnelRoute,
     DraftReview,
     DeleteConfirm,
     Building,
@@ -38,6 +39,7 @@ enum class ConstructionDraftOperation {
     Subtract,
     Add,
     Properties,
+    Tunnel,
 };
 
 enum class AquariumTankProperty {
@@ -64,6 +66,7 @@ struct ConstructionDraft {
     std::vector<pr::aquarium::geometry::TankDesign> paint_original_tanks;
     std::vector<pr::aquarium::geometry::TankDesign> paint_candidate_tanks;
     std::vector<std::string> paint_affected_ids;
+    std::vector<pr::aquarium::geometry::CellPoint> tunnel_route;
 };
 
 enum class ConstructionHistoryAction {
@@ -124,6 +127,11 @@ public:
     bool beginPropertySelected();
     bool adjustCornerRadius(
         pr::aquarium::geometry::GridCell corner_vertex, int direction);
+    bool beginTunnelSelected();
+    bool extendTunnelRouteTo(pr::aquarium::geometry::GridCell cell);
+    bool isTunnelPortalCell(pr::aquarium::geometry::GridCell cell) const;
+    std::vector<pr::aquarium::geometry::GridCell> tunnelPortalCells() const;
+    std::vector<pr::aquarium::geometry::GridCell> tunnelRouteCells() const;
     bool requestDeleteSelected();
     bool cancelDelete();
     bool reviewDraft();
@@ -159,6 +167,7 @@ private:
     std::uint64_t beginPendingOperation();
     void refreshDraftValidation();
     bool ensurePropertyDraft();
+    void syncTunnelCandidate();
 
     bool available_ = false;
     std::string map_id_;

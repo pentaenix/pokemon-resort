@@ -155,17 +155,17 @@ std::vector<GizmoWorldPoint> gizmoWorldPoints(const AquariumConstructionVisual& 
     // the floor makes its hit target work while leaving the control invisible.
     constexpr float kCentreKnobSeparation = 7.0f;
     points = {
-        {{ConstructionGizmoKind::Move, AquariumResizeHandle::SouthEast, std::nullopt},
+        {{ConstructionGizmoKind::Move, AquariumResizeHandle::SouthEast, std::nullopt, std::nullopt},
             {center_x - kCentreKnobSeparation, y, center_z}},
-        {{ConstructionGizmoKind::Depth, AquariumResizeHandle::SouthEast, std::nullopt},
+        {{ConstructionGizmoKind::Depth, AquariumResizeHandle::SouthEast, std::nullopt, std::nullopt},
             {center_x + kCentreKnobSeparation, y + 0.12f, center_z}},
-        {{ConstructionGizmoKind::Resize, AquariumResizeHandle::North, std::nullopt}, {center_x, y, north}},
-        {{ConstructionGizmoKind::Resize, AquariumResizeHandle::East, std::nullopt}, {east, y, center_z}},
-        {{ConstructionGizmoKind::Resize, AquariumResizeHandle::South, std::nullopt}, {center_x, y, south}},
-        {{ConstructionGizmoKind::Resize, AquariumResizeHandle::West, std::nullopt}, {west, y, center_z}},
+        {{ConstructionGizmoKind::Resize, AquariumResizeHandle::North, std::nullopt, std::nullopt}, {center_x, y, north}},
+        {{ConstructionGizmoKind::Resize, AquariumResizeHandle::East, std::nullopt, std::nullopt}, {east, y, center_z}},
+        {{ConstructionGizmoKind::Resize, AquariumResizeHandle::South, std::nullopt, std::nullopt}, {center_x, y, south}},
+        {{ConstructionGizmoKind::Resize, AquariumResizeHandle::West, std::nullopt, std::nullopt}, {west, y, center_z}},
     };
     points.push_back({{ConstructionGizmoKind::Height, AquariumResizeHandle::SouthEast,
-        std::nullopt}, {center_x, floor_y + tank->height_steps * geo::kVerticalStepWorldUnits,
+        std::nullopt, std::nullopt}, {center_x, floor_y + tank->height_steps * geo::kVerticalStepWorldUnits,
         center_z}});
     for (const auto& corner : geo::footprintCorners(footprint)) {
         if (!corner.convex) continue;
@@ -177,10 +177,19 @@ std::vector<GizmoWorldPoint> gizmoWorldPoints(const AquariumConstructionVisual& 
             std::hypot(toward_center_x, toward_center_z));
         constexpr float kCornerKnobInset = 5.0f;
         points.push_back({{ConstructionGizmoKind::CornerRadius,
-            AquariumResizeHandle::SouthEast, corner.vertex},
+            AquariumResizeHandle::SouthEast, corner.vertex, std::nullopt},
             {vertex_x + toward_center_x / toward_center_length * kCornerKnobInset,
              y + 0.12f,
              vertex_z + toward_center_z / toward_center_length * kCornerKnobInset}});
+    }
+    if (visual.state == ConstructionState::Selected) {
+        for (const geo::GridCell cell : visual.tunnel_portal_cells) {
+            points.push_back({{ConstructionGizmoKind::TunnelPortal,
+                AquariumResizeHandle::SouthEast, std::nullopt, cell},
+                {(static_cast<float>(cell.column) + 0.5f) * tile + offset,
+                 floorForCell(visual, cell) + 3.92f,
+                 (static_cast<float>(cell.row) + 0.5f) * tile + offset}});
+        }
     }
     return points;
 }
@@ -214,6 +223,8 @@ ConstructionVisualMesh buildAquariumConstructionWorldMesh(
     constexpr std::uint32_t kHandle = colorAbgr(255, 255, 255, 255);
     constexpr std::uint32_t kCutFill = colorAbgr(71, 57, 104, 185);
     constexpr std::uint32_t kCutMark = colorAbgr(248, 214, 86, 255);
+    constexpr std::uint32_t kTunnel = colorAbgr(91, 226, 224, 235);
+    constexpr std::uint32_t kTunnelExisting = colorAbgr(98, 129, 214, 190);
 
     const float offset = visual.placement_offset_world_units;
 
@@ -271,6 +282,29 @@ ConstructionVisualMesh buildAquariumConstructionWorldMesh(
         appendCellCross(mesh, x0, z0, tile, y + 0.03f, kCutMark);
     }
 
+    for (const geo::GridCell cell : visual.existing_tunnel_cells) {
+        const float x0 = static_cast<float>(cell.column) * tile + offset;
+        const float z0 = static_cast<float>(cell.row) * tile + offset;
+        appendBorder(mesh, x0 + 3.0f, z0 + 3.0f,
+            x0 + tile - 3.0f, z0 + tile - 3.0f,
+            floorForCell(visual, cell) + 3.84f, 1.15f, kTunnelExisting);
+    }
+    for (std::size_t index = 0; index < visual.tunnel_route_cells.size(); ++index) {
+        const geo::GridCell cell = visual.tunnel_route_cells[index];
+        const float center_x = (static_cast<float>(cell.column) + 0.5f) * tile + offset;
+        const float center_z = (static_cast<float>(cell.row) + 0.5f) * tile + offset;
+        appendDiamond(mesh, center_x, center_z,
+            floorForCell(visual, cell) + 3.96f, index == 0 ? 3.5f : 2.8f, kTunnel);
+        if (index > 0) {
+            const geo::GridCell previous = visual.tunnel_route_cells[index - 1U];
+            appendLine(mesh,
+                (static_cast<float>(previous.column) + 0.5f) * tile + offset,
+                (static_cast<float>(previous.row) + 0.5f) * tile + offset,
+                center_x, center_z, floorForCell(visual, cell) + 3.92f,
+                2.2f, kTunnel);
+        }
+    }
+
     const float cursor_x = static_cast<float>(visual.cursor.column) * tile + offset;
     const float cursor_z = static_cast<float>(visual.cursor.row) * tile + offset;
     const float cursor_y = floorForCell(visual, visual.cursor) + 0.35f;
@@ -304,18 +338,19 @@ ConstructionVisualMesh buildAquariumConstructionWorldMesh(
             const bool height = gizmo.hit.kind == ConstructionGizmoKind::Height;
             const bool depth = gizmo.hit.kind == ConstructionGizmoKind::Depth;
             const bool corner = gizmo.hit.kind == ConstructionGizmoKind::CornerRadius;
+            const bool portal = gizmo.hit.kind == ConstructionGizmoKind::TunnelPortal;
             const bool active_resize = resize && visual.active_resize_handle &&
                 *visual.active_resize_handle == gizmo.hit.resize_handle;
-            const std::uint32_t outer_color = depth ? kCutMark :
+            const std::uint32_t outer_color = portal ? kTunnel : depth ? kCutMark :
                 height ? kSelected : corner ? kAnchor : move ? kAnchor :
                 active_resize ? kSelected : kHandle;
-            const std::uint32_t inner_color = depth ? kSelected :
+            const std::uint32_t inner_color = portal ? kAnchor : depth ? kSelected :
                 corner ? kSelected : move ? kSelected : active_resize ? kHandle : kAnchor;
             appendDiamond(mesh, gizmo.world.x, gizmo.world.z, gizmo.world.y,
-                move ? 4.4f : ((height || depth) ? 4.8f : (active_resize ? 5.2f : 3.6f)),
+                portal ? 3.2f : move ? 4.4f : ((height || depth) ? 4.8f : (active_resize ? 5.2f : 3.6f)),
                 outer_color);
             appendDiamond(mesh, gizmo.world.x, gizmo.world.z, gizmo.world.y + 0.04f,
-                move ? 2.3f : ((height || depth) ? 2.6f : (active_resize ? 2.8f : 1.8f)),
+                portal ? 1.35f : move ? 2.3f : ((height || depth) ? 2.6f : (active_resize ? 2.8f : 1.8f)),
                 inner_color);
             if (depth) {
                 // North-oriented construction cameras project +Z downward on

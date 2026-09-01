@@ -6,7 +6,7 @@
 
 namespace pr::aquarium::geometry {
 
-inline constexpr std::uint32_t kKernelAbiVersion = 6;
+inline constexpr std::uint32_t kKernelAbiVersion = 7;
 inline constexpr std::uint32_t kDesignSchemaVersion = 4;
 inline constexpr std::int32_t kWorldUnitsPerCell = 16;
 inline constexpr std::int32_t kVerticalStepWorldUnits = 8;
@@ -122,6 +122,9 @@ struct SemanticMeshSet {
 
 struct CollisionCellSet {
     std::vector<GridCell> blocked_cells;
+    // Whole construction cells occupied by a verified dry tunnel. Runtime
+    // collision applies these after conservative half-cell tank expansion.
+    std::vector<GridCell> dry_corridor_cells;
 };
 
 struct Polygon2 {
@@ -135,8 +138,16 @@ struct NavigationLayer {
     Polygon2 area;
 };
 
+struct NavigationDryVolume {
+    std::string tunnel_id;
+    float floor_y = 0.0F;
+    float ceiling_y = 0.0F;
+    Polygon2 area;
+};
+
 struct NavigationVolumeSet {
     std::vector<NavigationLayer> layers;
+    std::vector<NavigationDryVolume> dry_volumes;
     std::vector<Vec3> suggested_spawns;
 };
 

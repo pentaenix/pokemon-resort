@@ -133,6 +133,8 @@ std::string hintFor(const AquariumConstructionSession& session) {
     case ConstructionState::MoveTank: return "Move the centre handle  •  Click/A applies";
     case ConstructionState::ResizeTank: return "Move an edge handle  •  Click/A applies";
     case ConstructionState::SubtractFootprint: return "Paint cells away";
+    case ConstructionState::TunnelRoute:
+        return "Follow cells to another glowing portal  •  B cancels";
     case ConstructionState::DraftReview:
     case ConstructionState::DeleteConfirm:
     case ConstructionState::Building: return "Building tank…";

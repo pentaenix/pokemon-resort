@@ -52,6 +52,9 @@ struct AquariumConstructionVisual {
     std::vector<pr::aquarium::geometry::GridCell> selected_cells;
     std::vector<pr::aquarium::geometry::GridCell> original_cells;
     std::vector<pr::aquarium::geometry::GridCell> cut_cells;
+    std::vector<pr::aquarium::geometry::GridCell> tunnel_portal_cells;
+    std::vector<pr::aquarium::geometry::GridCell> tunnel_route_cells;
+    std::vector<pr::aquarium::geometry::GridCell> existing_tunnel_cells;
     pr::aquarium::geometry::GridCell cursor{};
     std::optional<pr::aquarium::geometry::GridCell> anchor;
     std::optional<pr::aquarium::geometry::TankDesign> selected_tank;
@@ -136,12 +139,14 @@ enum class ConstructionGizmoKind {
     Height,
     Depth,
     CornerRadius,
+    TunnelPortal,
 };
 
 struct ConstructionGizmoHit {
     ConstructionGizmoKind kind = ConstructionGizmoKind::Move;
     AquariumResizeHandle resize_handle = AquariumResizeHandle::SouthEast;
     std::optional<pr::aquarium::geometry::GridCell> corner_vertex;
+    std::optional<pr::aquarium::geometry::GridCell> portal_cell;
 };
 
 ConstructionVisualMesh buildAquariumConstructionWorldMesh(

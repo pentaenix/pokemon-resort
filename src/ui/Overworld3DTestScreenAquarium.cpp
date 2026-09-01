@@ -507,6 +507,9 @@ Overworld3DTestScreen::aquariumConstructionVisual() const {
                 ? "CHOOSE CUT AREA  CLICK OR A TO APPLY"
                 : "MOVE ACROSS CELLS  CLICK OR A TO APPLY";
         break;
+    case aqc::ConstructionState::TunnelRoute:
+        visual.navigation_hint = "FOLLOW CELLS TO ANOTHER GLOWING PORTAL";
+        break;
     case aqc::ConstructionState::DraftReview:
         visual.navigation_hint = visual.property_draft
             ? "MOVE UP DOWN  CLICK OR A TO APPLY"
@@ -532,6 +535,11 @@ Overworld3DTestScreen::aquariumConstructionVisual() const {
         if (!aquarium_construction_.draft()) {
             visual.selected_cells = aqc::tankFootprintCells(*selected);
         }
+        for (const auto& tunnel : selected->tunnels) {
+            for (const auto point : tunnel.centreline_cells) {
+                visual.existing_tunnel_cells.push_back({point.column, point.row});
+            }
+        }
     }
     if (aquarium_construction_.draft()) {
         visual.anchor = aquarium_construction_.draft()->anchor;
@@ -540,6 +548,8 @@ Overworld3DTestScreen::aquariumConstructionVisual() const {
         visual.cut_cells = aquarium_construction_.draftCutCells();
     }
     visual.preview_tank = aquarium_construction_.previewTank();
+    visual.tunnel_portal_cells = aquarium_construction_.tunnelPortalCells();
+    visual.tunnel_route_cells = aquarium_construction_.tunnelRouteCells();
     if (!visual.preview_tank && visual.selected_tank) visual.preview_tank = visual.selected_tank;
     if (visual.preview_tank && visual.cut_cells.empty()) {
         const auto& footprint = visual.preview_tank->footprint;

@@ -117,6 +117,10 @@ void AquariumConstructionSession::moveCursor(int column_delta, int row_delta) {
 
 void AquariumConstructionSession::pointAt(geo::GridCell cell) {
     if (!active() || !cellAllowed(cell)) return;
+    if (state_ == ConstructionState::TunnelRoute && draft_) {
+        extendTunnelRouteTo(cell);
+        return;
+    }
     if (state_ == ConstructionState::PaintFootprint && draft_) {
         if (draft_->area_selection) {
             cursor_ = cell;
@@ -232,7 +236,8 @@ bool AquariumConstructionSession::reviewDraft() {
     if (!draft_ || (state_ != ConstructionState::ResizeFootprint &&
         state_ != ConstructionState::MoveTank && state_ != ConstructionState::ResizeTank &&
         state_ != ConstructionState::SubtractFootprint &&
-        state_ != ConstructionState::PaintFootprint)) return false;
+        state_ != ConstructionState::PaintFootprint &&
+        state_ != ConstructionState::TunnelRoute)) return false;
     refreshDraftValidation();
     state_ = ConstructionState::DraftReview;
     return true;
@@ -247,6 +252,7 @@ bool AquariumConstructionSession::adjustDraft() {
         case ConstructionDraftOperation::Subtract: state_ = ConstructionState::SubtractFootprint; break;
         case ConstructionDraftOperation::Add: state_ = ConstructionState::PaintFootprint; break;
         case ConstructionDraftOperation::Properties: state_ = ConstructionState::DraftReview; break;
+        case ConstructionDraftOperation::Tunnel: state_ = ConstructionState::TunnelRoute; break;
     }
     return true;
 }
@@ -260,6 +266,7 @@ bool AquariumConstructionSession::cancel() {
     if (state_ == ConstructionState::ResizeFootprint || state_ == ConstructionState::MoveTank ||
         state_ == ConstructionState::ResizeTank || state_ == ConstructionState::SubtractFootprint ||
         state_ == ConstructionState::PaintFootprint ||
+        state_ == ConstructionState::TunnelRoute ||
         state_ == ConstructionState::DraftReview ||
         state_ == ConstructionState::Building) {
         const bool restore_browse = draft_ && draft_->restore_browse_on_cancel;
@@ -310,6 +317,9 @@ geo::TankDesign AquariumConstructionSession::draftTank() const {
 }
 
 std::vector<geo::GridCell> AquariumConstructionSession::draftCells() const {
+    if (draft_ && draft_->operation == ConstructionDraftOperation::Tunnel) {
+        return tunnelRouteCells();
+    }
     if (draft_ && draft_->area_selection) {
         std::vector<geo::GridCell> cells;
         const int min_column = std::min(draft_->anchor.column, draft_->cursor.column);
@@ -399,6 +409,18 @@ bool AquariumConstructionSession::cellBlocked(geo::GridCell cell) const {
 void AquariumConstructionSession::refreshDraftValidation() {
     validation_message_.clear();
     if (!draft_) return;
+    if (draft_->operation == ConstructionDraftOperation::Tunnel) {
+        if (draft_->tunnel_route.size() < 3U) {
+            validation_message_ = "Route through the tank to another portal";
+            return;
+        }
+        const geo::GridCell endpoint{draft_->tunnel_route.back().column,
+            draft_->tunnel_route.back().row};
+        if (!isTunnelPortalCell(endpoint) || sameCell(endpoint, draft_->anchor)) {
+            validation_message_ = "Finish on a different glowing tank-edge portal";
+            return;
+        }
+    }
     if (!draft_->paint_original_tanks.empty()) {
         if (!draft_->paint_changed) {
             if (draft_->area_selection) return;

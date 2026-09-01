@@ -109,6 +109,11 @@ bool Overworld3DTestScreen::handleAquariumConstructionPointerPressed(
             began = gizmo->corner_vertex.has_value() &&
                 aquarium_construction_.beginPropertySelected();
             break;
+        case aqc::ConstructionGizmoKind::TunnelPortal:
+            if (gizmo->portal_cell) aquarium_construction_.pointAt(*gizmo->portal_cell);
+            began = gizmo->portal_cell.has_value() &&
+                aquarium_construction_.beginTunnelSelected();
+            break;
         }
         if (began) {
             aquarium_pointer_operation_active_ = true;
@@ -181,12 +186,18 @@ bool Overworld3DTestScreen::finishAquariumConstructionPointerOperation(
                    state == aqc::ConstructionState::MoveTank ||
                    state == aqc::ConstructionState::ResizeTank ||
                    state == aqc::ConstructionState::PaintFootprint ||
-                   state == aqc::ConstructionState::SubtractFootprint)) {
+                   state == aqc::ConstructionState::SubtractFootprint ||
+                   state == aqc::ConstructionState::TunnelRoute)) {
         ready = aquarium_construction_.reviewDraft();
     }
     if (ready && !aquarium_construction_.draftValid()) {
-        aquarium_construction_.cancel();
-        resetAquariumConstructionPointerOperation();
+        if (aquarium_construction_.draftOperation() ==
+            aqc::ConstructionDraftOperation::Tunnel) {
+            aquarium_construction_.adjustDraft();
+        } else {
+            aquarium_construction_.cancel();
+            resetAquariumConstructionPointerOperation();
+        }
         requestAquariumConstructionErrorFeedback();
         syncAquariumConstructionFocus();
         return true;

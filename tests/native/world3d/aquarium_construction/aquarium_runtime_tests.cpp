@@ -636,6 +636,7 @@ void constructionVisualBuildsYellowCellsGizmosAndCanonicalHitTargets() {
     visual.selected_cells = construction::tankFootprintCells(selected);
     visual.original_cells = visual.selected_cells;
     visual.locked_cells = {{10, 10}};
+    visual.tunnel_portal_cells = {{10, 11}};
     visual.state = construction::ConstructionState::Selected;
     const auto selected_mesh = construction::buildAquariumConstructionWorldMesh(visual);
     require(selected_mesh.vertices.size() > browse_mesh.vertices.size(),
@@ -672,6 +673,16 @@ void constructionVisualBuildsYellowCellsGizmosAndCanonicalHitTargets() {
         visual, camera, static_cast<int>(screen_x), static_cast<int>(screen_y), 1280, 800);
     require(depth_gizmo && depth_gizmo->kind == construction::ConstructionGizmoKind::Depth,
         "centre knob cluster did not expose a distinct below-floor depth knob");
+    require(camera.worldToScreen({176.0f, 3.92f, 192.0f}, 1280, 800,
+                screen_x, screen_y, depth),
+        "selected tank tunnel portal did not project into the construction viewport");
+    const auto portal_gizmo = construction::hitTestAquariumConstructionGizmo(
+        visual, camera, static_cast<int>(screen_x), static_cast<int>(screen_y), 1280, 800);
+    require(portal_gizmo &&
+            portal_gizmo->kind == construction::ConstructionGizmoKind::TunnelPortal &&
+            portal_gizmo->portal_cell && portal_gizmo->portal_cell->column == 10 &&
+            portal_gizmo->portal_cell->row == 11,
+        "glowing tunnel portal was not mouse-hit-testable at its rendered cell");
     require(camera.worldToScreen({216.0f, 3.65f, 192.0f}, 1280, 800,
                 screen_x, screen_y, depth),
         "selected tank resize gizmo did not project into the construction viewport");
@@ -1052,6 +1063,69 @@ void populationPolicyIsReplaceableAndNavigationIsDerived() {
         "half-cell-installed 3x3 tank did not cover its south/east overlap cells");
 }
 
+void tunnelGestureCommitsCancelsAndClearsRuntimeCollision() {
+    auto document = emptyDocument();
+    geo::TankDesign tank;
+    tank.id = "tank_tunnel_edit";
+    tank.footprint.origin_cell = {11, 11};
+    tank.footprint.width_cells = 6;
+    tank.footprint.depth_cells = 4;
+    document.tanks.push_back(tank);
+    construction::AquariumConstructionSession session;
+    session.configure("aquarium12", constructionConfig(), {}, document);
+    require(session.enter({13, 11}) && session.selectAtCursor(),
+        "tunnel fixture tank was not selectable at its north portal");
+    const auto portals = session.tunnelPortalCells();
+    require(std::any_of(portals.begin(), portals.end(), [](geo::GridCell cell) {
+                return cell.column == 13 && cell.row == 11;
+            }), "north tunnel portal was not exposed to mouse/controller focus");
+    require(session.beginTunnelSelected(), "tunnel route did not begin from a valid portal");
+    session.moveCursor(0, 1);
+    require(!session.draftValid(), "unfinished tunnel route became committable");
+    require(session.cancel() && session.committedDesign().tanks.front().tunnels.empty(),
+        "cancelling a tunnel route changed committed tank data");
+
+    session.pointAt({13, 11});
+    require(session.beginTunnelSelected(), "second tunnel route did not begin");
+    session.moveCursor(0, 1);
+    session.moveCursor(0, 1);
+    session.moveCursor(0, 1);
+    require(session.draftValid() && session.tunnelRouteCells().size() == 4U,
+        "straight portal-to-portal route did not become valid");
+    require(session.reviewDraft(), "valid tunnel route did not enter review");
+    auto candidate = session.prepareCommit();
+    require(candidate && candidate->document.tanks.front().tunnels.size() == 1U,
+        "valid tunnel route did not prepare one tank-edit command");
+    require(session.publish(std::move(*candidate)) && session.undoCount() == 1U,
+        "tunnel edit did not publish as one undoable command");
+    require(session.beginMoveSelected(), "tunnel tank move did not begin");
+    session.moveCursor(1, 0);
+    const auto moved_preview = session.previewTank();
+    require(moved_preview &&
+            moved_preview->tunnels.front().centreline_cells.front().column == 14,
+        "moving a tank did not keep its authored tunnel aligned");
+    require(session.cancel(), "tunnel tank move draft did not cancel");
+
+    pr::gameplay::world3d::SceneConfig scene;
+    scene.grid.width = 24;
+    scene.grid.height = 18;
+    scene.grid.tile_size = 16.0f;
+    scene.terrain.heights.assign(18, std::vector<std::uint8_t>(24, 0));
+    aq::AquariumMapConfig map;
+    map.map_id = "aquarium12";
+    TestPopulationPolicy policy;
+    const auto runtime = construction::buildPlayerAquariumRuntime(
+        session.committedDesign(), scene, map, fs::path{}, policy);
+    require(runtime.tanks.size() == 1U &&
+            runtime.tanks.front().build.navigation.dry_volumes.size() == 1U,
+        "committed tunnel did not reach the runtime navigation set");
+    require(std::none_of(runtime.collision_cells.begin(), runtime.collision_cells.end(),
+            [](geo::GridCell cell) {
+                return (cell.column == 13 || cell.column == 14) &&
+                    cell.row >= 11 && cell.row <= 15;
+            }), "verified tunnel corridor remained blocked after half-cell expansion");
+}
+
 void resourceGenerationRejectsCandidatesWithoutTouchingActiveResources() {
     struct FakeResource { int id = 0; };
     aq::rendering::AquariumResourceGeneration<FakeResource> owner;
@@ -1111,6 +1185,7 @@ int main() {
         run("storePreservesNewerDocumentsAndFailedWrites", storePreservesNewerDocumentsAndFailedWrites);
         run("collisionOverlayCombinesStaticAndDynamicCells", collisionOverlayCombinesStaticAndDynamicCells);
         run("populationPolicyIsReplaceableAndNavigationIsDerived", populationPolicyIsReplaceableAndNavigationIsDerived);
+        run("tunnelGestureCommitsCancelsAndClearsRuntimeCollision", tunnelGestureCommitsCancelsAndClearsRuntimeCollision);
         run("resourceGenerationRejectsCandidatesWithoutTouchingActiveResources", resourceGenerationRejectsCandidatesWithoutTouchingActiveResources);
         std::cout << "aquarium_runtime_tests: ok\n";
         return 0;

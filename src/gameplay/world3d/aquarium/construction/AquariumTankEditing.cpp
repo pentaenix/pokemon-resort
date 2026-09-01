@@ -88,6 +88,12 @@ geo::TankDesign moveTankByCells(const geo::TankDesign& tank, int column_delta, i
     geo::TankDesign moved = tank;
     moved.footprint.origin_cell.column += column_delta;
     moved.footprint.origin_cell.row += row_delta;
+    for (auto& tunnel : moved.tunnels) {
+        for (auto& point : tunnel.centreline_cells) {
+            point.column += column_delta;
+            point.row += row_delta;
+        }
+    }
     return moved;
 }
 

@@ -77,6 +77,16 @@ drift from collision/navigation geometry. Resort dynamically cuts its room
 floor to the exact generated footprint only for positive-depth tanks; the
 maker consumes the same profile through its tool-only WASM adapter.
 
+The first Milestone 4 tunnel slice advances the kernel to ABI 7 without a
+schema change because stable tunnel IDs, route kind, and ordered whole-cell
+centrelines were already authored fields. ABI 7 derives fixed arch shells,
+portal openings, dry corridor collision, vertically layered water navigation,
+explicit dry-volume metadata, and adjusted capacity from that centreline.
+Native and browser-WASM builds share the new cell-region, validation, and
+profile-sweep modules. Rounded and shaped portal seams remain explicit
+validation failures until their shared geometry is implemented; the kernel
+never substitutes an approximate tunnel silently.
+
 ## Alternatives Considered
 
 - Separate C++ and TypeScript implementations constrained by golden files: lower initial porting cost, but still permits semantic drift.

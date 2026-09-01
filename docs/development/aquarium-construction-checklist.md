@@ -1,13 +1,13 @@
 # Aquarium Construction Implementation Checklist
 
-Updated: 2026-08-31
+Updated: 2026-09-01
 
 ## Working-state guardrails
 
-- Pokémon Resort branch: `codex/aquarium-construction-milestone-3` from the reviewed Milestone 2 checkpoint.
-- Aquarium maker branch: `codex/aquarium-construction-milestone-3` from the reviewed Milestone 2 checkpoint.
+- Pokémon Resort branch: `codex/aquarium-construction-milestone-4` from the Milestone 3.5 checkpoint.
+- Aquarium maker branch: `codex/aquarium-construction-milestone-4` from the Milestone 3.5 checkpoint.
 - Pre-Milestone 1 aquarium work was integrated into both repositories before these branches were created.
-- Milestone 3 changes span both repositories because the current kernel ABI 6 is consumed by the maker's browser-only WASM adapter.
+- Milestone 4 changes span both repositories because current kernel ABI 7 is consumed by the maker's browser-only WASM adapter.
 - No reset, clean, checkout, destructive operation, or broad reformat was performed.
 - Feature commits stage explicit Milestone 3 paths only.
 
@@ -20,7 +20,7 @@ Updated: 2026-08-31
 | 2 — editing and history | Complete | User authorized Milestone 3 on 2026-08-29 |
 | 3 — height, L/U shapes, roundness | Review checkpoint ready | Awaiting player review and revision comments |
 | 3.5 — below-floor depth and derived volume | Review checkpoint ready | Awaiting player review before tunnels |
-| 4 — tunnels | Not started | Blocked on Milestone 3 approval |
+| 4 — tunnels | In progress — first playable slice | Awaiting straight/elbow route UX and rendering review |
 | 5 — recovery, performance, release hardening | Not started | Blocked on Milestone 4 approval |
 
 ## Milestone 0 checklist
@@ -464,6 +464,38 @@ Focused verification:
 | `npm run validate:model` | Pass for the complete maker model matrix and the new compatible below-floor mapping |
 | `npm run validate:kernel` | Pass; four exact native/WASM goldens, ABI 6, WASM p95 0.9590 ms |
 
-Review boundary: Milestone 4 tunnels remain blocked until this depth slice is
-visually accepted. Volume is derived data and is never an editable or duplicated
-numeric field in the authoritative save document.
+The user authorized Milestone 4 on 2026-09-01. Volume remains derived data and
+is never an editable or duplicated numeric field in the authoritative save document.
+
+## Milestone 4 — tunnels
+
+### First playable checkpoint
+
+- [x] Create clean Milestone 4 branches in Resort and Aquarium Maker.
+- [x] Advance the shared kernel to ABI 7 without changing authoritative schema 4.
+- [x] Validate ordered whole-cell straight routes and routes with exactly one orthogonal elbow.
+- [x] Require two outward-facing boundary portals, reject self-intersections, crossings, overlaps, invalid route shapes, and boundary-skimming interiors.
+- [x] Generate a fixed one-cell arch shell, portal openings, and a room-level dry floor strip from the same centreline.
+- [x] Separate conservative shell blockers from dry corridor cells and clear the corridor after the canonical half-cell collision expansion.
+- [x] Generate lower water regions around the dry corridor, full water above the crown, explicit dry-volume metadata, reachable spawns, and reduced derived water capacity.
+- [x] Add direct portal sockets and click/A → route → click/A interaction without adding a permanent toolbar mode.
+- [x] Keep tunnel drafts cancellable and publish a completed tunnel as one transactional, undoable tank edit.
+- [x] Add canonical tunnel serialization, native geometry/runtime coverage, and an exact native/WASM straight-tunnel golden.
+- [ ] Player review: verify portal visibility, pointer selection, controller route laying, arch/floor appearance, walking collision, and Pokémon presentation.
+- [ ] Add explicit selection/edit/removal of an existing tunnel; undo currently remains the removal path for the latest tunnel.
+- [ ] Route compatible discrete Aquarium Maker passage settings through ABI 7; the maker UI still keeps passages on its advanced legacy geometry path, while the shared JSON golden already proves native/WASM parity.
+- [ ] Extend portal cutting and water-region construction to rounded, rotated, L/U, and exterior-subtracted tanks after the rectangular seam is visually accepted.
+- [ ] Add multiple-tunnel player interaction and manual validation; the kernel already rejects crossing/overlapping routes.
+
+Focused verification:
+
+| Command | Result |
+|---|---|
+| Resort geometry, design, runtime targets and `title_screen_demo` | Pass |
+| `aquarium_geometry_tests`, `aquarium_design_tests`, `aquarium_runtime_tests` | Pass |
+| `npm run validate:kernel` | Pass; five exact native/WASM goldens, ABI 7, rectangle hash `fnv1a64:bd8f5a51b720383b`, WASM p95 1.2613 ms |
+| `npm run check` | Pass; existing maker chunk-size warning only |
+
+Review boundary: this is intentionally the smallest end-to-end tunnel slice.
+Do not add shaped/rounded seams or existing-tunnel editing until the player has
+checked portal readability, route feel, geometry, and collision in Builder Lab.

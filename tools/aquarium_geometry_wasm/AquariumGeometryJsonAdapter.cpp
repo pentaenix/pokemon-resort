@@ -78,6 +78,13 @@ JsonValue serializeBuild(const AquariumBuildResult& result) {
             {"row", number(cell.row)},
         });
     }
+    JsonValue::Array dry_corridor;
+    for (const GridCell& cell : result.collision.dry_corridor_cells) {
+        dry_corridor.emplace_back(JsonValue::Object{
+            {"column", number(cell.column)},
+            {"row", number(cell.row)},
+        });
+    }
     JsonValue::Array layers;
     for (const NavigationLayer& layer : result.navigation.layers) {
         JsonValue::Array outer;
@@ -101,9 +108,25 @@ JsonValue serializeBuild(const AquariumBuildResult& result) {
     for (const Vec3& spawn : result.navigation.suggested_spawns) {
         spawns.emplace_back(JsonValue::Array{number(spawn.x), number(spawn.y), number(spawn.z)});
     }
+    JsonValue::Array dry_volumes;
+    for (const NavigationDryVolume& volume : result.navigation.dry_volumes) {
+        JsonValue::Array outer;
+        for (const Vec2& point : volume.area.outer) {
+            outer.emplace_back(JsonValue::Array{number(point.x), number(point.y)});
+        }
+        dry_volumes.emplace_back(JsonValue::Object{
+            {"ceilingY", number(volume.ceiling_y)},
+            {"floorY", number(volume.floor_y)},
+            {"outer", JsonValue(std::move(outer))},
+            {"tunnelId", JsonValue(volume.tunnel_id)},
+        });
+    }
     const GeometryStatistics& stats = result.statistics;
     return JsonValue(JsonValue::Object{
-        {"collision", JsonValue(std::move(collision))},
+        {"collision", JsonValue(JsonValue::Object{
+             {"blockedCells", JsonValue(std::move(collision))},
+             {"dryCorridorCells", JsonValue(std::move(dry_corridor))},
+         })},
         {"compatibility", JsonValue(std::string("compatible"))},
         {"contentHash", JsonValue(result.content_hash)},
         {"designSchemaVersion", number(kDesignSchemaVersion)},
@@ -111,6 +134,7 @@ JsonValue serializeBuild(const AquariumBuildResult& result) {
         {"kernelAbiVersion", number(kKernelAbiVersion)},
         {"meshes", JsonValue(std::move(meshes))},
         {"navigation", JsonValue(JsonValue::Object{
+             {"dryVolumes", JsonValue(std::move(dry_volumes))},
              {"layers", JsonValue(std::move(layers))},
              {"suggestedSpawns", JsonValue(std::move(spawns))},
          })},

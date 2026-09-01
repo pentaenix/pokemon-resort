@@ -39,6 +39,14 @@ construction::AquariumDesignDocument documentFixture() {
     shaped.height_steps = 12;
     shaped.corner_radius_steps = 2;
     document.tanks.push_back(std::move(shaped));
+    geometry::TankDesign tunnel;
+    tunnel.id = "tank_golden_tunnel";
+    tunnel.footprint.origin_cell = {20, 20};
+    tunnel.footprint.width_cells = 6;
+    tunnel.footprint.depth_cells = 4;
+    tunnel.tunnels.push_back({"tunnel_straight", geometry::TunnelRoute::Straight,
+        {{20, 21}, {21, 21}, {22, 21}, {23, 21}, {24, 21}, {25, 21}}});
+    document.tanks.push_back(std::move(tunnel));
     return document;
 }
 
@@ -51,16 +59,19 @@ void testCanonicalRoundTrip() {
     require(parsed.document->tanks.front().corner_radii.size() == 2 &&
             parsed.document->tanks.front().corner_radii.back().radius_steps == 2,
         "per-corner radii did not survive serialization");
+    require(parsed.document->tanks.back().tunnels.size() == 1 &&
+            parsed.document->tanks.back().tunnels.front().centreline_cells.size() == 6,
+        "ordered tunnel centreline did not survive serialization");
     require(construction::serializeAquariumDesignCanonical(*parsed.document) == first,
             "canonical round trip changed bytes");
 }
 
 void testNewerVersionIsReadOnly() {
     std::string text = construction::serializeAquariumDesignCanonical(documentFixture());
-    const std::string needle = "\"schemaVersion\": 3";
+    const std::string needle = "\"schemaVersion\": 4";
     const std::size_t position = text.find(needle);
     require(position != std::string::npos, "schema version fixture missing");
-    text.replace(position, needle.size(), "\"schemaVersion\": 4");
+    text.replace(position, needle.size(), "\"schemaVersion\": 5");
     const construction::AquariumDesignLoadResult result = construction::parseAquariumDesign(text);
     require(result.status == construction::AquariumDesignLoadStatus::NewerVersion,
             "newer design was not preserved as incompatible");
