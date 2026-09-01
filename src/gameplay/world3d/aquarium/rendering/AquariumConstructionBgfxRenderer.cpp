@@ -204,6 +204,7 @@ public:
         constexpr std::uint32_t kNavy = colorAbgr(34, 59, 91);
         constexpr std::uint32_t kBlue = colorAbgr(54, 132, 224);
         constexpr std::uint32_t kGreen = colorAbgr(66, 183, 126);
+        constexpr std::uint32_t kAqua = colorAbgr(39, 177, 188);
         constexpr std::uint32_t kMagenta = colorAbgr(196, 89, 142);
         constexpr std::uint32_t kYellow = colorAbgr(246, 199, 62);
         constexpr std::uint32_t kRed = colorAbgr(225, 91, 87);
@@ -237,6 +238,11 @@ public:
                     center_x - arm * 0.2f, center_y + arm * 0.65f, 6.0f, kWhite);
                 appendLine2d(mesh, center_x - arm * 0.2f, center_y + arm * 0.65f,
                     center_x + arm, center_y - arm * 0.65f, 6.0f, kWhite);
+            } else if (action == Action::Cancel) {
+                appendLine2d(mesh, center_x - arm * 0.75f, center_y - arm * 0.75f,
+                    center_x + arm * 0.75f, center_y + arm * 0.75f, 7.0f, kWhite);
+                appendLine2d(mesh, center_x + arm * 0.75f, center_y - arm * 0.75f,
+                    center_x - arm * 0.75f, center_y + arm * 0.75f, 7.0f, kWhite);
             } else if (action == Action::Delete) {
                 appendQuad(mesh, center_x - arm * 0.62f, center_y - arm * 0.1f,
                     center_x + arm * 0.62f, center_y + arm * 0.9f, kWhite);
@@ -247,29 +253,25 @@ public:
             } else if (action == Action::Undo || action == Action::Redo) {
                 const bool redo = action == Action::Redo;
                 const float direction = redo ? 1.0f : -1.0f;
-                float previous_x = center_x - direction * arm * 0.7f;
-                float previous_y = center_y + arm * 0.45f;
-                for (int segment = 1; segment <= 8; ++segment) {
-                    const float t = static_cast<float>(segment) / 8.0f;
-                    const float x = center_x + direction * (-arm * 0.7f + arm * 1.4f * t);
-                    const float y = center_y + arm * (0.45f - 1.2f * std::sin(t * bx::kPi));
-                    appendLine2d(mesh, previous_x, previous_y, x, y, 5.0f, kWhite);
-                    previous_x = x;
-                    previous_y = y;
-                }
+                appendLine2d(mesh, center_x - direction * arm * 0.7f, center_y,
+                    center_x + direction * arm * 0.72f, center_y, 7.0f, kWhite);
+                appendLine2d(mesh, center_x + direction * arm * 0.72f, center_y,
+                    center_x + direction * arm * 0.72f, center_y + arm * 0.58f,
+                    7.0f, kWhite);
                 appendTriangle2d(mesh,
-                    center_x - direction * arm * 0.9f, center_y + arm * 0.35f,
-                    center_x - direction * arm * 0.4f, center_y + arm * 0.05f,
-                    center_x - direction * arm * 0.4f, center_y + arm * 0.7f,
+                    center_x + direction * arm, center_y,
+                    center_x + direction * arm * 0.35f, center_y - arm * 0.48f,
+                    center_x + direction * arm * 0.35f, center_y + arm * 0.48f,
                     kWhite);
             }
         };
         button(layout.place, Action::Place, kBlue, true, !visual_.subtract_mode);
         button(layout.subtract, Action::Subtract, kMagenta, true, visual_.subtract_mode);
         button(layout.undo, Action::Undo, kBlue, visual_.undo_available);
-        button(layout.redo, Action::Redo, kBlue, visual_.redo_available);
+        button(layout.redo, Action::Redo, kAqua, visual_.redo_available);
         button(layout.remove, Action::Delete, kRed);
         button(layout.build, Action::Build, kGreen);
+        button(layout.cancel, Action::Cancel, kRed);
         button(layout.exit, Action::Exit, kGreen);
         if (mesh.vertices.empty()) return;
         float view[16], projection[16];

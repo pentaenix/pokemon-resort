@@ -150,9 +150,9 @@ std::vector<ConstructionHudAction> aquariumConstructionHudActions(
         case ConstructionState::ResizeTank:
         case ConstructionState::SubtractFootprint:
         case ConstructionState::PaintFootprint:
-            return {ConstructionHudAction::Build};
+            return {ConstructionHudAction::Build, ConstructionHudAction::Cancel};
         case ConstructionState::DraftReview:
-            return {ConstructionHudAction::Build};
+            return {ConstructionHudAction::Build, ConstructionHudAction::Cancel};
         case ConstructionState::DeleteConfirm:
             return {ConstructionHudAction::Delete, ConstructionHudAction::Cancel};
         case ConstructionState::Dormant:
@@ -173,10 +173,14 @@ ConstructionHudLayout aquariumConstructionHudLayout(
     const int icon = std::clamp(height / 11, 52, 68);
     const int gap = std::clamp(icon / 6, 8, 12);
     layout.safe_world = {0, 0, width, height};
-    layout.redo = {width - margin - icon, margin, icon, icon};
-    layout.undo = {layout.redo.x - gap - icon, margin, icon, icon};
-    layout.status = {margin, margin,
-        std::max(180, layout.undo.x - gap - margin), 44};
+    if (state == ConstructionState::Browse || state == ConstructionState::Selected) {
+        layout.redo = {width - margin - icon, margin, icon, icon};
+        layout.undo = {layout.redo.x - gap - icon, margin, icon, icon};
+        layout.status = {margin, margin,
+            std::max(180, layout.undo.x - gap - margin), 44};
+    } else {
+        layout.status = {margin, margin, std::max(180, width - margin * 2), 44};
+    }
     const int bottom = height - margin - icon;
     if (state == ConstructionState::Browse || state == ConstructionState::Selected) {
         layout.place = {margin, bottom, icon, icon};
@@ -187,6 +191,7 @@ ConstructionHudLayout aquariumConstructionHudLayout(
         state == ConstructionState::SubtractFootprint ||
         state == ConstructionState::PaintFootprint || state == ConstructionState::DraftReview) {
         layout.build = {width - margin - icon, bottom, icon, icon};
+        layout.cancel = {layout.build.x - gap - icon, bottom, icon, icon};
     } else {
         layout.exit = {width - margin - icon, bottom, icon, icon};
     }
@@ -288,6 +293,7 @@ bool aquariumConstructionHudContainsUi(
         layout.undo.contains(screen_x, screen_y) ||
         layout.redo.contains(screen_x, screen_y) ||
         layout.build.contains(screen_x, screen_y) ||
+        layout.cancel.contains(screen_x, screen_y) ||
         layout.remove.contains(screen_x, screen_y) ||
         layout.exit.contains(screen_x, screen_y);
 }

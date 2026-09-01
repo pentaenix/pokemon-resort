@@ -320,8 +320,9 @@ Shipping Metal inspection at the normal 800×500 game viewport showed both loade
 - [x] Player-review correction: replace press-drag-release with click-start, pointer-move, click-finish for drawing, painting, movement, resizing, height, and corner roundness.
 - [x] Player-review correction: expose four side-only resize handles and dedicated convex-corner radius handles above the flat sand surface.
 - [x] Player-review correction: advance to ABI 5, block every occupied footprint cell, and add the standard solid lower plinth beneath the lower rim.
-- [x] Player-review correction: let plus/minus gestures arm in empty exterior cells; allow plus paths to grow irregular footprints and merge player tanks, and minus paths to erase cells across multiple tanks.
+- [x] Player-review correction: let plus/minus gestures arm in empty exterior cells; allow plus paths to grow irregular footprints and merge player tanks, and make minus a reversible rectangular selection that cuts across multiple tanks.
 - [x] Player-review correction: represent multi-tank paint as one exact tank-set command so merge and multi-delete preserve IDs/properties and undo/redo atomically; enlarge the visible undo/redo pointer targets.
+- [x] Player-review correction: replace the ambiguous history glyphs with heavier directional symbols and keep an explicit red cancel control beside green accept throughout every active draft/review state.
 - [ ] Player visual review: verify icon theme, pointer feel, knob separation, material colors/transparency, and full mouse/controller happy paths in the Builder Lab.
 
 ### Milestone 3 direct-manipulation verification
@@ -337,9 +338,10 @@ Shipping Metal inspection at the normal 800×500 game viewport showed both loade
 
 Latest paint-control correction: the native command/runtime tests now cover an
 exterior-start L-shaped add, bridging and merging two tanks under the selected
-stable ID, exterior-start subtraction across two tanks, complete multi-delete,
-matching generated collision, and exact undo/redo restoration. The overlay and
-input tests also verify forgiving undo/redo icon-edge hit targets. No schema,
+stable ID, exterior-start rectangular subtraction across two tanks, complete
+multi-delete, explicit draft cancellation, matching generated collision, and
+exact undo/redo restoration. The HUD tests also verify the cancel control and
+forgiving undo/redo icon-edge hit targets. No schema,
 kernel ABI, maker artifact, shader, or shared render state changed in this
 correction.
 

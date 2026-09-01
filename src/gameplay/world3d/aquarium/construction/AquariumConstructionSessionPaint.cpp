@@ -81,6 +81,7 @@ void markAffected(ConstructionDraft& draft, const std::string& id) {
 } // namespace
 
 bool AquariumConstructionSession::beginPaintSelected(bool subtract) {
+    const bool began_in_browse = state_ == ConstructionState::Browse;
     if (subtract && state_ == ConstructionState::Browse && !committed_.tanks.empty()) {
         const auto nearest = std::min_element(
             committed_.tanks.begin(), committed_.tanks.end(), [&](const auto& lhs, const auto& rhs) {
@@ -105,10 +106,12 @@ bool AquariumConstructionSession::beginPaintSelected(bool subtract) {
         anchor, anchor, *selected, *selected, AquariumResizeHandle::SouthEast, false};
     draft_->paint_original_tanks = committed_.tanks;
     draft_->paint_candidate_tanks = committed_.tanks;
+    draft_->area_selection = subtract;
+    draft_->restore_browse_on_cancel = began_in_browse;
     state_ = ConstructionState::PaintFootprint;
 
-    // The first click may be outside every tank. It arms a click-move-click
-    // gesture; painting starts when the path reaches an editable footprint.
+    // The first click may be outside every tank. Add arms a path from the
+    // selected footprint; subtract grows a rectangular selection from anchor.
     paintCursorCell();
     refreshDraftValidation();
     return true;
@@ -158,22 +161,31 @@ bool AquariumConstructionSession::paintCursorCell() {
         draft_->candidate_tank = *findTankById(tanks, draft_->original_tank->id);
         draft_->paint_changed = true;
     } else {
-        auto touched = findTankAt(tanks, cursor_);
-        if (touched == tanks.end()) {
-            draft_->cursor = cursor_;
-            return true;
+        tanks.clear();
+        draft_->paint_affected_ids.clear();
+        const int min_column = std::min(draft_->anchor.column, cursor_.column);
+        const int max_column = std::max(draft_->anchor.column, cursor_.column);
+        const int min_row = std::min(draft_->anchor.row, cursor_.row);
+        const int max_row = std::max(draft_->anchor.row, cursor_.row);
+        for (const auto& original : draft_->paint_original_tanks) {
+            auto cells = occupiedCells(original);
+            const std::size_t original_size = cells.size();
+            for (int row = min_row; row <= max_row; ++row) {
+                for (int column = min_column; column <= max_column; ++column) {
+                    cells.erase({column, row});
+                }
+            }
+            if (cells.size() != original_size) markAffected(*draft_, original.id);
+            if (!cells.empty()) {
+                tanks.push_back(cells.size() == original_size
+                    ? original : tankFromCells(original, cells));
+            }
         }
-        const std::string touched_id = touched->id;
-        auto cells = occupiedCells(*touched);
-        cells.erase(cursor_key);
-        markAffected(*draft_, touched_id);
-        if (cells.empty()) tanks.erase(touched);
-        else *touched = tankFromCells(*touched, cells);
         const auto primary = findTankById(tanks, draft_->original_tank->id);
         draft_->candidate_tank = primary == tanks.end()
             ? std::optional<geo::TankDesign>{}
             : std::optional<geo::TankDesign>{*primary};
-        draft_->paint_changed = true;
+        draft_->paint_changed = !draft_->paint_affected_ids.empty();
     }
     draft_->cursor = cursor_;
     draft_->delete_candidate = tanks.empty();

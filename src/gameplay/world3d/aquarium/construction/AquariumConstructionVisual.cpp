@@ -453,6 +453,9 @@ std::string aquariumConstructionHintForValidation(std::string_view validation_me
         return validation_message.find("edge") != std::string_view::npos
             ? "MOVE TO A TANK EDGE" : "MOVE ACROSS A TANK";
     }
+    if (validation_message.find("Move the selection") != std::string_view::npos) {
+        return "SELECT PART OF A TANK";
+    }
     return "CANNOT BUILD HERE";
 }
 

@@ -130,20 +130,24 @@ void directPaintGesturesCommitAsSingleUndoableCommands() {
     session.pointAt({min_column, min_row});
     require(session.beginPaintSelected(true) && session.draftValid(),
         "corner subtraction did not begin");
+    session.pointAt({min_column + 1, min_row});
     const auto corner_cut_cells = session.draftCells();
-    require(std::any_of(corner_cut_cells.begin(), corner_cut_cells.end(),
-                [&](geo::GridCell cell) {
-                    return cell.row == min_row && cell.column != min_column;
-                }),
-        "irregular paint bounds cropped rows outside the leftmost column");
+    require(corner_cut_cells.size() == 2 && corner_cut_cells.front().column == min_column &&
+            corner_cut_cells.back().column == min_column + 1,
+        "minus mode did not preview the full rectangular cell selection");
     require(session.cancel(), "corner-subtraction regression draft did not cancel");
 
-    session.pointAt({10, 10});
+    int max_column = min_column;
+    int max_row = min_row;
+    for (const auto cell : expanded_cells) {
+        max_column = std::max(max_column, cell.column);
+        max_row = std::max(max_row, cell.row);
+    }
+    session.pointAt({min_column, min_row});
     require(session.beginPaintSelected(true), "subtract gesture did not begin");
-    const auto occupied = geo::footprintCells(session.committedDesign().tanks.front().footprint);
-    for (const geo::GridCell cell : occupied) session.pointAt(cell);
-    require(session.draftCells().empty() && session.draftValid(),
-        "subtracting every cell did not become a valid delete gesture");
+    session.pointAt({max_column, max_row});
+    require(session.draftValid(),
+        "selecting the complete footprint did not become a valid delete gesture");
     require(session.reviewDraft(), "delete-by-subtraction did not finish");
     auto removed = session.prepareCommit();
     require(removed && removed->document.tanks.empty(),
@@ -199,18 +203,19 @@ void exteriorPaintMergesAndErasesMultipleTanksUndoably() {
     construction::AquariumConstructionSession erase;
     erase.configure("aquarium12", constructionConfig(), {}, document);
     require(erase.enter({21, 15}), "erase fixture did not enter construction");
-    erase.pointAt({14, 15});
+    erase.pointAt({19, 15});
     require(erase.beginPaintSelected(true),
         "minus paint could not arm from empty space without a prior selection");
-    const auto original_cells = [&]() {
-        std::vector<geo::GridCell> cells = geo::footprintCells(alpha.footprint);
-        const auto beta_cells = geo::footprintCells(beta.footprint);
-        cells.insert(cells.end(), beta_cells.begin(), beta_cells.end());
-        return cells;
-    }();
-    for (const auto cell : original_cells) erase.pointAt(cell);
-    require(erase.draftCells().empty() && erase.draftValid(),
-        "one exterior minus gesture did not fully erase multiple tanks");
+    require(!erase.draftValid(), "empty minus anchor unexpectedly changed a tank");
+    require(erase.cancel() && erase.state() == construction::ConstructionState::Browse &&
+            !erase.selectedTankId() && erase.committedDesign().tanks.size() == 2,
+        "cancel did not return an exterior-start selection to unchanged browse state");
+    erase.pointAt({19, 15});
+    require(erase.beginPaintSelected(true),
+        "minus selection could not restart after explicit cancellation");
+    erase.pointAt({10, 10});
+    require(erase.draftValid() && erase.draftCells().size() == 60,
+        "one rectangular minus selection did not cover both tanks from exterior space");
     require(erase.reviewDraft(), "multi-delete paint did not enter review");
     auto deleted = erase.prepareCommit();
     require(deleted && deleted->document.tanks.empty(),
@@ -724,11 +729,19 @@ void constructionVisualBuildsYellowCellsGizmosAndCanonicalHitTargets() {
         "undo/redo mouse targets do not include their visible icon edges");
     const auto resize_hud = construction::aquariumConstructionHudLayout(
         1280, 800, construction::ConstructionState::ResizeFootprint);
+    require(resize_hud.undo.width == 0 && resize_hud.redo.width == 0,
+        "active draft still displays history controls that cannot own input");
     require(construction::hitTestAquariumConstructionHud(
                 resize_hud, resize_hud.build.x + 2, resize_hud.build.y + 2,
                 construction::ConstructionState::ResizeFootprint) ==
             construction::ConstructionHudAction::Build,
         "visible gesture finish control is not hit-testable");
+    require(construction::hitTestAquariumConstructionHud(
+                resize_hud, resize_hud.cancel.x + resize_hud.cancel.width / 2,
+                resize_hud.cancel.y + resize_hud.cancel.height / 2,
+                construction::ConstructionState::ResizeFootprint) ==
+            construction::ConstructionHudAction::Cancel,
+        "visible gesture cancel control is not hit-testable beside accept");
     const auto selected_hud = construction::aquariumConstructionHudLayout(
         1280, 800, construction::ConstructionState::Selected);
     require(construction::hitTestAquariumConstructionHud(

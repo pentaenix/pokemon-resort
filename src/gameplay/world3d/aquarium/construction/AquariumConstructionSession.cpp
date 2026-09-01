@@ -120,6 +120,12 @@ void AquariumConstructionSession::moveCursor(int column_delta, int row_delta) {
 void AquariumConstructionSession::pointAt(geo::GridCell cell) {
     if (!active() || !cellAllowed(cell)) return;
     if (state_ == ConstructionState::PaintFootprint && draft_) {
+        if (draft_->area_selection) {
+            cursor_ = cell;
+            draft_->cursor = cell;
+            paintCursorCell();
+            return;
+        }
         while (cursor_.column != cell.column) {
             cursor_.column += cursor_.column < cell.column ? 1 : -1;
             if (!cellAllowed(cursor_) || !paintCursorCell()) return;
@@ -258,11 +264,14 @@ bool AquariumConstructionSession::cancel() {
         state_ == ConstructionState::PaintFootprint ||
         state_ == ConstructionState::DraftReview ||
         state_ == ConstructionState::Building) {
+        const bool restore_browse = draft_ && draft_->restore_browse_on_cancel;
         const bool editing_existing = draft_ &&
             draft_->operation != ConstructionDraftOperation::Create && selectedTank();
         draft_.reset();
         pending_operation_token_ = 0;
-        state_ = editing_existing ? ConstructionState::Selected : ConstructionState::Browse;
+        if (restore_browse) selected_tank_id_.reset();
+        state_ = editing_existing && !restore_browse
+            ? ConstructionState::Selected : ConstructionState::Browse;
         validation_message_.clear();
         return true;
     }
@@ -297,6 +306,21 @@ geo::TankDesign AquariumConstructionSession::draftTank() const {
 }
 
 std::vector<geo::GridCell> AquariumConstructionSession::draftCells() const {
+    if (draft_ && draft_->area_selection) {
+        std::vector<geo::GridCell> cells;
+        const int min_column = std::min(draft_->anchor.column, draft_->cursor.column);
+        const int max_column = std::max(draft_->anchor.column, draft_->cursor.column);
+        const int min_row = std::min(draft_->anchor.row, draft_->cursor.row);
+        const int max_row = std::max(draft_->anchor.row, draft_->cursor.row);
+        cells.reserve(static_cast<std::size_t>(max_column - min_column + 1) *
+            static_cast<std::size_t>(max_row - min_row + 1));
+        for (int row = min_row; row <= max_row; ++row) {
+            for (int column = min_column; column <= max_column; ++column) {
+                cells.push_back({column, row});
+            }
+        }
+        return cells;
+    }
     if (draft_ && !draft_->paint_candidate_tanks.empty()) {
         std::vector<geo::GridCell> cells;
         for (const auto& tank : draft_->paint_candidate_tanks) {
@@ -330,7 +354,13 @@ std::vector<geo::GridCell> AquariumConstructionSession::draftOriginalCells() con
 std::vector<geo::GridCell> AquariumConstructionSession::draftCutCells() const {
     if (!draft_ || draft_->paint_original_tanks.empty()) return {};
     const auto original = draftOriginalCells();
-    const auto candidate = draftCells();
+    std::vector<geo::GridCell> candidate;
+    for (const auto& tank : draft_->paint_candidate_tanks) {
+        if (std::find(draft_->paint_affected_ids.begin(), draft_->paint_affected_ids.end(),
+                tank.id) == draft_->paint_affected_ids.end()) continue;
+        const auto tank_cells = tankFootprintCells(tank);
+        candidate.insert(candidate.end(), tank_cells.begin(), tank_cells.end());
+    }
     std::vector<geo::GridCell> cut;
     for (const auto cell : original) {
         if (std::none_of(candidate.begin(), candidate.end(), [&](auto retained) {
@@ -369,7 +399,7 @@ void AquariumConstructionSession::refreshDraftValidation() {
     if (!draft_->paint_original_tanks.empty()) {
         if (!draft_->paint_changed) {
             validation_message_ = draft_->operation == ConstructionDraftOperation::Add
-                ? "Move the path to a tank edge" : "Move the path across a tank";
+                ? "Move the path to a tank edge" : "Move the selection across a tank";
             return;
         }
         if (draft_->paint_candidate_tanks.size() > 8U) {
@@ -485,8 +515,12 @@ std::optional<ConstructionCommitCandidate> AquariumConstructionSession::prepareC
         command.tank_id = draft_->original_tank ? draft_->original_tank->id : std::string{};
         command.tanks_before = draft_->paint_original_tanks;
         command.tanks_after = draft_->paint_candidate_tanks;
-        return prepareHistoryCommand(command, AquariumCommandDirection::Forward,
+        auto candidate = prepareHistoryCommand(command, AquariumCommandDirection::Forward,
             ConstructionHistoryAction::RecordNew);
+        if (candidate && draft_->restore_browse_on_cancel) {
+            candidate->selection_after_publish.reset();
+        }
+        return candidate;
     }
     if (draft_->delete_candidate) {
         if (!draft_->original_tank) return std::nullopt;

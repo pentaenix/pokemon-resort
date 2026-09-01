@@ -60,10 +60,15 @@ Overworld3DTestScreen::aquariumConstructionGizmoAt(int logical_x, int logical_y)
 bool Overworld3DTestScreen::handleAquariumConstructionPointerPressed(
     int logical_x, int logical_y) {
     namespace aqc = gameplay::world3d::aquarium::construction;
+    const auto hud_hit = aquariumConstructionHudHitAt(logical_x, logical_y);
     if (aquarium_pointer_operation_active_) {
+        if (hud_hit.action == aqc::ConstructionHudAction::Cancel) {
+            aquarium_construction_focused_action_ = hud_hit.action;
+            activateAquariumConstructionAction(hud_hit.action);
+            return true;
+        }
         return finishAquariumConstructionPointerOperation(logical_x, logical_y);
     }
-    const auto hud_hit = aquariumConstructionHudHitAt(logical_x, logical_y);
     if (hud_hit.action != aqc::ConstructionHudAction::None) {
         aquarium_construction_focused_action_ = hud_hit.action;
         if (hud_hit.value) {
@@ -269,7 +274,9 @@ bool Overworld3DTestScreen::activateAquariumConstructionAction(
             handled = aquarium_construction_.canRedo() && redoAquariumConstruction();
             break;
         case aqc::ConstructionHudAction::Cancel:
-            onBackPressed();
+            handled = aquarium_construction_.cancel();
+            if (handled) resetAquariumConstructionPointerOperation();
+            else onBackPressed();
             break;
         case aqc::ConstructionHudAction::Done:
             aquarium_construction_.clearSelection();

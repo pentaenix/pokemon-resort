@@ -497,7 +497,11 @@ Overworld3DTestScreen::aquariumConstructionVisual() const {
         visual.navigation_hint = "A OR CLICK CUTS CELLS  X APPLIES";
         break;
     case aqc::ConstructionState::PaintFootprint:
-        visual.navigation_hint = "MOVE ACROSS CELLS  CLICK OR A TO APPLY";
+        visual.navigation_hint = visual.property_draft
+            ? "MOVE ACROSS CELLS  CLICK OR A TO APPLY"
+            : aquarium_construction_.draftOperation() == aqc::ConstructionDraftOperation::Subtract
+                ? "CHOOSE CUT AREA  CLICK OR A TO APPLY"
+                : "MOVE ACROSS CELLS  CLICK OR A TO APPLY";
         break;
     case aqc::ConstructionState::DraftReview:
         visual.navigation_hint = visual.property_draft

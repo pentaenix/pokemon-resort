@@ -58,6 +58,8 @@ struct ConstructionDraft {
     AquariumResizeHandle resize_handle = AquariumResizeHandle::SouthEast;
     bool delete_candidate = false;
     bool paint_changed = false;
+    bool area_selection = false;
+    bool restore_browse_on_cancel = false;
     std::vector<pr::aquarium::geometry::TankDesign> paint_original_tanks;
     std::vector<pr::aquarium::geometry::TankDesign> paint_candidate_tanks;
     std::vector<std::string> paint_affected_ids;

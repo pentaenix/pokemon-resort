@@ -80,6 +80,19 @@ void drawCheck(SDL_Renderer* renderer, const ConstructionHudRect& rect) {
     }
 }
 
+void drawCancel(SDL_Renderer* renderer, const ConstructionHudRect& rect) {
+    color(renderer, {255, 255, 246, 255});
+    const int inset_pixels = rect.width * 30 / 100;
+    for (int offset = -3; offset <= 3; ++offset) {
+        SDL_RenderDrawLine(renderer,
+            rect.x + inset_pixels, rect.y + inset_pixels + offset,
+            rect.x + rect.width - inset_pixels, rect.y + rect.height - inset_pixels + offset);
+        SDL_RenderDrawLine(renderer,
+            rect.x + rect.width - inset_pixels, rect.y + inset_pixels + offset,
+            rect.x + inset_pixels, rect.y + rect.height - inset_pixels + offset);
+    }
+}
+
 void drawTrash(SDL_Renderer* renderer, const ConstructionHudRect& rect) {
     color(renderer, {255, 255, 246, 255});
     SDL_Rect body{rect.x + rect.width * 34 / 100, rect.y + rect.height * 39 / 100,
@@ -126,7 +139,7 @@ std::string hintFor(const AquariumConstructionSession& session) {
     case ConstructionState::ResizeFootprint: return "Move to size  •  Click/A applies";
     case ConstructionState::PaintFootprint:
         return session.draftOperation() == ConstructionDraftOperation::Subtract
-            ? "Move across tanks to erase  •  Click/A applies"
+            ? "Choose the opposite corner  •  × cancels  •  ✓ applies"
             : "Move from an edge to grow or merge tanks";
     case ConstructionState::MoveTank: return "Move the centre handle  •  Click/A applies";
     case ConstructionState::ResizeTank: return "Move an edge handle  •  Click/A applies";
@@ -192,6 +205,11 @@ void AquariumConstructionOverlay::render(
         drawButtonBase(renderer, finish, true, focused_action == finish_action,
             {66, 183, 126, 255});
         drawCheck(renderer, finish);
+    }
+    if (layout.cancel.width > 0) {
+        drawButtonBase(renderer, layout.cancel, true,
+            focused_action == ConstructionHudAction::Cancel, {225, 91, 87, 255});
+        drawCancel(renderer, layout.cancel);
     }
 
     const std::string hint = hintFor(session);
