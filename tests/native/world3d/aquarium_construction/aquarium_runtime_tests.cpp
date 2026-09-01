@@ -658,14 +658,14 @@ void constructionVisualBuildsYellowCellsGizmosAndCanonicalHitTargets() {
     require(hit && hit->column == 10 && hit->row == 10,
         "rendered half-cell-offset surface and pointer hit target disagree");
 
-    require(camera.worldToScreen({192.0f, 3.65f, 192.0f}, 1280, 800,
+    require(camera.worldToScreen({185.0f, 3.65f, 192.0f}, 1280, 800,
                 screen_x, screen_y, depth),
         "selected tank move gizmo did not project into the construction viewport");
     const auto move_gizmo = construction::hitTestAquariumConstructionGizmo(
         visual, camera, static_cast<int>(screen_x), static_cast<int>(screen_y), 1280, 800);
     require(move_gizmo && move_gizmo->kind == construction::ConstructionGizmoKind::Move,
         "selected tank centre did not expose a mouse-hit-testable move gizmo");
-    require(camera.worldToScreen({196.5f, 0.72f, 192.0f}, 1280, 800,
+    require(camera.worldToScreen({199.0f, 3.77f, 192.0f}, 1280, 800,
                 screen_x, screen_y, depth),
         "selected tank depth knob did not project into the construction viewport");
     const auto depth_gizmo = construction::hitTestAquariumConstructionGizmo(

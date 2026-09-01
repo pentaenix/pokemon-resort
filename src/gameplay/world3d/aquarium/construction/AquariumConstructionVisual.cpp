@@ -150,12 +150,15 @@ std::vector<GizmoWorldPoint> gizmoWorldPoints(const AquariumConstructionVisual& 
         visual.state == ConstructionState::ResizeTank ||
         (visual.state == ConstructionState::DraftReview && visual.property_draft);
     if (!editing_with_handles) return {};
-    constexpr float kCentreKnobSeparation = 4.5f;
+    // Keep the two centre controls visually separate even at the 3x3 minimum.
+    // Both must sit above the opaque sand surface; placing the depth knob near
+    // the floor makes its hit target work while leaving the control invisible.
+    constexpr float kCentreKnobSeparation = 7.0f;
     points = {
         {{ConstructionGizmoKind::Move, AquariumResizeHandle::SouthEast, std::nullopt},
             {center_x - kCentreKnobSeparation, y, center_z}},
         {{ConstructionGizmoKind::Depth, AquariumResizeHandle::SouthEast, std::nullopt},
-            {center_x + kCentreKnobSeparation, floor_y + 0.72f, center_z}},
+            {center_x + kCentreKnobSeparation, y + 0.12f, center_z}},
         {{ConstructionGizmoKind::Resize, AquariumResizeHandle::North, std::nullopt}, {center_x, y, north}},
         {{ConstructionGizmoKind::Resize, AquariumResizeHandle::East, std::nullopt}, {east, y, center_z}},
         {{ConstructionGizmoKind::Resize, AquariumResizeHandle::South, std::nullopt}, {center_x, y, south}},
@@ -314,6 +317,21 @@ ConstructionVisualMesh buildAquariumConstructionWorldMesh(
             appendDiamond(mesh, gizmo.world.x, gizmo.world.z, gizmo.world.y + 0.04f,
                 move ? 2.3f : ((height || depth) ? 2.6f : (active_resize ? 2.8f : 1.8f)),
                 inner_color);
+            if (depth) {
+                // North-oriented construction cameras project +Z downward on
+                // screen, so this small arrow reads as "below the floor" while
+                // the actual control remains visible above the sand.
+                const float arrow_y = gizmo.world.y + 0.08f;
+                appendLine(mesh, gizmo.world.x, gizmo.world.z + 2.7f,
+                    gizmo.world.x, gizmo.world.z + 7.2f,
+                    arrow_y, 1.25f, kCutMark);
+                appendLine(mesh, gizmo.world.x, gizmo.world.z + 7.2f,
+                    gizmo.world.x - 2.3f, gizmo.world.z + 4.9f,
+                    arrow_y + 0.01f, 1.25f, kCutMark);
+                appendLine(mesh, gizmo.world.x, gizmo.world.z + 7.2f,
+                    gizmo.world.x + 2.3f, gizmo.world.z + 4.9f,
+                    arrow_y + 0.02f, 1.25f, kCutMark);
+            }
         }
     }
     if (visual.preview_tank) {
