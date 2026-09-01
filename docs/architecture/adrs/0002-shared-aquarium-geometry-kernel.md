@@ -66,6 +66,17 @@ collision. This replaces the earlier perimeter-only collision result, which
 was insufficient for rounded tanks and multi-cell actor movement. The maker's
 WASM preview and Resort runtime continue to consume identical derived output.
 
+The below-floor extension advances the kernel to ABI 6 and design schema 4.
+Schema 4 adds discrete half-cell `depthSteps`; older documents migrate by
+defaulting depth to zero. ABI 6 uses the maker's Y=0 room-floor convention,
+opaque sub-floor body, floor-starting glass, lowered flat sand, and matching
+navigation band. The kernel derives whole-litre usable water volume from that
+same navigation footprint and height band. Volume remains rebuildable result
+data rather than duplicated authored state, so future stock policies cannot
+drift from collision/navigation geometry. Resort dynamically cuts its room
+floor to the exact generated footprint only for positive-depth tanks; the
+maker consumes the same profile through its tool-only WASM adapter.
+
 ## Alternatives Considered
 
 - Separate C++ and TypeScript implementations constrained by golden files: lower initial porting cost, but still permits semantic drift.

@@ -105,7 +105,9 @@ void testRectangleGolden() {
         "interior occupied cell is not blocked");
     require(result.statistics.navigation_layer_count == 1, "navigation layer count changed");
     require(result.navigation.suggested_spawns.size() == 1, "spawn count changed");
-    require(result.content_hash == "fnv1a64:536e7ce1f5e725f9", "content hash changed: " + result.content_hash);
+    require(result.content_hash == "fnv1a64:4de4c4c06e5a7006", "content hash changed: " + result.content_hash);
+    require(result.statistics.water_volume_litres == 80735,
+        "standard tank derived water volume changed");
 
     const SemanticMesh& structure = result.meshes.meshes.front();
     require(std::any_of(structure.vertices.begin(), structure.vertices.end(), [](const Vertex& vertex) {
@@ -135,6 +137,29 @@ void testRectangleGolden() {
             require(dot(face, a.normal) > 0.0F, "triangle winding opposes its declared normal");
         }
     }
+}
+
+void testBelowFloorDepthAndVolume() {
+    AquariumBuildRequest request = rectangleRequest();
+    request.tank.height_steps = 4;
+    request.tank.depth_steps = 6;
+    const AquariumBuildResult result = buildAquarium(request);
+    requireValidMeshSet(result, "below-floor rectangle");
+    requireNear(result.navigation.layers.front().floor_y, -44.984F,
+        "below-floor sand datum changed");
+    require(result.navigation.layers.front().ceiling_y > 0.0F,
+        "below-floor water surface did not remain above the room floor");
+    require(result.statistics.water_volume_litres == 102575,
+        "below-floor derived water volume changed");
+    const SemanticMesh& glass = result.meshes.meshes.back();
+    require(std::any_of(glass.vertices.begin(), glass.vertices.end(), [](const Vertex& vertex) {
+                return std::abs(vertex.position.y) < 0.0001F;
+            }), "below-floor glass does not begin at the room floor");
+    request.tank.depth_steps = 13;
+    const ValidationReport invalid = validateAquarium(request);
+    require(!invalid.valid() && std::any_of(invalid.diagnostics.begin(), invalid.diagnostics.end(),
+            [](const auto& diagnostic) { return diagnostic.code == "depth_out_of_range"; }),
+        "out-of-range below-floor depth was accepted");
 }
 
 void testSubtractedFootprintsStaySimpleAndConnected() {
@@ -304,6 +329,7 @@ int main() {
         testValidationIsStable();
         testValidationRejectsUnsafeDimensions();
         testRectangleGolden();
+        testBelowFloorDepthAndVolume();
         testQuarterTurnSwapsRectangleAxes();
         testShapeOccupancyRotationAndValidation();
         testSubtractedFootprintsStaySimpleAndConnected();

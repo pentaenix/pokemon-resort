@@ -41,6 +41,7 @@ bool tankDesignEquivalent(const geo::TankDesign& lhs, const geo::TankDesign& rhs
         a.notch_depth_cells != b.notch_depth_cells ||
         a.subtracted_cells.size() != b.subtracted_cells.size() ||
         lhs.height_steps != rhs.height_steps ||
+        lhs.depth_steps != rhs.depth_steps ||
         lhs.corner_radius_steps != rhs.corner_radius_steps ||
         lhs.corner_radii.size() != rhs.corner_radii.size() ||
         lhs.tunnels.size() != rhs.tunnels.size()) return false;

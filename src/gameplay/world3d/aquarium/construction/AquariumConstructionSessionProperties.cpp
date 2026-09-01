@@ -108,6 +108,9 @@ bool AquariumConstructionSession::adjustTankProperty(
     case AquariumTankProperty::Height:
         tank.height_steps = std::clamp(tank.height_steps + delta, 4, 12);
         break;
+    case AquariumTankProperty::Depth:
+        tank.depth_steps = std::clamp(tank.depth_steps + delta, 0, 12);
+        break;
     case AquariumTankProperty::Roundness: {
         const int maximum = geo::fittedCornerRadiusSteps(tank.footprint, 64);
         tank.corner_radius_steps = std::clamp(tank.corner_radius_steps + delta, 0, maximum);

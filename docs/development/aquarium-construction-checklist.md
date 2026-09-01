@@ -7,7 +7,7 @@ Updated: 2026-08-31
 - Pokémon Resort branch: `codex/aquarium-construction-milestone-3` from the reviewed Milestone 2 checkpoint.
 - Aquarium maker branch: `codex/aquarium-construction-milestone-3` from the reviewed Milestone 2 checkpoint.
 - Pre-Milestone 1 aquarium work was integrated into both repositories before these branches were created.
-- Milestone 3 changes span both repositories because the current kernel ABI 5 is consumed by the maker's browser-only WASM adapter.
+- Milestone 3 changes span both repositories because the current kernel ABI 6 is consumed by the maker's browser-only WASM adapter.
 - No reset, clean, checkout, destructive operation, or broad reformat was performed.
 - Feature commits stage explicit Milestone 3 paths only.
 
@@ -19,6 +19,7 @@ Updated: 2026-08-31
 | 1 — fixed rectangle vertical slice | Complete | User authorized Milestone 2 on 2026-08-29; detailed usability comments deferred to review |
 | 2 — editing and history | Complete | User authorized Milestone 3 on 2026-08-29 |
 | 3 — height, L/U shapes, roundness | Review checkpoint ready | Awaiting player review and revision comments |
+| 3.5 — below-floor depth and derived volume | Review checkpoint ready | Awaiting player review before tunnels |
 | 4 — tunnels | Not started | Blocked on Milestone 3 approval |
 | 5 — recovery, performance, release hardening | Not started | Blocked on Milestone 4 approval |
 
@@ -47,9 +48,9 @@ Updated: 2026-08-31
 ## Current golden evidence
 
 - Fixture: `shared/aquarium_geometry/goldens/rectangle-even.aquarium.json`.
-- Kernel ABI: 5.
-- Current design schema: 3; schema 1/2 documents remain readable migration inputs.
-- Rectangle hash: `fnv1a64:536e7ce1f5e725f9`.
+- Kernel ABI: 6.
+- Current design schema: 4; schema 1/2/3 documents remain readable migration inputs.
+- Rectangle hash: `fnv1a64:4de4c4c06e5a7006`.
 - Meshes: 5 semantic material groups (structure, flat sand, water volume, water surface, glass).
 - Vertices: 188.
 - Indices: 282.
@@ -441,3 +442,28 @@ controller-only checks remain intentionally open for the review checkpoint.
 - Height, fitted roundness, rectangle-first subtraction, legacy L/U compatibility, spatial handles, and the separate empty test room are implemented.
 - Tunnels remain entirely Milestone 4 work.
 - Manual visual and control review in the Builder Lab is intentionally left to the user checkpoint; any corrections stay in Milestone 3 before tunnel work begins.
+
+## Milestone 3.5 — below-floor depth and stocking volume
+
+- [x] Add authored integer `depthSteps` with schema 1/2/3 reads defaulting to zero.
+- [x] Generate the maker-compatible below-floor profile around the canonical room datum: lower plinth and sand descend, opaque structural body reaches Y=0, and glass begins at Y=0.
+- [x] Derive deterministic water capacity in whole litres from the generated navigation footprint and water-height band; carry it on each runtime tank for future population/stock policy.
+- [x] Add a distinct centre depth knob beside the move knob. Mouse uses click–move–click; moving down increases depth. Controller uses ZL + up/down while ZR + up/down remains height.
+- [x] Rebuild exact rounded/subtracted floor cutouts only for tanks with positive depth and roll them back if candidate publication is discarded.
+- [x] Add a below-floor native/WASM golden and maker compatibility mapping without adding maker dependencies to the game.
+- [ ] Player review: verify the depth knob, floor opening, below-floor water/sand visibility, camera readability, mouse flow, and controller-only flow in Builder Lab.
+- [x] Verify four exact native/WASM goldens at ABI 6; rectangle hash `fnv1a64:4de4c4c06e5a7006`, WASM p95 0.9590 ms.
+
+Focused verification:
+
+| Command | Result |
+|---|---|
+| `cmake --build build --target title_screen_demo aquarium_runtime_tests aquarium_geometry_tests -j4` | Pass |
+| `aquarium_runtime_tests` and `aquarium_geometry_tests` | Pass, including depth/volume, knob hit target, schema migration, and exact half-cell floor cutout coverage |
+| `npm run check` | Pass; existing maker chunk-size warning only |
+| `npm run validate:model` | Pass for the complete maker model matrix and the new compatible below-floor mapping |
+| `npm run validate:kernel` | Pass; four exact native/WASM goldens, ABI 6, WASM p95 0.9590 ms |
+
+Review boundary: Milestone 4 tunnels remain blocked until this depth slice is
+visually accepted. Volume is derived data and is never an editable or duplicated
+numeric field in the authoritative save document.

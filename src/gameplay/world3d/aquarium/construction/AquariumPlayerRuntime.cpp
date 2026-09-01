@@ -98,6 +98,7 @@ PlayerAquariumRuntimeSet buildPlayerAquariumRuntime(
                 (scene.terrain.height_per_floor > 0.0f
                     ? scene.terrain.height_per_floor : scene.grid.tile_size);
         }
+        runtime.water_volume_litres = build.statistics.water_volume_litres;
         runtime.build = std::move(build);
         // Installed geometry is shifted by the canonical half-cell transform.
         // A source cell therefore overlaps its map cell plus the cells to its

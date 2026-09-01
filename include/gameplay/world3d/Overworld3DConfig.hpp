@@ -335,6 +335,10 @@ struct InteriorFloorCutoutConfig {
     // cuts rounded/angled installations exactly while preserving floor UVs.
     std::string placement_id;
     std::vector<std::array<float, 2>> local_polygon;
+    // Runtime installations can provide an exact world-space outline without
+    // creating a synthetic model placement. This field is never serialized by
+    // the player aquarium document; it is rebuilt from its tank design.
+    std::vector<std::array<float, 2>> world_polygon;
 };
 
 struct InteriorDefaultRoomConfig {

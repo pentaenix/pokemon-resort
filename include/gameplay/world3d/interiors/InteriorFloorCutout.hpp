@@ -14,7 +14,7 @@ namespace pr::gameplay::world3d::interiors {
 
 inline bool floorCutoutCovers(const SceneConfig& scene, int tile_x, int tile_y) {
     for (const InteriorFloorCutoutConfig& cutout : scene.interior.floor_cutouts) {
-        if (!cutout.local_polygon.empty()) continue;
+        if (!cutout.local_polygon.empty() || !cutout.world_polygon.empty()) continue;
         if (tile_x >= cutout.x && tile_x < cutout.x + cutout.width &&
             tile_y >= cutout.y && tile_y < cutout.y + cutout.height) return true;
     }
@@ -95,6 +95,50 @@ inline float polygonArea(const std::vector<Point>& polygon) {
     return area * 0.5f;
 }
 
+inline bool pointInTriangle(Point point, Point a, Point b, Point c) {
+    const float ab = cross(a, b, point);
+    const float bc = cross(b, c, point);
+    const float ca = cross(c, a, point);
+    const bool has_negative = ab < -0.0001f || bc < -0.0001f || ca < -0.0001f;
+    const bool has_positive = ab > 0.0001f || bc > 0.0001f || ca > 0.0001f;
+    return !(has_negative && has_positive);
+}
+
+inline std::vector<std::vector<Point>> triangulateSimple(std::vector<Point> polygon) {
+    std::vector<std::vector<Point>> triangles;
+    if (polygon.size() < 3U) return triangles;
+    if (polygonArea(polygon) < 0.0f) std::reverse(polygon.begin(), polygon.end());
+    std::vector<std::size_t> remaining(polygon.size());
+    for (std::size_t index = 0; index < polygon.size(); ++index) remaining[index] = index;
+    while (remaining.size() > 3U) {
+        bool clipped = false;
+        for (std::size_t index = 0; index < remaining.size(); ++index) {
+            const std::size_t previous = remaining[(index + remaining.size() - 1U) % remaining.size()];
+            const std::size_t current = remaining[index];
+            const std::size_t next = remaining[(index + 1U) % remaining.size()];
+            if (cross(polygon[previous], polygon[current], polygon[next]) <= 0.0001f) continue;
+            bool contains = false;
+            for (const std::size_t candidate : remaining) {
+                if (candidate == previous || candidate == current || candidate == next) continue;
+                if (pointInTriangle(polygon[candidate], polygon[previous], polygon[current], polygon[next])) {
+                    contains = true;
+                    break;
+                }
+            }
+            if (contains) continue;
+            triangles.push_back({polygon[previous], polygon[current], polygon[next]});
+            remaining.erase(remaining.begin() + static_cast<std::ptrdiff_t>(index));
+            clipped = true;
+            break;
+        }
+        if (!clipped) return {};
+    }
+    if (remaining.size() == 3U) {
+        triangles.push_back({polygon[remaining[0]], polygon[remaining[1]], polygon[remaining[2]]});
+    }
+    return triangles;
+}
+
 inline std::vector<Polygon> subtractConvex(const Polygon& source, const std::vector<Point>& hole) {
     if (source.size() < 3U || hole.size() < 3U) return {source};
     const float orientation = polygonArea(hole) >= 0.0f ? 1.0f : -1.0f;
@@ -119,6 +163,7 @@ inline std::vector<Point> worldPolygon(
     const SceneConfig& scene,
     const InteriorFloorCutoutConfig& cutout,
     float tile_size) {
+    if (!cutout.world_polygon.empty()) return cutout.world_polygon;
     if (!cutout.local_polygon.empty() && !cutout.placement_id.empty()) {
         const auto placement = std::find_if(scene.models.begin(), scene.models.end(), [&](const auto& model) {
             return model.id == cutout.placement_id;
@@ -169,13 +214,17 @@ inline std::vector<FloorCutoutTriangle> clipFloorCellAgainstCutouts(
     std::vector<detail::Polygon> pieces{first, second};
     for (const InteriorFloorCutoutConfig& cutout : scene.interior.floor_cutouts) {
         const std::vector<detail::Point> hole = detail::worldPolygon(scene, cutout, tile_size);
-        std::vector<detail::Polygon> next;
-        for (const detail::Polygon& piece : pieces) {
-            std::vector<detail::Polygon> remaining = detail::subtractConvex(piece, hole);
-            next.insert(next.end(),
-                std::make_move_iterator(remaining.begin()), std::make_move_iterator(remaining.end()));
+        const auto cut_triangles = detail::triangulateSimple(hole);
+        for (const auto& triangle : cut_triangles) {
+            std::vector<detail::Polygon> next;
+            for (const detail::Polygon& piece : pieces) {
+                std::vector<detail::Polygon> remaining = detail::subtractConvex(piece, triangle);
+                next.insert(next.end(),
+                    std::make_move_iterator(remaining.begin()), std::make_move_iterator(remaining.end()));
+            }
+            pieces = std::move(next);
+            if (pieces.empty()) break;
         }
-        pieces = std::move(next);
         if (pieces.empty()) break;
     }
     std::vector<FloorCutoutTriangle> triangles;

@@ -6,8 +6,8 @@
 
 namespace pr::aquarium::geometry {
 
-inline constexpr std::uint32_t kKernelAbiVersion = 5;
-inline constexpr std::uint32_t kDesignSchemaVersion = 3;
+inline constexpr std::uint32_t kKernelAbiVersion = 6;
+inline constexpr std::uint32_t kDesignSchemaVersion = 4;
 inline constexpr std::int32_t kWorldUnitsPerCell = 16;
 inline constexpr std::int32_t kVerticalStepWorldUnits = 8;
 inline constexpr std::int32_t kRadiusStepWorldUnits = 4;
@@ -79,6 +79,9 @@ struct TankDesign {
     std::string id;
     FootprintDesign footprint;
     std::int32_t height_steps = 8;
+    // Zero is the original standard tank profile. Positive values extend the
+    // basin below the room floor in the same half-cell increments as height.
+    std::int32_t depth_steps = 0;
     std::int32_t corner_radius_steps = 0;
     std::vector<CornerRadiusDesign> corner_radii;
     std::vector<TunnelDesign> tunnels;
@@ -157,6 +160,9 @@ struct GeometryStatistics {
     std::uint32_t triangle_count = 0;
     std::uint32_t collision_cell_count = 0;
     std::uint32_t navigation_layer_count = 0;
+    // Derived usable water capacity. This is deliberately not authored in the
+    // design document; stock policies can trust the kernel to rebuild it.
+    std::uint64_t water_volume_litres = 0;
 };
 
 struct AquariumBuildResult {

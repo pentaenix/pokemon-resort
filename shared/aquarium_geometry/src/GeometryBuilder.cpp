@@ -25,6 +25,7 @@ constexpr float kGlassTopInset = 0.5168F;
 constexpr float kWaterCeilingInset = 0.88F;
 constexpr float kWaterLevel = 0.91F;
 constexpr float kWaterBottom = 2.504F;
+constexpr float kFloorRimTop = 1.2F;
 
 float canonicalFloat(float value) {
     constexpr double kOutputStepsPerWorldUnit = 10000.0;
@@ -345,11 +346,19 @@ void populateAquariumGeometry(
     const std::vector<Vec2> base_boundary = offsetBoundary(boundary, kBaseOverhang);
     const std::vector<Vec2> frame_boundary = offsetBoundary(boundary, kFrameOverhang);
     const float height = static_cast<float>(request.tank.height_steps * kVerticalStepWorldUnits);
+    const float below_floor_depth =
+        static_cast<float>(request.tank.depth_steps * kVerticalStepWorldUnits);
+    const bool below_floor = request.tank.depth_steps > 0;
+    const float profile_bottom = -below_floor_depth;
+    const float base_top = profile_bottom + kBaseTop;
+    const float bottom_rim_top = profile_bottom + kBottomRimTop;
+    const float sand_surface_y = profile_bottom + kSandSurfaceY;
+    const float water_bottom = profile_bottom + kWaterBottom;
     const float top_rim_bottom = height - kTopRimHeight;
     const float glass_top = height - kGlassTopInset;
     const float water_ceiling = top_rim_bottom - kWaterCeilingInset;
-    const float water_y = kSandSurfaceY +
-        (water_ceiling - kSandSurfaceY) * kWaterLevel;
+    const float water_y = sand_surface_y +
+        (water_ceiling - sand_surface_y) * kWaterLevel;
 
     result.meshes.meshes.reserve(result.meshes.meshes.size() + 5U);
     SemanticMesh& structure = addMesh(result.meshes, MeshMaterial::Structure);
@@ -357,16 +366,22 @@ void populateAquariumGeometry(
     SemanticMesh& water_volume = addMesh(result.meshes, MeshMaterial::WaterVolume);
     SemanticMesh& water_surface = addMesh(result.meshes, MeshMaterial::WaterSurface);
     SemanticMesh& glass = addMesh(result.meshes, MeshMaterial::Glass);
-    addSolidPlinth(structure, base_boundary, 0.0F, kBaseTop);
+    addSolidPlinth(structure, base_boundary, profile_bottom, base_top);
     for (std::size_t index = 0; index < frame_boundary.size(); ++index) {
         const Vec2 start = frame_boundary[index];
         const Vec2 end = frame_boundary[(index + 1) % frame_boundary.size()];
-        addWallSegment(structure, start, end, kBaseTop, kBottomRimTop, false, kFrameWidth);
+        addWallSegment(structure, start, end, base_top, bottom_rim_top, false, kFrameWidth);
+        if (below_floor) {
+            addWallSegment(structure, start, end, bottom_rim_top, 0.0F, false,
+                kGlassThickness);
+            addWallSegment(structure, start, end, 0.0F, kFloorRimTop, false,
+                kFrameWidth);
+        }
         addWallSegment(structure, start, end, top_rim_bottom, height, false, kFrameWidth);
     }
-    addPerimeterSides(glass, boundary, kGlassBottom, glass_top);
-    addPerimeterSides(water_volume, boundary, kWaterBottom, water_y - 0.002F);
-    addPolygonSurface(sand, boundary, kSandSurfaceY);
+    addPerimeterSides(glass, boundary, below_floor ? 0.0F : kGlassBottom, glass_top);
+    addPerimeterSides(water_volume, boundary, water_bottom, water_y - 0.002F);
+    addPolygonSurface(sand, boundary, sand_surface_y);
     addPolygonSurface(water_surface, boundary, water_y);
 
     const std::vector<GridCell> occupied = footprintCells(footprint);
@@ -376,7 +391,7 @@ void populateAquariumGeometry(
     result.collision.blocked_cells = occupied;
 
     NavigationLayer layer;
-    layer.floor_y = kSandSurfaceY;
+    layer.floor_y = sand_surface_y;
     layer.ceiling_y = water_y;
     layer.area.outer = boundary;
     result.navigation.layers.push_back(std::move(layer));
@@ -400,11 +415,24 @@ void populateAquariumGeometry(
         result.navigation.suggested_spawns.push_back({
             static_cast<float>(spawn_cell->column - footprint.origin_cell.column) * kWorldUnitsPerCell +
                 static_cast<float>(kWorldUnitsPerCell) * 0.5F - half_width,
-            (kSandSurfaceY + water_y) * 0.5F,
+            (sand_surface_y + water_y) * 0.5F,
             static_cast<float>(spawn_cell->row - footprint.origin_cell.row) * kWorldUnitsPerCell +
                 static_cast<float>(kWorldUnitsPerCell) * 0.5F - half_depth,
         });
     }
+    double twice_area = 0.0;
+    for (std::size_t index = 0; index < boundary.size(); ++index) {
+        const Vec2 a = boundary[index];
+        const Vec2 b = boundary[(index + 1U) % boundary.size()];
+        twice_area += static_cast<double>(a.x) * static_cast<double>(b.y) -
+            static_cast<double>(b.x) * static_cast<double>(a.y);
+    }
+    const double area_world_units = std::abs(twice_area) * 0.5;
+    // Match Aquarium Maker's capacity contract: the water band begins at the
+    // rendered water-volume bottom, slightly below the flat sand surface.
+    const double depth_world_units = std::max(0.0F, water_y - water_bottom);
+    result.statistics.water_volume_litres = static_cast<std::uint64_t>(std::llround(
+        area_world_units * depth_world_units * 1000.0 / 4096.0));
     canonicalizeResultFloats(result);
 }
 

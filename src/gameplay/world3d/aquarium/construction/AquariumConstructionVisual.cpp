@@ -150,8 +150,12 @@ std::vector<GizmoWorldPoint> gizmoWorldPoints(const AquariumConstructionVisual& 
         visual.state == ConstructionState::ResizeTank ||
         (visual.state == ConstructionState::DraftReview && visual.property_draft);
     if (!editing_with_handles) return {};
+    constexpr float kCentreKnobSeparation = 4.5f;
     points = {
-        {{ConstructionGizmoKind::Move, AquariumResizeHandle::SouthEast, std::nullopt}, {center_x, y, center_z}},
+        {{ConstructionGizmoKind::Move, AquariumResizeHandle::SouthEast, std::nullopt},
+            {center_x - kCentreKnobSeparation, y, center_z}},
+        {{ConstructionGizmoKind::Depth, AquariumResizeHandle::SouthEast, std::nullopt},
+            {center_x + kCentreKnobSeparation, floor_y + 0.72f, center_z}},
         {{ConstructionGizmoKind::Resize, AquariumResizeHandle::North, std::nullopt}, {center_x, y, north}},
         {{ConstructionGizmoKind::Resize, AquariumResizeHandle::East, std::nullopt}, {east, y, center_z}},
         {{ConstructionGizmoKind::Resize, AquariumResizeHandle::South, std::nullopt}, {center_x, y, south}},
@@ -295,17 +299,21 @@ ConstructionVisualMesh buildAquariumConstructionWorldMesh(
             const bool move = gizmo.hit.kind == ConstructionGizmoKind::Move;
             const bool resize = gizmo.hit.kind == ConstructionGizmoKind::Resize;
             const bool height = gizmo.hit.kind == ConstructionGizmoKind::Height;
+            const bool depth = gizmo.hit.kind == ConstructionGizmoKind::Depth;
             const bool corner = gizmo.hit.kind == ConstructionGizmoKind::CornerRadius;
             const bool active_resize = resize && visual.active_resize_handle &&
                 *visual.active_resize_handle == gizmo.hit.resize_handle;
+            const std::uint32_t outer_color = depth ? kCutMark :
+                height ? kSelected : corner ? kAnchor : move ? kAnchor :
+                active_resize ? kSelected : kHandle;
+            const std::uint32_t inner_color = depth ? kSelected :
+                corner ? kSelected : move ? kSelected : active_resize ? kHandle : kAnchor;
             appendDiamond(mesh, gizmo.world.x, gizmo.world.z, gizmo.world.y,
-                move ? 5.0f : (height ? 4.8f : (active_resize ? 5.2f : 3.6f)),
-                height ? kSelected : (corner ? kAnchor :
-                    (move ? kAnchor : (active_resize ? kSelected : kHandle))));
+                move ? 4.4f : ((height || depth) ? 4.8f : (active_resize ? 5.2f : 3.6f)),
+                outer_color);
             appendDiamond(mesh, gizmo.world.x, gizmo.world.z, gizmo.world.y + 0.04f,
-                move ? 2.8f : (height ? 2.6f : (active_resize ? 2.8f : 1.8f)),
-                corner ? kSelected : (move ? kSelected :
-                    (active_resize ? kHandle : kAnchor)));
+                move ? 2.3f : ((height || depth) ? 2.6f : (active_resize ? 2.8f : 1.8f)),
+                inner_color);
         }
     }
     if (visual.preview_tank) {
@@ -331,6 +339,17 @@ ConstructionVisualMesh buildAquariumConstructionWorldMesh(
             appendDiamond(mesh, tick_x, tick_z,
                 floor_y + static_cast<float>((tick + 4) * geo::kVerticalStepWorldUnits),
                 1.4f, tick + 1 == tick_count ? kCursor : kSelected);
+        }
+        // Depth is previewed on the room floor because the committed floor
+        // opening is intentionally not rebuilt for every pointer movement.
+        // The filled pip rail keeps the discrete value readable without text.
+        const float depth_start_z = center_z -
+            static_cast<float>(std::max(0, tank.depth_steps - 1)) * 1.1f;
+        for (int tick = 0; tick < tank.depth_steps; ++tick) {
+            appendDiamond(mesh, center_x + 10.0f,
+                depth_start_z + static_cast<float>(tick) * 2.2f,
+                floor_y + 0.68f, 1.25f,
+                tick + 1 == tank.depth_steps ? kCursor : kCutMark);
         }
     }
     return mesh;

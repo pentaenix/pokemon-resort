@@ -16,6 +16,7 @@ namespace pr::gameplay::world3d::aquarium::construction {
 struct PlayerTankRuntime {
     pr::aquarium::geometry::TankDesign design;
     pr::aquarium::geometry::AquariumBuildResult build;
+    std::uint64_t water_volume_litres = 0;
     float world_center_x = 0.0f;
     float world_floor_y = 0.0f;
     float world_center_z = 0.0f;

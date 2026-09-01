@@ -53,6 +53,11 @@ std::int32_t requiredInt32(const JsonValue& object, const char* key) {
     return static_cast<std::int32_t>(value);
 }
 
+std::int32_t optionalInt32(
+    const JsonValue& object, const char* key, std::int32_t fallback) {
+    return object.get(key) ? requiredInt32(object, key) : fallback;
+}
+
 geometry::FootprintShape parseShape(const std::string& value) {
     if (value == "rectangle") return geometry::FootprintShape::Rectangle;
     if (value == "l") return geometry::FootprintShape::L;
@@ -111,6 +116,7 @@ geometry::TankDesign parseTank(const JsonValue& value) {
         }
     }
     tank.height_steps = requiredInt32(value, "heightSteps");
+    tank.depth_steps = optionalInt32(value, "depthSteps", 0);
     tank.corner_radius_steps = requiredInt32(value, "cornerRadiusSteps");
     if (const JsonValue* radii = value.get("cornerRadii")) {
         if (!radii->isArray()) throw std::runtime_error("cornerRadii must be an array");
@@ -222,6 +228,7 @@ JsonValue serializeTank(const geometry::TankDesign& tank) {
     return JsonValue(JsonValue::Object{
         {"cornerRadii", JsonValue(std::move(corner_radii))},
         {"cornerRadiusSteps", JsonValue(static_cast<double>(tank.corner_radius_steps))},
+        {"depthSteps", JsonValue(static_cast<double>(tank.depth_steps))},
         {"footprint", JsonValue(std::move(footprint))},
         {"glass", JsonValue(JsonValue::Object{{"style", JsonValue(std::string("clear-fixed-v1"))}})},
         {"heightSteps", JsonValue(static_cast<double>(tank.height_steps))},

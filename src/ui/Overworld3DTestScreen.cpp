@@ -1434,14 +1434,17 @@ void Overworld3DTestScreen::onNavigate2d(int dx, int dy) {
     if (aquarium_construction_.active()) {
         aquarium_pointer_controls_cursor_ = false;
         namespace aqc = gameplay::world3d::aquarium::construction;
-        if (aquarium_right_trigger_down_ &&
+        if ((aquarium_right_trigger_down_ || aquarium_left_trigger_down_) &&
             (aquarium_construction_.state() == aqc::ConstructionState::Selected ||
              aquarium_construction_.draftOperation() == aqc::ConstructionDraftOperation::Properties)) {
             bool adjusted = false;
-            if (dy != 0) {
+            if (aquarium_left_trigger_down_ && dy != 0) {
+                adjusted = aquarium_construction_.adjustTankProperty(
+                    aqc::AquariumTankProperty::Depth, -dy);
+            } else if (aquarium_right_trigger_down_ && dy != 0) {
                 adjusted = aquarium_construction_.adjustTankProperty(
                     aqc::AquariumTankProperty::Height, -dy);
-            } else if (dx != 0) {
+            } else if (aquarium_right_trigger_down_ && dx != 0) {
                 const auto corner = aquarium_construction_.nearestCornerVertex();
                 adjusted = corner && aquarium_construction_.adjustCornerRadius(*corner, dx);
             }
@@ -1549,6 +1552,8 @@ void Overworld3DTestScreen::handlePointerMoved(int logical_x, int logical_y) {
         (*aquarium_pointer_gizmo_ == gameplay::world3d::aquarium::construction::
                 ConstructionGizmoKind::Height ||
          *aquarium_pointer_gizmo_ == gameplay::world3d::aquarium::construction::
+                ConstructionGizmoKind::Depth ||
+         *aquarium_pointer_gizmo_ == gameplay::world3d::aquarium::construction::
                 ConstructionGizmoKind::CornerRadius)) {
         constexpr int kPropertyDragPixels = 14;
         const int delta = aquarium_pointer_gizmo_y_ - mapped.y;
@@ -1560,6 +1565,11 @@ void Overworld3DTestScreen::handlePointerMoved(int logical_x, int logical_y) {
                 changed = aquarium_construction_.adjustTankProperty(
                     gameplay::world3d::aquarium::construction::AquariumTankProperty::Height,
                     direction);
+            } else if (*aquarium_pointer_gizmo_ == gameplay::world3d::aquarium::construction::
+                           ConstructionGizmoKind::Depth) {
+                changed = aquarium_construction_.adjustTankProperty(
+                    gameplay::world3d::aquarium::construction::AquariumTankProperty::Depth,
+                    -direction);
             } else if (*aquarium_pointer_gizmo_ == gameplay::world3d::aquarium::construction::
                            ConstructionGizmoKind::CornerRadius &&
                        aquarium_pointer_corner_vertex_) {

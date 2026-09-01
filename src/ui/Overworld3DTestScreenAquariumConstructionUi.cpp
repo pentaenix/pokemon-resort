@@ -102,6 +102,9 @@ bool Overworld3DTestScreen::handleAquariumConstructionPointerPressed(
         case aqc::ConstructionGizmoKind::Height:
             began = aquarium_construction_.beginPropertySelected();
             break;
+        case aqc::ConstructionGizmoKind::Depth:
+            began = aquarium_construction_.beginPropertySelected();
+            break;
         case aqc::ConstructionGizmoKind::CornerRadius:
             began = gizmo->corner_vertex.has_value() &&
                 aquarium_construction_.beginPropertySelected();
@@ -166,6 +169,7 @@ bool Overworld3DTestScreen::finishAquariumConstructionPointerOperation(
     namespace aqc = gameplay::world3d::aquarium::construction;
     if (!aquarium_pointer_gizmo_ ||
         (*aquarium_pointer_gizmo_ != aqc::ConstructionGizmoKind::Height &&
+         *aquarium_pointer_gizmo_ != aqc::ConstructionGizmoKind::Depth &&
          *aquarium_pointer_gizmo_ != aqc::ConstructionGizmoKind::CornerRadius)) {
         if (const auto cell = aquariumConstructionCellAt(logical_x, logical_y)) {
             aquarium_construction_.pointAt(*cell);
@@ -345,6 +349,7 @@ bool Overworld3DTestScreen::setAquariumConstructionPropertyValue(
         switch (*property) {
         case aqc::AquariumTankProperty::Shape: return static_cast<int>(tank->footprint.shape);
         case aqc::AquariumTankProperty::Height: return tank->height_steps;
+        case aqc::AquariumTankProperty::Depth: return tank->depth_steps;
         case aqc::AquariumTankProperty::Roundness: return tank->corner_radius_steps;
         case aqc::AquariumTankProperty::Rotation: return tank->footprint.rotation_quarter_turns;
         case aqc::AquariumTankProperty::NotchWidth: return tank->footprint.notch_width_cells;

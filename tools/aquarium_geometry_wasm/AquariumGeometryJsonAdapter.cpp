@@ -121,6 +121,7 @@ JsonValue serializeBuild(const AquariumBuildResult& result) {
              {"navigationLayerCount", number(stats.navigation_layer_count)},
              {"triangleCount", number(stats.triangle_count)},
              {"vertexCount", number(stats.vertex_count)},
+             {"waterVolumeLitres", number(static_cast<double>(stats.water_volume_litres))},
          })},
         {"valid", JsonValue(result.validation.valid())},
     });

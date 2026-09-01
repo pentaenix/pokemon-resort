@@ -10,6 +10,7 @@
 #include "gameplay/world3d/doors/DoorAnimationPolicy.hpp"
 #include "gameplay/world3d/interiors/DefaultRoomGeometry.hpp"
 #include "gameplay/world3d/interiors/InteriorFloorCutout.hpp"
+#include "gameplay/world3d/aquarium/rendering/AquariumFloorCutouts.hpp"
 #include "gameplay/world3d/aquarium/rendering/AquariumPokemonBgfxRenderer.hpp"
 #include "gameplay/world3d/aquarium/rendering/AquariumConstructionBgfxRenderer.hpp"
 #include "gameplay/world3d/aquarium/rendering/PlayerAquariumBgfxRenderer.hpp"
@@ -276,7 +277,9 @@ std::uint32_t shadowStencilMark() {
 class OverworldBgfxRenderer::Impl {
 public:
     Impl(std::string project_root, SceneConfig scene, CharacterSpriteDefinition character)
-        : project_root_(std::move(project_root)), scene_(std::move(scene)), character_(std::move(character)) {}
+        : project_root_(std::move(project_root)), scene_(std::move(scene)),
+          authored_floor_cutouts_(scene_.interior.floor_cutouts),
+          character_(std::move(character)) {}
     Impl(const Impl&) = delete;
     Impl& operator=(const Impl&) = delete;
     ~Impl() { shutdown(); }
@@ -508,6 +511,8 @@ private:
 
     std::string project_root_;
     SceneConfig scene_;
+    std::vector<InteriorFloorCutoutConfig> authored_floor_cutouts_;
+    std::optional<std::vector<InteriorFloorCutoutConfig>> staged_previous_floor_cutouts_;
     CharacterSpriteDefinition character_;
     BgfxBackend backend_;
     bool initialized_ = false;
@@ -571,6 +576,10 @@ private:
     bool createPrograms();
     bool loadTilePackage();
     bool buildTerrain();
+    bool stagePlayerAquariumFloorCutouts(
+        const std::vector<aquarium::construction::PlayerTankRuntime>& tanks,
+        std::string* error);
+    void discardStagedPlayerAquariumFloorCutouts();
     bool buildTileLayers();
     bool buildModels();
     void updateModelAnimation(ModelGpuResource& model) const;
@@ -926,25 +935,70 @@ void OverworldBgfxRenderer::Impl::setAquariumConstructionVisual(
 bool OverworldBgfxRenderer::Impl::replacePlayerAquariumTanks(
     const std::vector<aquarium::construction::PlayerTankRuntime>& tanks,
     std::string* error) {
-    return player_aquarium_renderer_.replaceTanks(tanks, error);
+    if (!initialized_) {
+        scene_.interior.floor_cutouts = aquarium::rendering::playerAquariumFloorCutouts(
+            authored_floor_cutouts_, tanks);
+        return player_aquarium_renderer_.replaceTanks(tanks, error);
+    }
+    if (!stagePlayerAquariumTanks(tanks, error)) return false;
+    return publishStagedPlayerAquariumTanks();
 }
 
 bool OverworldBgfxRenderer::Impl::stagePlayerAquariumTanks(
     const std::vector<aquarium::construction::PlayerTankRuntime>& tanks,
     std::string* error) {
-    return player_aquarium_renderer_.stageTanks(tanks, error);
+    discardStagedPlayerAquariumFloorCutouts();
+    if (!player_aquarium_renderer_.stageTanks(tanks, error)) return false;
+    if (!stagePlayerAquariumFloorCutouts(tanks, error)) {
+        player_aquarium_renderer_.discardStagedTanks();
+        return false;
+    }
+    return true;
 }
 
 bool OverworldBgfxRenderer::Impl::publishStagedPlayerAquariumTanks() {
-    return player_aquarium_renderer_.publishStagedTanks();
+    if (!player_aquarium_renderer_.publishStagedTanks()) {
+        discardStagedPlayerAquariumFloorCutouts();
+        return false;
+    }
+    staged_previous_floor_cutouts_.reset();
+    return true;
 }
 
 void OverworldBgfxRenderer::Impl::discardStagedPlayerAquariumTanks() {
     player_aquarium_renderer_.discardStagedTanks();
+    discardStagedPlayerAquariumFloorCutouts();
 }
 
 std::size_t OverworldBgfxRenderer::Impl::playerAquariumResourceCount() const {
     return player_aquarium_renderer_.resourceCount();
+}
+
+bool OverworldBgfxRenderer::Impl::stagePlayerAquariumFloorCutouts(
+    const std::vector<aquarium::construction::PlayerTankRuntime>& tanks,
+    std::string* error) {
+    staged_previous_floor_cutouts_ = scene_.interior.floor_cutouts;
+    scene_.interior.floor_cutouts = aquarium::rendering::playerAquariumFloorCutouts(
+        authored_floor_cutouts_, tanks);
+    if (buildTerrain()) return true;
+    scene_.interior.floor_cutouts = *staged_previous_floor_cutouts_;
+    staged_previous_floor_cutouts_.reset();
+    const bool restored = buildTerrain();
+    if (error) {
+        *error = restored
+            ? "Could not upload aquarium floor cutout geometry"
+            : "Could not restore aquarium room floor after cutout upload failure";
+    }
+    return false;
+}
+
+void OverworldBgfxRenderer::Impl::discardStagedPlayerAquariumFloorCutouts() {
+    if (!staged_previous_floor_cutouts_) return;
+    scene_.interior.floor_cutouts = std::move(*staged_previous_floor_cutouts_);
+    staged_previous_floor_cutouts_.reset();
+    if (initialized_ && !buildTerrain()) {
+        std::cerr << "[AquariumConstruction] event=floor_cutout_restore_failed\n";
+    }
 }
 
 void OverworldBgfxRenderer::Impl::setTextboxOverlay(

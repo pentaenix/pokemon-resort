@@ -43,6 +43,7 @@ enum class ConstructionDraftOperation {
 enum class AquariumTankProperty {
     Shape,
     Height,
+    Depth,
     Roundness,
     Rotation,
     NotchWidth,

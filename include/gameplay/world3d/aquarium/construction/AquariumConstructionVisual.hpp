@@ -134,6 +134,7 @@ enum class ConstructionGizmoKind {
     Move,
     Resize,
     Height,
+    Depth,
     CornerRadius,
 };
 

@@ -176,6 +176,7 @@ void hashResult(StableHasher& hasher, const AquariumBuildResult& result) {
         hasher.addFloat(spawn.y);
         hasher.addFloat(spawn.z);
     }
+    hasher.addUnsigned(result.statistics.water_volume_litres);
 }
 
 void populateStatistics(AquariumBuildResult& result) {
@@ -290,6 +291,10 @@ ValidationReport validateAquarium(const AquariumBuildRequest& request) {
     }
     if (request.tank.height_steps < 4 || request.tank.height_steps > 12) {
         addError(report, "height_out_of_range", "/tank/heightSteps", "Height must be between four and twelve steps");
+    }
+    if (request.tank.depth_steps < 0 || request.tank.depth_steps > 12) {
+        addError(report, "depth_out_of_range", "/tank/depthSteps",
+            "Below-floor depth must be between zero and twelve steps");
     }
     if (request.tank.footprint.rotation_quarter_turns < 0 ||
         request.tank.footprint.rotation_quarter_turns > 3) {

@@ -411,10 +411,12 @@ void Overworld3DTestScreen::updateAquariumConstructionCommit() {
     std::size_t mesh_count = 0;
     std::size_t vertex_count = 0;
     std::size_t triangle_count = 0;
+    std::uint64_t water_volume_litres = 0;
     for (const auto& tank : player_aquarium_runtime_.tanks) {
         mesh_count += tank.build.meshes.meshes.size();
         vertex_count += tank.build.statistics.vertex_count;
         triangle_count += tank.build.statistics.triangle_count;
+        water_volume_litres += tank.water_volume_litres;
     }
     std::cerr << "[AquariumConstruction] event=commit map=" << map_id
               << " revision=" << revision
@@ -425,6 +427,7 @@ void Overworld3DTestScreen::updateAquariumConstructionCommit() {
               << " meshes=" << mesh_count
               << " vertices=" << vertex_count
               << " triangles=" << triangle_count
+              << " waterVolumeLitres=" << water_volume_litres
               << " resources=" << (bgfx_renderer_ ? bgfx_renderer_->playerAquariumResourceCount() : 0U)
               << " generationUs=" << generated.generation_microseconds
               << " uploadUs=" << upload_microseconds << '\n';
@@ -487,7 +490,7 @@ Overworld3DTestScreen::aquariumConstructionVisual() const {
         visual.navigation_hint = "CHOOSE PLUS OR MINUS  CLICK A CELL";
         break;
     case aqc::ConstructionState::Selected:
-        visual.navigation_hint = "CLICK A HANDLE  MOVE  CLICK TO APPLY";
+        visual.navigation_hint = "CLICK HANDLE  ZR HEIGHT  ZL DEPTH";
         break;
     case aqc::ConstructionState::ResizeFootprint:
     case aqc::ConstructionState::MoveTank:
@@ -506,7 +509,7 @@ Overworld3DTestScreen::aquariumConstructionVisual() const {
         break;
     case aqc::ConstructionState::DraftReview:
         visual.navigation_hint = visual.property_draft
-            ? "BUILD OR CHOOSE STYLE BELOW"
+            ? "MOVE UP DOWN  CLICK OR A TO APPLY"
             : "BUILD OR ADJUST FOOTPRINT";
         break;
     case aqc::ConstructionState::DeleteConfirm:

@@ -115,6 +115,7 @@ add_library(world3d_bgfx_renderer STATIC
     src/gameplay/attend/rendering/AttendPokemonPresentation.cpp
     src/gameplay/world3d/aquarium/rendering/AquariumPokemonBgfxRenderer.cpp
     src/gameplay/world3d/aquarium/rendering/AquariumConstructionBgfxRenderer.cpp
+    src/gameplay/world3d/aquarium/rendering/AquariumFloorCutouts.cpp
     src/gameplay/world3d/aquarium/rendering/PlayerAquariumBgfxRenderer.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionHudLayout.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionVisual.cpp

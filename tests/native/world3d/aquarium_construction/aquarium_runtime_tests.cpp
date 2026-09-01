@@ -5,9 +5,11 @@
 #include "gameplay/world3d/aquarium/construction/AquariumDesignStore.hpp"
 #include "gameplay/world3d/aquarium/construction/AquariumPlayerRuntime.hpp"
 #include "gameplay/world3d/aquarium/rendering/AquariumResourceGeneration.hpp"
+#include "gameplay/world3d/interiors/InteriorFloorCutout.hpp"
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -206,10 +208,11 @@ void exteriorPaintMergesAndErasesMultipleTanksUndoably() {
     erase.pointAt({19, 15});
     require(erase.beginPaintSelected(true),
         "minus paint could not arm from empty space without a prior selection");
-    require(!erase.draftValid(), "empty minus anchor unexpectedly changed a tank");
-    require(erase.cancel() && erase.state() == construction::ConstructionState::Browse &&
+    require(erase.draftValid() && erase.reviewDraft() && erase.finishNoOpDraft(),
+        "empty minus selection did not finish as a harmless no-op");
+    require(erase.state() == construction::ConstructionState::Browse &&
             !erase.selectedTankId() && erase.committedDesign().tanks.size() == 2,
-        "cancel did not return an exterior-start selection to unchanged browse state");
+        "empty minus selection did not return to unchanged browse state");
     erase.pointAt({19, 15});
     require(erase.beginPaintSelected(true),
         "minus selection could not restart after explicit cancellation");
@@ -402,6 +405,7 @@ void discreteShapePropertiesAreDraftedAndTransactional() {
         "rectangle-only notch input created a draft");
     require(session.adjustTankProperty(construction::AquariumTankProperty::Shape, 1) &&
             session.adjustTankProperty(construction::AquariumTankProperty::Height, 1) &&
+            session.adjustTankProperty(construction::AquariumTankProperty::Depth, 1) &&
             session.adjustTankProperty(construction::AquariumTankProperty::Roundness, 1) &&
             session.adjustTankProperty(construction::AquariumTankProperty::Rotation, 1) &&
             session.adjustTankProperty(construction::AquariumTankProperty::NotchWidth, -1) &&
@@ -409,7 +413,8 @@ void discreteShapePropertiesAreDraftedAndTransactional() {
         "discrete property controls did not update one shared draft");
     const auto preview = session.previewTank();
     require(preview && preview->footprint.shape == geo::FootprintShape::L &&
-            preview->height_steps == 9 && preview->corner_radius_steps == 1 &&
+            preview->height_steps == 9 && preview->depth_steps == 1 &&
+            preview->corner_radius_steps == 1 &&
             preview->footprint.rotation_quarter_turns == 1 &&
             preview->footprint.notch_width_cells == 2 &&
             preview->footprint.notch_depth_cells == 2 && session.draftValid(),
@@ -660,6 +665,13 @@ void constructionVisualBuildsYellowCellsGizmosAndCanonicalHitTargets() {
         visual, camera, static_cast<int>(screen_x), static_cast<int>(screen_y), 1280, 800);
     require(move_gizmo && move_gizmo->kind == construction::ConstructionGizmoKind::Move,
         "selected tank centre did not expose a mouse-hit-testable move gizmo");
+    require(camera.worldToScreen({196.5f, 0.72f, 192.0f}, 1280, 800,
+                screen_x, screen_y, depth),
+        "selected tank depth knob did not project into the construction viewport");
+    const auto depth_gizmo = construction::hitTestAquariumConstructionGizmo(
+        visual, camera, static_cast<int>(screen_x), static_cast<int>(screen_y), 1280, 800);
+    require(depth_gizmo && depth_gizmo->kind == construction::ConstructionGizmoKind::Depth,
+        "centre knob cluster did not expose a distinct below-floor depth knob");
     require(camera.worldToScreen({216.0f, 3.65f, 192.0f}, 1280, 800,
                 screen_x, screen_y, depth),
         "selected tank resize gizmo did not project into the construction viewport");
@@ -790,6 +802,40 @@ void constructionVisualBuildsYellowCellsGizmosAndCanonicalHitTargets() {
         "overlap feedback should identify blocked space without developer diagnostics");
 }
 
+void runtimeFloorCutoutPreservesHalfCellAlignment() {
+    pr::gameplay::world3d::SceneConfig scene;
+    scene.grid.width = 2;
+    scene.grid.height = 2;
+    scene.grid.tile_size = 16.0f;
+    pr::gameplay::world3d::InteriorFloorCutoutConfig cutout;
+    cutout.world_polygon = {{{8.0f, 8.0f}, {24.0f, 8.0f},
+        {24.0f, 24.0f}, {8.0f, 24.0f}}};
+    scene.interior.floor_cutouts.push_back(std::move(cutout));
+    const auto triangles = pr::gameplay::world3d::interiors::
+        clipFloorCellAgainstCutouts(scene, 0, 0, 16.0f);
+    float area = 0.0f;
+    for (const auto& triangle : triangles) {
+        area += std::abs(
+            (triangle[1].x - triangle[0].x) * (triangle[2].z - triangle[0].z) -
+            (triangle[1].z - triangle[0].z) * (triangle[2].x - triangle[0].x)) * 0.5f;
+    }
+    require(std::abs(area - 192.0f) < 0.01f,
+        "world-space floor cutout lost the canonical half-cell offset");
+
+    geo::FootprintDesign shaped;
+    shaped.width_cells = 5;
+    shaped.depth_cells = 5;
+    shaped.subtracted_cells = {{2, 0}, {2, 1}};
+    std::vector<std::array<float, 2>> shaped_polygon;
+    for (const auto point : geo::footprintBoundaryLocalWorld(shaped, 1)) {
+        shaped_polygon.push_back({point.x, point.y});
+    }
+    const auto pieces = pr::gameplay::world3d::interiors::detail::
+        triangulateSimple(shaped_polygon);
+    require(!pieces.empty(),
+        "rounded exterior-subtracted footprint could not become exact floor cutouts");
+}
+
 void constructionCameraTracksTheCursorInAReadableCentreZone() {
     constexpr int kViewportWidth = 400;
     constexpr int kViewportHeight = 250;
@@ -917,10 +963,10 @@ void storePreservesNewerDocumentsAndFailedWrites() {
     std::string error;
     require(store.saveTransactionally(document, &error), "fault fixture save failed");
     std::string newer = construction::serializeAquariumDesignCanonical(document);
-    const std::string old_version = "\"schemaVersion\": 3";
+    const std::string old_version = "\"schemaVersion\": 4";
     const auto version_position = newer.find(old_version);
     require(version_position != std::string::npos, "fault fixture schema version missing");
-    newer.replace(version_position, old_version.size(), "\"schemaVersion\": 4");
+    newer.replace(version_position, old_version.size(), "\"schemaVersion\": 5");
     {
         std::ofstream primary(store.primaryPath(), std::ios::trunc);
         primary << newer;
@@ -1058,6 +1104,7 @@ int main() {
         run("cursorChoosesEveryControllerResizeHandle", cursorChoosesEveryControllerResizeHandle);
         run("authoredObstaclesRemainVisibleAtBuildZoneEdges", authoredObstaclesRemainVisibleAtBuildZoneEdges);
         run("constructionVisualBuildsYellowCellsGizmosAndCanonicalHitTargets", constructionVisualBuildsYellowCellsGizmosAndCanonicalHitTargets);
+        run("runtimeFloorCutoutPreservesHalfCellAlignment", runtimeFloorCutoutPreservesHalfCellAlignment);
         run("constructionCameraTracksTheCursorInAReadableCentreZone", constructionCameraTracksTheCursorInAReadableCentreZone);
         run("loadedPlacementValidationRejectsBoundsAndOverlap", loadedPlacementValidationRejectsBoundsAndOverlap);
         run("storeRoundTripsAndRecoversBackup", storeRoundTripsAndRecoversBackup);
