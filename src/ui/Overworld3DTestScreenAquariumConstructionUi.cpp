@@ -86,7 +86,11 @@ bool Overworld3DTestScreen::handleAquariumConstructionPointerPressed(
         return true;
     }
     if (aquariumConstructionUiAt(logical_x, logical_y)) return true;
-    if (const auto gizmo = aquariumConstructionGizmoAt(logical_x, logical_y)) {
+    const bool subtract_request = aquarium_subtract_mode_ || aquarium_pointer_subtract_;
+    const auto gizmo_hit = subtract_request
+        ? std::optional<aqc::ConstructionGizmoHit>{}
+        : aquariumConstructionGizmoAt(logical_x, logical_y);
+    if (const auto& gizmo = gizmo_hit) {
         bool began = false;
         switch (gizmo->kind) {
         case aqc::ConstructionGizmoKind::Move:
@@ -114,7 +118,7 @@ bool Overworld3DTestScreen::handleAquariumConstructionPointerPressed(
     }
     if (const auto cell = aquariumConstructionCellAt(logical_x, logical_y)) {
         aquarium_construction_.pointAt(*cell);
-        const bool subtract = aquarium_subtract_mode_ || aquarium_pointer_subtract_;
+        const bool subtract = subtract_request;
         bool began = false;
         if (aquarium_construction_.state() == aqc::ConstructionState::Browse) {
             if (aquarium_construction_.selectAtCursor()) {
@@ -175,6 +179,13 @@ bool Overworld3DTestScreen::finishAquariumConstructionPointerOperation(
                    state == aqc::ConstructionState::PaintFootprint ||
                    state == aqc::ConstructionState::SubtractFootprint)) {
         ready = aquarium_construction_.reviewDraft();
+    }
+    if (ready && !aquarium_construction_.draftValid()) {
+        aquarium_construction_.cancel();
+        resetAquariumConstructionPointerOperation();
+        requestAquariumConstructionErrorFeedback();
+        syncAquariumConstructionFocus();
+        return true;
     }
     if (ready && commitAquariumConstruction()) {
         resetAquariumConstructionPointerOperation();

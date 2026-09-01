@@ -76,7 +76,6 @@ void AquariumConstructionSession::configure(
 bool AquariumConstructionSession::enter(geo::GridCell preferred_cursor) {
     if (!available_ || active()) return false;
     state_ = ConstructionState::Browse;
-    protected_player_cell_ = preferred_cursor;
     if (cellAllowed(preferred_cursor)) {
         cursor_ = preferred_cursor;
     } else if (!allowed_cells_.empty()) {
@@ -96,7 +95,6 @@ void AquariumConstructionSession::exit() {
     state_ = ConstructionState::Dormant;
     draft_.reset();
     selected_tank_id_.reset();
-    protected_player_cell_.reset();
     pending_operation_token_ = 0;
     validation_message_.clear();
 }
@@ -278,6 +276,12 @@ bool AquariumConstructionSession::cancel() {
     return false;
 }
 
+bool AquariumConstructionSession::finishNoOpDraft() {
+    if (state_ != ConstructionState::DraftReview || !draft_ ||
+        !draft_->area_selection || draft_->paint_changed) return false;
+    return cancel();
+}
+
 geo::TankDesign AquariumConstructionSession::draftTank() const {
     if (!draft_) return {};
     if (!draft_->paint_original_tanks.empty() && draft_->original_tank) {
@@ -377,7 +381,6 @@ bool AquariumConstructionSession::cellAllowed(geo::GridCell cell) const {
 
 bool AquariumConstructionSession::occupiedByCommitted(
     geo::GridCell cell, const std::string& ignored_tank_id) const {
-    if (protected_player_cell_ && sameCell(cell, *protected_player_cell_)) return true;
     if (std::any_of(authored_obstacles_.begin(), authored_obstacles_.end(),
             [&](auto occupied) { return sameCell(cell, occupied); })) return true;
     for (const geo::TankDesign& tank : committed_.tanks) {
@@ -398,6 +401,7 @@ void AquariumConstructionSession::refreshDraftValidation() {
     if (!draft_) return;
     if (!draft_->paint_original_tanks.empty()) {
         if (!draft_->paint_changed) {
+            if (draft_->area_selection) return;
             validation_message_ = draft_->operation == ConstructionDraftOperation::Add
                 ? "Move the path to a tank edge" : "Move the selection across a tank";
             return;
@@ -417,8 +421,7 @@ void AquariumConstructionSession::refreshDraftValidation() {
                     validation_message_ = "Tank footprint leaves the construction area";
                     return;
                 }
-                if ((protected_player_cell_ && sameCell(cell, *protected_player_cell_)) ||
-                    std::any_of(authored_obstacles_.begin(), authored_obstacles_.end(),
+                if (std::any_of(authored_obstacles_.begin(), authored_obstacles_.end(),
                         [&](auto blocked) { return sameCell(cell, blocked); })) {
                     validation_message_ = "Tank footprint overlaps an existing obstacle";
                     return;

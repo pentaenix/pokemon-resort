@@ -52,8 +52,10 @@ AquariumConstructionCameraOverview trackAquariumConstructionCursor(
         state.property_panel_visible != property_panel_visible;
     state.property_panel_visible = property_panel_visible;
 
-    const float dead_zone_x = tile * 3.0f;
-    const float dead_zone_z = tile * 2.15f;
+    // Keep the view still until the cursor is roughly two cells nearer the
+    // screen edge than before. This avoids constant panning during small edits.
+    const float dead_zone_x = tile * 5.0f;
+    const float dead_zone_z = tile * 4.15f;
     float desired_x = state.center_x;
     float desired_z = state.center_z;
     if (composition_changed) {

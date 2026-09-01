@@ -323,6 +323,7 @@ Shipping Metal inspection at the normal 800×500 game viewport showed both loade
 - [x] Player-review correction: let plus/minus gestures arm in empty exterior cells; allow plus paths to grow irregular footprints and merge player tanks, and make minus a reversible rectangular selection that cuts across multiple tanks.
 - [x] Player-review correction: represent multi-tank paint as one exact tank-set command so merge and multi-delete preserve IDs/properties and undo/redo atomically; enlarge the visible undo/redo pointer targets.
 - [x] Player-review correction: replace the ambiguous history glyphs with heavier directional symbols and keep an explicit red cancel control beside green accept throughout every active draft/review state.
+- [x] Player-review correction: accept empty subtract selections as no-ops, auto-dismiss invalid mouse finishes, give subtract mode priority over gizmos, remove the obsolete player-cell blocker, cover half-cell south/east collision overlap, simplify low-resolution icons, and delay camera tracking by roughly two cells.
 - [ ] Player visual review: verify icon theme, pointer feel, knob separation, material colors/transparency, and full mouse/controller happy paths in the Builder Lab.
 
 ### Milestone 3 direct-manipulation verification

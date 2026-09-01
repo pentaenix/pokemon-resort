@@ -62,10 +62,10 @@ void stateMachinePreservesCommittedDataOnCancel() {
         "cancel mutated committed aquarium data");
     session.exit();
     require(session.enter({10, 10}), "construction did not re-enter on an allowed player cell");
-    require(session.beginRectangle(), "protected-cell rectangle draft did not begin");
+    require(session.beginRectangle(), "player-cell rectangle draft did not begin");
     session.moveCursor(2, 2);
-    require(!session.draftValid(),
-        "tank placement could trap the player inside its committed collision shell");
+    require(session.draftValid(),
+        "hidden player cell still blocks construction despite doorway relocation on exit");
 }
 
 construction::ConstructionCommitCandidate buildFirstTank(
@@ -1002,8 +1002,8 @@ void populationPolicyIsReplaceableAndNavigationIsDerived() {
         "replaceable population policy was not applied once per tank");
     require(runtime.tanks.front().build.navigation.layers.size() == 1,
         "committed rectangle did not derive a navigation volume");
-    require(runtime.collision_cells.size() == 9,
-        "committed 3x3 rectangle did not block its complete footprint");
+    require(runtime.collision_cells.size() == 16,
+        "half-cell-installed 3x3 tank did not cover its south/east overlap cells");
 }
 
 void resourceGenerationRejectsCandidatesWithoutTouchingActiveResources() {

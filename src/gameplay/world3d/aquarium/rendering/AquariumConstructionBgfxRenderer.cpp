@@ -244,24 +244,19 @@ public:
                 appendLine2d(mesh, center_x + arm * 0.75f, center_y - arm * 0.75f,
                     center_x - arm * 0.75f, center_y + arm * 0.75f, 7.0f, kWhite);
             } else if (action == Action::Delete) {
-                appendQuad(mesh, center_x - arm * 0.62f, center_y - arm * 0.1f,
-                    center_x + arm * 0.62f, center_y + arm * 0.9f, kWhite);
-                appendLine2d(mesh, center_x - arm * 0.85f, center_y - arm * 0.35f,
-                    center_x + arm * 0.85f, center_y - arm * 0.35f, 5.0f, kWhite);
-                appendLine2d(mesh, center_x - arm * 0.3f, center_y - arm * 0.6f,
-                    center_x + arm * 0.3f, center_y - arm * 0.6f, 5.0f, kWhite);
+                appendQuad(mesh, center_x - arm * 0.68f, center_y - arm * 0.05f,
+                    center_x + arm * 0.68f, center_y + arm * 0.86f, kWhite);
+                appendLine2d(mesh, center_x - arm, center_y - arm * 0.34f,
+                    center_x + arm, center_y - arm * 0.34f, 8.0f, kWhite);
             } else if (action == Action::Undo || action == Action::Redo) {
                 const bool redo = action == Action::Redo;
                 const float direction = redo ? 1.0f : -1.0f;
                 appendLine2d(mesh, center_x - direction * arm * 0.7f, center_y,
-                    center_x + direction * arm * 0.72f, center_y, 7.0f, kWhite);
-                appendLine2d(mesh, center_x + direction * arm * 0.72f, center_y,
-                    center_x + direction * arm * 0.72f, center_y + arm * 0.58f,
-                    7.0f, kWhite);
+                    center_x + direction * arm * 0.65f, center_y, 9.0f, kWhite);
                 appendTriangle2d(mesh,
                     center_x + direction * arm, center_y,
-                    center_x + direction * arm * 0.35f, center_y - arm * 0.48f,
-                    center_x + direction * arm * 0.35f, center_y + arm * 0.48f,
+                    center_x + direction * arm * 0.3f, center_y - arm * 0.62f,
+                    center_x + direction * arm * 0.3f, center_y + arm * 0.62f,
                     kWhite);
             }
         };

@@ -128,6 +128,7 @@ public:
     bool reviewDraft();
     bool adjustDraft();
     bool cancel();
+    bool finishNoOpDraft();
     std::optional<ConstructionCommitCandidate> prepareCommit();
     std::optional<ConstructionCommitCandidate> prepareDelete();
     std::optional<ConstructionCommitCandidate> prepareUndo();
@@ -164,7 +165,6 @@ private:
     AquariumDesignDocument committed_;
     std::vector<pr::aquarium::geometry::GridCell> allowed_cells_;
     std::vector<pr::aquarium::geometry::GridCell> authored_obstacles_;
-    std::optional<pr::aquarium::geometry::GridCell> protected_player_cell_;
     pr::aquarium::geometry::GridCell cursor_{};
     std::optional<ConstructionDraft> draft_;
     std::optional<std::string> selected_tank_id_;

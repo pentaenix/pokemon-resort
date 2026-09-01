@@ -252,6 +252,7 @@ void Overworld3DTestScreen::refreshAquariumRenderActors() {
 
 bool Overworld3DTestScreen::commitAquariumConstruction() {
     namespace aqc = gameplay::world3d::aquarium::construction;
+    if (aquarium_construction_.finishNoOpDraft()) return true;
     auto candidate = aquarium_construction_.state() == aqc::ConstructionState::DeleteConfirm
         ? aquarium_construction_.prepareDelete()
         : aquarium_construction_.prepareCommit();

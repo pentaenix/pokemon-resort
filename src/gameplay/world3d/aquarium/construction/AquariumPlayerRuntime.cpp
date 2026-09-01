@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <set>
 
 namespace pr::gameplay::world3d::aquarium::construction {
 namespace geo = pr::aquarium::geometry;
@@ -63,6 +64,7 @@ PlayerAquariumRuntimeSet buildPlayerAquariumRuntime(
     std::vector<std::string>* diagnostics) {
     PlayerAquariumRuntimeSet out;
     out.revision = document.revision;
+    std::set<std::pair<int, int>> collision_cells;
     std::string wishiwashi_model_path;
     const auto models = gameplay::attend::discoverPokemonModels(
         project_root / "assets/pokemon_attend/pokemon_models");
@@ -97,9 +99,16 @@ PlayerAquariumRuntimeSet buildPlayerAquariumRuntime(
                     ? scene.terrain.height_per_floor : scene.grid.tile_size);
         }
         runtime.build = std::move(build);
-        out.collision_cells.insert(out.collision_cells.end(),
-            runtime.build.collision.blocked_cells.begin(),
-            runtime.build.collision.blocked_cells.end());
+        // Installed geometry is shifted by the canonical half-cell transform.
+        // A source cell therefore overlaps its map cell plus the cells to its
+        // east, south, and south-east; collision must conservatively cover all
+        // four instead of stopping one cell short on the right/bottom edges.
+        for (const auto cell : runtime.build.collision.blocked_cells) {
+            collision_cells.emplace(cell.column, cell.row);
+            collision_cells.emplace(cell.column + 1, cell.row);
+            collision_cells.emplace(cell.column, cell.row + 1);
+            collision_cells.emplace(cell.column + 1, cell.row + 1);
+        }
         AquariumPopulationContext context{
             project_root,
             map_config.pokemon_scale,
@@ -111,6 +120,10 @@ PlayerAquariumRuntimeSet buildPlayerAquariumRuntime(
         out.actors.insert(out.actors.end(),
             std::make_move_iterator(actors.begin()), std::make_move_iterator(actors.end()));
         out.tanks.push_back(std::move(runtime));
+    }
+    out.collision_cells.reserve(collision_cells.size());
+    for (const auto [column, row] : collision_cells) {
+        out.collision_cells.push_back({column, row});
     }
     return out;
 }

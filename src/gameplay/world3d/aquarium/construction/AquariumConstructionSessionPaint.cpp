@@ -98,8 +98,13 @@ bool AquariumConstructionSession::beginPaintSelected(bool subtract) {
         selected_tank_id_ = nearest->id;
         state_ = ConstructionState::Selected;
     }
+    geo::TankDesign empty_primary;
     const geo::TankDesign* selected = selectedTank();
-    if (state_ != ConstructionState::Selected || !selected || !cellAllowed(cursor_)) return false;
+    if (!selected && subtract && state_ == ConstructionState::Browse && committed_.tanks.empty()) {
+        selected = &empty_primary;
+    }
+    if ((state_ != ConstructionState::Selected && state_ != ConstructionState::Browse) ||
+        !selected || !cellAllowed(cursor_)) return false;
     const geo::GridCell anchor = cursor_;
     draft_ = ConstructionDraft{
         subtract ? ConstructionDraftOperation::Subtract : ConstructionDraftOperation::Add,

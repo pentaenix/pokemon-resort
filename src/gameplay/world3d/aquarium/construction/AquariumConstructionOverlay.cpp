@@ -48,24 +48,16 @@ void drawArrow(SDL_Renderer* renderer, const ConstructionHudRect& rect, bool clo
     color(renderer, {255, 255, 246, 255});
     const int cx = rect.x + rect.width / 2;
     const int cy = rect.y + rect.height / 2;
-    const float radius = static_cast<float>(rect.width) * 0.21f;
-    const float start = clockwise ? -2.6f : -0.55f;
-    const float direction = clockwise ? 1.0f : -1.0f;
-    int previous_x = cx + static_cast<int>(std::cos(start) * radius);
-    int previous_y = cy + static_cast<int>(std::sin(start) * radius);
-    for (int step = 1; step <= 12; ++step) {
-        const float angle = start + direction * static_cast<float>(step) * 0.23f;
-        const int x = cx + static_cast<int>(std::cos(angle) * radius);
-        const int y = cy + static_cast<int>(std::sin(angle) * radius);
-        for (int thickness = -2; thickness <= 2; ++thickness) {
-            SDL_RenderDrawLine(renderer, previous_x, previous_y + thickness, x, y + thickness);
-        }
-        previous_x = x;
-        previous_y = y;
+    const int direction = clockwise ? 1 : -1;
+    const int tip = cx + direction * rect.width / 5;
+    const int tail = cx - direction * rect.width / 5;
+    for (int thickness = -3; thickness <= 3; ++thickness) {
+        SDL_RenderDrawLine(renderer, tail, cy + thickness, tip, cy + thickness);
+        SDL_RenderDrawLine(renderer, tip, cy + thickness,
+            tip - direction * rect.width / 7, cy - rect.height / 7 + thickness);
+        SDL_RenderDrawLine(renderer, tip, cy + thickness,
+            tip - direction * rect.width / 7, cy + rect.height / 7 + thickness);
     }
-    const int side = clockwise ? -1 : 1;
-    SDL_RenderDrawLine(renderer, previous_x, previous_y, previous_x + side * 9, previous_y - 5);
-    SDL_RenderDrawLine(renderer, previous_x, previous_y, previous_x + side * 7, previous_y + 7);
 }
 
 void drawCheck(SDL_Renderer* renderer, const ConstructionHudRect& rect) {
@@ -101,9 +93,6 @@ void drawTrash(SDL_Renderer* renderer, const ConstructionHudRect& rect) {
     SDL_Rect lid{rect.x + rect.width * 29 / 100, rect.y + rect.height * 31 / 100,
         rect.width * 42 / 100, 4};
     SDL_RenderFillRect(renderer, &lid);
-    SDL_Rect grip{rect.x + rect.width * 43 / 100, rect.y + rect.height * 25 / 100,
-        rect.width * 14 / 100, 5};
-    SDL_RenderFillRect(renderer, &grip);
 }
 
 void drawModeSymbol(SDL_Renderer* renderer, const ConstructionHudRect& rect, bool add) {
