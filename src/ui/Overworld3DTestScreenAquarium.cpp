@@ -551,6 +551,14 @@ Overworld3DTestScreen::aquariumConstructionVisual() const {
     visual.tunnel_portal_cells = aquarium_construction_.tunnelPortalCells();
     visual.tunnel_route_cells = aquarium_construction_.tunnelRouteCells();
     if (!visual.preview_tank && visual.selected_tank) visual.preview_tank = visual.selected_tank;
+    if (visual.state == aqc::ConstructionState::TunnelRoute) {
+        // Tunnel authoring owns a tank-local point grid. Do not reuse the
+        // room-wide construction cells or the full-cell draft silhouettes:
+        // both imply room placement cells instead of the installed tank's
+        // canonical half-cell-centred route points.
+        visual.draft_cells.clear();
+        visual.original_cells.clear();
+    }
     if (visual.preview_tank && visual.cut_cells.empty()) {
         const auto& footprint = visual.preview_tank->footprint;
         for (const auto cell : footprint.subtracted_cells) {
@@ -561,7 +569,20 @@ Overworld3DTestScreen::aquariumConstructionVisual() const {
     }
     const float height_step = scene_.terrain.height_per_floor > 0.0f
         ? scene_.terrain.height_per_floor : scene_.grid.tile_size;
-    for (const auto cell : aquarium_construction_.allowedCells()) {
+    const auto route_cells = visual.state == aqc::ConstructionState::TunnelRoute &&
+            visual.selected_tank
+        ? aqc::tankFootprintCells(*visual.selected_tank)
+        : std::vector<pr::aquarium::geometry::GridCell>{};
+    const auto& construction_cells = visual.state == aqc::ConstructionState::TunnelRoute
+        ? route_cells : aquarium_construction_.allowedCells();
+    for (const auto cell : construction_cells) {
+        if (visual.state == aqc::ConstructionState::TunnelRoute &&
+            std::any_of(visual.existing_tunnel_cells.begin(),
+                visual.existing_tunnel_cells.end(), [&](const auto occupied) {
+                    return occupied.column == cell.column && occupied.row == cell.row;
+                })) {
+            continue;
+        }
         float floor_y = 0.0f;
         if (cell.row >= 0 && cell.column >= 0 &&
             cell.row < static_cast<int>(scene_.terrain.heights.size()) &&
@@ -574,8 +595,10 @@ Overworld3DTestScreen::aquariumConstructionVisual() const {
             aquarium_construction_.cellBlocked(cell),
         });
     }
-    visual.locked_cells = aqc::aquariumConstructionContextLockedCells(
-        aquarium_construction_.allowedCells(), authoredObstacleCells(scene_));
+    if (visual.state != aqc::ConstructionState::TunnelRoute) {
+        visual.locked_cells = aqc::aquariumConstructionContextLockedCells(
+            aquarium_construction_.allowedCells(), authoredObstacleCells(scene_));
+    }
     return visual;
 }
 

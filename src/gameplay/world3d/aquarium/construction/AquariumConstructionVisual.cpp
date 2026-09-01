@@ -231,6 +231,11 @@ ConstructionVisualMesh buildAquariumConstructionWorldMesh(
     for (const ConstructionCellSurface& surface : visual.cells) {
         const float x0 = static_cast<float>(surface.cell.column) * tile + offset;
         const float z0 = static_cast<float>(surface.cell.row) * tile + offset;
+        if (visual.state == ConstructionState::TunnelRoute) {
+            appendDiamond(mesh, x0 + tile * 0.5f, z0 + tile * 0.5f,
+                surface.floor_y + 3.72f, 1.35f, kTunnel);
+            continue;
+        }
         const float y = surface.floor_y + 0.16f;
         appendQuad(mesh, x0 + 2.0f, z0 + 2.0f, x0 + tile - 2.0f, z0 + tile - 2.0f,
             y, surface.blocked ? kBlockedFill : kAllowedFill);
@@ -305,11 +310,28 @@ ConstructionVisualMesh buildAquariumConstructionWorldMesh(
         }
     }
 
+    if (visual.state == ConstructionState::TunnelRoute) {
+        for (const geo::GridCell cell : visual.tunnel_portal_cells) {
+            const float center_x = (static_cast<float>(cell.column) + 0.5f) * tile + offset;
+            const float center_z = (static_cast<float>(cell.row) + 0.5f) * tile + offset;
+            const float y = floorForCell(visual, cell) + 3.88f;
+            appendDiamond(mesh, center_x, center_z, y, 3.1f, kTunnel);
+            appendDiamond(mesh, center_x, center_z, y + 0.04f, 1.25f, kAnchor);
+        }
+    }
+
     const float cursor_x = static_cast<float>(visual.cursor.column) * tile + offset;
     const float cursor_z = static_cast<float>(visual.cursor.row) * tile + offset;
     const float cursor_y = floorForCell(visual, visual.cursor) + 0.35f;
-    appendBorder(mesh, cursor_x + 1.0f, cursor_z + 1.0f,
-        cursor_x + tile - 1.0f, cursor_z + tile - 1.0f, cursor_y, 0.9f, kCursor);
+    if (visual.state == ConstructionState::TunnelRoute) {
+        appendDiamond(mesh, cursor_x + tile * 0.5f, cursor_z + tile * 0.5f,
+            cursor_y + 3.67f, 4.1f, kCursor);
+        appendDiamond(mesh, cursor_x + tile * 0.5f, cursor_z + tile * 0.5f,
+            cursor_y + 3.71f, 2.15f, kTunnel);
+    } else {
+        appendBorder(mesh, cursor_x + 1.0f, cursor_z + 1.0f,
+            cursor_x + tile - 1.0f, cursor_z + tile - 1.0f, cursor_y, 0.9f, kCursor);
+    }
 
     if (visual.anchor) {
         const float center_x = (static_cast<float>(visual.anchor->column) + 0.5f) * tile + offset;
