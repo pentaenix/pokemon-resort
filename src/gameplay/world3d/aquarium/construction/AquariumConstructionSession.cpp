@@ -439,6 +439,14 @@ void AquariumConstructionSession::refreshDraftValidation() {
                 validation_message_ = "Keep every tank at least three cells in both directions";
                 return;
             }
+            const bool affected = std::find(
+                draft_->paint_affected_ids.begin(), draft_->paint_affected_ids.end(),
+                candidate.id) != draft_->paint_affected_ids.end();
+            if (affected && !geo::footprintHasMinimumThreeCellSections(candidate.footprint)) {
+                validation_message_ =
+                    "Keep every added or remaining tank section at least three cells wide";
+                return;
+            }
             for (const auto cell : tankFootprintCells(candidate)) {
                 if (!cellAllowed(cell)) {
                     validation_message_ = "Tank footprint leaves the construction area";
@@ -468,6 +476,13 @@ void AquariumConstructionSession::refreshDraftValidation() {
     const geo::TankDesign tank = draftTank();
     if (tank.footprint.width_cells < 3 || tank.footprint.depth_cells < 3) {
         validation_message_ = "Expand the tank to at least three cells in both directions";
+        return;
+    }
+    if ((draft_->operation == ConstructionDraftOperation::Add ||
+         draft_->operation == ConstructionDraftOperation::Subtract) &&
+        !geo::footprintHasMinimumThreeCellSections(tank.footprint)) {
+        validation_message_ =
+            "Keep every added or remaining tank section at least three cells wide";
         return;
     }
     const std::string ignored_id = draft_->original_tank ? draft_->original_tank->id : std::string{};

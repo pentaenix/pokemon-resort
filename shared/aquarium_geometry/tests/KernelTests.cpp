@@ -107,7 +107,7 @@ void testRectangleGolden() {
         "interior occupied cell is not blocked");
     require(result.statistics.navigation_layer_count == 1, "navigation layer count changed");
     require(result.navigation.suggested_spawns.size() == 1, "spawn count changed");
-    require(result.content_hash == "fnv1a64:80bcfed150e382e4", "content hash changed: " + result.content_hash);
+    require(result.content_hash == "fnv1a64:80593cdcf5817e67", "content hash changed: " + result.content_hash);
     require(result.statistics.water_volume_litres == 80735,
         "standard tank derived water volume changed");
 
@@ -166,14 +166,26 @@ void testBelowFloorDepthAndVolume() {
 
 void testSubtractedFootprintsStaySimpleAndConnected() {
     AquariumBuildRequest request = rectangleRequest();
+    request.tank.footprint.width_cells = 9;
+    request.tank.footprint.depth_cells = 6;
+    request.tank.footprint.subtracted_cells = {
+        {3, 0}, {4, 0}, {5, 0},
+        {3, 1}, {4, 1}, {5, 1},
+        {3, 2}, {4, 2}, {5, 2},
+    };
+    const AquariumBuildResult result = buildAquarium(request);
+    requireValidMeshSet(result, "subtracted footprint");
+    require(footprintCells(request.tank.footprint).size() == 45U &&
+            result.navigation.layers.front().area.holes.empty(),
+        "exterior-connected subtraction did not produce one simple water polygon");
+
     request.tank.footprint.width_cells = 5;
     request.tank.footprint.depth_cells = 5;
     request.tank.footprint.subtracted_cells = {{2, 0}, {2, 1}};
-    const AquariumBuildResult result = buildAquarium(request);
-    requireValidMeshSet(result, "subtracted footprint");
-    require(footprintCells(request.tank.footprint).size() == 23U &&
-            result.navigation.layers.front().area.holes.empty(),
-        "exterior-connected subtraction did not produce one simple water polygon");
+    require(!footprintHasMinimumThreeCellSections(request.tank.footprint),
+        "shared editing rule accepted subtraction that left two-cell arms");
+    require(validateAquarium(request).valid(),
+        "new editing-width rule made an existing narrow save unloadable");
 
     request.tank.footprint.subtracted_cells = {{2, 2}};
     ValidationReport validation = validateAquarium(request);
@@ -340,9 +352,9 @@ void testStraightAndElbowTunnelsDeriveDrySpace() {
     require(straight_result.statistics.water_volume_litres < 80735U,
         "straight dry corridor did not reduce derived water capacity");
     const SemanticMesh& structure = straight_result.meshes.meshes.front();
-    require(std::any_of(structure.vertices.begin(), structure.vertices.end(), [](const Vertex& vertex) {
+    require(std::none_of(structure.vertices.begin(), structure.vertices.end(), [](const Vertex& vertex) {
                 return std::abs(vertex.position.y - 0.06F) < 0.0001F;
-            }), "straight tunnel is missing its walkable floor strip");
+            }), "standard tunnel covered the room floor with a structure strip");
     const SemanticMesh& glass = straight_result.meshes.meshes.back();
     require(std::any_of(glass.vertices.begin(), glass.vertices.end(), [](const Vertex& vertex) {
                 return vertex.position.y > static_cast<float>(kTunnelCrownWorldUnits) &&
@@ -369,11 +381,46 @@ void testStraightAndElbowTunnelsDeriveDrySpace() {
             }), "crossing tunnels were accepted");
 
     straight.tank.corner_radius_steps = 1;
-    const ValidationReport rounded = validateAquarium(straight);
-    require(!rounded.valid() && std::any_of(rounded.diagnostics.begin(),
-            rounded.diagnostics.end(), [](const auto& diagnostic) {
-                return diagnostic.code == "tunnel_requires_square_corners";
-            }), "unsupported rounded portal geometry was silently accepted");
+    const ValidationReport affected_rounding = validateAquarium(straight);
+    require(!affected_rounding.valid() && std::any_of(affected_rounding.diagnostics.begin(),
+            affected_rounding.diagnostics.end(), [](const auto& diagnostic) {
+                return diagnostic.code == "tunnel_portal_intersects_rounding";
+            }), "rounding that cuts into a tunnel portal was accepted");
+
+    AquariumBuildRequest safe_rounding = rectangleRequest();
+    safe_rounding.tank.corner_radius_steps = 4;
+    safe_rounding.tank.tunnels.push_back({"tunnel_rounded", TunnelRoute::Straight,
+        {{7, 8}, {8, 8}, {9, 8}, {10, 8}, {11, 8}, {12, 8}, {13, 8}}});
+    require(tunnelPortalFitsBoundary(safe_rounding.tank, {7, 8}) &&
+            tunnelPortalFitsBoundary(safe_rounding.tank, {13, 8}),
+        "safe rounded-wall portal was hidden from construction");
+    requireValidMeshSet(buildAquarium(safe_rounding),
+        "tunnel clear of rounded corners");
+
+    AquariumBuildRequest below_floor_tunnel = rectangleRequest();
+    below_floor_tunnel.tank.depth_steps = 6;
+    below_floor_tunnel.tank.tunnels = safe_rounding.tank.tunnels;
+    const AquariumBuildResult bridge_result = buildAquarium(below_floor_tunnel);
+    requireValidMeshSet(bridge_result, "below-floor glass tunnel bridge");
+    const SemanticMesh& bridge_structure = bridge_result.meshes.meshes.front();
+    const SemanticMesh& bridge_sand = bridge_result.meshes.meshes[1];
+    const SemanticMesh& bridge_glass = bridge_result.meshes.meshes.back();
+    require(std::any_of(bridge_glass.vertices.begin(), bridge_glass.vertices.end(),
+            [](const Vertex& vertex) {
+                return std::abs(vertex.position.y - 0.03F) < 0.0001F &&
+                    vertex.normal.y > 0.9F;
+            }), "below-floor tunnel did not add transparent floor panels");
+    require(std::any_of(bridge_structure.vertices.begin(), bridge_structure.vertices.end(),
+            [](const Vertex& vertex) {
+                return std::abs(vertex.position.y - 0.065F) < 0.0001F;
+            }), "below-floor tunnel did not add panel edge rails and separators");
+    require(bridge_sand.vertices.size() == footprintBoundaryLocalWorld(
+            below_floor_tunnel.tank.footprint, 0).size(),
+        "below-floor tunnel cut away sand beneath its glass panels");
+    require(std::any_of(bridge_result.navigation.layers.begin(),
+            bridge_result.navigation.layers.end(), [](const NavigationLayer& layer) {
+                return layer.floor_y < 0.0F && layer.ceiling_y < 0.0F;
+            }), "below-floor glass bridge did not preserve underwater navigation beneath it");
 
     AquariumBuildRequest short_tank = rectangleRequest();
     short_tank.tank.height_steps = 4;

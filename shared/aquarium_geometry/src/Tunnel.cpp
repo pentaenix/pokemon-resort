@@ -9,7 +9,7 @@
 #include <string>
 #include <utility>
 
-namespace pr::aquarium::geometry::detail {
+namespace pr::aquarium::geometry {
 namespace {
 
 using CellKey = std::pair<std::int32_t, std::int32_t>;
@@ -61,7 +61,50 @@ std::optional<GridCell> portalOutward(
     return std::nullopt;
 }
 
+float cornerRadiusWorld(const TankDesign& tank, GridCell vertex) {
+    const auto override = std::find_if(tank.corner_radii.begin(), tank.corner_radii.end(),
+        [&](const CornerRadiusDesign& radius) {
+            return radius.vertex.column == vertex.column &&
+                radius.vertex.row == vertex.row;
+        });
+    const std::int32_t requested = override == tank.corner_radii.end()
+        ? tank.corner_radius_steps : override->radius_steps;
+    return static_cast<float>(fittedCornerRadiusStepsAt(
+        tank.footprint, vertex, requested) * kRadiusStepWorldUnits);
+}
+
 } // namespace
+
+bool tunnelPortalFitsBoundary(const TankDesign& tank, GridCell portal) {
+    const auto outward = portalOutward(tank.footprint, portal);
+    if (!outward) return false;
+    const int left = tank.footprint.origin_cell.column;
+    const int top = tank.footprint.origin_cell.row;
+    const int width = occupiedWidthCells(tank.footprint);
+    const int depth = occupiedDepthCells(tank.footprint);
+    GridCell first_corner;
+    GridCell second_corner;
+    float position = 0.0F;
+    float length = 0.0F;
+    if (outward->row != 0) {
+        first_corner = {0, outward->row < 0 ? 0 : depth};
+        second_corner = {width, first_corner.row};
+        position = static_cast<float>(portal.column - left) * kWorldUnitsPerCell;
+        length = static_cast<float>(width * kWorldUnitsPerCell);
+    } else {
+        first_corner = {outward->column < 0 ? 0 : width, 0};
+        second_corner = {first_corner.column, depth};
+        position = static_cast<float>(portal.row - top) * kWorldUnitsPerCell;
+        length = static_cast<float>(depth * kWorldUnitsPerCell);
+    }
+    const float opening_half_width = static_cast<float>(kTunnelOuterHalfWidthWorldUnits);
+    constexpr float kTolerance = 0.001F;
+    return position + kTolerance >= cornerRadiusWorld(tank, first_corner) + opening_half_width &&
+        length - position + kTolerance >=
+            cornerRadiusWorld(tank, second_corner) + opening_half_width;
+}
+
+namespace detail {
 
 TunnelHalfCellLayout buildTunnelHalfCellLayout(
     const FootprintDesign& footprint,
@@ -128,13 +171,6 @@ std::vector<ValidationDiagnostic> validateAndResolveTunnels(
         tank.footprint.rotation_quarter_turns != 0) {
         error(diagnostics, "tunnel_footprint_not_supported", "/tank/tunnels",
             "This tunnel checkpoint requires an unrotated rectangular tank");
-        return diagnostics;
-    }
-    if (tank.corner_radius_steps != 0 ||
-        std::any_of(tank.corner_radii.begin(), tank.corner_radii.end(),
-            [](const auto& radius) { return radius.radius_steps != 0; })) {
-        error(diagnostics, "tunnel_requires_square_corners", "/tank/tunnels",
-            "This tunnel checkpoint requires square tank corners");
         return diagnostics;
     }
     if (tank.height_steps < 6) {
@@ -217,6 +253,13 @@ std::vector<ValidationDiagnostic> validateAndResolveTunnels(
                     "Both tunnel endpoints must approach their wall portals from the tank interior");
                 valid = false;
             }
+            if ((expected_entry && !tunnelPortalFitsBoundary(tank, cells.front())) ||
+                (expected_exit && !tunnelPortalFitsBoundary(tank, cells.back()))) {
+                error(diagnostics, "tunnel_portal_intersects_rounding",
+                    path + "/centrelineCells",
+                    "Reduce the nearby corner roundness or move the tunnel portal");
+                valid = false;
+            }
         }
         if (!valid) continue;
         used_cells.insert(route_cells.begin(), route_cells.end());
@@ -244,4 +287,5 @@ std::vector<ValidationDiagnostic> validateAndResolveTunnels(
     return diagnostics;
 }
 
-} // namespace pr::aquarium::geometry::detail
+} // namespace detail
+} // namespace pr::aquarium::geometry

@@ -90,11 +90,15 @@ never substitutes an approximate tunnel silently.
 Player review exposed that tunnel centrelines must use the ordinary walking
 grid, not the tank footprint's half-cell-shifted drawing grid. Schema 5 makes
 that distinction authoritative. Schema-4 routes migrate by extending
-positive-edge portals onto the walking lattice. ABI 9 derives a two-cell-wide
+positive-edge portals onto the walking lattice. ABI 10 derives a two-cell-wide
 visual, sand, dry-volume, lower-water-navigation, capacity, and portal-infill
 profile on a half-cell raster, while collision clears only the authored
 centreline walking cells. The half-cell shoulders therefore retain collision
-even though the arch reads wider visually. Tunnels require tanks at least
+even though the arch reads wider visually. Standard passages cut through the
+tank base so the authored room floor remains visible. Below-floor passages
+retain substrate and water below a transparent, cell-panelled bridge with
+thin structure rails. Rounded corners are compatible when their fitted arcs
+stay clear of the complete portal opening. Tunnels require tanks at least
 three vertical levels tall.
 
 ## Alternatives Considered

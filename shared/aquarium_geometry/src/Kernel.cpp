@@ -54,6 +54,29 @@ bool connectedCells(const std::set<CellKey>& cells) {
     return visited.size() == cells.size();
 }
 
+bool everyCellBelongsToThreeByThreeSection(const std::set<CellKey>& cells) {
+    for (const CellKey cell : cells) {
+        bool supported = false;
+        for (int row_offset = -2; row_offset <= 0 && !supported; ++row_offset) {
+            for (int column_offset = -2; column_offset <= 0 && !supported; ++column_offset) {
+                bool complete = true;
+                for (int row = 0; row < 3 && complete; ++row) {
+                    for (int column = 0; column < 3; ++column) {
+                        if (!cells.count({cell.first + column_offset + column,
+                                         cell.second + row_offset + row})) {
+                            complete = false;
+                            break;
+                        }
+                    }
+                }
+                supported = complete;
+            }
+        }
+        if (!supported) return false;
+    }
+    return true;
+}
+
 bool allCutComponentsReachExterior(const FootprintDesign& footprint) {
     std::set<CellKey> remaining;
     for (const GridCell cell : footprint.subtracted_cells) {
@@ -224,6 +247,14 @@ float cellCentreWorld(std::int32_t cell_index) {
 float footprintCentreWorld(std::int32_t origin_cell, std::int32_t size_cells) {
     return (static_cast<float>(origin_cell) + static_cast<float>(size_cells) * 0.5F) *
            static_cast<float>(kWorldUnitsPerCell);
+}
+
+bool footprintHasMinimumThreeCellSections(const FootprintDesign& footprint) {
+    std::set<CellKey> occupied;
+    for (const GridCell cell : footprintCells(footprint)) {
+        occupied.emplace(cell.column, cell.row);
+    }
+    return !occupied.empty() && everyCellBelongsToThreeByThreeSection(occupied);
 }
 
 ValidationReport validateAquarium(const AquariumBuildRequest& request) {

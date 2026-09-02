@@ -136,17 +136,94 @@ void appendProfileSweep(
     }
 }
 
-void appendFloorStrip(SemanticMesh& mesh, const std::vector<Vec2>& route) {
-    constexpr float kFloorY = 0.06F;
+Vec2 localWalkingCellCentre(const FootprintDesign& footprint, GridCell cell) {
+    return {
+        cellCentreWorld(cell.column) -
+            footprintCentreWorld(footprint.origin_cell.column, occupiedWidthCells(footprint)) -
+            static_cast<float>(kPlacementOffsetWorldUnits),
+        cellCentreWorld(cell.row) -
+            footprintCentreWorld(footprint.origin_cell.row, occupiedDepthCells(footprint)) -
+            static_cast<float>(kPlacementOffsetWorldUnits),
+    };
+}
+
+void appendFlatRail(
+    SemanticMesh& structure, Vec2 start, Vec2 end, float width, float y) {
+    const float dx = end.x - start.x;
+    const float dz = end.y - start.y;
+    const float length = std::max(0.0001F, std::hypot(dx, dz));
+    const Vec2 lateral{-dz / length * width * 0.5F,
+        dx / length * width * 0.5F};
+    addQuad(structure, {{{start.x - lateral.x, y, start.y - lateral.y},
+        {start.x + lateral.x, y, start.y + lateral.y},
+        {end.x + lateral.x, y, end.y + lateral.y},
+        {end.x - lateral.x, y, end.y - lateral.y}}});
+}
+
+void appendGlassFloorPanels(
+    SemanticMesh& structure,
+    SemanticMesh& glass,
+    const FootprintDesign& footprint,
+    const ResolvedTunnel& tunnel) {
+    constexpr float kGlassFloorY = 0.03F;
+    constexpr float kFrameY = 0.065F;
+    constexpr float kFrameWidth = 0.52F;
+    constexpr float kPanelGap = 0.32F;
+    std::vector<Vec2> route;
+    route.reserve(tunnel.cells.size());
+    for (const GridCell cell : tunnel.cells) {
+        route.push_back(localWalkingCellCentre(footprint, cell));
+    }
     for (std::size_t index = 0; index + 1U < route.size(); ++index) {
-        const Vec2 left_a = offsetRoutePoint(route, index, -kTunnelOuterHalfWidth);
-        const Vec2 right_a = offsetRoutePoint(route, index, kTunnelOuterHalfWidth);
-        const Vec2 left_b = offsetRoutePoint(route, index + 1U, -kTunnelOuterHalfWidth);
-        const Vec2 right_b = offsetRoutePoint(route, index + 1U, kTunnelOuterHalfWidth);
-        addQuad(mesh, {{{left_a.x, kFloorY, left_a.y},
-            {left_b.x, kFloorY, left_b.y},
-            {right_b.x, kFloorY, right_b.y},
-            {right_a.x, kFloorY, right_a.y}}});
+        const Vec2 a = route[index];
+        const Vec2 b = route[index + 1U];
+        const float dx = b.x - a.x;
+        const float dz = b.y - a.y;
+        const float length = std::max(0.0001F, std::hypot(dx, dz));
+        const Vec2 direction{dx / length, dz / length};
+        const Vec2 lateral{-direction.y, direction.x};
+        const Vec2 start{a.x + direction.x * kPanelGap * 0.5F,
+            a.y + direction.y * kPanelGap * 0.5F};
+        const Vec2 end{b.x - direction.x * kPanelGap * 0.5F,
+            b.y - direction.y * kPanelGap * 0.5F};
+        const float panel_half_width = kTunnelOuterHalfWidth - kFrameWidth;
+        const Vec2 left_start{start.x - lateral.x * panel_half_width,
+            start.y - lateral.y * panel_half_width};
+        const Vec2 right_start{start.x + lateral.x * panel_half_width,
+            start.y + lateral.y * panel_half_width};
+        const Vec2 left_end{end.x - lateral.x * panel_half_width,
+            end.y - lateral.y * panel_half_width};
+        const Vec2 right_end{end.x + lateral.x * panel_half_width,
+            end.y + lateral.y * panel_half_width};
+        addQuad(glass, {{{left_start.x, kGlassFloorY, left_start.y},
+            {right_start.x, kGlassFloorY, right_start.y},
+            {right_end.x, kGlassFloorY, right_end.y},
+            {left_end.x, kGlassFloorY, left_end.y}}});
+
+        const Vec2 left_rail_a{a.x - lateral.x * (kTunnelOuterHalfWidth - kFrameWidth * 0.5F),
+            a.y - lateral.y * (kTunnelOuterHalfWidth - kFrameWidth * 0.5F)};
+        const Vec2 left_rail_b{b.x - lateral.x * (kTunnelOuterHalfWidth - kFrameWidth * 0.5F),
+            b.y - lateral.y * (kTunnelOuterHalfWidth - kFrameWidth * 0.5F)};
+        const Vec2 right_rail_a{a.x + lateral.x * (kTunnelOuterHalfWidth - kFrameWidth * 0.5F),
+            a.y + lateral.y * (kTunnelOuterHalfWidth - kFrameWidth * 0.5F)};
+        const Vec2 right_rail_b{b.x + lateral.x * (kTunnelOuterHalfWidth - kFrameWidth * 0.5F),
+            b.y + lateral.y * (kTunnelOuterHalfWidth - kFrameWidth * 0.5F)};
+        appendFlatRail(structure, left_rail_a, left_rail_b, kFrameWidth, kFrameY);
+        appendFlatRail(structure, right_rail_a, right_rail_b, kFrameWidth, kFrameY);
+
+        const Vec2 cross_a{a.x - lateral.x * kTunnelOuterHalfWidth,
+            a.y - lateral.y * kTunnelOuterHalfWidth};
+        const Vec2 cross_b{a.x + lateral.x * kTunnelOuterHalfWidth,
+            a.y + lateral.y * kTunnelOuterHalfWidth};
+        appendFlatRail(structure, cross_a, cross_b, kFrameWidth, kFrameY + 0.002F);
+        if (index + 2U == route.size()) {
+            const Vec2 end_cross_a{b.x - lateral.x * kTunnelOuterHalfWidth,
+                b.y - lateral.y * kTunnelOuterHalfWidth};
+            const Vec2 end_cross_b{b.x + lateral.x * kTunnelOuterHalfWidth,
+                b.y + lateral.y * kTunnelOuterHalfWidth};
+            appendFlatRail(structure, end_cross_a, end_cross_b,
+                kFrameWidth, kFrameY + 0.002F);
+        }
     }
 }
 
@@ -246,7 +323,10 @@ void appendTunnelMeshes(
     const auto outer = archProfile(kTunnelOuterHalfWidth, outer_crown);
     for (const ResolvedTunnel& tunnel : tunnels) {
         appendProfileSweep(glass, tunnel.route_local_world, inner, outer);
-        appendFloorStrip(structure, tunnel.route_local_world);
+        if (tank.depth_steps > 0) {
+            appendGlassFloorPanels(
+                structure, glass, tank.footprint, tunnel);
+        }
         appendPortalGlassCap(glass, tunnel.route_local_world.front(),
             tunnel.entry_outward, outer, tank.height_steps * kVerticalStepWorldUnits -
                 kGlassTopInset);

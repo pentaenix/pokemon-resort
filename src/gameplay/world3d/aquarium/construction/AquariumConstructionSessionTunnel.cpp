@@ -40,10 +40,7 @@ std::vector<geo::GridCell> AquariumConstructionSession::tunnelPortalCells() cons
     if (tank->footprint.shape != geo::FootprintShape::Rectangle ||
         !tank->footprint.subtracted_cells.empty() ||
         tank->footprint.rotation_quarter_turns != 0 ||
-        tank->corner_radius_steps != 0 ||
-        tank->height_steps < 6 ||
-        std::any_of(tank->corner_radii.begin(), tank->corner_radii.end(),
-            [](const auto& radius) { return radius.radius_steps != 0; })) return {};
+        tank->height_steps < 6) return {};
     std::vector<geo::GridCell> portals;
     const int left = tank->footprint.origin_cell.column;
     const int top = tank->footprint.origin_cell.row;
@@ -52,7 +49,8 @@ std::vector<geo::GridCell> AquariumConstructionSession::tunnelPortalCells() cons
     const auto add = [&](geo::GridCell cell, geo::GridCell outward) {
         const geo::GridCell exterior{
             cell.column + outward.column, cell.row + outward.row};
-        if (cellAllowed(cell) && !occupiedByCommitted(cell, tank->id) &&
+        if (geo::tunnelPortalFitsBoundary(*tank, cell) &&
+            cellAllowed(cell) && !occupiedByCommitted(cell, tank->id) &&
             !occupiedByCommitted(exterior, tank->id) && !usedByTunnel(*tank, cell)) {
             portals.push_back(cell);
         }
@@ -138,11 +136,8 @@ bool AquariumConstructionSession::beginTunnelSelected() {
     }
     if (tank->footprint.shape != geo::FootprintShape::Rectangle ||
         !tank->footprint.subtracted_cells.empty() ||
-        tank->footprint.rotation_quarter_turns != 0 ||
-        tank->corner_radius_steps != 0 ||
-        std::any_of(tank->corner_radii.begin(), tank->corner_radii.end(),
-            [](const auto& radius) { return radius.radius_steps != 0; })) {
-        validation_message_ = "Tunnels currently need a square-corner rectangle";
+        tank->footprint.rotation_quarter_turns != 0) {
+        validation_message_ = "Tunnels currently need an unrotated rectangle";
         return false;
     }
     draft_ = ConstructionDraft{};

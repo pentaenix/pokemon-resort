@@ -7,7 +7,7 @@ Updated: 2026-09-01
 - Pokémon Resort branch: `codex/aquarium-construction-milestone-4` from the Milestone 3.5 checkpoint.
 - Aquarium maker branch: `codex/aquarium-construction-milestone-4` from the Milestone 3.5 checkpoint.
 - Pre-Milestone 1 aquarium work was integrated into both repositories before these branches were created.
-- Milestone 4 changes span both repositories because current kernel ABI 9 is consumed by the maker's browser-only WASM adapter.
+- Milestone 4 changes span both repositories because current kernel ABI 10 is consumed by the maker's browser-only WASM adapter.
 - No reset, clean, checkout, destructive operation, or broad reformat was performed.
 - Feature commits stage explicit Milestone 4 paths only.
 
@@ -472,7 +472,7 @@ is never an editable or duplicated numeric field in the authoritative save docum
 ### First playable checkpoint
 
 - [x] Create clean Milestone 4 branches in Resort and Aquarium Maker.
-- [x] Advance the shared kernel to ABI 9 and schema 5 after player review separated the walking-cell tunnel lattice from the shifted tank drawing lattice and limited the traversable corridor to its authored centreline.
+- [x] Advance the shared kernel to ABI 10 and schema 5 after player review separated the walking-cell tunnel lattice from the shifted tank drawing lattice, limited traversable collision to the authored centreline, and aligned tunnel floors with the maker's open-floor/glass-bridge rules.
 - [x] Validate ordered whole-cell straight routes and routes with exactly one orthogonal elbow.
 - [x] Require two outward-facing boundary portals, reject self-intersections, crossings, overlaps, invalid route shapes, and boundary-skimming interiors.
 - [x] Generate a fixed two-cell-wide, slightly taller arch shell, portal openings with glass infill above the arch, and a room-level dry floor strip from the same centreline.
@@ -484,7 +484,10 @@ is never an editable or duplicated numeric field in the authoritative save docum
 - [x] Migrate schema-4 tunnel routes onto the schema-5 walking lattice and require tanks at least three vertical levels tall.
 - [ ] Player review: verify portal visibility, pointer selection, controller route laying, arch/floor appearance, walking collision, and Pokémon presentation.
 - [x] Add a visible midpoint delete knob for each existing tunnel plus Delete/controller-X cursor deletion; removal is transactional and undoable.
-- [ ] Route compatible discrete Aquarium Maker passage settings through ABI 9; the maker UI still keeps passages on its advanced legacy geometry path, while the shared JSON golden already proves native/WASM parity.
+- [x] Allow independent tank-corner rounding whenever the fitted arc and complete tunnel portal opening do not overlap; conflicting corner edits remain visible but invalid.
+- [x] Leave the room floor visible through standard tunnels; below-floor tunnels retain flat sand and underwater navigation beneath glass panels with thin frame rails and cell-edge separators.
+- [x] Keep legacy player designs loadable while requiring every section affected by a new add/subtract command to remain at least three cells wide.
+- [ ] Route compatible discrete Aquarium Maker passage settings through ABI 10; the maker UI still keeps passages on its advanced legacy geometry path, while the shared JSON golden already proves native/WASM parity.
 - [ ] Extend portal cutting and water-region construction to rounded, rotated, L/U, and exterior-subtracted tanks after the rectangular seam is visually accepted.
 - [ ] Add multiple-tunnel player interaction and manual validation; the kernel already rejects crossing/overlapping routes.
 
@@ -494,7 +497,7 @@ Focused verification:
 |---|---|
 | Resort geometry, design, runtime targets and `title_screen_demo` | Pass |
 | `aquarium_geometry_tests`, `aquarium_design_tests`, `aquarium_runtime_tests` | Pass |
-| `npm run validate:kernel` | Pass; five exact native/WASM goldens, ABI 9/schema 5, rectangle hash `fnv1a64:80bcfed150e382e4`, WASM p95 1.2922 ms |
+| `npm run validate:kernel` | Pass; five exact native/WASM goldens, ABI 10/schema 5, rectangle hash `fnv1a64:80593cdcf5817e67`, WASM p95 1.4190 ms |
 | `npm run check` | Pass; existing maker chunk-size warning only |
 
 Review boundary: this is intentionally the smallest end-to-end tunnel slice.

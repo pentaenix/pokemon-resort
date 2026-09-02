@@ -26,6 +26,8 @@ std::vector<Vec2> footprintBoundaryLocalWorld(
     const FootprintDesign& footprint,
     std::int32_t default_radius_steps,
     const std::vector<CornerRadiusDesign>& corner_radii);
+bool footprintHasMinimumThreeCellSections(const FootprintDesign& footprint);
+bool tunnelPortalFitsBoundary(const TankDesign& tank, GridCell portal);
 
 ValidationReport validateAquarium(const AquariumBuildRequest& request);
 AquariumBuildResult buildAquarium(const AquariumBuildRequest& request);

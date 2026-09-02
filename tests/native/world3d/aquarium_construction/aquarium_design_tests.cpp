@@ -21,11 +21,11 @@ construction::AquariumDesignDocument documentFixture() {
     geometry::TankDesign tank;
     tank.id = "tank_golden_rectangle_even";
     tank.footprint.origin_cell = {7, 6};
-    tank.footprint.width_cells = 6;
+    tank.footprint.width_cells = 7;
     tank.footprint.depth_cells = 4;
     tank.height_steps = 8;
-    tank.footprint.subtracted_cells = {{2, 0}};
-    tank.corner_radii = {{{0, 0}, 1}, {{6, 4}, 2}};
+    tank.footprint.subtracted_cells = {{3, 0}};
+    tank.corner_radii = {{{0, 0}, 1}, {{7, 4}, 2}};
     document.tanks.push_back(std::move(tank));
     geometry::TankDesign shaped;
     shaped.id = "tank_golden_u_rotated";

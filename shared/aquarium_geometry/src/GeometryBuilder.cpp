@@ -263,6 +263,55 @@ float polygonCross(Vec2 a, Vec2 b, Vec2 c) {
     return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
 }
 
+float polygonSignedArea(const std::vector<Vec2>& polygon) {
+    float twice_area = 0.0F;
+    for (std::size_t index = 0; index < polygon.size(); ++index) {
+        const Vec2 a = polygon[index];
+        const Vec2 b = polygon[(index + 1U) % polygon.size()];
+        twice_area += a.x * b.y - b.x * a.y;
+    }
+    return twice_area * 0.5F;
+}
+
+Vec2 lineIntersection(Vec2 start, Vec2 end, Vec2 clip_start, Vec2 clip_end) {
+    const Vec2 segment{end.x - start.x, end.y - start.y};
+    const Vec2 edge{clip_end.x - clip_start.x, clip_end.y - clip_start.y};
+    const float denominator = segment.x * edge.y - segment.y * edge.x;
+    if (std::abs(denominator) <= 0.0001F) return end;
+    const Vec2 offset{clip_start.x - start.x, clip_start.y - start.y};
+    const float parameter = (offset.x * edge.y - offset.y * edge.x) / denominator;
+    return {start.x + segment.x * parameter, start.y + segment.y * parameter};
+}
+
+std::vector<Vec2> clipPolygonToConvex(
+    std::vector<Vec2> subject, const std::vector<Vec2>& clip) {
+    if (subject.size() < 3U || clip.size() < 3U) return {};
+    const float orientation = polygonSignedArea(clip) >= 0.0F ? 1.0F : -1.0F;
+    for (std::size_t edge_index = 0; edge_index < clip.size(); ++edge_index) {
+        const Vec2 clip_start = clip[edge_index];
+        const Vec2 clip_end = clip[(edge_index + 1U) % clip.size()];
+        const auto inside = [&](Vec2 point) {
+            return orientation * polygonCross(clip_start, clip_end, point) >= -0.0001F;
+        };
+        std::vector<Vec2> output;
+        if (subject.empty()) break;
+        Vec2 previous = subject.back();
+        bool previous_inside = inside(previous);
+        for (const Vec2 current : subject) {
+            const bool current_inside = inside(current);
+            if (current_inside != previous_inside) {
+                output.push_back(lineIntersection(
+                    previous, current, clip_start, clip_end));
+            }
+            if (current_inside) output.push_back(current);
+            previous = current;
+            previous_inside = current_inside;
+        }
+        subject = std::move(output);
+    }
+    return subject;
+}
+
 bool pointInTriangle(Vec2 point, Vec2 a, Vec2 b, Vec2 c) {
     const float a_cross = polygonCross(a, b, point);
     const float b_cross = polygonCross(b, c, point);
@@ -357,6 +406,19 @@ void populateAquariumGeometry(
         footprint, request.tank.corner_radius_steps, request.tank.corner_radii);
     std::vector<ResolvedTunnel> tunnels;
     validateAndResolveTunnels(request.tank, &tunnels);
+    const std::vector<GridCell> occupied = footprintCells(footprint);
+    TunnelHalfCellLayout tunnel_layout;
+    std::vector<std::vector<Vec2>> tunnel_water_regions;
+    if (!tunnels.empty()) {
+        tunnel_layout = buildTunnelHalfCellLayout(footprint, tunnels);
+        for (const auto& region : connectedCellRegions(tunnel_layout.water)) {
+            auto clipped = clipPolygonToConvex(
+                tunnelHalfCellBoundary(region, footprint), boundary);
+            if (clipped.size() >= 3U) {
+                tunnel_water_regions.push_back(std::move(clipped));
+            }
+        }
+    }
     const std::vector<Vec2> base_boundary = offsetBoundary(boundary, kBaseOverhang);
     const std::vector<Vec2> frame_boundary = offsetBoundary(boundary, kFrameOverhang);
     const float height = static_cast<float>(request.tank.height_steps * kVerticalStepWorldUnits);
@@ -380,7 +442,15 @@ void populateAquariumGeometry(
     SemanticMesh& water_volume = addMesh(result.meshes, MeshMaterial::WaterVolume);
     SemanticMesh& water_surface = addMesh(result.meshes, MeshMaterial::WaterSurface);
     SemanticMesh& glass = addMesh(result.meshes, MeshMaterial::Glass);
-    addSolidPlinth(structure, base_boundary, profile_bottom, base_top);
+    if (!tunnels.empty() && !below_floor) {
+        appendTunnelPerimeterGlass(
+            structure, boundary, profile_bottom, base_top, tunnels);
+        for (const auto& region : tunnel_water_regions) {
+            addPolygonSurface(structure, region, base_top);
+        }
+    } else {
+        addSolidPlinth(structure, base_boundary, profile_bottom, base_top);
+    }
     for (std::size_t index = 0; index < frame_boundary.size(); ++index) {
         const Vec2 start = frame_boundary[index];
         const Vec2 end = frame_boundary[(index + 1) % frame_boundary.size()];
@@ -401,12 +471,9 @@ void populateAquariumGeometry(
         appendTunnelMeshes(structure, glass, request.tank, tunnels);
     }
     addPerimeterSides(water_volume, boundary, water_bottom, water_y - 0.002F);
-    const std::vector<GridCell> occupied = footprintCells(footprint);
-    TunnelHalfCellLayout tunnel_layout;
-    if (!tunnels.empty()) {
-        tunnel_layout = buildTunnelHalfCellLayout(footprint, tunnels);
-        for (const auto& region : connectedCellRegions(tunnel_layout.water)) {
-            addPolygonSurface(sand, tunnelHalfCellBoundary(region, footprint), sand_surface_y);
+    if (!tunnels.empty() && !below_floor) {
+        for (const auto& region : tunnel_water_regions) {
+            addPolygonSurface(sand, region, sand_surface_y);
         }
     } else {
         addPolygonSurface(sand, boundary, sand_surface_y);
@@ -450,13 +517,26 @@ void populateAquariumGeometry(
         result.navigation.layers.push_back(std::move(layer));
     } else {
         const float dry_ceiling = tunnelDryCeiling(request.tank);
-        const float lower_ceiling = std::min(water_y, dry_ceiling);
-        if (lower_ceiling > sand_surface_y + 0.001F) {
-            for (const auto& region : connectedCellRegions(tunnel_layout.water)) {
+        if (below_floor) {
+            const float bridge_clearance = -kGlassThickness;
+            const float under_bridge_ceiling = std::min(water_y, bridge_clearance);
+            if (under_bridge_ceiling > sand_surface_y + 0.001F) {
                 NavigationLayer layer;
                 layer.floor_y = sand_surface_y;
+                layer.ceiling_y = under_bridge_ceiling;
+                layer.area.outer = boundary;
+                result.navigation.layers.push_back(std::move(layer));
+            }
+        }
+        const float lower_ceiling = std::min(water_y, dry_ceiling);
+        const float corridor_floor = below_floor
+            ? std::max(sand_surface_y, 0.0F) : sand_surface_y;
+        if (lower_ceiling > corridor_floor + 0.001F) {
+            for (const auto& region : tunnel_water_regions) {
+                NavigationLayer layer;
+                layer.floor_y = corridor_floor;
                 layer.ceiling_y = lower_ceiling;
-                layer.area.outer = tunnelHalfCellBoundary(region, footprint);
+                layer.area.outer = region;
                 result.navigation.layers.push_back(std::move(layer));
             }
         }
@@ -521,8 +601,10 @@ void populateAquariumGeometry(
     const double depth_world_units = std::max(0.0F, water_y - water_bottom);
     double water_world_volume = area_world_units * depth_world_units;
     if (!tunnels.empty()) {
+        const float excluded_bottom = below_floor
+            ? std::max(water_bottom, 0.0F) : water_bottom;
         const double excluded_height = std::max(0.0F,
-            std::min(water_y, tunnelDryCeiling(request.tank)) - water_bottom);
+            std::min(water_y, tunnelDryCeiling(request.tank)) - excluded_bottom);
         water_world_volume -= static_cast<double>(tunnel_layout.dry_count) *
             kHalfCellWorldUnits * kHalfCellWorldUnits * excluded_height;
     }

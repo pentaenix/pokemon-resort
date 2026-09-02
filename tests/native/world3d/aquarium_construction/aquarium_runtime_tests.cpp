@@ -112,8 +112,12 @@ void directPaintGesturesCommitAsSingleUndoableCommands() {
     session.pointAt({10, 10});
     require(session.selectAtCursor(), "paint fixture tank was not selected");
     session.pointAt({13, 11});
-    require(session.beginPaintSelected(false) && session.draftValid(),
-        "adjacent add gesture did not expand the selected tank");
+    require(session.beginPaintSelected(false) && !session.draftValid(),
+        "one-cell-wide add gesture was not held as an invalid preview");
+    session.pointAt({13, 10});
+    session.pointAt({13, 12});
+    require(session.draftValid(),
+        "three-cell-wide add gesture did not expand the selected tank");
     require(session.reviewDraft(), "add gesture did not finish");
     auto expanded = session.prepareCommit();
     require(expanded && expanded->document.tanks.front().footprint.width_cells == 4,
@@ -130,8 +134,8 @@ void directPaintGesturesCommitAsSingleUndoableCommands() {
         min_row = std::min(min_row, cell.row);
     }
     session.pointAt({min_column, min_row});
-    require(session.beginPaintSelected(true) && session.draftValid(),
-        "corner subtraction did not begin");
+    require(session.beginPaintSelected(true) && !session.draftValid(),
+        "narrow corner subtraction was not retained as an invalid preview");
     session.pointAt({min_column + 1, min_row});
     const auto corner_cut_cells = session.draftCells();
     require(corner_cut_cells.size() == 2 && corner_cut_cells.front().column == min_column &&
@@ -165,7 +169,7 @@ void exteriorPaintMergesAndErasesMultipleTanksUndoably() {
     alpha.footprint.depth_cells = 3;
     geo::TankDesign beta = alpha;
     beta.id = "tank_beta";
-    beta.footprint.origin_cell = {16, 10};
+    beta.footprint.origin_cell = {14, 10};
     document.tanks = {alpha, beta};
 
     construction::AquariumConstructionSession merge;
@@ -173,12 +177,13 @@ void exteriorPaintMergesAndErasesMultipleTanksUndoably() {
     require(merge.enter({21, 15}), "merge fixture did not enter construction");
     merge.pointAt({10, 11});
     require(merge.selectAtCursor(), "merge fixture did not select its primary tank");
-    merge.pointAt({14, 13});
-    require(merge.beginPaintSelected(false) && !merge.draftValid(),
-        "plus paint could not arm from empty exterior space");
     merge.pointAt({13, 11});
-    merge.pointAt({16, 11});
-    require(merge.draftValid(), "exterior bridge into a second tank was invalid");
+    require(merge.beginPaintSelected(false) && !merge.draftValid(),
+        "one-cell bridge did not remain an invalid preview");
+    merge.pointAt({13, 10});
+    merge.pointAt({13, 12});
+    merge.pointAt({14, 11});
+    require(merge.draftValid(), "three-cell-wide bridge into a second tank was invalid");
     require(merge.reviewDraft(), "merged paint gesture did not enter review");
     auto merged = merge.prepareCommit();
     require(merged && merged->document.tanks.size() == 1 &&
@@ -349,17 +354,17 @@ void subtractEditingCommitsUndoablyAndRejectsEnclosedCuts() {
     geo::TankDesign tank;
     tank.id = "tank_subtract";
     tank.footprint.origin_cell = {10, 10};
-    tank.footprint.width_cells = 5;
+    tank.footprint.width_cells = 7;
     tank.footprint.depth_cells = 5;
     document.tanks.push_back(tank);
 
     construction::AquariumConstructionSession session;
     session.configure("aquarium12", constructionConfig(), {}, document);
     require(session.enter({9, 9}), "subtract fixture did not enter construction");
-    session.pointAt({12, 10});
+    session.pointAt({13, 10});
     require(session.selectAtCursor() && session.beginSubtractSelected(),
         "selected rectangle did not enter subtract editing");
-    session.pointAt({12, 10});
+    session.pointAt({13, 10});
     require(session.toggleSubtractedCell() && session.draftValid(),
         "edge-connected subtraction was not accepted as a valid draft");
     require(session.reviewDraft(), "valid subtraction did not enter review");
@@ -375,7 +380,7 @@ void subtractEditingCommitsUndoablyAndRejectsEnclosedCuts() {
             session.committedDesign().tanks[0].footprint.subtracted_cells.empty(),
         "undo did not restore the uncut rectangle through a new revision");
 
-    session.pointAt({12, 12});
+    session.pointAt({13, 12});
     require(session.beginSubtractSelected() && session.toggleSubtractedCell(),
         "enclosed-cut fixture could not toggle its interior cell");
     require(!session.draftValid(), "an enclosed interior cut was accepted");
@@ -1112,6 +1117,17 @@ void tunnelGestureCommitsCancelsAndClearsRuntimeCollision() {
         "valid tunnel route did not prepare one tank-edit command");
     require(session.publish(std::move(*candidate)) && session.undoCount() == 1U,
         "tunnel edit did not publish as one undoable command");
+    require(session.adjustCornerRadius({0, 0}, 1) && session.draftValid(),
+        "corner clear of the tunnel could not be rounded");
+    require(session.cancel(), "safe tunnel-corner rounding draft did not cancel");
+    for (int step = 0; step < 5; ++step) {
+        require(session.adjustCornerRadius({0, 0}, 1),
+            "tunnel-corner rounding fixture stopped before its fitted limit");
+    }
+    require(!session.draftValid() &&
+            session.validationMessage().find("roundness") != std::string::npos,
+        "corner rounding that reached the tunnel portal remained committable");
+    require(session.cancel(), "conflicting tunnel-corner rounding draft did not cancel");
     require(session.beginMoveSelected(), "tunnel tank move did not begin");
     session.moveCursor(1, 0);
     const auto moved_preview = session.previewTank();
