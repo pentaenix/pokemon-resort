@@ -624,6 +624,10 @@ void constructionVisualBuildsYellowCellsGizmosAndCanonicalHitTargets() {
     selected.footprint.origin_cell = {10, 10};
     selected.footprint.width_cells = 3;
     selected.footprint.depth_cells = 3;
+    geo::TunnelDesign tunnel;
+    tunnel.id = "tunnel_gizmo";
+    tunnel.centreline_cells = {{10, 11}, {11, 11}, {12, 11}, {13, 11}};
+    selected.tunnels.push_back(tunnel);
     visual.cells.clear();
     for (int row = 10; row <= 12; ++row) {
         for (int column = 10; column <= 12; ++column) {
@@ -683,6 +687,15 @@ void constructionVisualBuildsYellowCellsGizmosAndCanonicalHitTargets() {
             portal_gizmo->portal_cell && portal_gizmo->portal_cell->column == 10 &&
             portal_gizmo->portal_cell->row == 11,
         "glowing tunnel portal was not mouse-hit-testable at its rendered cell");
+    require(camera.worldToScreen({200.0f, 4.08f, 184.0f}, 1280, 800,
+                screen_x, screen_y, depth),
+        "tunnel delete knob did not project into the construction viewport");
+    const auto tunnel_delete_gizmo = construction::hitTestAquariumConstructionGizmo(
+        visual, camera, static_cast<int>(screen_x), static_cast<int>(screen_y), 1280, 800);
+    require(tunnel_delete_gizmo &&
+            tunnel_delete_gizmo->kind == construction::ConstructionGizmoKind::TunnelDelete &&
+            tunnel_delete_gizmo->tunnel_id == "tunnel_gizmo",
+        "tunnel midpoint did not expose its mouse-hit-testable delete knob");
     require(camera.worldToScreen({216.0f, 3.65f, 192.0f}, 1280, 800,
                 screen_x, screen_y, depth),
         "selected tank resize gizmo did not project into the construction viewport");
@@ -1122,13 +1135,33 @@ void tunnelGestureCommitsCancelsAndClearsRuntimeCollision() {
         "committed tunnel did not reach the runtime navigation set");
     require(std::none_of(runtime.collision_cells.begin(), runtime.collision_cells.end(),
             [](geo::GridCell cell) {
-                return cell.column >= 12 && cell.column <= 14 &&
-                    cell.row >= 11 && cell.row <= 15;
+                return cell.column == 13 && cell.row >= 11 && cell.row <= 15;
             }), "verified tunnel corridor remained blocked on the walking grid");
     require(std::any_of(runtime.collision_cells.begin(), runtime.collision_cells.end(),
             [](geo::GridCell cell) {
-                return cell.column == 15 && cell.row == 13;
-            }), "two-cell tunnel incorrectly cleared a lane beyond its half-cell shoulders");
+                return cell.column == 12 && cell.row == 13;
+            }) && std::any_of(runtime.collision_cells.begin(), runtime.collision_cells.end(),
+            [](geo::GridCell cell) {
+                return cell.column == 14 && cell.row == 13;
+            }), "tunnel collision cleared a shoulder lane instead of only its centreline");
+
+    session.pointAt({13, 13});
+    const auto tunnel_id = session.tunnelIdAtCursor();
+    require(tunnel_id.has_value(),
+        "selected tunnel centreline did not expose its tunnel ID");
+    if (!session.beginRemoveTunnelSelected(*tunnel_id)) {
+        throw std::runtime_error(
+            "selected tunnel could not begin an undoable removal: " +
+            session.validationMessage());
+    }
+    auto removal = session.prepareCommit();
+    require(removal && removal->document.tanks.front().tunnels.empty() &&
+            session.publish(std::move(*removal)),
+        "tunnel delete knob did not publish a normal tank edit");
+    auto undo = session.prepareUndo();
+    require(undo && undo->document.tanks.front().tunnels.size() == 1U &&
+            session.publish(std::move(*undo)),
+        "tunnel removal was not reversible through construction history");
 }
 
 void resourceGenerationRejectsCandidatesWithoutTouchingActiveResources() {

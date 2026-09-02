@@ -417,7 +417,11 @@ void populateAquariumGeometry(
     // Blocking only the perimeter allowed actors to enter interior cells when
     // rounding or follower movement crossed more than one grid boundary.
     result.collision.blocked_cells = occupied;
-    result.collision.dry_corridor_cells = tunnel_layout.walking_collision;
+    for (const ResolvedTunnel& tunnel : tunnels) {
+        result.collision.dry_corridor_cells.insert(
+            result.collision.dry_corridor_cells.end(),
+            tunnel.cells.begin(), tunnel.cells.end());
+    }
     for (std::size_t tunnel_index = 0; tunnel_index < tunnels.size(); ++tunnel_index) {
         const ResolvedTunnel& tunnel = tunnels[tunnel_index];
         NavigationDryVolume dry;

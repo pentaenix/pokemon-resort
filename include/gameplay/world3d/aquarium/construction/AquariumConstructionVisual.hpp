@@ -140,6 +140,7 @@ enum class ConstructionGizmoKind {
     Depth,
     CornerRadius,
     TunnelPortal,
+    TunnelDelete,
 };
 
 struct ConstructionGizmoHit {
@@ -147,6 +148,7 @@ struct ConstructionGizmoHit {
     AquariumResizeHandle resize_handle = AquariumResizeHandle::SouthEast;
     std::optional<pr::aquarium::geometry::GridCell> corner_vertex;
     std::optional<pr::aquarium::geometry::GridCell> portal_cell;
+    std::optional<std::string> tunnel_id;
 };
 
 ConstructionVisualMesh buildAquariumConstructionWorldMesh(

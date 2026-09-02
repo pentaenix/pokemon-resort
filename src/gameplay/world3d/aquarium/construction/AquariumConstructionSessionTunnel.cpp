@@ -101,6 +101,35 @@ std::vector<geo::GridCell> AquariumConstructionSession::tunnelRouteCells() const
     return cells;
 }
 
+std::optional<std::string> AquariumConstructionSession::tunnelIdAtCursor() const {
+    const geo::TankDesign* tank = selectedTank();
+    if (!tank) return std::nullopt;
+    const auto found = std::find_if(tank->tunnels.begin(), tank->tunnels.end(),
+        [&](const auto& tunnel) {
+            return std::any_of(tunnel.centreline_cells.begin(),
+                tunnel.centreline_cells.end(), [&](const auto point) {
+                    return point.column == cursor_.column && point.row == cursor_.row;
+                });
+        });
+    return found == tank->tunnels.end()
+        ? std::nullopt : std::optional<std::string>{found->id};
+}
+
+bool AquariumConstructionSession::beginRemoveTunnelSelected(std::string_view tunnel_id) {
+    const geo::TankDesign* tank = selectedTank();
+    if (state_ != ConstructionState::Selected || !tank) return false;
+    geo::TankDesign candidate = *tank;
+    const auto found = std::find_if(candidate.tunnels.begin(), candidate.tunnels.end(),
+        [&](const auto& tunnel) { return tunnel.id == tunnel_id; });
+    if (found == candidate.tunnels.end()) return false;
+    candidate.tunnels.erase(found);
+    draft_ = ConstructionDraft{
+        ConstructionDraftOperation::TunnelRemove, cursor_, cursor_, *tank, candidate};
+    state_ = ConstructionState::DraftReview;
+    refreshDraftValidation();
+    return draftValid();
+}
+
 bool AquariumConstructionSession::beginTunnelSelected() {
     const geo::TankDesign* tank = selectedTank();
     if (state_ != ConstructionState::Selected || !tank || !isTunnelPortalCell(cursor_)) {

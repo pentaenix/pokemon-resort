@@ -1918,8 +1918,13 @@ bool Overworld3DTestScreen::handleUnroutedSdlEvent(const SDL_Event& event) {
             return true;
         }
         if (key == SDLK_DELETE) {
-            activateAquariumConstructionAction(
-                gameplay::world3d::aquarium::construction::ConstructionHudAction::Delete);
+            if (const auto tunnel_id = aquarium_construction_.tunnelIdAtCursor();
+                tunnel_id && aquarium_construction_.beginRemoveTunnelSelected(*tunnel_id)) {
+                commitAquariumConstruction();
+            } else {
+                activateAquariumConstructionAction(
+                    gameplay::world3d::aquarium::construction::ConstructionHudAction::Delete);
+            }
             return true;
         }
         if (command && key == SDLK_z) {
@@ -1951,7 +1956,10 @@ bool Overworld3DTestScreen::handleUnroutedSdlEvent(const SDL_Event& event) {
                 syncAquariumConstructionFocus();
                 return true;
             case SDL_CONTROLLER_BUTTON_X:
-                if (aquarium_construction_.requestDeleteSelected()) {
+                if (const auto tunnel_id = aquarium_construction_.tunnelIdAtCursor();
+                    tunnel_id && aquarium_construction_.beginRemoveTunnelSelected(*tunnel_id)) {
+                    commitAquariumConstruction();
+                } else if (aquarium_construction_.requestDeleteSelected()) {
                     commitAquariumConstruction();
                 } else {
                     requestAquariumConstructionErrorFeedback();

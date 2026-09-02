@@ -253,6 +253,7 @@ bool AquariumConstructionSession::adjustDraft() {
         case ConstructionDraftOperation::Add: state_ = ConstructionState::PaintFootprint; break;
         case ConstructionDraftOperation::Properties: state_ = ConstructionState::DraftReview; break;
         case ConstructionDraftOperation::Tunnel: state_ = ConstructionState::TunnelRoute; break;
+        case ConstructionDraftOperation::TunnelRemove: state_ = ConstructionState::DraftReview; break;
     }
     return true;
 }

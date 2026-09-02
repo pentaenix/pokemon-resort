@@ -88,12 +88,14 @@ validation failures until their shared geometry is implemented; the kernel
 never substitutes an approximate tunnel silently.
 
 Player review exposed that tunnel centrelines must use the ordinary walking
-grid, not the tank footprint's half-cell-shifted drawing grid. ABI 8 and
-schema 5 make that distinction authoritative. Schema-4 routes migrate by
-extending positive-edge portals onto the walking lattice. The kernel derives
-a two-cell-wide dry profile on a half-cell raster, matching sand, collision,
-lower-water navigation, capacity, and portal glass infill above the taller
-arch. Tunnels require tanks at least three vertical levels tall.
+grid, not the tank footprint's half-cell-shifted drawing grid. Schema 5 makes
+that distinction authoritative. Schema-4 routes migrate by extending
+positive-edge portals onto the walking lattice. ABI 9 derives a two-cell-wide
+visual, sand, dry-volume, lower-water-navigation, capacity, and portal-infill
+profile on a half-cell raster, while collision clears only the authored
+centreline walking cells. The half-cell shoulders therefore retain collision
+even though the arch reads wider visually. Tunnels require tanks at least
+three vertical levels tall.
 
 ## Alternatives Considered
 

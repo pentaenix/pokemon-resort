@@ -190,6 +190,17 @@ std::vector<GizmoWorldPoint> gizmoWorldPoints(const AquariumConstructionVisual& 
                  floorForCell(visual, cell) + 3.92f,
                  (static_cast<float>(cell.row) + 0.5f) * tile}});
         }
+        for (const auto& tunnel : tank->tunnels) {
+            if (tunnel.centreline_cells.empty()) continue;
+            const auto point = tunnel.centreline_cells[
+                tunnel.centreline_cells.size() / 2U];
+            const geo::GridCell cell{point.column, point.row};
+            points.push_back({{ConstructionGizmoKind::TunnelDelete,
+                AquariumResizeHandle::SouthEast, std::nullopt, std::nullopt, tunnel.id},
+                {(static_cast<float>(cell.column) + 0.5f) * tile,
+                 floorForCell(visual, cell) + 4.08f,
+                 (static_cast<float>(cell.row) + 0.5f) * tile}});
+        }
     }
     return points;
 }
@@ -372,19 +383,28 @@ ConstructionVisualMesh buildAquariumConstructionWorldMesh(
             const bool depth = gizmo.hit.kind == ConstructionGizmoKind::Depth;
             const bool corner = gizmo.hit.kind == ConstructionGizmoKind::CornerRadius;
             const bool portal = gizmo.hit.kind == ConstructionGizmoKind::TunnelPortal;
+            const bool tunnel_delete = gizmo.hit.kind == ConstructionGizmoKind::TunnelDelete;
             const bool active_resize = resize && visual.active_resize_handle &&
                 *visual.active_resize_handle == gizmo.hit.resize_handle;
-            const std::uint32_t outer_color = portal ? kTunnel : depth ? kCutMark :
+            const std::uint32_t outer_color = tunnel_delete ? kInvalidFill : portal ? kTunnel : depth ? kCutMark :
                 height ? kSelected : corner ? kAnchor : move ? kAnchor :
                 active_resize ? kSelected : kHandle;
-            const std::uint32_t inner_color = portal ? kAnchor : depth ? kSelected :
+            const std::uint32_t inner_color = tunnel_delete ? kHandle : portal ? kAnchor : depth ? kSelected :
                 corner ? kSelected : move ? kSelected : active_resize ? kHandle : kAnchor;
             appendDiamond(mesh, gizmo.world.x, gizmo.world.z, gizmo.world.y,
-                portal ? 3.2f : move ? 4.4f : ((height || depth) ? 4.8f : (active_resize ? 5.2f : 3.6f)),
+                tunnel_delete ? 4.1f : portal ? 3.2f : move ? 4.4f : ((height || depth) ? 4.8f : (active_resize ? 5.2f : 3.6f)),
                 outer_color);
             appendDiamond(mesh, gizmo.world.x, gizmo.world.z, gizmo.world.y + 0.04f,
-                portal ? 1.35f : move ? 2.3f : ((height || depth) ? 2.6f : (active_resize ? 2.8f : 1.8f)),
+                tunnel_delete ? 2.1f : portal ? 1.35f : move ? 2.3f : ((height || depth) ? 2.6f : (active_resize ? 2.8f : 1.8f)),
                 inner_color);
+            if (tunnel_delete) {
+                appendLine(mesh, gizmo.world.x - 2.2f, gizmo.world.z - 2.2f,
+                    gizmo.world.x + 2.2f, gizmo.world.z + 2.2f,
+                    gizmo.world.y + 0.08f, 1.15f, kInvalidFill);
+                appendLine(mesh, gizmo.world.x - 2.2f, gizmo.world.z + 2.2f,
+                    gizmo.world.x + 2.2f, gizmo.world.z - 2.2f,
+                    gizmo.world.y + 0.09f, 1.15f, kInvalidFill);
+            }
             if (depth) {
                 // North-oriented construction cameras project +Z downward on
                 // screen, so this small arrow reads as "below the floor" while

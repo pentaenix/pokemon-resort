@@ -17,7 +17,6 @@ struct ResolvedTunnel {
 struct TunnelHalfCellLayout {
     std::vector<GridCell> water;
     std::vector<std::vector<GridCell>> dry_by_tunnel;
-    std::vector<GridCell> walking_collision;
     std::size_t dry_count = 0;
 };
 

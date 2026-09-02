@@ -8,6 +8,7 @@
 
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace pr::gameplay::world3d::aquarium::construction {
@@ -40,6 +41,7 @@ enum class ConstructionDraftOperation {
     Add,
     Properties,
     Tunnel,
+    TunnelRemove,
 };
 
 enum class AquariumTankProperty {
@@ -128,6 +130,8 @@ public:
     bool adjustCornerRadius(
         pr::aquarium::geometry::GridCell corner_vertex, int direction);
     bool beginTunnelSelected();
+    bool beginRemoveTunnelSelected(std::string_view tunnel_id);
+    std::optional<std::string> tunnelIdAtCursor() const;
     bool extendTunnelRouteTo(pr::aquarium::geometry::GridCell cell);
     bool isTunnelPortalCell(pr::aquarium::geometry::GridCell cell) const;
     std::vector<pr::aquarium::geometry::GridCell> tunnelPortalCells() const;

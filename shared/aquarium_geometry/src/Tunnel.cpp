@@ -96,15 +96,6 @@ TunnelHalfCellLayout buildTunnelHalfCellLayout(
             layout.dry_by_tunnel[tunnel_index].push_back({column, row});
         }
     }
-    std::set<CellKey> walking_collision;
-    for (const auto [column, row] : dry_union) {
-        walking_collision.emplace(
-            footprint.origin_cell.column + (column + 1) / 2,
-            footprint.origin_cell.row + (row + 1) / 2);
-    }
-    for (const auto [column, row] : walking_collision) {
-        layout.walking_collision.push_back({column, row});
-    }
     for (int row = 0; row < depth; ++row) {
         for (int column = 0; column < width; ++column) {
             if (!dry_union.count({column, row})) layout.water.push_back({column, row});

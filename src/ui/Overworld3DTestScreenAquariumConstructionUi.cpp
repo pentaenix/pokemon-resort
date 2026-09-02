@@ -114,6 +114,16 @@ bool Overworld3DTestScreen::handleAquariumConstructionPointerPressed(
             began = gizmo->portal_cell.has_value() &&
                 aquarium_construction_.beginTunnelSelected();
             break;
+        case aqc::ConstructionGizmoKind::TunnelDelete:
+            if (gizmo->tunnel_id &&
+                aquarium_construction_.beginRemoveTunnelSelected(*gizmo->tunnel_id) &&
+                commitAquariumConstruction()) {
+                resetAquariumConstructionPointerOperation();
+            } else {
+                requestAquariumConstructionErrorFeedback();
+            }
+            syncAquariumConstructionFocus();
+            return true;
         }
         if (began) {
             aquarium_pointer_operation_active_ = true;

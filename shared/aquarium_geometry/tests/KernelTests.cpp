@@ -107,7 +107,7 @@ void testRectangleGolden() {
         "interior occupied cell is not blocked");
     require(result.statistics.navigation_layer_count == 1, "navigation layer count changed");
     require(result.navigation.suggested_spawns.size() == 1, "spawn count changed");
-    require(result.content_hash == "fnv1a64:92d060e43b2faf49", "content hash changed: " + result.content_hash);
+    require(result.content_hash == "fnv1a64:80bcfed150e382e4", "content hash changed: " + result.content_hash);
     require(result.statistics.water_volume_litres == 80735,
         "standard tank derived water volume changed");
 
@@ -330,7 +330,7 @@ void testStraightAndElbowTunnelsDeriveDrySpace() {
     const AquariumBuildResult straight_result = buildAquarium(straight);
     requireValidMeshSet(straight_result, "straight tunnel");
     require(straight_result.collision.blocked_cells.size() == 24U &&
-            straight_result.collision.dry_corridor_cells.size() == 21U,
+            straight_result.collision.dry_corridor_cells.size() == 7U,
         "straight tunnel collision did not separate shell and dry corridor cells");
     require(straight_result.navigation.dry_volumes.size() == 1U &&
             straight_result.navigation.layers.size() >= 2U,
@@ -355,7 +355,7 @@ void testStraightAndElbowTunnelsDeriveDrySpace() {
         {{7, 8}, {8, 8}, {9, 8}, {10, 8}, {10, 9}, {10, 10}, {10, 11}, {10, 12}}});
     const AquariumBuildResult elbow_result = buildAquarium(elbow);
     requireValidMeshSet(elbow_result, "one-elbow tunnel");
-    require(elbow_result.collision.dry_corridor_cells.size() == 24U &&
+    require(elbow_result.collision.dry_corridor_cells.size() == 8U &&
             elbow_result.navigation.dry_volumes.size() == 1U,
         "one-elbow tunnel did not preserve its ordered discrete route: " +
             std::to_string(elbow_result.collision.dry_corridor_cells.size()));
