@@ -150,22 +150,10 @@ bool Overworld3DTestScreen::handleAquariumConstructionPointerPressed(
                 began = aquarium_construction_.beginRectangle();
             }
         } else if (aquarium_construction_.state() == aqc::ConstructionState::Selected) {
-            const auto* selected = aquarium_construction_.selectedTank();
-            const auto selected_cells = selected
-                ? aqc::tankFootprintCells(*selected)
-                : std::vector<pr::aquarium::geometry::GridCell>{};
-            const bool on_selected = std::any_of(
-                selected_cells.begin(), selected_cells.end(), [&](auto occupied) {
-                    return occupied.column == cell->column && occupied.row == cell->row;
-                });
-            if (on_selected && subtract) {
+            if (subtract) {
                 began = aquarium_construction_.beginPaintSelected(true);
-            } else if (!on_selected &&
-                       aquarium_construction_.beginPaintSelected(subtract)) {
-                // The first cell is applied when the paint gesture begins.
-                began = true;
-            } else {
-                aquarium_construction_.selectAtCursor();
+            } else if (!aquarium_construction_.selectAtCursor()) {
+                began = aquarium_construction_.beginRectangle();
             }
         } else if (aquarium_construction_.state() == aqc::ConstructionState::SubtractFootprint) {
             if (!aquarium_construction_.toggleSubtractedCell()) {

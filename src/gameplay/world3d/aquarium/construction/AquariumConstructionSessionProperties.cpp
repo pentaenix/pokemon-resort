@@ -147,6 +147,9 @@ std::optional<geo::TankDesign> AquariumConstructionSession::previewTank() const 
             ? std::optional<geo::TankDesign>{}
             : std::optional<geo::TankDesign>{*found};
     }
+    if (draft_ && draft_->operation == ConstructionDraftOperation::Create) {
+        return resolveDrawnTank(committed_.tanks, draftTank()).preview_tank;
+    }
     return draft_ && !draft_->delete_candidate
         ? std::optional<geo::TankDesign>(draftTank()) : std::nullopt;
 }

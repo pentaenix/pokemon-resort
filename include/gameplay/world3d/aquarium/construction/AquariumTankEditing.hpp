@@ -22,6 +22,22 @@ enum class AquariumResizeHandle {
 std::vector<pr::aquarium::geometry::GridCell> tankFootprintCells(
     const pr::aquarium::geometry::TankDesign& tank);
 
+pr::aquarium::geometry::TankDesign tankWithFootprintCells(
+    const pr::aquarium::geometry::TankDesign& source,
+    const std::vector<pr::aquarium::geometry::GridCell>& cells);
+
+struct DrawnTankResolution {
+    bool extends_existing = false;
+    std::string primary_tank_id;
+    std::vector<std::string> affected_tank_ids;
+    std::vector<pr::aquarium::geometry::TankDesign> tanks;
+    pr::aquarium::geometry::TankDesign preview_tank;
+};
+
+DrawnTankResolution resolveDrawnTank(
+    const std::vector<pr::aquarium::geometry::TankDesign>& existing,
+    const pr::aquarium::geometry::TankDesign& drawn);
+
 const pr::aquarium::geometry::TankDesign* playerTankAtCell(
     const AquariumDesignDocument& document,
     pr::aquarium::geometry::GridCell cell);

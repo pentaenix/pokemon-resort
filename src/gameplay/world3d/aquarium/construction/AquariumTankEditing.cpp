@@ -4,13 +4,123 @@
 
 #include <algorithm>
 #include <array>
+#include <cstddef>
 #include <limits>
+#include <set>
 
 namespace pr::gameplay::world3d::aquarium::construction {
 namespace geo = pr::aquarium::geometry;
 
 std::vector<geo::GridCell> tankFootprintCells(const geo::TankDesign& tank) {
     return geo::footprintCells(tank.footprint);
+}
+
+geo::TankDesign tankWithFootprintCells(
+    const geo::TankDesign& source, const std::vector<geo::GridCell>& cells) {
+    if (cells.empty()) return source;
+    geo::TankDesign result = source;
+    int min_column = cells.front().column;
+    int min_row = cells.front().row;
+    int max_column = min_column;
+    int max_row = min_row;
+    std::set<std::pair<int, int>> occupied;
+    for (const auto cell : cells) {
+        min_column = std::min(min_column, cell.column);
+        min_row = std::min(min_row, cell.row);
+        max_column = std::max(max_column, cell.column);
+        max_row = std::max(max_row, cell.row);
+        occupied.emplace(cell.column, cell.row);
+    }
+    result.footprint.shape = geo::FootprintShape::Rectangle;
+    result.footprint.origin_cell = {min_column, min_row};
+    result.footprint.width_cells = max_column - min_column + 1;
+    result.footprint.depth_cells = max_row - min_row + 1;
+    result.footprint.rotation_quarter_turns = 0;
+    result.footprint.notch_width_cells = 0;
+    result.footprint.notch_depth_cells = 0;
+    result.footprint.subtracted_cells.clear();
+    result.corner_radii.clear();
+    for (int row = min_row; row <= max_row; ++row) {
+        for (int column = min_column; column <= max_column; ++column) {
+            if (!occupied.count({column, row})) {
+                result.footprint.subtracted_cells.push_back(
+                    {column - min_column, row - min_row});
+            }
+        }
+    }
+    return result;
+}
+
+DrawnTankResolution resolveDrawnTank(
+    const std::vector<geo::TankDesign>& existing, const geo::TankDesign& drawn) {
+    using CellKey = std::pair<int, int>;
+    std::set<CellKey> merged_cells;
+    for (const auto cell : tankFootprintCells(drawn)) {
+        merged_cells.emplace(cell.column, cell.row);
+    }
+    std::vector<std::size_t> touched;
+    std::vector<bool> included(existing.size(), false);
+    constexpr CellKey neighbours[]{{0, 0}, {0, -1}, {1, 0}, {0, 1}, {-1, 0}};
+    bool found_connected_tank = true;
+    while (found_connected_tank) {
+        found_connected_tank = false;
+        for (std::size_t index = 0; index < existing.size(); ++index) {
+            if (included[index]) continue;
+            const auto existing_cells = tankFootprintCells(existing[index]);
+            const bool touches = std::any_of(
+                existing_cells.begin(), existing_cells.end(), [&](geo::GridCell cell) {
+                    return std::any_of(std::begin(neighbours), std::end(neighbours),
+                        [&](CellKey delta) {
+                            return merged_cells.count(
+                                {cell.column + delta.first, cell.row + delta.second}) != 0;
+                        });
+                });
+            if (!touches) continue;
+            included[index] = true;
+            touched.push_back(index);
+            for (const auto cell : existing_cells) {
+                merged_cells.emplace(cell.column, cell.row);
+            }
+            found_connected_tank = true;
+        }
+    }
+
+    DrawnTankResolution resolution;
+    resolution.tanks = existing;
+    resolution.preview_tank = drawn;
+    if (touched.empty()) {
+        resolution.tanks.push_back(drawn);
+        return resolution;
+    }
+
+    resolution.extends_existing = true;
+    const std::size_t primary_index = touched.front();
+    resolution.primary_tank_id = existing[primary_index].id;
+    for (const std::size_t index : touched) {
+        resolution.affected_tank_ids.push_back(existing[index].id);
+    }
+    std::vector<geo::GridCell> merged_list;
+    merged_list.reserve(merged_cells.size());
+    for (const auto [column, row] : merged_cells) {
+        merged_list.push_back({column, row});
+    }
+    resolution.preview_tank = tankWithFootprintCells(
+        existing[primary_index], merged_list);
+    for (const std::size_t index : touched) {
+        if (index == primary_index) continue;
+        resolution.preview_tank.tunnels.insert(
+            resolution.preview_tank.tunnels.end(), existing[index].tunnels.begin(),
+            existing[index].tunnels.end());
+    }
+    resolution.tanks[primary_index] = resolution.preview_tank;
+    std::sort(touched.begin(), touched.end());
+    for (auto found = touched.rbegin(); found != touched.rend(); ++found) {
+        if (*found != primary_index) {
+            resolution.tanks.erase(
+                resolution.tanks.begin() + static_cast<std::ptrdiff_t>(*found));
+        }
+    }
+    return resolution;
 }
 
 const geo::TankDesign* playerTankAtCell(

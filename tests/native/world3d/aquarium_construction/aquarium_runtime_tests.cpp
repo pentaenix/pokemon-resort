@@ -85,7 +85,7 @@ construction::ConstructionCommitCandidate buildFirstTank(
     return std::move(*candidate);
 }
 
-void stateMachineBuildsAndRejectsOverlap() {
+void drawnRectanglesMergeOnlyWhenTheyTouch() {
     construction::AquariumConstructionSession session;
     session.configure("aquarium12", constructionConfig(), {}, emptyDocument());
     require(session.enter({9, 9}), "construction did not enter");
@@ -95,12 +95,66 @@ void stateMachineBuildsAndRejectsOverlap() {
     session.publish(std::move(candidate));
     require(session.committedDesign().tanks.front().id == "tank_1",
         "tank stable ID changed during publication");
+
     session.pointAt({10, 10});
-    require(session.beginRectangle(), "overlap draft did not begin");
-    session.moveCursor(2, 2);
-    require(session.reviewDraft(), "overlap draft did not enter review");
-    require(!session.draftValid() && !session.prepareCommit(),
-        "overlapping tank was allowed to commit");
+    require(session.selectAtCursor(), "existing tank could not be selected");
+    session.pointAt({13, 10});
+    require(session.beginRectangle(),
+        "selected state could not begin a stable rectangle gesture");
+    session.pointAt({15, 12});
+    const auto touching_preview = session.previewTank();
+    require(touching_preview && touching_preview->id == "tank_1" &&
+            touching_preview->footprint.width_cells == 6,
+        "edge-touching rectangle did not preview as an extension");
+    require(session.reviewDraft() && session.draftValid(),
+        "edge-touching extension was not valid");
+    auto extension = session.prepareCommit();
+    require(extension && extension->command.kind == construction::AquariumCommandKind::EditTankSet &&
+            extension->document.tanks.size() == 1U,
+        "edge-touching rectangle did not prepare one merged tank edit");
+    require(session.publish(std::move(*extension)) &&
+            session.committedDesign().tanks.front().id == "tank_1",
+        "merged rectangle did not preserve the existing stable tank ID");
+    auto undo = session.prepareUndo();
+    require(undo && undo->document.tanks.size() == 1U &&
+            undo->document.tanks.front().footprint.width_cells == 3,
+        "merged rectangle was not reversible as one command");
+
+    construction::AquariumConstructionSession separated;
+    separated.configure("aquarium12", constructionConfig(), {}, emptyDocument());
+    require(separated.enter({10, 10}), "separate fixture did not enter");
+    auto first = buildFirstTank(separated);
+    require(separated.publish(std::move(first)), "separate fixture tank did not publish");
+    separated.pointAt({14, 10});
+    require(separated.beginRectangle(), "separate rectangle did not begin");
+    separated.pointAt({16, 12});
+    require(separated.reviewDraft() && separated.draftValid(),
+        "rectangle with one empty cell of separation was not valid");
+    auto separate = separated.prepareCommit();
+    require(separate && separate->command.kind == construction::AquariumCommandKind::CreateTank &&
+            separate->document.tanks.size() == 2U,
+        "one empty-cell gap unexpectedly merged distinct tanks");
+
+    geo::TankDesign overlapping = separated.committedDesign().tanks.front();
+    overlapping.id = "drawn_overlap";
+    overlapping.footprint.origin_cell = {11, 10};
+    const auto overlap = construction::resolveDrawnTank(
+        separated.committedDesign().tanks, overlapping);
+    require(overlap.extends_existing && overlap.primary_tank_id == "tank_1" &&
+            overlap.tanks.size() == 1U,
+        "overlapping rectangle did not resolve as an extension");
+
+    geo::TankDesign second = separated.committedDesign().tanks.front();
+    second.id = "tank_bridge_target";
+    second.footprint.origin_cell = {16, 10};
+    geo::TankDesign bridge = second;
+    bridge.id = "drawn_bridge";
+    bridge.footprint.origin_cell = {13, 10};
+    const auto bridged = construction::resolveDrawnTank(
+        {separated.committedDesign().tanks.front(), second}, bridge);
+    require(bridged.extends_existing && bridged.tanks.size() == 1U &&
+            bridged.preview_tank.footprint.width_cells == 9,
+        "rectangle touching two tanks did not merge the complete connected footprint");
 }
 
 void directPaintGesturesCommitAsSingleUndoableCommands() {
@@ -1219,7 +1273,7 @@ int main() {
             }
         };
         run("stateMachinePreservesCommittedDataOnCancel", stateMachinePreservesCommittedDataOnCancel);
-        run("stateMachineBuildsAndRejectsOverlap", stateMachineBuildsAndRejectsOverlap);
+        run("drawnRectanglesMergeOnlyWhenTheyTouch", drawnRectanglesMergeOnlyWhenTheyTouch);
         run("directPaintGesturesCommitAsSingleUndoableCommands", directPaintGesturesCommitAsSingleUndoableCommands);
         run("exteriorPaintMergesAndErasesMultipleTanksUndoably", exteriorPaintMergesAndErasesMultipleTanksUndoably);
         run("draftReviewIsNonMutatingAndAdjustmentIsReversible", draftReviewIsNonMutatingAndAdjustmentIsReversible);

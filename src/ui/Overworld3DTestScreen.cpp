@@ -1492,8 +1492,10 @@ void Overworld3DTestScreen::onAdvancePressed() {
             if (!subtract && aquarium_construction_.isTunnelPortalCell(
                     aquarium_construction_.cursor())) {
                 aquarium_construction_.beginTunnelSelected();
-            } else if (!aquarium_construction_.beginPaintSelected(subtract)) {
-                aquarium_construction_.selectAtCursor();
+            } else if (subtract) {
+                aquarium_construction_.beginPaintSelected(true);
+            } else if (!aquarium_construction_.selectAtCursor()) {
+                aquarium_construction_.beginRectangle();
             }
         } else if (state == aqc::ConstructionState::ResizeFootprint ||
                    state == aqc::ConstructionState::MoveTank ||

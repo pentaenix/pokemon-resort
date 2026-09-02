@@ -487,6 +487,7 @@ is never an editable or duplicated numeric field in the authoritative save docum
 - [x] Allow independent tank-corner rounding whenever the fitted arc and complete tunnel portal opening do not overlap; conflicting corner edits remain visible but invalid.
 - [x] Leave the room floor visible through standard tunnels; below-floor tunnels retain flat sand and underwater navigation beneath glass panels with thin frame rails and cell-edge separators.
 - [x] Keep legacy player designs loadable while requiring every section affected by a new add/subtract command to remain at least three cells wide.
+- [x] Make normal placement a stable click-start/click-finish rectangle gesture; remove implicit hover-paint after tank selection, merge drawn footprints that overlap or share an edge, and keep tanks separate when a full empty-cell gap remains.
 - [ ] Route compatible discrete Aquarium Maker passage settings through ABI 10; the maker UI still keeps passages on its advanced legacy geometry path, while the shared JSON golden already proves native/WASM parity.
 - [ ] Extend portal cutting and water-region construction to rounded, rotated, L/U, and exterior-subtracted tanks after the rectangular seam is visually accepted.
 - [ ] Add multiple-tunnel player interaction and manual validation; the kernel already rejects crossing/overlapping routes.
