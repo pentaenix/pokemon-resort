@@ -87,6 +87,14 @@ profile-sweep modules. Rounded and shaped portal seams remain explicit
 validation failures until their shared geometry is implemented; the kernel
 never substitutes an approximate tunnel silently.
 
+Player review exposed that tunnel centrelines must use the ordinary walking
+grid, not the tank footprint's half-cell-shifted drawing grid. ABI 8 and
+schema 5 make that distinction authoritative. Schema-4 routes migrate by
+extending positive-edge portals onto the walking lattice. The kernel derives
+a two-cell-wide dry profile on a half-cell raster, matching sand, collision,
+lower-water navigation, capacity, and portal glass infill above the taller
+arch. Tunnels require tanks at least three vertical levels tall.
+
 ## Alternatives Considered
 
 - Separate C++ and TypeScript implementations constrained by golden files: lower initial porting cost, but still permits semantic drift.

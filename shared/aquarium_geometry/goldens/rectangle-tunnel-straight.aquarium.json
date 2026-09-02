@@ -16,7 +16,7 @@
   },
   "revision": 13,
   "schema": "pokemon-resort-aquarium-design",
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "tanks": [
     {
       "cornerRadii": [],
@@ -41,7 +41,8 @@
             { "column": 9, "row": 7 },
             { "column": 10, "row": 7 },
             { "column": 11, "row": 7 },
-            { "column": 12, "row": 7 }
+            { "column": 12, "row": 7 },
+            { "column": 13, "row": 7 }
           ],
           "id": "tunnel_straight",
           "route": "straight"

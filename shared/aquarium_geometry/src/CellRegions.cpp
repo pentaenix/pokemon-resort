@@ -52,7 +52,9 @@ std::vector<std::vector<GridCell>> connectedCellRegions(
 
 std::vector<Vec2> cellRegionBoundaryLocalWorld(
     const std::vector<GridCell>& cells,
-    const FootprintDesign& tank_footprint) {
+    float cell_world_units,
+    float center_x,
+    float center_z) {
     std::set<CellKey> occupied;
     for (const GridCell cell : cells) occupied.emplace(cell.column, cell.row);
     std::map<CellKey, CellKey> edges;
@@ -82,19 +84,26 @@ std::vector<Vec2> cellRegionBoundaryLocalWorld(
             (previous.second == point.second && point.second == next.second)) continue;
         simplified.push_back(point);
     }
-    const float center_x = footprintCentreWorld(
-        tank_footprint.origin_cell.column, occupiedWidthCells(tank_footprint));
-    const float center_z = footprintCentreWorld(
-        tank_footprint.origin_cell.row, occupiedDepthCells(tank_footprint));
     std::vector<Vec2> boundary;
     boundary.reserve(simplified.size());
     for (const CellKey point : simplified) {
         boundary.push_back({
-            static_cast<float>(point.first * kWorldUnitsPerCell) - center_x,
-            static_cast<float>(point.second * kWorldUnitsPerCell) - center_z,
+            static_cast<float>(point.first) * cell_world_units - center_x,
+            static_cast<float>(point.second) * cell_world_units - center_z,
         });
     }
     return boundary;
+}
+
+std::vector<Vec2> cellRegionBoundaryLocalWorld(
+    const std::vector<GridCell>& cells,
+    const FootprintDesign& tank_footprint) {
+    return cellRegionBoundaryLocalWorld(
+        cells, static_cast<float>(kWorldUnitsPerCell),
+        footprintCentreWorld(
+            tank_footprint.origin_cell.column, occupiedWidthCells(tank_footprint)),
+        footprintCentreWorld(
+            tank_footprint.origin_cell.row, occupiedDepthCells(tank_footprint)));
 }
 
 } // namespace pr::aquarium::geometry::detail

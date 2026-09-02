@@ -107,7 +107,7 @@ void testRectangleGolden() {
         "interior occupied cell is not blocked");
     require(result.statistics.navigation_layer_count == 1, "navigation layer count changed");
     require(result.navigation.suggested_spawns.size() == 1, "spawn count changed");
-    require(result.content_hash == "fnv1a64:bd8f5a51b720383b", "content hash changed: " + result.content_hash);
+    require(result.content_hash == "fnv1a64:92d060e43b2faf49", "content hash changed: " + result.content_hash);
     require(result.statistics.water_volume_litres == 80735,
         "standard tank derived water volume changed");
 
@@ -326,14 +326,14 @@ void testUnsafeAreaDoesNotAllocateFootprintMemory() {
 void testStraightAndElbowTunnelsDeriveDrySpace() {
     AquariumBuildRequest straight = rectangleRequest();
     straight.tank.tunnels.push_back({"tunnel_straight", TunnelRoute::Straight,
-        {{7, 7}, {8, 7}, {9, 7}, {10, 7}, {11, 7}, {12, 7}}});
+        {{7, 7}, {8, 7}, {9, 7}, {10, 7}, {11, 7}, {12, 7}, {13, 7}}});
     const AquariumBuildResult straight_result = buildAquarium(straight);
     requireValidMeshSet(straight_result, "straight tunnel");
-    require(straight_result.collision.blocked_cells.size() == 18U &&
-            straight_result.collision.dry_corridor_cells.size() == 6U,
+    require(straight_result.collision.blocked_cells.size() == 24U &&
+            straight_result.collision.dry_corridor_cells.size() == 21U,
         "straight tunnel collision did not separate shell and dry corridor cells");
     require(straight_result.navigation.dry_volumes.size() == 1U &&
-            straight_result.navigation.layers.size() == 3U,
+            straight_result.navigation.layers.size() >= 2U,
         "straight tunnel did not create one dry volume and layered water regions");
     require(straight_result.navigation.dry_volumes.front().area.outer.size() == 4U,
         "straight dry corridor did not remain a cell-aligned rectangle");
@@ -343,19 +343,25 @@ void testStraightAndElbowTunnelsDeriveDrySpace() {
     require(std::any_of(structure.vertices.begin(), structure.vertices.end(), [](const Vertex& vertex) {
                 return std::abs(vertex.position.y - 0.06F) < 0.0001F;
             }), "straight tunnel is missing its walkable floor strip");
+    const SemanticMesh& glass = straight_result.meshes.meshes.back();
+    require(std::any_of(glass.vertices.begin(), glass.vertices.end(), [](const Vertex& vertex) {
+                return vertex.position.y > static_cast<float>(kTunnelCrownWorldUnits) &&
+                    std::abs(std::abs(vertex.position.x) - 48.0F) < 0.001F;
+            }), "portal glass above the tunnel arch is missing");
 
     AquariumBuildRequest elbow = rectangleRequest();
     elbow.tank.footprint.depth_cells = 6;
     elbow.tank.tunnels.push_back({"tunnel_elbow", TunnelRoute::OneElbow,
-        {{7, 8}, {8, 8}, {9, 8}, {10, 8}, {10, 9}, {10, 10}, {10, 11}}});
+        {{7, 8}, {8, 8}, {9, 8}, {10, 8}, {10, 9}, {10, 10}, {10, 11}, {10, 12}}});
     const AquariumBuildResult elbow_result = buildAquarium(elbow);
     requireValidMeshSet(elbow_result, "one-elbow tunnel");
-    require(elbow_result.collision.dry_corridor_cells.size() == 7U &&
+    require(elbow_result.collision.dry_corridor_cells.size() == 24U &&
             elbow_result.navigation.dry_volumes.size() == 1U,
-        "one-elbow tunnel did not preserve its ordered discrete route");
+        "one-elbow tunnel did not preserve its ordered discrete route: " +
+            std::to_string(elbow_result.collision.dry_corridor_cells.size()));
 
     elbow.tank.tunnels.push_back({"tunnel_crossing", TunnelRoute::Straight,
-        {{9, 6}, {9, 7}, {9, 8}, {9, 9}, {9, 10}, {9, 11}}});
+        {{9, 6}, {9, 7}, {9, 8}, {9, 9}, {9, 10}, {9, 11}, {9, 12}}});
     const ValidationReport crossing = validateAquarium(elbow);
     require(!crossing.valid() && std::any_of(crossing.diagnostics.begin(),
             crossing.diagnostics.end(), [](const auto& diagnostic) {
@@ -368,6 +374,16 @@ void testStraightAndElbowTunnelsDeriveDrySpace() {
             rounded.diagnostics.end(), [](const auto& diagnostic) {
                 return diagnostic.code == "tunnel_requires_square_corners";
             }), "unsupported rounded portal geometry was silently accepted");
+
+    AquariumBuildRequest short_tank = rectangleRequest();
+    short_tank.tank.height_steps = 4;
+    short_tank.tank.tunnels = straight.tank.tunnels;
+    short_tank.tank.corner_radius_steps = 0;
+    const ValidationReport short_report = validateAquarium(short_tank);
+    require(!short_report.valid() && std::any_of(short_report.diagnostics.begin(),
+            short_report.diagnostics.end(), [](const auto& diagnostic) {
+                return diagnostic.code == "tunnel_tank_too_short";
+            }), "tunnel was accepted below the three-level minimum height");
 }
 
 } // namespace

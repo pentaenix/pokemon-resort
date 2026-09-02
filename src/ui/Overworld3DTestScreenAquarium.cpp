@@ -464,7 +464,9 @@ void Overworld3DTestScreen::applyAquariumConstructionCamera(double delta_seconds
             camera_.pose().preset.fov_y_deg,
             static_cast<float>(viewport_width) / static_cast<float>(viewport_height),
             follow_camera_base_preset_.pitch_deg, focus, property_panel, delta_seconds,
-            visual.placement_offset_world_units);
+            visual.state == gameplay::world3d::aquarium::construction::
+                    ConstructionState::TunnelRoute
+                ? 0.0f : visual.placement_offset_world_units);
     camera_.setManualPose(
         overview.position, overview.yaw_degrees, overview.pitch_degrees);
 }
@@ -569,9 +571,8 @@ Overworld3DTestScreen::aquariumConstructionVisual() const {
     }
     const float height_step = scene_.terrain.height_per_floor > 0.0f
         ? scene_.terrain.height_per_floor : scene_.grid.tile_size;
-    const auto route_cells = visual.state == aqc::ConstructionState::TunnelRoute &&
-            visual.selected_tank
-        ? aqc::tankFootprintCells(*visual.selected_tank)
+    const auto route_cells = visual.state == aqc::ConstructionState::TunnelRoute
+        ? aquarium_construction_.tunnelRoutingCells()
         : std::vector<pr::aquarium::geometry::GridCell>{};
     const auto& construction_cells = visual.state == aqc::ConstructionState::TunnelRoute
         ? route_cells : aquarium_construction_.allowedCells();

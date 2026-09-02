@@ -186,9 +186,9 @@ std::vector<GizmoWorldPoint> gizmoWorldPoints(const AquariumConstructionVisual& 
         for (const geo::GridCell cell : visual.tunnel_portal_cells) {
             points.push_back({{ConstructionGizmoKind::TunnelPortal,
                 AquariumResizeHandle::SouthEast, std::nullopt, cell},
-                {(static_cast<float>(cell.column) + 0.5f) * tile + offset,
+                {(static_cast<float>(cell.column) + 0.5f) * tile,
                  floorForCell(visual, cell) + 3.92f,
-                 (static_cast<float>(cell.row) + 0.5f) * tile + offset}});
+                 (static_cast<float>(cell.row) + 0.5f) * tile}});
         }
     }
     return points;
@@ -224,13 +224,16 @@ ConstructionVisualMesh buildAquariumConstructionWorldMesh(
     constexpr std::uint32_t kCutFill = colorAbgr(71, 57, 104, 185);
     constexpr std::uint32_t kCutMark = colorAbgr(248, 214, 86, 255);
     constexpr std::uint32_t kTunnel = colorAbgr(91, 226, 224, 235);
+    constexpr std::uint32_t kTunnelFootprint = colorAbgr(91, 226, 224, 62);
     constexpr std::uint32_t kTunnelExisting = colorAbgr(98, 129, 214, 190);
 
     const float offset = visual.placement_offset_world_units;
 
     for (const ConstructionCellSurface& surface : visual.cells) {
-        const float x0 = static_cast<float>(surface.cell.column) * tile + offset;
-        const float z0 = static_cast<float>(surface.cell.row) * tile + offset;
+        const float route_offset = visual.state == ConstructionState::TunnelRoute
+            ? 0.0f : offset;
+        const float x0 = static_cast<float>(surface.cell.column) * tile + route_offset;
+        const float z0 = static_cast<float>(surface.cell.row) * tile + route_offset;
         if (visual.state == ConstructionState::TunnelRoute) {
             appendDiamond(mesh, x0 + tile * 0.5f, z0 + tile * 0.5f,
                 surface.floor_y + 3.72f, 1.35f, kTunnel);
@@ -288,23 +291,29 @@ ConstructionVisualMesh buildAquariumConstructionWorldMesh(
     }
 
     for (const geo::GridCell cell : visual.existing_tunnel_cells) {
-        const float x0 = static_cast<float>(cell.column) * tile + offset;
-        const float z0 = static_cast<float>(cell.row) * tile + offset;
+        const float x0 = static_cast<float>(cell.column) * tile;
+        const float z0 = static_cast<float>(cell.row) * tile;
         appendBorder(mesh, x0 + 3.0f, z0 + 3.0f,
             x0 + tile - 3.0f, z0 + tile - 3.0f,
             floorForCell(visual, cell) + 3.84f, 1.15f, kTunnelExisting);
     }
     for (std::size_t index = 0; index < visual.tunnel_route_cells.size(); ++index) {
         const geo::GridCell cell = visual.tunnel_route_cells[index];
-        const float center_x = (static_cast<float>(cell.column) + 0.5f) * tile + offset;
-        const float center_z = (static_cast<float>(cell.row) + 0.5f) * tile + offset;
+        const float center_x = (static_cast<float>(cell.column) + 0.5f) * tile;
+        const float center_z = (static_cast<float>(cell.row) + 0.5f) * tile;
         appendDiamond(mesh, center_x, center_z,
             floorForCell(visual, cell) + 3.96f, index == 0 ? 3.5f : 2.8f, kTunnel);
         if (index > 0) {
             const geo::GridCell previous = visual.tunnel_route_cells[index - 1U];
             appendLine(mesh,
-                (static_cast<float>(previous.column) + 0.5f) * tile + offset,
-                (static_cast<float>(previous.row) + 0.5f) * tile + offset,
+                (static_cast<float>(previous.column) + 0.5f) * tile,
+                (static_cast<float>(previous.row) + 0.5f) * tile,
+                center_x, center_z, floorForCell(visual, cell) + 3.88f,
+                static_cast<float>(geo::kTunnelOuterHalfWidthWorldUnits * 2),
+                kTunnelFootprint);
+            appendLine(mesh,
+                (static_cast<float>(previous.column) + 0.5f) * tile,
+                (static_cast<float>(previous.row) + 0.5f) * tile,
                 center_x, center_z, floorForCell(visual, cell) + 3.92f,
                 2.2f, kTunnel);
         }
@@ -312,16 +321,17 @@ ConstructionVisualMesh buildAquariumConstructionWorldMesh(
 
     if (visual.state == ConstructionState::TunnelRoute) {
         for (const geo::GridCell cell : visual.tunnel_portal_cells) {
-            const float center_x = (static_cast<float>(cell.column) + 0.5f) * tile + offset;
-            const float center_z = (static_cast<float>(cell.row) + 0.5f) * tile + offset;
+            const float center_x = (static_cast<float>(cell.column) + 0.5f) * tile;
+            const float center_z = (static_cast<float>(cell.row) + 0.5f) * tile;
             const float y = floorForCell(visual, cell) + 3.88f;
             appendDiamond(mesh, center_x, center_z, y, 3.1f, kTunnel);
             appendDiamond(mesh, center_x, center_z, y + 0.04f, 1.25f, kAnchor);
         }
     }
 
-    const float cursor_x = static_cast<float>(visual.cursor.column) * tile + offset;
-    const float cursor_z = static_cast<float>(visual.cursor.row) * tile + offset;
+    const float cursor_offset = visual.state == ConstructionState::TunnelRoute ? 0.0f : offset;
+    const float cursor_x = static_cast<float>(visual.cursor.column) * tile + cursor_offset;
+    const float cursor_z = static_cast<float>(visual.cursor.row) * tile + cursor_offset;
     const float cursor_y = floorForCell(visual, visual.cursor) + 0.35f;
     if (visual.state == ConstructionState::TunnelRoute) {
         appendDiamond(mesh, cursor_x + tile * 0.5f, cursor_z + tile * 0.5f,
@@ -334,8 +344,9 @@ ConstructionVisualMesh buildAquariumConstructionWorldMesh(
     }
 
     if (visual.anchor) {
-        const float center_x = (static_cast<float>(visual.anchor->column) + 0.5f) * tile + offset;
-        const float center_z = (static_cast<float>(visual.anchor->row) + 0.5f) * tile + offset;
+        const float anchor_offset = visual.state == ConstructionState::TunnelRoute ? 0.0f : offset;
+        const float center_x = (static_cast<float>(visual.anchor->column) + 0.5f) * tile + anchor_offset;
+        const float center_z = (static_cast<float>(visual.anchor->row) + 0.5f) * tile + anchor_offset;
         appendDiamond(mesh, center_x, center_z,
             floorForCell(visual, *visual.anchor) + 0.48f, 3.1f, kAnchor);
     }
@@ -440,10 +451,10 @@ std::optional<geo::GridCell> hitTestAquariumConstructionCell(
     float nearest_depth = std::numeric_limits<float>::max();
     std::optional<geo::GridCell> nearest;
     for (const ConstructionCellSurface& surface : visual.cells) {
-        const float x0 = static_cast<float>(surface.cell.column) * tile +
-            visual.placement_offset_world_units;
-        const float z0 = static_cast<float>(surface.cell.row) * tile +
-            visual.placement_offset_world_units;
+        const float route_offset = visual.state == ConstructionState::TunnelRoute
+            ? 0.0f : visual.placement_offset_world_units;
+        const float x0 = static_cast<float>(surface.cell.column) * tile + route_offset;
+        const float z0 = static_cast<float>(surface.cell.row) * tile + route_offset;
         const float y = surface.floor_y + 0.35f;
         const std::array<gameplay::world3d::camera::Vec3, 4> corners{{
             {x0, y, z0}, {x0 + tile, y, z0},

@@ -14,8 +14,23 @@ struct ResolvedTunnel {
     GridCell exit_outward;
 };
 
+struct TunnelHalfCellLayout {
+    std::vector<GridCell> water;
+    std::vector<std::vector<GridCell>> dry_by_tunnel;
+    std::vector<GridCell> walking_collision;
+    std::size_t dry_count = 0;
+};
+
 std::vector<ValidationDiagnostic> validateAndResolveTunnels(
     const TankDesign& tank,
     std::vector<ResolvedTunnel>* resolved = nullptr);
+
+TunnelHalfCellLayout buildTunnelHalfCellLayout(
+    const FootprintDesign& footprint,
+    const std::vector<ResolvedTunnel>& tunnels);
+
+std::vector<Vec2> tunnelHalfCellBoundary(
+    const std::vector<GridCell>& cells,
+    const FootprintDesign& footprint);
 
 } // namespace pr::aquarium::geometry::detail

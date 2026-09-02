@@ -673,7 +673,7 @@ void constructionVisualBuildsYellowCellsGizmosAndCanonicalHitTargets() {
         visual, camera, static_cast<int>(screen_x), static_cast<int>(screen_y), 1280, 800);
     require(depth_gizmo && depth_gizmo->kind == construction::ConstructionGizmoKind::Depth,
         "centre knob cluster did not expose a distinct below-floor depth knob");
-    require(camera.worldToScreen({176.0f, 3.92f, 192.0f}, 1280, 800,
+    require(camera.worldToScreen({168.0f, 3.92f, 184.0f}, 1280, 800,
                 screen_x, screen_y, depth),
         "selected tank tunnel portal did not project into the construction viewport");
     const auto portal_gizmo = construction::hitTestAquariumConstructionGizmo(
@@ -974,10 +974,10 @@ void storePreservesNewerDocumentsAndFailedWrites() {
     std::string error;
     require(store.saveTransactionally(document, &error), "fault fixture save failed");
     std::string newer = construction::serializeAquariumDesignCanonical(document);
-    const std::string old_version = "\"schemaVersion\": 4";
+    const std::string old_version = "\"schemaVersion\": 5";
     const auto version_position = newer.find(old_version);
     require(version_position != std::string::npos, "fault fixture schema version missing");
-    newer.replace(version_position, old_version.size(), "\"schemaVersion\": 5");
+    newer.replace(version_position, old_version.size(), "\"schemaVersion\": 6");
     {
         std::ofstream primary(store.primaryPath(), std::ios::trunc);
         primary << newer;
@@ -1090,7 +1090,8 @@ void tunnelGestureCommitsCancelsAndClearsRuntimeCollision() {
     session.moveCursor(0, 1);
     session.moveCursor(0, 1);
     session.moveCursor(0, 1);
-    require(session.draftValid() && session.tunnelRouteCells().size() == 4U,
+    session.moveCursor(0, 1);
+    require(session.draftValid() && session.tunnelRouteCells().size() == 5U,
         "straight portal-to-portal route did not become valid");
     require(session.reviewDraft(), "valid tunnel route did not enter review");
     auto candidate = session.prepareCommit();
@@ -1121,9 +1122,13 @@ void tunnelGestureCommitsCancelsAndClearsRuntimeCollision() {
         "committed tunnel did not reach the runtime navigation set");
     require(std::none_of(runtime.collision_cells.begin(), runtime.collision_cells.end(),
             [](geo::GridCell cell) {
-                return (cell.column == 13 || cell.column == 14) &&
+                return cell.column >= 12 && cell.column <= 14 &&
                     cell.row >= 11 && cell.row <= 15;
-            }), "verified tunnel corridor remained blocked after half-cell expansion");
+            }), "verified tunnel corridor remained blocked on the walking grid");
+    require(std::any_of(runtime.collision_cells.begin(), runtime.collision_cells.end(),
+            [](geo::GridCell cell) {
+                return cell.column == 15 && cell.row == 13;
+            }), "two-cell tunnel incorrectly cleared a lane beyond its half-cell shoulders");
 }
 
 void resourceGenerationRejectsCandidatesWithoutTouchingActiveResources() {

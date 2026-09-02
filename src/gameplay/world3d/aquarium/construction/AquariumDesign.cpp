@@ -157,6 +157,32 @@ geometry::TankDesign parseTank(const JsonValue& value) {
     return tank;
 }
 
+void migrateLegacyTunnelGrid(geometry::TankDesign& tank) {
+    if (!tank.tunnels.empty()) tank.height_steps = std::max(tank.height_steps, 6);
+    for (auto& tunnel : tank.tunnels) {
+        auto& points = tunnel.centreline_cells;
+        if (points.size() < 2U) continue;
+        const geometry::CellPoint first = points.front();
+        const geometry::CellPoint second = points[1];
+        const geometry::CellPoint entry_outward{
+            first.column - second.column, first.row - second.row};
+        if (entry_outward.column > 0 || entry_outward.row > 0) {
+            points.insert(points.begin(), {
+                first.column + entry_outward.column,
+                first.row + entry_outward.row});
+        }
+        const geometry::CellPoint last = points.back();
+        const geometry::CellPoint before_last = points[points.size() - 2U];
+        const geometry::CellPoint exit_outward{
+            last.column - before_last.column, last.row - before_last.row};
+        if (exit_outward.column > 0 || exit_outward.row > 0) {
+            points.push_back({
+                last.column + exit_outward.column,
+                last.row + exit_outward.row});
+        }
+    }
+}
+
 JsonValue serializePoint(const geometry::CellPoint& point) {
     return JsonValue(JsonValue::Object{
         {"column", JsonValue(static_cast<double>(point.column))},
@@ -320,7 +346,10 @@ AquariumDesignLoadResult parseAquariumDesign(const std::string& text) {
         document.population_policy.version = static_cast<std::uint32_t>(policy_version);
         const JsonValue& tanks = required(root, "tanks");
         if (!tanks.isArray()) throw std::runtime_error("tanks must be an array");
-        for (const JsonValue& tank : tanks.asArray()) document.tanks.push_back(parseTank(tank));
+        for (const JsonValue& tank : tanks.asArray()) {
+            document.tanks.push_back(parseTank(tank));
+            if (version < 5) migrateLegacyTunnelGrid(document.tanks.back());
+        }
 
         result.diagnostics = validateAquariumDesign(document);
         if (!result.diagnostics.empty()) return result;

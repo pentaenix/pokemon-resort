@@ -45,7 +45,7 @@ construction::AquariumDesignDocument documentFixture() {
     tunnel.footprint.width_cells = 6;
     tunnel.footprint.depth_cells = 4;
     tunnel.tunnels.push_back({"tunnel_straight", geometry::TunnelRoute::Straight,
-        {{20, 21}, {21, 21}, {22, 21}, {23, 21}, {24, 21}, {25, 21}}});
+        {{20, 21}, {21, 21}, {22, 21}, {23, 21}, {24, 21}, {25, 21}, {26, 21}}});
     document.tanks.push_back(std::move(tunnel));
     return document;
 }
@@ -60,7 +60,7 @@ void testCanonicalRoundTrip() {
             parsed.document->tanks.front().corner_radii.back().radius_steps == 2,
         "per-corner radii did not survive serialization");
     require(parsed.document->tanks.back().tunnels.size() == 1 &&
-            parsed.document->tanks.back().tunnels.front().centreline_cells.size() == 6,
+            parsed.document->tanks.back().tunnels.front().centreline_cells.size() == 7,
         "ordered tunnel centreline did not survive serialization");
     require(construction::serializeAquariumDesignCanonical(*parsed.document) == first,
             "canonical round trip changed bytes");
@@ -68,14 +68,35 @@ void testCanonicalRoundTrip() {
 
 void testNewerVersionIsReadOnly() {
     std::string text = construction::serializeAquariumDesignCanonical(documentFixture());
-    const std::string needle = "\"schemaVersion\": 4";
+    const std::string needle = "\"schemaVersion\": 5";
     const std::size_t position = text.find(needle);
     require(position != std::string::npos, "schema version fixture missing");
-    text.replace(position, needle.size(), "\"schemaVersion\": 5");
+    text.replace(position, needle.size(), "\"schemaVersion\": 6");
     const construction::AquariumDesignLoadResult result = construction::parseAquariumDesign(text);
     require(result.status == construction::AquariumDesignLoadStatus::NewerVersion,
             "newer design was not preserved as incompatible");
     require(!result.document.has_value(), "newer design exposed an editable document");
+}
+
+void testSchemaFourTunnelGridMigratesToWalkingCells() {
+    std::string text = construction::serializeAquariumDesignCanonical(documentFixture());
+    const std::string version_five = "\"schemaVersion\": 5";
+    const std::size_t version = text.find(version_five);
+    require(version != std::string::npos, "migration fixture schema version missing");
+    text.replace(version, version_five.size(), "\"schemaVersion\": 4");
+    const std::size_t last_column = text.find("\"column\": 26");
+    const std::size_t object_begin = text.rfind('{', last_column);
+    const std::size_t separator = text.rfind(',', object_begin);
+    const std::size_t object_end = text.find('}', last_column);
+    require(last_column != std::string::npos && object_begin != std::string::npos &&
+            separator != std::string::npos && object_end != std::string::npos,
+        "legacy tunnel endpoint fixture missing");
+    text.erase(separator, object_end - separator + 1U);
+    const auto parsed = construction::parseAquariumDesign(text);
+    require(parsed.status == construction::AquariumDesignLoadStatus::Loaded &&
+            parsed.document &&
+            parsed.document->tanks.back().tunnels.front().centreline_cells.back().column == 26,
+        "schema-4 positive-edge portal did not migrate onto the walking grid");
 }
 
 void testDuplicateIdsAreRejected() {
@@ -101,6 +122,7 @@ int main() {
     try {
         testCanonicalRoundTrip();
         testNewerVersionIsReadOnly();
+        testSchemaFourTunnelGridMigratesToWalkingCells();
         testDuplicateIdsAreRejected();
         testRevisionMustRemainExactlyRepresentable();
         std::cout << "aquarium_design_tests: ok\n";

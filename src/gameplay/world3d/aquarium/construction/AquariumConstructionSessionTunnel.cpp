@@ -11,10 +11,13 @@ bool same(geo::GridCell lhs, geo::GridCell rhs) {
     return lhs.column == rhs.column && lhs.row == rhs.row;
 }
 
-bool occupied(const geo::TankDesign& tank, geo::GridCell cell) {
-    const auto cells = tankFootprintCells(tank);
-    return std::any_of(cells.begin(), cells.end(),
-        [&](geo::GridCell item) { return same(item, cell); });
+bool usedByTunnel(const geo::TankDesign& tank, geo::GridCell cell) {
+    return std::any_of(tank.tunnels.begin(), tank.tunnels.end(), [&](const auto& tunnel) {
+        return std::any_of(tunnel.centreline_cells.begin(),
+            tunnel.centreline_cells.end(), [&](const auto point) {
+                return point.column == cell.column && point.row == cell.row;
+            });
+    });
 }
 
 int turnCount(const std::vector<geo::CellPoint>& route) {
@@ -38,22 +41,48 @@ std::vector<geo::GridCell> AquariumConstructionSession::tunnelPortalCells() cons
         !tank->footprint.subtracted_cells.empty() ||
         tank->footprint.rotation_quarter_turns != 0 ||
         tank->corner_radius_steps != 0 ||
+        tank->height_steps < 6 ||
         std::any_of(tank->corner_radii.begin(), tank->corner_radii.end(),
             [](const auto& radius) { return radius.radius_steps != 0; })) return {};
-    const auto cells = tankFootprintCells(*tank);
     std::vector<geo::GridCell> portals;
-    constexpr geo::GridCell neighbours[]{{0, -1}, {1, 0}, {0, 1}, {-1, 0}};
-    for (const geo::GridCell cell : cells) {
-        const bool boundary = std::any_of(std::begin(neighbours), std::end(neighbours),
-            [&](geo::GridCell direction) {
-                const geo::GridCell exterior{
-                    cell.column + direction.column, cell.row + direction.row};
-                return !occupied(*tank, exterior) && cellAllowed(exterior) &&
-                    !occupiedByCommitted(exterior, tank->id);
-            });
-        if (boundary) portals.push_back(cell);
+    const int left = tank->footprint.origin_cell.column;
+    const int top = tank->footprint.origin_cell.row;
+    const int right = left + geo::occupiedWidthCells(tank->footprint);
+    const int bottom = top + geo::occupiedDepthCells(tank->footprint);
+    const auto add = [&](geo::GridCell cell, geo::GridCell outward) {
+        const geo::GridCell exterior{
+            cell.column + outward.column, cell.row + outward.row};
+        if (cellAllowed(cell) && !occupiedByCommitted(cell, tank->id) &&
+            !occupiedByCommitted(exterior, tank->id) && !usedByTunnel(*tank, cell)) {
+            portals.push_back(cell);
+        }
+    };
+    for (int column = left + 1; column < right; ++column) {
+        add({column, top}, {0, -1});
+        add({column, bottom}, {0, 1});
+    }
+    for (int row = top + 1; row < bottom; ++row) {
+        add({left, row}, {-1, 0});
+        add({right, row}, {1, 0});
     }
     return portals;
+}
+
+std::vector<geo::GridCell> AquariumConstructionSession::tunnelRoutingCells() const {
+    const geo::TankDesign* tank = selectedTank();
+    if (!tank) return {};
+    const int left = tank->footprint.origin_cell.column;
+    const int top = tank->footprint.origin_cell.row;
+    const int right = left + geo::occupiedWidthCells(tank->footprint);
+    const int bottom = top + geo::occupiedDepthCells(tank->footprint);
+    std::vector<geo::GridCell> cells = tunnelPortalCells();
+    for (int row = top + 1; row < bottom; ++row) {
+        for (int column = left + 1; column < right; ++column) {
+            const geo::GridCell cell{column, row};
+            if (cellAllowed(cell) && !usedByTunnel(*tank, cell)) cells.push_back(cell);
+        }
+    }
+    return cells;
 }
 
 bool AquariumConstructionSession::isTunnelPortalCell(geo::GridCell cell) const {
@@ -123,9 +152,11 @@ bool AquariumConstructionSession::extendTunnelRouteTo(geo::GridCell target) {
     if (state_ != ConstructionState::TunnelRoute || !draft_ ||
         !draft_->original_tank || draft_->tunnel_route.empty()) return false;
     const geo::TankDesign& tank = *draft_->original_tank;
+    const auto routing_cells = tunnelRoutingCells();
     auto step = [&](geo::GridCell next) {
         auto& route = draft_->tunnel_route;
-        if (!occupied(tank, next)) return false;
+        if (std::none_of(routing_cells.begin(), routing_cells.end(),
+                [&](geo::GridCell allowed) { return same(allowed, next); })) return false;
         if (route.size() >= 2U &&
             route[route.size() - 2U].column == next.column &&
             route[route.size() - 2U].row == next.row) {
@@ -142,15 +173,6 @@ bool AquariumConstructionSession::extendTunnelRouteTo(geo::GridCell target) {
         if (turnCount(route) > 1) {
             route.pop_back();
             return false;
-        }
-        for (const auto& existing : tank.tunnels) {
-            if (std::any_of(existing.centreline_cells.begin(),
-                    existing.centreline_cells.end(), [&](const auto point) {
-                        return point.column == next.column && point.row == next.row;
-                    })) {
-                route.pop_back();
-                return false;
-            }
         }
         return true;
     };

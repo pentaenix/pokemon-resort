@@ -131,6 +131,7 @@ public:
     bool extendTunnelRouteTo(pr::aquarium::geometry::GridCell cell);
     bool isTunnelPortalCell(pr::aquarium::geometry::GridCell cell) const;
     std::vector<pr::aquarium::geometry::GridCell> tunnelPortalCells() const;
+    std::vector<pr::aquarium::geometry::GridCell> tunnelRoutingCells() const;
     std::vector<pr::aquarium::geometry::GridCell> tunnelRouteCells() const;
     bool requestDeleteSelected();
     bool cancelDelete();

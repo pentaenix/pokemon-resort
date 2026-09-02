@@ -110,15 +110,11 @@ PlayerAquariumRuntimeSet buildPlayerAquariumRuntime(
             collision_cells.emplace(cell.column, cell.row + 1);
             collision_cells.emplace(cell.column + 1, cell.row + 1);
         }
-        // A verified one-cell tunnel follows the same installed half-cell
-        // transform. Clear its complete coarse overlap only after every tank
-        // blocker has been conservatively expanded, so neighbouring shell
-        // cells cannot accidentally seal the corridor again.
+        // Tunnel nodes use the ordinary walking-cell lattice, independently
+        // of the tank footprint's half-cell installation transform. Clearing
+        // exactly these cells preserves a single-cell-wide dry corridor.
         for (const auto cell : runtime.build.collision.dry_corridor_cells) {
             collision_cells.erase({cell.column, cell.row});
-            collision_cells.erase({cell.column + 1, cell.row});
-            collision_cells.erase({cell.column, cell.row + 1});
-            collision_cells.erase({cell.column + 1, cell.row + 1});
         }
         AquariumPopulationContext context{
             project_root,

@@ -29,7 +29,8 @@ constexpr float kWaterCeilingInset = 0.88F;
 constexpr float kWaterLevel = 0.91F;
 constexpr float kWaterBottom = 2.504F;
 constexpr float kFloorRimTop = 1.2F;
-
+constexpr float kHalfCellWorldUnits =
+    static_cast<float>(kWorldUnitsPerCell) * 0.5F;
 float canonicalFloat(float value) {
     constexpr double kOutputStepsPerWorldUnit = 10000.0;
     return static_cast<float>(std::round(
@@ -401,19 +402,11 @@ void populateAquariumGeometry(
     }
     addPerimeterSides(water_volume, boundary, water_bottom, water_y - 0.002F);
     const std::vector<GridCell> occupied = footprintCells(footprint);
-    std::vector<GridCell> water_cells = occupied;
+    TunnelHalfCellLayout tunnel_layout;
     if (!tunnels.empty()) {
-        for (const ResolvedTunnel& tunnel : tunnels) {
-            for (const GridCell dry : tunnel.cells) {
-                water_cells.erase(std::remove_if(water_cells.begin(), water_cells.end(),
-                    [&](GridCell cell) {
-                        return cell.column == dry.column && cell.row == dry.row;
-                    }), water_cells.end());
-            }
-        }
-        for (const auto& region : connectedCellRegions(water_cells)) {
-            addPolygonSurface(sand,
-                cellRegionBoundaryLocalWorld(region, footprint), sand_surface_y);
+        tunnel_layout = buildTunnelHalfCellLayout(footprint, tunnels);
+        for (const auto& region : connectedCellRegions(tunnel_layout.water)) {
+            addPolygonSurface(sand, tunnelHalfCellBoundary(region, footprint), sand_surface_y);
         }
     } else {
         addPolygonSurface(sand, boundary, sand_surface_y);
@@ -423,16 +416,16 @@ void populateAquariumGeometry(
     // The complete above-floor tank footprint is solid to overworld actors.
     // Blocking only the perimeter allowed actors to enter interior cells when
     // rounding or follower movement crossed more than one grid boundary.
-    result.collision.blocked_cells = water_cells;
-    for (const ResolvedTunnel& tunnel : tunnels) {
-        result.collision.dry_corridor_cells.insert(
-            result.collision.dry_corridor_cells.end(),
-            tunnel.cells.begin(), tunnel.cells.end());
+    result.collision.blocked_cells = occupied;
+    result.collision.dry_corridor_cells = tunnel_layout.walking_collision;
+    for (std::size_t tunnel_index = 0; tunnel_index < tunnels.size(); ++tunnel_index) {
+        const ResolvedTunnel& tunnel = tunnels[tunnel_index];
         NavigationDryVolume dry;
         dry.tunnel_id = tunnel.design->id;
         dry.floor_y = 0.0F;
         dry.ceiling_y = tunnelDryCeiling(request.tank);
-        dry.area.outer = cellRegionBoundaryLocalWorld(tunnel.cells, footprint);
+        dry.area.outer = tunnelHalfCellBoundary(
+            tunnel_layout.dry_by_tunnel[tunnel_index], footprint);
         result.navigation.dry_volumes.push_back(std::move(dry));
     }
     std::sort(result.collision.dry_corridor_cells.begin(),
@@ -455,11 +448,11 @@ void populateAquariumGeometry(
         const float dry_ceiling = tunnelDryCeiling(request.tank);
         const float lower_ceiling = std::min(water_y, dry_ceiling);
         if (lower_ceiling > sand_surface_y + 0.001F) {
-            for (const auto& region : connectedCellRegions(water_cells)) {
+            for (const auto& region : connectedCellRegions(tunnel_layout.water)) {
                 NavigationLayer layer;
                 layer.floor_y = sand_surface_y;
                 layer.ceiling_y = lower_ceiling;
-                layer.area.outer = cellRegionBoundaryLocalWorld(region, footprint);
+                layer.area.outer = tunnelHalfCellBoundary(region, footprint);
                 result.navigation.layers.push_back(std::move(layer));
             }
         }
@@ -472,13 +465,22 @@ void populateAquariumGeometry(
         }
     }
 
-    const float center_column = static_cast<float>(occupiedWidthCells(footprint) - 1) * 0.5F;
-    const float center_row = static_cast<float>(occupiedDepthCells(footprint) - 1) * 0.5F;
+    const std::vector<GridCell>& spawn_cells = tunnels.empty() ? occupied : tunnel_layout.water;
+    const float spawn_width = static_cast<float>(occupiedWidthCells(footprint)) *
+        (tunnels.empty() ? 1.0F : 2.0F);
+    const float spawn_depth = static_cast<float>(occupiedDepthCells(footprint)) *
+        (tunnels.empty() ? 1.0F : 2.0F);
+    const float center_column = (spawn_width - 1.0F) * 0.5F;
+    const float center_row = (spawn_depth - 1.0F) * 0.5F;
     const GridCell* spawn_cell = nullptr;
     float nearest = std::numeric_limits<float>::max();
-    for (const GridCell& cell : water_cells) {
-        const float local_column = static_cast<float>(cell.column - footprint.origin_cell.column);
-        const float local_row = static_cast<float>(cell.row - footprint.origin_cell.row);
+    for (const GridCell& cell : spawn_cells) {
+        const float local_column = tunnels.empty()
+            ? static_cast<float>(cell.column - footprint.origin_cell.column)
+            : static_cast<float>(cell.column);
+        const float local_row = tunnels.empty()
+            ? static_cast<float>(cell.row - footprint.origin_cell.row)
+            : static_cast<float>(cell.row);
         const float distance = std::abs(local_column - center_column) + std::abs(local_row - center_row);
         if (distance < nearest) {
             nearest = distance;
@@ -488,12 +490,18 @@ void populateAquariumGeometry(
     if (spawn_cell) {
         const float half_width = static_cast<float>(occupiedWidthCells(footprint) * kWorldUnitsPerCell) * 0.5F;
         const float half_depth = static_cast<float>(occupiedDepthCells(footprint) * kWorldUnitsPerCell) * 0.5F;
+        const float spawn_cell_units = tunnels.empty()
+            ? static_cast<float>(kWorldUnitsPerCell) : kHalfCellWorldUnits;
+        const float spawn_column = tunnels.empty()
+            ? static_cast<float>(spawn_cell->column - footprint.origin_cell.column)
+            : static_cast<float>(spawn_cell->column);
+        const float spawn_row = tunnels.empty()
+            ? static_cast<float>(spawn_cell->row - footprint.origin_cell.row)
+            : static_cast<float>(spawn_cell->row);
         result.navigation.suggested_spawns.push_back({
-            static_cast<float>(spawn_cell->column - footprint.origin_cell.column) * kWorldUnitsPerCell +
-                static_cast<float>(kWorldUnitsPerCell) * 0.5F - half_width,
+            spawn_column * spawn_cell_units + spawn_cell_units * 0.5F - half_width,
             (sand_surface_y + water_y) * 0.5F,
-            static_cast<float>(spawn_cell->row - footprint.origin_cell.row) * kWorldUnitsPerCell +
-                static_cast<float>(kWorldUnitsPerCell) * 0.5F - half_depth,
+            spawn_row * spawn_cell_units + spawn_cell_units * 0.5F - half_depth,
         });
     }
     double twice_area = 0.0;
@@ -511,9 +519,8 @@ void populateAquariumGeometry(
     if (!tunnels.empty()) {
         const double excluded_height = std::max(0.0F,
             std::min(water_y, tunnelDryCeiling(request.tank)) - water_bottom);
-        water_world_volume -= static_cast<double>(
-            result.collision.dry_corridor_cells.size()) *
-            kWorldUnitsPerCell * kWorldUnitsPerCell * excluded_height;
+        water_world_volume -= static_cast<double>(tunnel_layout.dry_count) *
+            kHalfCellWorldUnits * kHalfCellWorldUnits * excluded_height;
     }
     result.statistics.water_volume_litres = static_cast<std::uint64_t>(std::llround(
         std::max(0.0, water_world_volume) * 1000.0 / 4096.0));

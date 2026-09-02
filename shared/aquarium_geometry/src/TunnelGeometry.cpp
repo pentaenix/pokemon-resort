@@ -12,9 +12,10 @@ namespace {
 
 constexpr float kGlassThickness =
     static_cast<float>(kGlassThicknessMilliWorldUnits) / 1000.0F;
-constexpr float kTunnelOuterHalfWidth = kWorldUnitsPerCell * 0.5F;
+constexpr float kTunnelOuterHalfWidth =
+    static_cast<float>(kTunnelOuterHalfWidthWorldUnits);
 constexpr float kTunnelInnerHalfWidth = kTunnelOuterHalfWidth - kGlassThickness;
-constexpr float kTunnelNominalCrown = kVerticalStepWorldUnits * 4.0F;
+constexpr float kTunnelNominalCrown = static_cast<float>(kTunnelCrownWorldUnits);
 constexpr float kGlassTopInset = 0.5168F;
 constexpr float kPi = 3.14159265358979323846F;
 
@@ -149,6 +150,31 @@ void appendFloorStrip(SemanticMesh& mesh, const std::vector<Vec2>& route) {
     }
 }
 
+void appendPortalGlassCap(
+    SemanticMesh& glass,
+    Vec2 portal,
+    GridCell outward,
+    const std::vector<ProfilePoint>& outer,
+    float glass_top) {
+    const Vec2 tangent{
+        static_cast<float>(-outward.row),
+        static_cast<float>(outward.column)};
+    for (std::size_t index = 0; index + 1U < outer.size(); ++index) {
+        const ProfilePoint a = outer[index];
+        const ProfilePoint b = outer[index + 1U];
+        if (std::abs(a.lateral - b.lateral) <= 0.0001F) continue;
+        const Vec3 bottom_a{
+            portal.x + tangent.x * a.lateral, a.y,
+            portal.y + tangent.y * a.lateral};
+        const Vec3 bottom_b{
+            portal.x + tangent.x * b.lateral, b.y,
+            portal.y + tangent.y * b.lateral};
+        const Vec3 top_a{bottom_a.x, glass_top, bottom_a.z};
+        const Vec3 top_b{bottom_b.x, glass_top, bottom_b.z};
+        addQuad(glass, {{bottom_b, bottom_a, top_a, top_b}});
+    }
+}
+
 float pointSegmentParameter(Vec2 point, Vec2 start, Vec2 end) {
     const float dx = end.x - start.x;
     const float dz = end.y - start.y;
@@ -221,6 +247,12 @@ void appendTunnelMeshes(
     for (const ResolvedTunnel& tunnel : tunnels) {
         appendProfileSweep(glass, tunnel.route_local_world, inner, outer);
         appendFloorStrip(structure, tunnel.route_local_world);
+        appendPortalGlassCap(glass, tunnel.route_local_world.front(),
+            tunnel.entry_outward, outer, tank.height_steps * kVerticalStepWorldUnits -
+                kGlassTopInset);
+        appendPortalGlassCap(glass, tunnel.route_local_world.back(),
+            tunnel.exit_outward, outer, tank.height_steps * kVerticalStepWorldUnits -
+                kGlassTopInset);
     }
 }
 
