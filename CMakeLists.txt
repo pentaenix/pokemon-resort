@@ -118,6 +118,7 @@ add_library(world3d_bgfx_renderer STATIC
     src/gameplay/world3d/aquarium/rendering/AquariumFloorCutouts.cpp
     src/gameplay/world3d/aquarium/rendering/PlayerAquariumBgfxRenderer.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionHudLayout.cpp
+    src/gameplay/world3d/aquarium/construction/AquariumConstructionDepthVisual.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionVisual.cpp
     src/gameplay/world3d/rendering/bgfx/BgfxBackend.cpp
     src/gameplay/world3d/rendering/bgfx/BillboardBgfxDrawer.cpp
@@ -384,6 +385,7 @@ add_executable(aquarium_runtime_tests
     src/gameplay/world3d/aquarium/construction/AquariumCollisionOverlay.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionCommand.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionHudLayout.cpp
+    src/gameplay/world3d/aquarium/construction/AquariumConstructionDepthVisual.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionCamera.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionSession.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionSessionProperties.cpp

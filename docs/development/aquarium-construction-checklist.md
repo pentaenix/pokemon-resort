@@ -490,6 +490,7 @@ is never an editable or duplicated numeric field in the authoritative save docum
 - [x] Make normal placement a stable click-start/click-finish rectangle gesture; remove implicit hover-paint after tank selection, merge drawn footprints that overlap or share an edge, and keep tanks separate when a full empty-cell gap remains.
 - [x] Make below-floor tunnel glass readable as a floor using an ABI-11 cool-grey scaffold: maker-proportioned raised side rails and shallow crossbars divide every transparent walking-cell panel without changing collision or navigation.
 - [x] Frame both tunnel portals with the same cool-grey scaffold material so entrances remain legible against glass and water without narrowing the walking opening.
+- [x] Replace the sand-occluded depth pips with an always-visible above-sand depth ladder whose discrete fill and movable handle travel downward as the basin deepens.
 - [ ] Route compatible discrete Aquarium Maker passage settings through ABI 10; the maker UI still keeps passages on its advanced legacy geometry path, while the shared JSON golden already proves native/WASM parity.
 - [ ] Extend portal cutting and water-region construction to rounded, rotated, L/U, and exterior-subtracted tanks after the rectangular seam is visually accepted.
 - [ ] Add multiple-tunnel player interaction and manual validation; the kernel already rejects crossing/overlapping routes.

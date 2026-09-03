@@ -150,15 +150,15 @@ std::vector<GizmoWorldPoint> gizmoWorldPoints(const AquariumConstructionVisual& 
         visual.state == ConstructionState::ResizeTank ||
         (visual.state == ConstructionState::DraftReview && visual.property_draft);
     if (!editing_with_handles) return {};
-    // Keep the two centre controls visually separate even at the 3x3 minimum.
-    // Both must sit above the opaque sand surface; placing the depth knob near
-    // the floor makes its hit target work while leaving the control invisible.
-    constexpr float kCentreKnobSeparation = 7.0f;
+    // Keep movement clear of the depth ladder even at the 3x3 minimum.
+    constexpr float kMoveKnobOffset = 7.0f;
+    const auto depth_layout = aquariumConstructionDepthGizmoLayout(
+        *tank, center_x, center_z, floor_y);
     points = {
         {{ConstructionGizmoKind::Move, AquariumResizeHandle::SouthEast, std::nullopt, std::nullopt},
-            {center_x - kCentreKnobSeparation, y, center_z}},
+            {center_x - kMoveKnobOffset, y, center_z}},
         {{ConstructionGizmoKind::Depth, AquariumResizeHandle::SouthEast, std::nullopt, std::nullopt},
-            {center_x + kCentreKnobSeparation, y + 0.12f, center_z}},
+            {depth_layout.center_x, depth_layout.y, depth_layout.handle_z}},
         {{ConstructionGizmoKind::Resize, AquariumResizeHandle::North, std::nullopt, std::nullopt}, {center_x, y, north}},
         {{ConstructionGizmoKind::Resize, AquariumResizeHandle::East, std::nullopt, std::nullopt}, {east, y, center_z}},
         {{ConstructionGizmoKind::Resize, AquariumResizeHandle::South, std::nullopt, std::nullopt}, {center_x, y, south}},
@@ -446,17 +446,10 @@ ConstructionVisualMesh buildAquariumConstructionWorldMesh(
                 floor_y + static_cast<float>((tick + 4) * geo::kVerticalStepWorldUnits),
                 1.4f, tick + 1 == tick_count ? kCursor : kSelected);
         }
-        // Depth is previewed on the room floor because the committed floor
-        // opening is intentionally not rebuilt for every pointer movement.
-        // The filled pip rail keeps the discrete value readable without text.
-        const float depth_start_z = center_z -
-            static_cast<float>(std::max(0, tank.depth_steps - 1)) * 1.1f;
-        for (int tick = 0; tick < tank.depth_steps; ++tick) {
-            appendDiamond(mesh, center_x + 10.0f,
-                depth_start_z + static_cast<float>(tick) * 2.2f,
-                floor_y + 0.68f, 1.25f,
-                tick + 1 == tank.depth_steps ? kCursor : kCutMark);
-        }
+        appendAquariumConstructionDepthGizmo(mesh,
+            aquariumConstructionDepthGizmoLayout(
+                tank, center_x, center_z, floor_y),
+            tank.depth_steps);
     }
     return mesh;
 }

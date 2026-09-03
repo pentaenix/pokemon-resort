@@ -704,6 +704,23 @@ void constructionVisualBuildsYellowCellsGizmosAndCanonicalHitTargets() {
     const auto selected_mesh = construction::buildAquariumConstructionWorldMesh(visual);
     require(selected_mesh.vertices.size() > browse_mesh.vertices.size(),
         "selected tank, locked-cell marker, and edit gizmos did not add visible geometry");
+    visual.preview_tank = selected;
+    const auto shallow_depth_mesh =
+        construction::buildAquariumConstructionWorldMesh(visual);
+    visual.preview_tank->depth_steps = 6;
+    const auto deep_depth_mesh =
+        construction::buildAquariumConstructionWorldMesh(visual);
+    require(deep_depth_mesh.vertices.size() > shallow_depth_mesh.vertices.size(),
+        "depth ladder did not visibly fill as the basin deepened");
+    const auto shallow_depth_layout = construction::aquariumConstructionDepthGizmoLayout(
+        selected, 192.0f, 192.0f, 0.0f);
+    selected.depth_steps = 6;
+    const auto deep_depth_layout = construction::aquariumConstructionDepthGizmoLayout(
+        selected, 192.0f, 192.0f, 0.0f);
+    require(shallow_depth_layout.y > 3.016f &&
+            deep_depth_layout.handle_z > shallow_depth_layout.handle_z,
+        "depth handle is hidden by sand or does not travel downward with depth");
+    visual.preview_tank = selected;
 
     pr::gameplay::world3d::camera::Gen4CameraPreset preset;
     preset.fov_y_deg = 45.0f;
@@ -729,7 +746,10 @@ void constructionVisualBuildsYellowCellsGizmosAndCanonicalHitTargets() {
         visual, camera, static_cast<int>(screen_x), static_cast<int>(screen_y), 1280, 800);
     require(move_gizmo && move_gizmo->kind == construction::ConstructionGizmoKind::Move,
         "selected tank centre did not expose a mouse-hit-testable move gizmo");
-    require(camera.worldToScreen({199.0f, 3.77f, 192.0f}, 1280, 800,
+    require(camera.worldToScreen(
+                {deep_depth_layout.center_x, deep_depth_layout.y,
+                    deep_depth_layout.handle_z},
+                1280, 800,
                 screen_x, screen_y, depth),
         "selected tank depth knob did not project into the construction viewport");
     const auto depth_gizmo = construction::hitTestAquariumConstructionGizmo(
