@@ -495,6 +495,7 @@ is never an editable or duplicated numeric field in the authoritative save docum
 - [x] Feed every committed player tank's derived navigation layers and population-policy output into the existing aquarium simulation; generated swimmers now move with rendered-body clearance through deep/layered water while avoiding tunnel dry regions, and player-tank replacement leaves authored swimmers intact.
 - [x] Expand the temporary player-tank testing policy to six schooling Wishiwashi, one stationary bottom-anchored Clamperl, and one floor-wandering Pyukumuku per tank without changing authored aquarium populations.
 - [x] Register player-built tank bounds with the existing two-stage aquarium inspection camera after load and every committed edit, using close-focus tuning without altering authored tank camera presets.
+- [x] Distinguish the move gizmo from height/depth controls with a compact four-direction planar compass while preserving the established click–move–click interaction and hit target.
 - [ ] Route compatible discrete Aquarium Maker passage settings through ABI 10; the maker UI still keeps passages on its advanced legacy geometry path, while the shared JSON golden already proves native/WASM parity.
 - [ ] Extend portal cutting and water-region construction to rounded, rotated, L/U, and exterior-subtracted tanks after the rectangular seam is visually accepted.
 - [ ] Add multiple-tunnel player interaction and manual validation; the kernel already rejects crossing/overlapping routes.

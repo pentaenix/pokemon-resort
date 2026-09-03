@@ -105,6 +105,50 @@ void appendLine(
     });
 }
 
+void appendMoveCompass(
+    ConstructionVisualMesh& mesh,
+    float center_x,
+    float center_z,
+    float y,
+    std::uint32_t shaft_color,
+    std::uint32_t center_color) {
+    constexpr float kTip = 6.8f;
+    constexpr float kHeadBase = 4.6f;
+    constexpr float kHeadHalfWidth = 1.8f;
+    appendLine(mesh, center_x - kTip, center_z, center_x + kTip, center_z,
+        y, 1.25f, shaft_color);
+    appendLine(mesh, center_x, center_z - kTip, center_x, center_z + kTip,
+        y + 0.01f, 1.25f, shaft_color);
+    appendLine(mesh, center_x + kTip, center_z,
+        center_x + kHeadBase, center_z - kHeadHalfWidth,
+        y + 0.02f, 1.25f, shaft_color);
+    appendLine(mesh, center_x + kTip, center_z,
+        center_x + kHeadBase, center_z + kHeadHalfWidth,
+        y + 0.03f, 1.25f, shaft_color);
+    appendLine(mesh, center_x - kTip, center_z,
+        center_x - kHeadBase, center_z - kHeadHalfWidth,
+        y + 0.02f, 1.25f, shaft_color);
+    appendLine(mesh, center_x - kTip, center_z,
+        center_x - kHeadBase, center_z + kHeadHalfWidth,
+        y + 0.03f, 1.25f, shaft_color);
+    appendLine(mesh, center_x, center_z - kTip,
+        center_x - kHeadHalfWidth, center_z - kHeadBase,
+        y + 0.04f, 1.25f, shaft_color);
+    appendLine(mesh, center_x, center_z - kTip,
+        center_x + kHeadHalfWidth, center_z - kHeadBase,
+        y + 0.05f, 1.25f, shaft_color);
+    appendLine(mesh, center_x, center_z + kTip,
+        center_x - kHeadHalfWidth, center_z + kHeadBase,
+        y + 0.04f, 1.25f, shaft_color);
+    appendLine(mesh, center_x, center_z + kTip,
+        center_x + kHeadHalfWidth, center_z + kHeadBase,
+        y + 0.05f, 1.25f, shaft_color);
+    appendQuad(mesh, center_x - 2.1f, center_z - 2.1f,
+        center_x + 2.1f, center_z + 2.1f, y + 0.06f, shaft_color);
+    appendQuad(mesh, center_x - 1.15f, center_z - 1.15f,
+        center_x + 1.15f, center_z + 1.15f, y + 0.08f, center_color);
+}
+
 struct ScreenPoint {
     float x = 0.0f;
     float y = 0.0f;
@@ -384,16 +428,21 @@ ConstructionVisualMesh buildAquariumConstructionWorldMesh(
             const bool tunnel_delete = gizmo.hit.kind == ConstructionGizmoKind::TunnelDelete;
             const bool active_resize = resize && visual.active_resize_handle &&
                 *visual.active_resize_handle == gizmo.hit.resize_handle;
+            if (move) {
+                appendMoveCompass(mesh, gizmo.world.x, gizmo.world.z, gizmo.world.y,
+                    kAnchor, kSelected);
+                continue;
+            }
             const std::uint32_t outer_color = tunnel_delete ? kInvalidFill : portal ? kTunnel : depth ? kCutMark :
-                height ? kSelected : corner ? kAnchor : move ? kAnchor :
+                height ? kSelected : corner ? kAnchor :
                 active_resize ? kSelected : kHandle;
             const std::uint32_t inner_color = tunnel_delete ? kHandle : portal ? kAnchor : depth ? kSelected :
-                corner ? kSelected : move ? kSelected : active_resize ? kHandle : kAnchor;
+                corner ? kSelected : active_resize ? kHandle : kAnchor;
             appendDiamond(mesh, gizmo.world.x, gizmo.world.z, gizmo.world.y,
-                tunnel_delete ? 4.1f : portal ? 3.2f : move ? 4.4f : ((height || depth) ? 4.8f : (active_resize ? 5.2f : 3.6f)),
+                tunnel_delete ? 4.1f : portal ? 3.2f : ((height || depth) ? 4.8f : (active_resize ? 5.2f : 3.6f)),
                 outer_color);
             appendDiamond(mesh, gizmo.world.x, gizmo.world.z, gizmo.world.y + 0.04f,
-                tunnel_delete ? 2.1f : portal ? 1.35f : move ? 2.3f : ((height || depth) ? 2.6f : (active_resize ? 2.8f : 1.8f)),
+                tunnel_delete ? 2.1f : portal ? 1.35f : ((height || depth) ? 2.6f : (active_resize ? 2.8f : 1.8f)),
                 inner_color);
             if (tunnel_delete) {
                 appendLine(mesh, gizmo.world.x - 2.2f, gizmo.world.z - 2.2f,
