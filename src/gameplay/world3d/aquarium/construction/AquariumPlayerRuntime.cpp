@@ -24,15 +24,79 @@ public:
         const PlayerTankRuntime& tank,
         const AquariumPopulationContext& context,
         std::vector<std::string>* diagnostics) const override {
-        if (context.placeholder_model_path.empty()) {
-            if (diagnostics) diagnostics->push_back("Placeholder Wishiwashi model was not found");
-            return {};
+        std::vector<AquariumSwimmerDefinition> population;
+        if (context.wishiwashi_model_path.empty()) {
+            if (diagnostics) diagnostics->push_back(
+                "Testing population Wishiwashi model was not found");
+        } else {
+            constexpr int kWishiwashiCount = 6;
+            for (int copy = 0; copy < kWishiwashiCount; ++copy) {
+                AquariumSwimmerDefinition swimmer = makeSwimmer(
+                    tank, context, "wishiwashi", "00",
+                    context.wishiwashi_model_path,
+                    "wishiwashi:" + std::to_string(copy));
+                swimmer.movement.id = tank.design.id + ":wishiwashi-school";
+                swimmer.movement.behavior = "school";
+                swimmer.movement.speed_meters_per_second = 0.34f;
+                swimmer.movement.turn_degrees_per_second = 180.0f;
+                swimmer.movement.body_radius_meters = 0.03f;
+                swimmer.formation_index = copy;
+                swimmer.formation_count = kWishiwashiCount;
+                population.push_back(std::move(swimmer));
+            }
         }
+
+        if (context.clamperl_model_path.empty()) {
+            if (diagnostics) diagnostics->push_back(
+                "Testing population Clamperl model was not found");
+        } else {
+            AquariumSwimmerDefinition clamperl = makeSwimmer(
+                tank, context, "clamperl", "",
+                context.clamperl_model_path, "clamperl");
+            clamperl.movement.behavior = "stationary";
+            clamperl.movement.vertical_anchor = "bottom";
+            clamperl.movement.speed_meters_per_second = 0.0f;
+            clamperl.movement.body_radius_meters = 0.10f;
+            clamperl.movement.has_starting_position = true;
+            clamperl.movement.starting_position_meters = {-0.5f, 0.0f, -0.5f};
+            population.push_back(std::move(clamperl));
+        }
+
+        if (context.pyukumuku_model_path.empty()) {
+            if (diagnostics) diagnostics->push_back(
+                "Testing population Pyukumuku model was not found");
+        } else {
+            AquariumSwimmerDefinition pyukumuku = makeSwimmer(
+                tank, context, "pyukumuku", "",
+                context.pyukumuku_model_path, "pyukumuku");
+            pyukumuku.actor.animation = "walk";
+            pyukumuku.movement.animation = "walk";
+            pyukumuku.movement.behavior = "wander";
+            pyukumuku.movement.movement_plane = "floor";
+            pyukumuku.movement.vertical_anchor = "bottom";
+            pyukumuku.movement.speed_meters_per_second = 0.28f;
+            pyukumuku.movement.turn_degrees_per_second = 180.0f;
+            pyukumuku.movement.body_radius_meters = 0.18f;
+            pyukumuku.movement.has_starting_position = true;
+            pyukumuku.movement.starting_position_meters = {0.5f, 0.0f, 0.5f};
+            population.push_back(std::move(pyukumuku));
+        }
+        return population;
+    }
+
+private:
+    static AquariumSwimmerDefinition makeSwimmer(
+        const PlayerTankRuntime& tank,
+        const AquariumPopulationContext& context,
+        std::string species,
+        std::string form,
+        const std::string& model_path,
+        const std::string& stable_suffix) {
         AquariumSwimmerDefinition swimmer;
-        swimmer.actor.id = tank.design.id + ":placeholder";
-        swimmer.actor.species = "wishiwashi";
-        swimmer.actor.form = "00";
-        swimmer.actor.model_path = context.placeholder_model_path;
+        swimmer.actor.id = tank.design.id + ':' + stable_suffix;
+        swimmer.actor.species = std::move(species);
+        swimmer.actor.form = std::move(form);
+        swimmer.actor.model_path = model_path;
         swimmer.actor.animation = "idle_default";
         swimmer.actor.model_scale = context.model_scale;
         swimmer.actor.presentation = context.presentation;
@@ -40,17 +104,13 @@ public:
         swimmer.movement.species = swimmer.actor.species;
         swimmer.movement.form = swimmer.actor.form;
         swimmer.movement.animation = swimmer.actor.animation;
-        swimmer.movement.behavior = "wander";
-        swimmer.movement.speed_meters_per_second = 0.34f;
-        swimmer.movement.turn_degrees_per_second = 180.0f;
-        swimmer.movement.body_radius_meters = 0.03f;
         std::uint32_t hash = 2166136261U;
-        for (const unsigned char byte : tank.design.id) {
+        for (const unsigned char byte : swimmer.actor.id) {
             hash ^= byte;
             hash *= 16777619U;
         }
         swimmer.seed = hash;
-        return {std::move(swimmer)};
+        return swimmer;
     }
 };
 
@@ -116,13 +176,17 @@ PlayerAquariumRuntimeSet buildPlayerAquariumRuntime(
     PlayerAquariumRuntimeSet out;
     out.revision = document.revision;
     std::set<std::pair<int, int>> collision_cells;
-    std::string wishiwashi_model_path;
     const auto models = gameplay::attend::discoverPokemonModels(
         project_root / "assets/pokemon_attend/pokemon_models");
-    const auto wishiwashi = std::find_if(models.begin(), models.end(), [](const auto& model) {
-        return model.id == normalized("wishiwashi");
-    });
-    if (wishiwashi != models.end()) wishiwashi_model_path = wishiwashi->path;
+    const auto modelPath = [&](const std::string& species) {
+        const auto found = std::find_if(models.begin(), models.end(), [&](const auto& model) {
+            return model.id == normalized(species);
+        });
+        return found == models.end() ? std::string{} : found->path;
+    };
+    const std::string wishiwashi_model_path = modelPath("wishiwashi");
+    const std::string clamperl_model_path = modelPath("clamperl");
+    const std::string pyukumuku_model_path = modelPath("pyukumuku");
     for (const geo::TankDesign& design : document.tanks) {
         geo::AquariumBuildRequest request;
         request.tank = design;
@@ -172,6 +236,8 @@ PlayerAquariumRuntimeSet buildPlayerAquariumRuntime(
             map_config.pokemon_scale,
             map_config.pokemon_presentation,
             wishiwashi_model_path,
+            clamperl_model_path,
+            pyukumuku_model_path,
         };
         AquariumPlayerTankSimulationInput simulation;
         simulation.tank_id = runtime.design.id;

@@ -161,8 +161,9 @@ step.
 
 Each committed player tank carries kernel-derived water layers, dry tunnel
 exclusions, and suggested spawns into the ordinary `AquariumSimulation`. The
-placeholder population policy currently contributes one wandering Wishiwashi,
-but geometry and simulation do not name that species. Fish movement, rendered
+temporary testing population policy currently contributes six schooling
+Wishiwashi, one bottom-resting Clamperl, and one floor-wandering Pyukumuku to
+each player-built tank. Geometry and simulation do not name those species. Fish movement, rendered
 body clearance, layered/deep water, and tunnel avoidance therefore use the same
 containment code as authored aquariums. Rebuilding or deleting player tanks
 replaces only their simulated swimmers; authored populations remain live.

@@ -26,7 +26,9 @@ struct AquariumPopulationContext {
     std::filesystem::path project_root;
     float model_scale = 0.27f;
     AquariumPokemonPresentationConfig presentation;
-    std::string placeholder_model_path;
+    std::string wishiwashi_model_path;
+    std::string clamperl_model_path;
+    std::string pyukumuku_model_path;
 };
 
 class AquariumPopulationPolicy {

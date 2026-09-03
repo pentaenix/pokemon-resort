@@ -1156,6 +1156,31 @@ void populationPolicyIsReplaceableAndNavigationIsDerived() {
         "kernel navigation was not converted into valid simulation-local metres");
     require(runtime.collision_cells.size() == 16,
         "half-cell-installed 3x3 tank did not cover its south/east overlap cells");
+
+    construction::AquariumPopulationContext context;
+    context.wishiwashi_model_path = "wishiwashi.glbz";
+    context.clamperl_model_path = "clamperl.glbz";
+    context.pyukumuku_model_path = "pyukumuku.glbz";
+    const auto testing_policy = construction::makePlaceholderWishiwashiPolicy();
+    const auto population = testing_policy->populationFor(
+        runtime.tanks.front(), context, nullptr);
+    require(population.size() == 8U &&
+            std::count_if(population.begin(), population.end(), [](const auto& swimmer) {
+                return swimmer.actor.species == "wishiwashi" &&
+                    swimmer.movement.behavior == "school" &&
+                    swimmer.formation_count == 6;
+            }) == 6 &&
+            std::count_if(population.begin(), population.end(), [](const auto& swimmer) {
+                return swimmer.actor.species == "clamperl" &&
+                    swimmer.movement.behavior == "stationary" &&
+                    swimmer.movement.vertical_anchor == "bottom";
+            }) == 1 &&
+            std::count_if(population.begin(), population.end(), [](const auto& swimmer) {
+                return swimmer.actor.species == "pyukumuku" &&
+                    swimmer.movement.behavior == "wander" &&
+                    swimmer.movement.movement_plane == "floor";
+            }) == 1,
+        "temporary player-tank policy must create six fish and two floor testers");
 }
 
 void tunnelGestureCommitsCancelsAndClearsRuntimeCollision() {

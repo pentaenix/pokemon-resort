@@ -49,6 +49,8 @@ struct AquariumSwimmerDefinition {
     AquariumPokemonActor actor;
     AquariumPokemonConfig movement;
     std::uint32_t seed = 1;
+    int formation_index = 0;
+    int formation_count = 1;
 };
 
 struct AquariumPlayerTankSimulationInput {

@@ -205,7 +205,8 @@ void AquariumSimulation::replacePlayerTanks(
                 continue;
             }
             appendSwimmer(definition.actor, definition.movement, tank_context,
-                definition.seed, 0, 1, true);
+                definition.seed, definition.formation_index,
+                definition.formation_count, true);
         }
     }
 }
