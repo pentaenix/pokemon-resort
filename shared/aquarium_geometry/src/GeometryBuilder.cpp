@@ -443,7 +443,7 @@ void populateAquariumGeometry(
     SemanticMesh& water_surface = addMesh(result.meshes, MeshMaterial::WaterSurface);
     SemanticMesh& glass = addMesh(result.meshes, MeshMaterial::Glass);
     SemanticMesh* tunnel_frame = nullptr;
-    if (!tunnels.empty() && below_floor) {
+    if (!tunnels.empty()) {
         tunnel_frame = &addMesh(result.meshes, MeshMaterial::TunnelFrame);
     }
     if (!tunnels.empty() && !below_floor) {
@@ -472,8 +472,7 @@ void populateAquariumGeometry(
     } else {
         appendTunnelPerimeterGlass(
             glass, boundary, below_floor ? 0.0F : kGlassBottom, glass_top, tunnels);
-        appendTunnelMeshes(tunnel_frame ? *tunnel_frame : structure,
-            glass, request.tank, tunnels);
+        appendTunnelMeshes(*tunnel_frame, glass, request.tank, tunnels);
     }
     addPerimeterSides(water_volume, boundary, water_bottom, water_y - 0.002F);
     if (!tunnels.empty() && !below_floor) {

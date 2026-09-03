@@ -283,6 +283,42 @@ void appendPortalGlassCap(
     }
 }
 
+Vec3 portalProfilePoint(
+    Vec2 portal, GridCell outward, ProfilePoint profile, float outward_offset) {
+    const Vec2 tangent{
+        static_cast<float>(-outward.row),
+        static_cast<float>(outward.column)};
+    return {
+        portal.x + tangent.x * profile.lateral +
+            static_cast<float>(outward.column) * outward_offset,
+        profile.y,
+        portal.y + tangent.y * profile.lateral +
+            static_cast<float>(outward.row) * outward_offset,
+    };
+}
+
+void appendPortalFrame(
+    SemanticMesh& frame, Vec2 portal, GridCell outward,
+    const std::vector<ProfilePoint>& opening) {
+    constexpr float kPortalFrameWidth = 1.6F;
+    constexpr float kPortalFaceOffset = 0.08F;
+    const auto outside = archProfile(
+        kTunnelOuterHalfWidth + kPortalFrameWidth,
+        kTunnelNominalCrown + kGlassThickness + kPortalFrameWidth);
+    for (std::size_t index = 0; index + 1U < opening.size(); ++index) {
+        const Vec3 inner_a = portalProfilePoint(
+            portal, outward, opening[index], kPortalFaceOffset);
+        const Vec3 inner_b = portalProfilePoint(
+            portal, outward, opening[index + 1U], kPortalFaceOffset);
+        const Vec3 outer_a = portalProfilePoint(
+            portal, outward, outside[index], kPortalFaceOffset);
+        const Vec3 outer_b = portalProfilePoint(
+            portal, outward, outside[index + 1U], kPortalFaceOffset);
+        addQuad(frame, {{inner_a, inner_b, outer_b, outer_a}});
+        addQuad(frame, {{outer_a, outer_b, inner_b, inner_a}});
+    }
+}
+
 float pointSegmentParameter(Vec2 point, Vec2 start, Vec2 end) {
     const float dx = end.x - start.x;
     const float dz = end.y - start.y;
@@ -354,6 +390,10 @@ void appendTunnelMeshes(
     const auto outer = archProfile(kTunnelOuterHalfWidth, outer_crown);
     for (const ResolvedTunnel& tunnel : tunnels) {
         appendProfileSweep(glass, tunnel.route_local_world, inner, outer);
+        appendPortalFrame(tunnel_frame, tunnel.route_local_world.front(),
+            tunnel.entry_outward, outer);
+        appendPortalFrame(tunnel_frame, tunnel.route_local_world.back(),
+            tunnel.exit_outward, outer);
         if (tank.depth_steps > 0) {
             appendGlassFloorPanels(
                 tunnel_frame, glass, tank.footprint, tunnel);

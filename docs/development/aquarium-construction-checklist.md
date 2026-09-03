@@ -7,7 +7,7 @@ Updated: 2026-09-03
 - Pokémon Resort branch: `codex/aquarium-construction-milestone-4` from the Milestone 3.5 checkpoint.
 - Aquarium maker branch: `codex/aquarium-construction-milestone-4` from the Milestone 3.5 checkpoint.
 - Pre-Milestone 1 aquarium work was integrated into both repositories before these branches were created.
-- Milestone 4 changes span both repositories because current kernel ABI 11 is consumed by the maker's browser-only WASM adapter.
+- Milestone 4 changes span both repositories because current kernel ABI 12 is consumed by the maker's browser-only WASM adapter.
 - No reset, clean, checkout, destructive operation, or broad reformat was performed.
 - Feature commits stage explicit Milestone 4 paths only.
 
@@ -489,6 +489,7 @@ is never an editable or duplicated numeric field in the authoritative save docum
 - [x] Keep legacy player designs loadable while requiring every section affected by a new add/subtract command to remain at least three cells wide.
 - [x] Make normal placement a stable click-start/click-finish rectangle gesture; remove implicit hover-paint after tank selection, merge drawn footprints that overlap or share an edge, and keep tanks separate when a full empty-cell gap remains.
 - [x] Make below-floor tunnel glass readable as a floor using an ABI-11 cool-grey scaffold: maker-proportioned raised side rails and shallow crossbars divide every transparent walking-cell panel without changing collision or navigation.
+- [x] Frame both tunnel portals with the same cool-grey scaffold material so entrances remain legible against glass and water without narrowing the walking opening.
 - [ ] Route compatible discrete Aquarium Maker passage settings through ABI 10; the maker UI still keeps passages on its advanced legacy geometry path, while the shared JSON golden already proves native/WASM parity.
 - [ ] Extend portal cutting and water-region construction to rounded, rotated, L/U, and exterior-subtracted tanks after the rectangular seam is visually accepted.
 - [ ] Add multiple-tunnel player interaction and manual validation; the kernel already rejects crossing/overlapping routes.
@@ -500,7 +501,8 @@ Focused verification:
 | Resort geometry, design, runtime targets and `title_screen_demo` | Pass |
 | `aquarium_geometry_tests`, `aquarium_design_tests`, `aquarium_runtime_tests` | Pass |
 | `npm run validate:kernel` | Pass before the floor-scaffold revision; five exact native/WASM goldens, ABI 10/schema 5, rectangle hash `fnv1a64:80593cdcf5817e67`, WASM p95 1.4190 ms |
-| `npm run validate:kernel` after floor-scaffold revision | Pass; six exact native/WASM goldens, ABI 11/schema 5, rectangle hash `fnv1a64:3f7ec27c7b4f0782`, WASM p95 0.7381 ms |
+| `npm run validate:kernel` after floor-scaffold revision | Pass before portal frames; six exact native/WASM goldens, ABI 11/schema 5, rectangle hash `fnv1a64:3f7ec27c7b4f0782`, WASM p95 0.7381 ms |
+| `npm run validate:kernel` after portal-frame revision | Pass; six exact native/WASM goldens, ABI 12/schema 5, rectangle hash `fnv1a64:980d524c41647655`, WASM p95 0.7292 ms |
 | `npm run check` | Pass; existing maker chunk-size warning only |
 
 Review boundary: this is intentionally the smallest end-to-end tunnel slice.

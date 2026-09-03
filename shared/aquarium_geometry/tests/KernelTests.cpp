@@ -119,7 +119,7 @@ void testRectangleGolden() {
         "interior occupied cell is not blocked");
     require(result.statistics.navigation_layer_count == 1, "navigation layer count changed");
     require(result.navigation.suggested_spawns.size() == 1, "spawn count changed");
-    require(result.content_hash == "fnv1a64:3f7ec27c7b4f0782", "content hash changed: " + result.content_hash);
+    require(result.content_hash == "fnv1a64:980d524c41647655", "content hash changed: " + result.content_hash);
     require(result.statistics.water_volume_litres == 80735,
         "standard tank derived water volume changed");
 
@@ -367,11 +367,19 @@ void testStraightAndElbowTunnelsDeriveDrySpace() {
     require(std::none_of(structure.vertices.begin(), structure.vertices.end(), [](const Vertex& vertex) {
                 return std::abs(vertex.position.y - 0.06F) < 0.0001F;
             }), "standard tunnel covered the room floor with a structure strip");
-    const SemanticMesh& glass = straight_result.meshes.meshes.back();
+    const SemanticMesh& glass = meshWithMaterial(straight_result, MeshMaterial::Glass);
     require(std::any_of(glass.vertices.begin(), glass.vertices.end(), [](const Vertex& vertex) {
                 return vertex.position.y > static_cast<float>(kTunnelCrownWorldUnits) &&
                     std::abs(std::abs(vertex.position.x) - 48.0F) < 0.001F;
             }), "portal glass above the tunnel arch is missing");
+    const SemanticMesh& portal_frame =
+        meshWithMaterial(straight_result, MeshMaterial::TunnelFrame);
+    require(!portal_frame.vertices.empty() &&
+            std::any_of(portal_frame.vertices.begin(), portal_frame.vertices.end(),
+                [](const Vertex& vertex) {
+                    return vertex.position.y > static_cast<float>(kTunnelCrownWorldUnits);
+                }),
+        "tunnel entrances are missing their raised arch borders");
 
     AquariumBuildRequest elbow = rectangleRequest();
     elbow.tank.footprint.depth_cells = 6;

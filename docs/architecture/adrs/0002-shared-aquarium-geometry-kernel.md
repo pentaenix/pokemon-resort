@@ -108,6 +108,10 @@ cross-separators at each route cell. This keeps the glass centres transparent,
 gives both renderers an explicit cool-grey scaffold, and leaves collision and
 navigation unchanged.
 
+ABI 12 extends that same semantic frame around both portal arches. The border
+is derived from the fixed tunnel profile, rendered on both faces, and does not
+alter the authored route, portal aperture, collision, or navigation volume.
+
 ## Alternatives Considered
 
 - Separate C++ and TypeScript implementations constrained by golden files: lower initial porting cost, but still permits semantic drift.
