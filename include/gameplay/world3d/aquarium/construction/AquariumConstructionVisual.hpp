@@ -83,24 +83,8 @@ struct ConstructionVisualMesh {
     std::vector<std::uint16_t> indices;
 };
 
-struct ConstructionDepthGizmoLayout {
-    float center_x = 0.0f;
-    float top_z = 0.0f;
-    float bottom_z = 0.0f;
-    float handle_z = 0.0f;
-    float y = 0.0f;
-};
-
-ConstructionDepthGizmoLayout aquariumConstructionDepthGizmoLayout(
-    const pr::aquarium::geometry::TankDesign& tank,
-    float tank_center_x,
-    float tank_center_z,
-    float floor_y);
-
-void appendAquariumConstructionDepthGizmo(
-    ConstructionVisualMesh& mesh,
-    const ConstructionDepthGizmoLayout& layout,
-    int depth_steps);
+ConstructionVisualMesh buildAquariumConstructionDepthPreviewMesh(
+    const AquariumConstructionVisual& visual);
 
 struct ConstructionHudRect {
     int x = 0;

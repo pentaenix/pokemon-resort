@@ -150,15 +150,13 @@ std::vector<GizmoWorldPoint> gizmoWorldPoints(const AquariumConstructionVisual& 
         visual.state == ConstructionState::ResizeTank ||
         (visual.state == ConstructionState::DraftReview && visual.property_draft);
     if (!editing_with_handles) return {};
-    // Keep movement clear of the depth ladder even at the 3x3 minimum.
-    constexpr float kMoveKnobOffset = 7.0f;
-    const auto depth_layout = aquariumConstructionDepthGizmoLayout(
-        *tank, center_x, center_z, floor_y);
+    // Keep the compact move and depth controls separate at the 3x3 minimum.
+    constexpr float kCentreKnobSeparation = 7.0f;
     points = {
         {{ConstructionGizmoKind::Move, AquariumResizeHandle::SouthEast, std::nullopt, std::nullopt},
-            {center_x - kMoveKnobOffset, y, center_z}},
+            {center_x - kCentreKnobSeparation, y, center_z}},
         {{ConstructionGizmoKind::Depth, AquariumResizeHandle::SouthEast, std::nullopt, std::nullopt},
-            {depth_layout.center_x, depth_layout.y, depth_layout.handle_z}},
+            {center_x + kCentreKnobSeparation, y + 0.12f, center_z}},
         {{ConstructionGizmoKind::Resize, AquariumResizeHandle::North, std::nullopt, std::nullopt}, {center_x, y, north}},
         {{ConstructionGizmoKind::Resize, AquariumResizeHandle::East, std::nullopt, std::nullopt}, {east, y, center_z}},
         {{ConstructionGizmoKind::Resize, AquariumResizeHandle::South, std::nullopt, std::nullopt}, {center_x, y, south}},
@@ -446,10 +444,6 @@ ConstructionVisualMesh buildAquariumConstructionWorldMesh(
                 floor_y + static_cast<float>((tick + 4) * geo::kVerticalStepWorldUnits),
                 1.4f, tick + 1 == tick_count ? kCursor : kSelected);
         }
-        appendAquariumConstructionDepthGizmo(mesh,
-            aquariumConstructionDepthGizmoLayout(
-                tank, center_x, center_z, floor_y),
-            tank.depth_steps);
     }
     return mesh;
 }

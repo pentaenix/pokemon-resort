@@ -183,6 +183,10 @@ public:
         submitMesh(view_id, mesh,
             BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A |
             BGFX_STATE_DEPTH_TEST_LEQUAL | BGFX_STATE_BLEND_ALPHA);
+        const auto depth_preview =
+            construction::buildAquariumConstructionDepthPreviewMesh(visual_);
+        submitMesh(view_id, depth_preview,
+            BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_BLEND_ALPHA);
     }
 
     void submitHud(
