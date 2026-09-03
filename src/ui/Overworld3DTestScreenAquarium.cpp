@@ -216,7 +216,11 @@ void Overworld3DTestScreen::refreshPlayerAquariumRuntime() {
     const aq::AquariumMapConfig* map_config = aq::aquariumMapConfig(aquarium_catalog_, map_id);
     if (!map_config || !aquarium_population_policy_) {
         player_aquarium_runtime_ = {};
-        if (aquarium_simulation_) aquarium_simulation_->replacePlayerTanks({});
+        if (aquarium_simulation_) {
+            aquarium_simulation_->replacePlayerTanks({});
+            aquarium_inspection_camera_ =
+                std::make_unique<aq::AquariumInspectionCamera>(aquarium_simulation_->tanks());
+        }
         return;
     }
     std::vector<std::string> diagnostics;
@@ -226,6 +230,8 @@ void Overworld3DTestScreen::refreshPlayerAquariumRuntime() {
     if (aquarium_simulation_) {
         aquarium_simulation_->replacePlayerTanks(
             player_aquarium_runtime_.simulation_tanks);
+        aquarium_inspection_camera_ =
+            std::make_unique<aq::AquariumInspectionCamera>(aquarium_simulation_->tanks());
     }
     for (const std::string& diagnostic : diagnostics) {
         std::cerr << "[AquariumConstruction] event=runtime_warning message="
@@ -400,6 +406,9 @@ void Overworld3DTestScreen::updateAquariumConstructionCommit() {
     if (aquarium_simulation_) {
         aquarium_simulation_->replacePlayerTanks(
             player_aquarium_runtime_.simulation_tanks);
+        aquarium_inspection_camera_ =
+            std::make_unique<gameplay::world3d::aquarium::AquariumInspectionCamera>(
+                aquarium_simulation_->tanks());
     }
     if (aquarium_collision_overlay_) {
         aquarium_collision_overlay_->setBlockedCells(player_aquarium_runtime_.collision_cells);

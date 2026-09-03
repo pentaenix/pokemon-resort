@@ -167,6 +167,11 @@ each player-built tank. Geometry and simulation do not name those species. Fish 
 body clearance, layered/deep water, and tunnel avoidance therefore use the same
 containment code as authored aquariums. Rebuilding or deleting player tanks
 replaces only their simulated swimmers; authored populations remain live.
+Player-built tanks also join the existing inspection-camera tank list after
+load and after every successful construction command. Facing one and pressing
+the ordinary interaction control enters the same inspection view; pressing it
+again enters the close focused zoom. Camera bounds come from the generated
+water volume, and deleting or resizing a tank refreshes the interaction target.
 
 Aquarium Maker rock variation is stored as glTF `COLOR_0`, not as a redundant bitmap. Kelp uses material base colors plus exported node-rotation `WaterSway` clips. The shared GLB renderer consumes both contracts in bgfx and SDL fallback, so the model and its animation also appear in Map Studio's exact preview.
 

@@ -160,6 +160,25 @@ AquariumNavigation navigationFor(const geo::NavigationVolumeSet& source) {
     return navigation;
 }
 
+AquariumInspectionCameraConfig playerTankInspectionCamera() {
+    AquariumInspectionCameraConfig camera;
+    camera.has_framed_inspection_view = true;
+    camera.inspection_behind_player_tiles = 11.0f;
+    camera.inspection_front_height_tiles = 5.15f;
+    camera.inspection_side_height_tiles = 4.43f;
+    camera.smooth = 640.0f;
+    camera.return_smooth = 2400.0f;
+    camera.interaction_reach_tiles = 1.5f;
+    camera.focused_standoff_tiles = 3.5f;
+    camera.focused_front_height_tiles = 4.15f;
+    camera.focused_side_height_tiles = 3.43f;
+    camera.focused_front_pitch_degrees = -10.48f;
+    camera.focused_side_pitch_degrees = -10.72f;
+    camera.focused_near_clip = 12.0f;
+    camera.focused_wall_clip_radius_tiles = 1.5f;
+    return camera;
+}
+
 } // namespace
 
 std::unique_ptr<AquariumPopulationPolicy> makePlaceholderWishiwashiPolicy() {
@@ -246,6 +265,7 @@ PlayerAquariumRuntimeSet buildPlayerAquariumRuntime(
             runtime.world_center_x,
             runtime.world_floor_y,
             runtime.world_center_z};
+        simulation.inspection_camera = playerTankInspectionCamera();
         simulation.swimmers = population_policy.populationFor(
             runtime, context, diagnostics);
         out.simulation_tanks.push_back(std::move(simulation));

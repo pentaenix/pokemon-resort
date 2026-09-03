@@ -196,7 +196,7 @@ void AquariumSimulation::replacePlayerTanks(
             input.world_origin[1],
             input.world_origin[1] + vertical[0] * world_units_per_meter,
             input.world_origin[1] + vertical[1] * world_units_per_meter,
-            {}});
+            input.inspection_camera});
 
         for (const AquariumSwimmerDefinition& definition : input.swimmers) {
             if (definition.actor.model_path.empty()) {

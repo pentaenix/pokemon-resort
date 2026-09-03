@@ -58,6 +58,7 @@ struct AquariumPlayerTankSimulationInput {
     AquariumNavigation navigation;
     Point3 world_origin{};
     float yaw_degrees = 0.0f;
+    AquariumInspectionCameraConfig inspection_camera;
     std::vector<AquariumSwimmerDefinition> swimmers;
 };
 

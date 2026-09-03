@@ -539,6 +539,9 @@ void playerTankPopulationUsesRuntimeNavigation() {
     tank.tank_id = "player-tank";
     tank.navigation = navigation;
     tank.world_origin = {200.0f, 0.0f, 160.0f};
+    tank.inspection_camera.has_framed_inspection_view = true;
+    tank.inspection_camera.interaction_reach_tiles = 1.5f;
+    tank.inspection_camera.focused_standoff_tiles = 3.5f;
     tank.swimmers.push_back(swimmer);
     simulation.replacePlayerTanks({tank});
     require(simulation.actors().size() == 1U && simulation.tanks().size() == 1U,
@@ -546,6 +549,18 @@ void playerTankPopulationUsesRuntimeNavigation() {
     const auto initial = simulation.actors().front().world_position;
     require(initial[1] < 0.0f,
         "player swimmer ignored its generated below-floor spawn");
+
+    aquarium::AquariumInspectionCamera inspection(simulation.tanks());
+    pr::gameplay::world3d::camera::Gen4FollowCamera camera(
+        pr::gameplay::world3d::camera::Gen4CameraPreset{});
+    const pr::gameplay::world3d::camera::Vec3 player{
+        tank.world_origin[0], tank.world_origin[1], tank.world_origin[2] + 32.0f};
+    camera.setTarget(player);
+    require(inspection.tryBegin(
+            player, pr::gameplay::world3d::FacingDirection::North, 16.0f, camera) &&
+            inspection.activePlacementId() == tank.tank_id &&
+            inspection.enterFocused(16.0f, camera) && inspection.focused(),
+        "player-built tank did not support the existing two-stage inspection zoom");
 
     bool moved = false;
     for (int frame = 0; frame < 60 * 30; ++frame) {

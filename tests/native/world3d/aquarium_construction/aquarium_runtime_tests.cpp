@@ -1154,6 +1154,11 @@ void populationPolicyIsReplaceableAndNavigationIsDerived() {
     require(navigation.valid && navigation.export_units_per_meter == 16.0f &&
             aq::containsPoint(navigation, navigation.suggested_spawns.front()),
         "kernel navigation was not converted into valid simulation-local metres");
+    const auto& inspection = runtime.simulation_tanks.front().inspection_camera;
+    require(inspection.enabled && inspection.has_framed_inspection_view &&
+            inspection.interaction_reach_tiles == 1.5f &&
+            inspection.focused_standoff_tiles == 3.5f,
+        "player tank did not receive the standard close inspection camera");
     require(runtime.collision_cells.size() == 16,
         "half-cell-installed 3x3 tank did not cover its south/east overlap cells");
 
