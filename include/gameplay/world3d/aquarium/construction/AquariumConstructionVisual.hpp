@@ -86,6 +86,9 @@ struct ConstructionVisualMesh {
 ConstructionVisualMesh buildAquariumConstructionDepthPreviewMesh(
     const AquariumConstructionVisual& visual);
 
+ConstructionVisualMesh buildAquariumConstructionHeightPreviewMesh(
+    const AquariumConstructionVisual& visual);
+
 struct ConstructionHudRect {
     int x = 0;
     int y = 0;

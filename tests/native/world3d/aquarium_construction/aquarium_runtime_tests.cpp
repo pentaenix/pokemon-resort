@@ -709,6 +709,12 @@ void constructionVisualBuildsYellowCellsGizmosAndCanonicalHitTargets() {
         "zero-depth tank unexpectedly showed a below-floor outline");
     selected.depth_steps = 6;
     visual.preview_tank = selected;
+    const auto height_preview =
+        construction::buildAquariumConstructionHeightPreviewMesh(visual);
+    require(!height_preview.vertices.empty() &&
+            std::any_of(height_preview.vertices.begin(), height_preview.vertices.end(),
+                [](const auto& vertex) { return vertex.y >= 64.0f; }),
+        "height draft did not expose its actual dotted top outline");
     const auto depth_preview =
         construction::buildAquariumConstructionDepthPreviewMesh(visual);
     require(!depth_preview.vertices.empty() &&

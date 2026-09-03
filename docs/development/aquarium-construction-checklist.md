@@ -491,6 +491,7 @@ is never an editable or duplicated numeric field in the authoritative save docum
 - [x] Make below-floor tunnel glass readable as a floor using an ABI-11 cool-grey scaffold: maker-proportioned raised side rails and shallow crossbars divide every transparent walking-cell panel without changing collision or navigation.
 - [x] Frame both tunnel portals with the same cool-grey scaffold material so entrances remain legible against glass and water without narrowing the walking opening.
 - [x] Replace the rejected depth ladder with an x-ray dotted tank wireframe: the actual rounded bottom perimeter and vertical corner guides descend to the authored discrete depth while the compact depth knob remains unobtrusive.
+- [x] Replace the height pip column with the same dotted-volume language: draft height shows the actual rounded top perimeter and vertical guides while retaining the direct height knob.
 - [ ] Route compatible discrete Aquarium Maker passage settings through ABI 10; the maker UI still keeps passages on its advanced legacy geometry path, while the shared JSON golden already proves native/WASM parity.
 - [ ] Extend portal cutting and water-region construction to rounded, rotated, L/U, and exterior-subtracted tanks after the rectangular seam is visually accepted.
 - [ ] Add multiple-tunnel player interaction and manual validation; the kernel already rejects crossing/overlapping routes.

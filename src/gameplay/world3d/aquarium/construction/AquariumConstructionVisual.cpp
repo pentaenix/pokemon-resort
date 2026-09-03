@@ -436,14 +436,6 @@ ConstructionVisualMesh buildAquariumConstructionWorldMesh(
                 center_x + end.x, center_z + end.y,
                 floor_y + 3.48f, 0.9f, kAnchor);
         }
-        const int tick_count = std::clamp(tank.height_steps - 3, 1, 9);
-        const float tick_x = center_x + 2.0f;
-        const float tick_z = center_z;
-        for (int tick = 0; tick < tick_count; ++tick) {
-            appendDiamond(mesh, tick_x, tick_z,
-                floor_y + static_cast<float>((tick + 4) * geo::kVerticalStepWorldUnits),
-                1.4f, tick + 1 == tick_count ? kCursor : kSelected);
-        }
     }
     return mesh;
 }

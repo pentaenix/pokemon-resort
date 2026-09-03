@@ -74,6 +74,53 @@ void appendDottedSegment(
 
 } // namespace
 
+ConstructionVisualMesh buildAquariumConstructionHeightPreviewMesh(
+    const AquariumConstructionVisual& visual) {
+    ConstructionVisualMesh mesh;
+    if (!visual.visible || !visual.preview_tank) return mesh;
+    const auto& tank = *visual.preview_tank;
+
+    constexpr std::uint32_t kTopOutline = colorAbgr(255, 220, 85, 220);
+    constexpr std::uint32_t kVerticalGuide = colorAbgr(65, 222, 255, 185);
+    constexpr float kDotSpacing = 4.0f;
+    constexpr float kDotRadius = 0.72f;
+    const float offset = visual.placement_offset_world_units;
+    const float center_x = geo::footprintCentreWorld(
+        tank.footprint.origin_cell.column,
+        geo::occupiedWidthCells(tank.footprint)) + offset;
+    const float center_z = geo::footprintCentreWorld(
+        tank.footprint.origin_cell.row,
+        geo::occupiedDepthCells(tank.footprint)) + offset;
+    const float floor_y = floorForTank(visual, tank);
+    const float top_y = floor_y + static_cast<float>(
+        tank.height_steps * geo::kVerticalStepWorldUnits);
+    const auto boundary = geo::footprintBoundaryLocalWorld(
+        tank.footprint, tank.corner_radius_steps, tank.corner_radii);
+
+    for (std::size_t index = 0; index < boundary.size(); ++index) {
+        const auto start = boundary[index];
+        const auto end = boundary[(index + 1U) % boundary.size()];
+        appendDottedSegment(mesh,
+            {center_x + start.x, top_y, center_z + start.y},
+            {center_x + end.x, top_y, center_z + end.y},
+            kDotSpacing, kDotRadius, kTopOutline);
+    }
+
+    const float west = static_cast<float>(tank.footprint.origin_cell.column) *
+        visual.tile_world_units + offset;
+    const float north = static_cast<float>(tank.footprint.origin_cell.row) *
+        visual.tile_world_units + offset;
+    for (const auto& corner : geo::footprintCorners(tank.footprint)) {
+        const float x = west + static_cast<float>(corner.vertex.column) *
+            visual.tile_world_units;
+        const float z = north + static_cast<float>(corner.vertex.row) *
+            visual.tile_world_units;
+        appendDottedSegment(mesh, {x, floor_y + 3.2f, z}, {x, top_y, z},
+            kDotSpacing, kDotRadius, kVerticalGuide);
+    }
+    return mesh;
+}
+
 ConstructionVisualMesh buildAquariumConstructionDepthPreviewMesh(
     const AquariumConstructionVisual& visual) {
     ConstructionVisualMesh mesh;
