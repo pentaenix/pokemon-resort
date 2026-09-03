@@ -492,6 +492,7 @@ is never an editable or duplicated numeric field in the authoritative save docum
 - [x] Frame both tunnel portals with the same cool-grey scaffold material so entrances remain legible against glass and water without narrowing the walking opening.
 - [x] Replace the rejected depth ladder with an x-ray dotted tank wireframe: the actual rounded bottom perimeter and vertical corner guides descend to the authored discrete depth while the compact depth knob remains unobtrusive.
 - [x] Replace the height pip column with the same dotted-volume language: draft height shows the actual rounded top perimeter and vertical guides while retaining the direct height knob.
+- [x] Feed every committed player tank's derived navigation layers and population-policy output into the existing aquarium simulation; the placeholder Wishiwashi now wanders with rendered-body clearance through deep/layered water while avoiding tunnel dry regions, and player-tank replacement leaves authored swimmers intact.
 - [ ] Route compatible discrete Aquarium Maker passage settings through ABI 10; the maker UI still keeps passages on its advanced legacy geometry path, while the shared JSON golden already proves native/WASM parity.
 - [ ] Extend portal cutting and water-region construction to rounded, rotated, L/U, and exterior-subtracted tanks after the rectangular seam is visually accepted.
 - [ ] Add multiple-tunnel player interaction and manual validation; the kernel already rejects crossing/overlapping routes.
@@ -506,6 +507,12 @@ Focused verification:
 | `npm run validate:kernel` after floor-scaffold revision | Pass before portal frames; six exact native/WASM goldens, ABI 11/schema 5, rectangle hash `fnv1a64:3f7ec27c7b4f0782`, WASM p95 0.7381 ms |
 | `npm run validate:kernel` after portal-frame revision | Pass; six exact native/WASM goldens, ABI 12/schema 5, rectangle hash `fnv1a64:980d524c41647655`, WASM p95 0.7292 ms |
 | `npm run check` | Pass; existing maker chunk-size warning only |
+
+Latest navigation-integration verification: `aquarium_tests`,
+`aquarium_runtime_tests`, and the shipping `title_screen_demo` target pass. The
+architecture documentation freshness check passes; the module-boundary check
+still reaches its pre-existing `NpcActorDriver.cpp` gameplay-to-Resort import
+failure, which this change does not touch.
 
 Review boundary: this is intentionally the smallest end-to-end tunnel slice.
 Do not add shaped/rounded seams or existing-tunnel editing until the player has

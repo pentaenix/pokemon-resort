@@ -1115,14 +1115,15 @@ void collisionOverlayCombinesStaticAndDynamicCells() {
 
 class TestPopulationPolicy final : public construction::AquariumPopulationPolicy {
 public:
-    std::vector<aq::AquariumPokemonActor> populationFor(
+    std::vector<aq::AquariumSwimmerDefinition> populationFor(
         const construction::PlayerTankRuntime& tank,
         const construction::AquariumPopulationContext&,
         std::vector<std::string>*) const override {
-        aq::AquariumPokemonActor actor;
-        actor.id = tank.design.id + ":test";
-        actor.species = "test-species";
-        return {actor};
+        aq::AquariumSwimmerDefinition swimmer;
+        swimmer.actor.id = tank.design.id + ":test";
+        swimmer.actor.species = "test-species";
+        swimmer.movement.species = swimmer.actor.species;
+        return {swimmer};
     }
 };
 
@@ -1144,10 +1145,15 @@ void populationPolicyIsReplaceableAndNavigationIsDerived() {
     TestPopulationPolicy policy;
     const auto runtime = construction::buildPlayerAquariumRuntime(
         document, scene, map, fs::path{}, policy);
-    require(runtime.tanks.size() == 1 && runtime.actors.size() == 1,
+    require(runtime.tanks.size() == 1 && runtime.simulation_tanks.size() == 1 &&
+            runtime.simulation_tanks.front().swimmers.size() == 1,
         "replaceable population policy was not applied once per tank");
     require(runtime.tanks.front().build.navigation.layers.size() == 1,
         "committed rectangle did not derive a navigation volume");
+    const auto& navigation = runtime.simulation_tanks.front().navigation;
+    require(navigation.valid && navigation.export_units_per_meter == 16.0f &&
+            aq::containsPoint(navigation, navigation.suggested_spawns.front()),
+        "kernel navigation was not converted into valid simulation-local metres");
     require(runtime.collision_cells.size() == 16,
         "half-cell-installed 3x3 tank did not cover its south/east overlap cells");
 }

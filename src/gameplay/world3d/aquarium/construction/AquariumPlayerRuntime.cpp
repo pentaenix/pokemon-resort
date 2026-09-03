@@ -20,7 +20,7 @@ std::string normalized(std::string value) {
 
 class PlaceholderWishiwashiPolicy final : public AquariumPopulationPolicy {
 public:
-    std::vector<AquariumPokemonActor> populationFor(
+    std::vector<AquariumSwimmerDefinition> populationFor(
         const PlayerTankRuntime& tank,
         const AquariumPopulationContext& context,
         std::vector<std::string>* diagnostics) const override {
@@ -28,26 +28,77 @@ public:
             if (diagnostics) diagnostics->push_back("Placeholder Wishiwashi model was not found");
             return {};
         }
-        AquariumPokemonActor actor;
-        actor.id = tank.design.id + ":placeholder";
-        actor.species = "wishiwashi";
-        actor.form = "00";
-        actor.model_path = context.placeholder_model_path;
-        actor.animation = "idle_default";
-        actor.model_scale = context.model_scale;
-        actor.presentation = context.presentation;
-        geo::Vec3 spawn{};
-        if (!tank.build.navigation.suggested_spawns.empty()) {
-            spawn = tank.build.navigation.suggested_spawns.front();
+        AquariumSwimmerDefinition swimmer;
+        swimmer.actor.id = tank.design.id + ":placeholder";
+        swimmer.actor.species = "wishiwashi";
+        swimmer.actor.form = "00";
+        swimmer.actor.model_path = context.placeholder_model_path;
+        swimmer.actor.animation = "idle_default";
+        swimmer.actor.model_scale = context.model_scale;
+        swimmer.actor.presentation = context.presentation;
+        swimmer.movement.id = swimmer.actor.id;
+        swimmer.movement.species = swimmer.actor.species;
+        swimmer.movement.form = swimmer.actor.form;
+        swimmer.movement.animation = swimmer.actor.animation;
+        swimmer.movement.behavior = "wander";
+        swimmer.movement.speed_meters_per_second = 0.34f;
+        swimmer.movement.turn_degrees_per_second = 180.0f;
+        swimmer.movement.body_radius_meters = 0.03f;
+        std::uint32_t hash = 2166136261U;
+        for (const unsigned char byte : tank.design.id) {
+            hash ^= byte;
+            hash *= 16777619U;
         }
-        actor.world_position = {
-            tank.world_center_x + spawn.x,
-            tank.world_floor_y + spawn.y,
-            tank.world_center_z + spawn.z,
-        };
-        return {std::move(actor)};
+        swimmer.seed = hash;
+        return {std::move(swimmer)};
     }
 };
+
+AquariumNavigation navigationFor(const geo::NavigationVolumeSet& source) {
+    AquariumNavigation navigation;
+    constexpr float kMetresPerWorldUnit = 1.0f / geo::kWorldUnitsPerCell;
+    navigation.export_units_per_meter = geo::kWorldUnitsPerCell;
+    navigation.floor_level_y = 0.0f;
+    for (std::size_t index = 0; index < source.layers.size(); ++index) {
+        const auto& source_layer = source.layers[index];
+        SwimVolumeLayer layer;
+        layer.id = "player-layer-" + std::to_string(index);
+        layer.y_bottom = source_layer.floor_y * kMetresPerWorldUnit;
+        layer.y_top = source_layer.ceiling_y * kMetresPerWorldUnit;
+        PolygonWithHoles polygon;
+        PolygonRing outer;
+        outer.reserve(source_layer.area.outer.size());
+        for (const geo::Vec2 point : source_layer.area.outer) {
+            outer.push_back({
+                point.x * kMetresPerWorldUnit,
+                point.y * kMetresPerWorldUnit});
+        }
+        polygon.push_back(std::move(outer));
+        for (const auto& source_hole : source_layer.area.holes) {
+            PolygonRing hole;
+            hole.reserve(source_hole.size());
+            for (const geo::Vec2 point : source_hole) {
+                hole.push_back({
+                    point.x * kMetresPerWorldUnit,
+                    point.y * kMetresPerWorldUnit});
+            }
+            polygon.push_back(std::move(hole));
+        }
+        if (layer.y_top > layer.y_bottom && !polygon.front().empty()) {
+            layer.polygons.push_back(std::move(polygon));
+            navigation.layers.push_back(std::move(layer));
+        }
+    }
+    navigation.suggested_spawns.reserve(source.suggested_spawns.size());
+    for (const geo::Vec3 spawn : source.suggested_spawns) {
+        navigation.suggested_spawns.push_back({
+            spawn.x * kMetresPerWorldUnit,
+            spawn.y * kMetresPerWorldUnit,
+            spawn.z * kMetresPerWorldUnit});
+    }
+    navigation.valid = !navigation.layers.empty();
+    return navigation;
+}
 
 } // namespace
 
@@ -122,10 +173,16 @@ PlayerAquariumRuntimeSet buildPlayerAquariumRuntime(
             map_config.pokemon_presentation,
             wishiwashi_model_path,
         };
-        std::vector<AquariumPokemonActor> actors = population_policy.populationFor(
+        AquariumPlayerTankSimulationInput simulation;
+        simulation.tank_id = runtime.design.id;
+        simulation.navigation = navigationFor(runtime.build.navigation);
+        simulation.world_origin = {
+            runtime.world_center_x,
+            runtime.world_floor_y,
+            runtime.world_center_z};
+        simulation.swimmers = population_policy.populationFor(
             runtime, context, diagnostics);
-        out.actors.insert(out.actors.end(),
-            std::make_move_iterator(actors.begin()), std::make_move_iterator(actors.end()));
+        out.simulation_tanks.push_back(std::move(simulation));
         out.tanks.push_back(std::move(runtime));
     }
     out.collision_cells.reserve(collision_cells.size());

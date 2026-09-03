@@ -382,6 +382,7 @@ add_executable(aquarium_runtime_tests
     src/core/config/Json.cpp
     src/gameplay/world3d/camera/Gen4FollowCamera.cpp
     src/gameplay/attend/PokemonModelCatalog.cpp
+    src/gameplay/world3d/aquarium/AquariumNavigation.cpp
     src/gameplay/world3d/aquarium/construction/AquariumCollisionOverlay.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionCommand.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionHudLayout.cpp

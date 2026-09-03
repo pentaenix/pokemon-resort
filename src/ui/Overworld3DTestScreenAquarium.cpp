@@ -216,12 +216,17 @@ void Overworld3DTestScreen::refreshPlayerAquariumRuntime() {
     const aq::AquariumMapConfig* map_config = aq::aquariumMapConfig(aquarium_catalog_, map_id);
     if (!map_config || !aquarium_population_policy_) {
         player_aquarium_runtime_ = {};
+        if (aquarium_simulation_) aquarium_simulation_->replacePlayerTanks({});
         return;
     }
     std::vector<std::string> diagnostics;
     player_aquarium_runtime_ = aq::construction::buildPlayerAquariumRuntime(
         aquarium_construction_.committedDesign(), scene_, *map_config,
         project_root_, *aquarium_population_policy_, &diagnostics);
+    if (aquarium_simulation_) {
+        aquarium_simulation_->replacePlayerTanks(
+            player_aquarium_runtime_.simulation_tanks);
+    }
     for (const std::string& diagnostic : diagnostics) {
         std::cerr << "[AquariumConstruction] event=runtime_warning message="
                   << diagnostic << '\n';
@@ -245,8 +250,6 @@ void Overworld3DTestScreen::refreshAquariumRenderActors() {
     if (!bgfx_renderer_) return;
     std::vector<gameplay::world3d::aquarium::AquariumPokemonActor> actors;
     if (aquarium_simulation_) actors = aquarium_simulation_->actors();
-    actors.insert(actors.end(), player_aquarium_runtime_.actors.begin(),
-                  player_aquarium_runtime_.actors.end());
     bgfx_renderer_->setAquariumPokemonActors(std::move(actors));
 }
 
@@ -394,6 +397,10 @@ void Overworld3DTestScreen::updateAquariumConstructionCommit() {
         return;
     }
     player_aquarium_runtime_ = std::move(generated.runtime);
+    if (aquarium_simulation_) {
+        aquarium_simulation_->replacePlayerTanks(
+            player_aquarium_runtime_.simulation_tanks);
+    }
     if (aquarium_collision_overlay_) {
         aquarium_collision_overlay_->setBlockedCells(player_aquarium_runtime_.collision_cells);
     }

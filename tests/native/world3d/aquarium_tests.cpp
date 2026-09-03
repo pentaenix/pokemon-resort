@@ -4,6 +4,7 @@
 #include "gameplay/world3d/aquarium/AquariumSimulation.hpp"
 #include "gameplay/world3d/aquarium/AquariumInspectionCamera.hpp"
 #include "gameplay/world3d/aquarium/AquariumInspectionFacing.hpp"
+#include "gameplay/attend/PokemonModelCatalog.hpp"
 #include "gameplay/world3d/camera/FreeCameraCapture.hpp"
 #include "gameplay/world3d/interiors/InteriorFloorCutout.hpp"
 
@@ -489,6 +490,82 @@ void configuredDewgongMovesInsidePlacedTank() {
             touch_focus.forward.z * target_dz) / target_distance;
     require(target_alignment > 0.999f && touch_focus.forward.y < -0.2f,
         "touch-pool focus must look down at the shallow water center, not into the distance");
+    simulation.replacePlayerTanks({});
+    require(simulation.actors().size() == 9U && simulation.tanks().size() == 3U,
+        "replacing player populations disturbed authored aquarium simulation state");
+}
+
+void playerTankPopulationUsesRuntimeNavigation() {
+    pr::gameplay::world3d::SceneConfig scene;
+    aquarium::AquariumSimulation simulation(projectRoot(), scene, nullptr);
+    const auto models = pr::gameplay::attend::discoverPokemonModels(
+        projectRoot() / "assets/pokemon_attend/pokemon_models");
+    const auto wishiwashi = std::find_if(models.begin(), models.end(), [](const auto& model) {
+        return model.id == "wishiwashi";
+    });
+    require(wishiwashi != models.end(),
+        "player navigation fixture requires the Wishiwashi Attend model");
+
+    aquarium::AquariumNavigation navigation;
+    navigation.export_units_per_meter = 16.0f;
+    navigation.floor_level_y = 0.0f;
+    navigation.valid = true;
+    aquarium::SwimVolumeLayer layer;
+    layer.id = "player-water";
+    layer.y_bottom = -1.5f;
+    layer.y_top = 2.5f;
+    layer.polygons = {{{
+        {-1.5f, -1.5f}, {1.5f, -1.5f}, {1.5f, 1.5f}, {-1.5f, 1.5f}},
+        {{-0.18f, -0.65f}, {0.18f, -0.65f}, {0.18f, 0.65f}, {-0.18f, 0.65f}}}};
+    navigation.layers.push_back(layer);
+    navigation.suggested_spawns.push_back({-0.8f, -0.8f, 0.0f});
+
+    aquarium::AquariumSwimmerDefinition swimmer;
+    swimmer.actor.id = "player-tank:placeholder";
+    swimmer.actor.species = "wishiwashi";
+    swimmer.actor.form = "00";
+    swimmer.actor.model_path = wishiwashi->path;
+    swimmer.actor.animation = "idle_default";
+    swimmer.actor.model_scale = 0.27f;
+    swimmer.movement.id = swimmer.actor.id;
+    swimmer.movement.species = swimmer.actor.species;
+    swimmer.movement.behavior = "wander";
+    swimmer.movement.speed_meters_per_second = 0.34f;
+    swimmer.movement.turn_degrees_per_second = 180.0f;
+    swimmer.movement.body_radius_meters = 0.03f;
+    swimmer.seed = 147U;
+
+    aquarium::AquariumPlayerTankSimulationInput tank;
+    tank.tank_id = "player-tank";
+    tank.navigation = navigation;
+    tank.world_origin = {200.0f, 0.0f, 160.0f};
+    tank.swimmers.push_back(swimmer);
+    simulation.replacePlayerTanks({tank});
+    require(simulation.actors().size() == 1U && simulation.tanks().size() == 1U,
+        "player tank was not installed into the shared aquarium simulation");
+    const auto initial = simulation.actors().front().world_position;
+    require(initial[1] < 0.0f,
+        "player swimmer ignored its generated below-floor spawn");
+
+    bool moved = false;
+    for (int frame = 0; frame < 60 * 30; ++frame) {
+        simulation.update(1.0 / 60.0);
+        const auto& actor = simulation.actors().front();
+        const aquarium::Point3 local{
+            (actor.world_position[0] - tank.world_origin[0]) / 16.0f,
+            (actor.world_position[1] - tank.world_origin[1]) / 16.0f,
+            (actor.world_position[2] - tank.world_origin[2]) / 16.0f};
+        require(aquarium::containsPoint(navigation, local),
+            "player swimmer escaped its generated navigation layers or entered a dry hole");
+        const float dx = actor.world_position[0] - initial[0];
+        const float dy = actor.world_position[1] - initial[1];
+        const float dz = actor.world_position[2] - initial[2];
+        moved = moved || std::sqrt(dx * dx + dy * dy + dz * dz) > 1.0f;
+    }
+    require(moved, "player-tank placeholder remained a static rendered actor");
+    simulation.replacePlayerTanks({});
+    require(simulation.actors().empty() && simulation.tanks().empty(),
+        "replacing player tanks left stale simulated actors behind");
 }
 
 void focusViewSupportsEveryTankFace() {
@@ -589,6 +666,7 @@ int main() {
         inspectionFacingRestoresEveryApproachDirection();
         navigationHonorsUndergroundLayersAndHoles();
         configuredDewgongMovesInsidePlacedTank();
+        playerTankPopulationUsesRuntimeNavigation();
         focusViewSupportsEveryTankFace();
         polygonCutoutPreservesPartialFloorCells();
         freeCameraCaptureIsPasteReady();

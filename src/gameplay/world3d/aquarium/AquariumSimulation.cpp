@@ -127,6 +127,9 @@ AquariumSimulation::AquariumSimulation(
             placement->y + vertical[0] * world_units_per_meter,
             placement->y + vertical[1] * world_units_per_meter,
             tank_config.inspection_camera});
+        const TankSimulationContext tank_context{
+            tank_config.placement_id, navigation, tank, bounds, vertical,
+            world_units_per_meter};
         std::uint32_t actor_seed = tank_config.seed;
         for (const AquariumPokemonConfig& pokemon : tank_config.pokemon) {
             const std::string model_path = resolvePokemonModel(pokemon_models, pokemon.species);
@@ -134,89 +137,157 @@ AquariumSimulation::AquariumSimulation(
                 warnings_.push_back("Aquarium Pokemon model not found by name: " + pokemon.species);
                 continue;
             }
-            std::string metrics_error;
-            const AquariumPokemonMetrics metrics =
-                measureAquariumPokemon(model_path, pokemon.form, &metrics_error);
             for (int copy = 0; copy < pokemon.count; ++copy) {
-                Swimmer swimmer;
-                swimmer.actor_index = actors_.size();
-                swimmer.actor.id = pokemon.id.empty()
+                AquariumPokemonActor actor;
+                actor.id = pokemon.id.empty()
                     ? tank_config.placement_id + ":" + normalize(pokemon.species) + ":" + std::to_string(copy)
                     : pokemon.id + (pokemon.count > 1 ? ":" + std::to_string(copy) : "");
-                swimmer.actor.species = pokemon.species;
-                swimmer.actor.form = pokemon.form;
-                swimmer.actor.model_path = model_path;
-                swimmer.actor.animation = pokemon.animation;
-                swimmer.actor.model_scale = config->pokemon_scale * pokemon.size_multiplier;
-                swimmer.actor.world_pitch_degrees = pokemon.pitch_degrees;
-                swimmer.actor.presentation = config->pokemon_presentation;
-                swimmer.navigation = navigation;
-                swimmer.tank = tank;
-                swimmer.speed = pokemon.speed_meters_per_second;
-                swimmer.turn_speed = pokemon.turn_degrees_per_second;
-                swimmer.floor_navigation = normalize(pokemon.movement_plane) == "floor";
-                if (metrics.valid) {
-                    const AquariumPokemonMetrics oriented_metrics =
-                        rotateAquariumPokemonMetrics(metrics, pokemon.pitch_degrees);
-                    const float model_units_to_meters =
-                        swimmer.actor.model_scale / world_units_per_meter;
-                    const float model_radius = std::max({
-                        std::abs(oriented_metrics.min_x), std::abs(oriented_metrics.max_x),
-                        std::abs(oriented_metrics.min_z), std::abs(oriented_metrics.max_z)}) *
-                        model_units_to_meters;
-                    // Shallow-pool actors navigate by a contact footprint. A
-                    // face-up model may deliberately overhang that footprint,
-                    // unlike a freely swimming body that must fit in 3D.
-                    swimmer.radius = swimmer.floor_navigation
-                        ? pokemon.body_radius_meters
-                        : std::max(pokemon.body_radius_meters, model_radius);
-                    swimmer.lower_extent = oriented_metrics.min_y * model_units_to_meters;
-                    swimmer.upper_extent = oriented_metrics.max_y * model_units_to_meters;
-                } else {
-                    swimmer.radius = pokemon.body_radius_meters;
-                    warnings_.push_back(
-                        "Aquarium Pokemon bounds unavailable for " + pokemon.species +
-                        ": " + metrics_error);
-                }
-                const std::string behavior = normalize(pokemon.behavior);
-                if (behavior == "school") {
-                    swimmer.behavior = Swimmer::Behavior::School;
-                } else if (behavior == "stationary" ||
-                           pokemon.speed_meters_per_second <= 0.0f) {
-                    swimmer.behavior = Swimmer::Behavior::Stationary;
-                } else {
-                    swimmer.behavior = Swimmer::Behavior::Wander;
-                }
-                swimmer.school_id = tank_config.placement_id + ":" +
-                    (pokemon.id.empty() ? normalize(pokemon.species) : pokemon.id);
-                swimmer.school_phase = pokemon.count > 0
-                    ? (2.0f * kPi * static_cast<float>(copy) / static_cast<float>(pokemon.count))
-                    : 0.0f;
-                swimmer.volume_center = {
-                    (bounds[0] + bounds[1]) * 0.5f,
-                    (vertical[0] + vertical[1]) * 0.5f,
-                    (bounds[2] + bounds[3]) * 0.5f};
-                swimmer.volume_half_extent = {
-                    (bounds[1] - bounds[0]) * 0.5f,
-                    (vertical[1] - vertical[0]) * 0.5f,
-                    (bounds[3] - bounds[2]) * 0.5f};
-                swimmer.rng.seed(actor_seed++);
-                swimmer.local_position = resolveStartingPosition(
-                    swimmer, pokemon, copy, pokemon.count);
-                if (!containsBody(swimmer, swimmer.local_position)) {
-                    warnings_.push_back(
-                        "Aquarium Pokemon " + swimmer.actor.species +
-                        " cannot fit inside " + tank_config.placement_id +
-                        " at the configured shared scale; actor was not spawned");
-                    continue;
-                }
-                if (swimmer.behavior == Swimmer::Behavior::Wander) chooseTarget(swimmer);
-                syncActor(swimmer);
-                actors_.push_back(swimmer.actor);
-                swimmers_.push_back(std::move(swimmer));
+                actor.species = pokemon.species;
+                actor.form = pokemon.form;
+                actor.model_path = model_path;
+                actor.animation = pokemon.animation;
+                actor.model_scale = config->pokemon_scale * pokemon.size_multiplier;
+                actor.world_pitch_degrees = pokemon.pitch_degrees;
+                actor.presentation = config->pokemon_presentation;
+                appendSwimmer(std::move(actor), pokemon, tank_context,
+                    actor_seed++, copy, pokemon.count, false);
             }
         }
     }
+    authored_tank_count_ = tanks_.size();
+    authored_warning_count_ = warnings_.size();
+}
+
+void AquariumSimulation::replacePlayerTanks(
+    const std::vector<AquariumPlayerTankSimulationInput>& inputs) {
+    swimmers_.erase(std::remove_if(swimmers_.begin(), swimmers_.end(),
+        [](const Swimmer& swimmer) { return swimmer.player_built; }), swimmers_.end());
+    actors_.clear();
+    actors_.reserve(swimmers_.size());
+    for (std::size_t index = 0; index < swimmers_.size(); ++index) {
+        swimmers_[index].actor_index = index;
+        actors_.push_back(swimmers_[index].actor);
+    }
+    tanks_.resize(std::min(authored_tank_count_, tanks_.size()));
+    warnings_.resize(std::min(authored_warning_count_, warnings_.size()));
+
+    for (const AquariumPlayerTankSimulationInput& input : inputs) {
+        if (!input.navigation.valid || input.navigation.layers.empty()) {
+            warnings_.push_back(
+                "Player aquarium navigation is invalid for " + input.tank_id);
+            continue;
+        }
+        const auto bounds = horizontalBounds(input.navigation);
+        const auto vertical = verticalBounds(input.navigation);
+        const float world_units_per_meter = input.navigation.export_units_per_meter;
+        const TankTransform tank{
+            input.world_origin[0], input.world_origin[1], input.world_origin[2],
+            input.yaw_degrees, 1.0f};
+        const TankSimulationContext tank_context{
+            input.tank_id, input.navigation, tank, bounds, vertical,
+            world_units_per_meter};
+        tanks_.push_back(AquariumTankRuntime{
+            input.tank_id,
+            toWorld(tank, input.navigation.export_units_per_meter, Point3{}),
+            std::max(std::abs(bounds[0]), std::abs(bounds[1])) * world_units_per_meter,
+            std::max(std::abs(bounds[2]), std::abs(bounds[3])) * world_units_per_meter,
+            input.yaw_degrees,
+            world_units_per_meter,
+            input.world_origin[1],
+            input.world_origin[1] + vertical[0] * world_units_per_meter,
+            input.world_origin[1] + vertical[1] * world_units_per_meter,
+            {}});
+
+        for (const AquariumSwimmerDefinition& definition : input.swimmers) {
+            if (definition.actor.model_path.empty()) {
+                warnings_.push_back(
+                    "Player aquarium Pokemon model is missing for " + input.tank_id);
+                continue;
+            }
+            appendSwimmer(definition.actor, definition.movement, tank_context,
+                definition.seed, 0, 1, true);
+        }
+    }
+}
+
+bool AquariumSimulation::appendSwimmer(
+    AquariumPokemonActor actor,
+    const AquariumPokemonConfig& movement,
+    const TankSimulationContext& tank,
+    std::uint32_t seed,
+    int copy,
+    int count,
+    bool player_built) {
+    Swimmer swimmer;
+    swimmer.actor_index = actors_.size();
+    swimmer.actor = std::move(actor);
+    swimmer.navigation = tank.navigation;
+    swimmer.tank = tank.transform;
+    swimmer.speed = movement.speed_meters_per_second;
+    swimmer.turn_speed = movement.turn_degrees_per_second;
+    swimmer.floor_navigation = normalize(movement.movement_plane) == "floor";
+    swimmer.player_built = player_built;
+
+    std::string metrics_error;
+    const AquariumPokemonMetrics metrics = measureAquariumPokemon(
+        swimmer.actor.model_path, swimmer.actor.form, &metrics_error);
+    if (metrics.valid) {
+        const AquariumPokemonMetrics oriented_metrics =
+            rotateAquariumPokemonMetrics(metrics, swimmer.actor.world_pitch_degrees);
+        const float model_units_to_meters =
+            swimmer.actor.model_scale / tank.world_units_per_meter;
+        const float model_radius = std::max({
+            std::abs(oriented_metrics.min_x), std::abs(oriented_metrics.max_x),
+            std::abs(oriented_metrics.min_z), std::abs(oriented_metrics.max_z)}) *
+            model_units_to_meters;
+        // Shallow-pool actors navigate by a contact footprint. A face-up model
+        // may deliberately overhang it, unlike a freely swimming body.
+        swimmer.radius = swimmer.floor_navigation
+            ? movement.body_radius_meters
+            : std::max(movement.body_radius_meters, model_radius);
+        swimmer.lower_extent = oriented_metrics.min_y * model_units_to_meters;
+        swimmer.upper_extent = oriented_metrics.max_y * model_units_to_meters;
+    } else {
+        swimmer.radius = movement.body_radius_meters;
+        warnings_.push_back(
+            "Aquarium Pokemon bounds unavailable for " + swimmer.actor.species +
+            ": " + metrics_error);
+    }
+
+    const std::string behavior = normalize(movement.behavior);
+    if (behavior == "school") {
+        swimmer.behavior = Swimmer::Behavior::School;
+    } else if (behavior == "stationary" || swimmer.speed <= 0.0f) {
+        swimmer.behavior = Swimmer::Behavior::Stationary;
+    } else {
+        swimmer.behavior = Swimmer::Behavior::Wander;
+    }
+    swimmer.school_id = tank.id + ":" +
+        (movement.id.empty() ? normalize(swimmer.actor.species) : movement.id);
+    swimmer.school_phase = count > 0
+        ? (2.0f * kPi * static_cast<float>(copy) / static_cast<float>(count))
+        : 0.0f;
+    swimmer.volume_center = {
+        (tank.horizontal_bounds[0] + tank.horizontal_bounds[1]) * 0.5f,
+        (tank.vertical_bounds[0] + tank.vertical_bounds[1]) * 0.5f,
+        (tank.horizontal_bounds[2] + tank.horizontal_bounds[3]) * 0.5f};
+    swimmer.volume_half_extent = {
+        (tank.horizontal_bounds[1] - tank.horizontal_bounds[0]) * 0.5f,
+        (tank.vertical_bounds[1] - tank.vertical_bounds[0]) * 0.5f,
+        (tank.horizontal_bounds[3] - tank.horizontal_bounds[2]) * 0.5f};
+    swimmer.rng.seed(seed);
+    swimmer.local_position = resolveStartingPosition(swimmer, movement, copy, count);
+    if (!containsBody(swimmer, swimmer.local_position)) {
+        warnings_.push_back(
+            "Aquarium Pokemon " + swimmer.actor.species + " cannot fit inside " +
+            tank.id + " at the configured shared scale; actor was not spawned");
+        return false;
+    }
+    if (swimmer.behavior == Swimmer::Behavior::Wander) chooseTarget(swimmer);
+    syncActor(swimmer);
+    actors_.push_back(swimmer.actor);
+    swimmers_.push_back(std::move(swimmer));
+    return true;
 }
 
 bool AquariumSimulation::containsBody(const Swimmer& swimmer, Point3 origin) const {

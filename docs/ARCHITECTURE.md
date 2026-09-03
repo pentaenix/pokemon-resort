@@ -112,6 +112,12 @@ adapter reuses Attend skeletal model data inside the existing world render pass;
 selection, facial UV sheets, and composed texture payloads. No aquarium config
 means no aquarium actors or per-frame work. See
 [`docs/gameplay/aquariums.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/gameplay/aquariums.md).
+Player-built tanks use the same simulation rather than a renderer-only actor
+path. Their authoritative saved design is rebuilt by `shared/aquarium_geometry`;
+its navigation layers and suggested spawns are converted from kernel world units
+to the simulator's tank-local metres, then a replaceable population policy
+supplies swimmer definitions. Successful construction publication replaces only
+the player-built subset, leaving authored tank swimmers and their state intact.
 
 The Operations Desk Map Editor owns RTPKS authoring. Its Tile Pack Editor may
 reorganize tabs and smart paths or append assets, but must never renumber an

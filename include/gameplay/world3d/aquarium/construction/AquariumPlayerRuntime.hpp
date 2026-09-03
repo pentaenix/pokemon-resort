@@ -32,7 +32,7 @@ struct AquariumPopulationContext {
 class AquariumPopulationPolicy {
 public:
     virtual ~AquariumPopulationPolicy() = default;
-    virtual std::vector<AquariumPokemonActor> populationFor(
+    virtual std::vector<AquariumSwimmerDefinition> populationFor(
         const PlayerTankRuntime& tank,
         const AquariumPopulationContext& context,
         std::vector<std::string>* diagnostics) const = 0;
@@ -44,7 +44,7 @@ struct PlayerAquariumRuntimeSet {
     std::uint64_t revision = 0;
     std::vector<PlayerTankRuntime> tanks;
     std::vector<pr::aquarium::geometry::GridCell> collision_cells;
-    std::vector<AquariumPokemonActor> actors;
+    std::vector<AquariumPlayerTankSimulationInput> simulation_tanks;
 };
 
 PlayerAquariumRuntimeSet buildPlayerAquariumRuntime(

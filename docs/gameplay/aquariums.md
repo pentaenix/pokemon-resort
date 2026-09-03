@@ -159,6 +159,14 @@ geometry cannot trap them. The follower remains stowed through that teleport
 and is summoned by its ordinary controller only after the player takes a new
 step.
 
+Each committed player tank carries kernel-derived water layers, dry tunnel
+exclusions, and suggested spawns into the ordinary `AquariumSimulation`. The
+placeholder population policy currently contributes one wandering Wishiwashi,
+but geometry and simulation do not name that species. Fish movement, rendered
+body clearance, layered/deep water, and tunnel avoidance therefore use the same
+containment code as authored aquariums. Rebuilding or deleting player tanks
+replaces only their simulated swimmers; authored populations remain live.
+
 Aquarium Maker rock variation is stored as glTF `COLOR_0`, not as a redundant bitmap. Kelp uses material base colors plus exported node-rotation `WaterSway` clips. The shared GLB renderer consumes both contracts in bgfx and SDL fallback, so the model and its animation also appear in Map Studio's exact preview.
 
 Aquarium Pokémon poses are sampled at 24 Hz into persistent GPU buffers and reused by both opaque and translucent passes. This preserves handheld-style animation timing while avoiding host-refresh-rate CPU skinning and transient GPU uploads for every actor. Decoded Attend models are also shared between bounds measurement and rendering, and measured bounds are cached until the source asset changes. Entering a tank map therefore decompresses/parses each configured species once rather than twice, while live position edits reuse the existing results.

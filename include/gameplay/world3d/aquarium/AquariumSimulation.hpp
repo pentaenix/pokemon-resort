@@ -42,6 +42,23 @@ struct AquariumTankRuntime {
     AquariumInspectionCameraConfig inspection_camera;
 };
 
+// Runtime-only population request used by generated player tanks. The
+// population policy owns species and movement choices; the simulation owns
+// navigation, animation time, and actor transforms.
+struct AquariumSwimmerDefinition {
+    AquariumPokemonActor actor;
+    AquariumPokemonConfig movement;
+    std::uint32_t seed = 1;
+};
+
+struct AquariumPlayerTankSimulationInput {
+    std::string tank_id;
+    AquariumNavigation navigation;
+    Point3 world_origin{};
+    float yaw_degrees = 0.0f;
+    std::vector<AquariumSwimmerDefinition> swimmers;
+};
+
 class AquariumSimulation {
 public:
     AquariumSimulation(
@@ -53,6 +70,8 @@ public:
     const std::vector<AquariumPokemonActor>& actors() const { return actors_; }
     const std::vector<AquariumTankRuntime>& tanks() const { return tanks_; }
     const std::vector<std::string>& warnings() const { return warnings_; }
+    void replacePlayerTanks(
+        const std::vector<AquariumPlayerTankSimulationInput>& tanks);
     void update(double dt_seconds);
 
 private:
@@ -86,9 +105,27 @@ private:
         Point3 volume_center{};
         Point3 volume_half_extent{};
         std::mt19937 rng;
+        bool player_built = false;
+    };
+
+    struct TankSimulationContext {
+        std::string id;
+        AquariumNavigation navigation;
+        TankTransform transform;
+        std::array<float, 4> horizontal_bounds{};
+        std::array<float, 2> vertical_bounds{};
+        float world_units_per_meter = 1.0f;
     };
 
     static Point3 toWorld(const TankTransform& tank, float units_per_meter, Point3 local);
+    bool appendSwimmer(
+        AquariumPokemonActor actor,
+        const AquariumPokemonConfig& movement,
+        const TankSimulationContext& tank,
+        std::uint32_t seed,
+        int copy,
+        int count,
+        bool player_built);
     bool chooseTarget(Swimmer& swimmer);
     bool containsBody(const Swimmer& swimmer, Point3 origin) const;
     bool segmentNavigable(const Swimmer& swimmer, Point3 from, Point3 to) const;
@@ -106,6 +143,8 @@ private:
     std::vector<AquariumPokemonActor> actors_;
     std::vector<AquariumTankRuntime> tanks_;
     std::vector<std::string> warnings_;
+    std::size_t authored_tank_count_ = 0;
+    std::size_t authored_warning_count_ = 0;
 };
 
 } // namespace pr::gameplay::world3d::aquarium
