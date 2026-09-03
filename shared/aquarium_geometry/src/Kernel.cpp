@@ -433,6 +433,7 @@ const char* meshMaterialName(MeshMaterial material) {
     case MeshMaterial::WaterVolume: return "water-volume";
     case MeshMaterial::WaterSurface: return "water-surface";
     case MeshMaterial::Glass: return "glass";
+    case MeshMaterial::TunnelFrame: return "tunnel-frame";
     }
     return "unknown";
 }

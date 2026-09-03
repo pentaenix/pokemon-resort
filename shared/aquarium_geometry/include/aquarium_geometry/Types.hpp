@@ -6,7 +6,7 @@
 
 namespace pr::aquarium::geometry {
 
-inline constexpr std::uint32_t kKernelAbiVersion = 10;
+inline constexpr std::uint32_t kKernelAbiVersion = 11;
 inline constexpr std::uint32_t kDesignSchemaVersion = 5;
 inline constexpr std::int32_t kWorldUnitsPerCell = 16;
 inline constexpr std::int32_t kVerticalStepWorldUnits = 8;
@@ -34,6 +34,7 @@ enum class MeshMaterial : std::uint8_t {
     WaterVolume,
     WaterSurface,
     Glass,
+    TunnelFrame,
 };
 
 enum class DiagnosticSeverity : std::uint8_t {

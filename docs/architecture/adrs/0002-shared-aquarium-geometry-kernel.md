@@ -101,6 +101,13 @@ thin structure rails. Rounded corners are compatible when their fitted arcs
 stay clear of the complete portal opening. Tunnels require tanks at least
 three vertical levels tall.
 
+Player review found that transparent bridge panels alone did not communicate a
+walkable tunnel floor at game scale. ABI 11 adds a dedicated opaque
+`tunnel-frame` semantic material and maker-matched raised side rims plus shallow
+cross-separators at each route cell. This keeps the glass centres transparent,
+gives both renderers an explicit cool-grey scaffold, and leaves collision and
+navigation unchanged.
+
 ## Alternatives Considered
 
 - Separate C++ and TypeScript implementations constrained by golden files: lower initial porting cost, but still permits semantic drift.

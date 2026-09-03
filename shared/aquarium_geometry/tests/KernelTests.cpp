@@ -52,6 +52,18 @@ AquariumBuildRequest rectangleRequest() {
 
 void requireValidMeshSet(const AquariumBuildResult& result, const std::string& fixture);
 
+const SemanticMesh& meshWithMaterial(
+    const AquariumBuildResult& result, MeshMaterial material) {
+    const auto found = std::find_if(
+        result.meshes.meshes.begin(), result.meshes.meshes.end(),
+        [&](const SemanticMesh& mesh) { return mesh.material == material; });
+    if (found == result.meshes.meshes.end()) {
+        throw std::runtime_error("missing semantic mesh: " +
+            std::string(meshMaterialName(material)));
+    }
+    return *found;
+}
+
 void testCanonicalTransforms() {
     requireNear(cellCentreWorld(0), 8.0F, "cell zero centre");
     requireNear(cellCentreWorld(7), 120.0F, "cell seven centre");
@@ -107,7 +119,7 @@ void testRectangleGolden() {
         "interior occupied cell is not blocked");
     require(result.statistics.navigation_layer_count == 1, "navigation layer count changed");
     require(result.navigation.suggested_spawns.size() == 1, "spawn count changed");
-    require(result.content_hash == "fnv1a64:80593cdcf5817e67", "content hash changed: " + result.content_hash);
+    require(result.content_hash == "fnv1a64:3f7ec27c7b4f0782", "content hash changed: " + result.content_hash);
     require(result.statistics.water_volume_litres == 80735,
         "standard tank derived water volume changed");
 
@@ -402,18 +414,22 @@ void testStraightAndElbowTunnelsDeriveDrySpace() {
     below_floor_tunnel.tank.tunnels = safe_rounding.tank.tunnels;
     const AquariumBuildResult bridge_result = buildAquarium(below_floor_tunnel);
     requireValidMeshSet(bridge_result, "below-floor glass tunnel bridge");
-    const SemanticMesh& bridge_structure = bridge_result.meshes.meshes.front();
-    const SemanticMesh& bridge_sand = bridge_result.meshes.meshes[1];
-    const SemanticMesh& bridge_glass = bridge_result.meshes.meshes.back();
+    const SemanticMesh& bridge_sand = meshWithMaterial(bridge_result, MeshMaterial::Sand);
+    const SemanticMesh& bridge_glass = meshWithMaterial(bridge_result, MeshMaterial::Glass);
+    const SemanticMesh& bridge_frame =
+        meshWithMaterial(bridge_result, MeshMaterial::TunnelFrame);
     require(std::any_of(bridge_glass.vertices.begin(), bridge_glass.vertices.end(),
             [](const Vertex& vertex) {
                 return std::abs(vertex.position.y - 0.03F) < 0.0001F &&
                     vertex.normal.y > 0.9F;
             }), "below-floor tunnel did not add transparent floor panels");
-    require(std::any_of(bridge_structure.vertices.begin(), bridge_structure.vertices.end(),
+    require(std::any_of(bridge_frame.vertices.begin(), bridge_frame.vertices.end(),
             [](const Vertex& vertex) {
-                return std::abs(vertex.position.y - 0.065F) < 0.0001F;
-            }), "below-floor tunnel did not add panel edge rails and separators");
+                return std::abs(vertex.position.y - 1.36F) < 0.0001F;
+            }) && std::any_of(bridge_frame.vertices.begin(), bridge_frame.vertices.end(),
+            [](const Vertex& vertex) {
+                return std::abs(vertex.position.y - 0.24F) < 0.0001F;
+            }), "below-floor tunnel did not add raised side rails and cell separators");
     require(bridge_sand.vertices.size() == footprintBoundaryLocalWorld(
             below_floor_tunnel.tank.footprint, 0).size(),
         "below-floor tunnel cut away sand beneath its glass panels");

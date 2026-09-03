@@ -436,12 +436,16 @@ void populateAquariumGeometry(
     const float water_y = sand_surface_y +
         (water_ceiling - sand_surface_y) * kWaterLevel;
 
-    result.meshes.meshes.reserve(result.meshes.meshes.size() + 5U);
+    result.meshes.meshes.reserve(result.meshes.meshes.size() + 6U);
     SemanticMesh& structure = addMesh(result.meshes, MeshMaterial::Structure);
     SemanticMesh& sand = addMesh(result.meshes, MeshMaterial::Sand);
     SemanticMesh& water_volume = addMesh(result.meshes, MeshMaterial::WaterVolume);
     SemanticMesh& water_surface = addMesh(result.meshes, MeshMaterial::WaterSurface);
     SemanticMesh& glass = addMesh(result.meshes, MeshMaterial::Glass);
+    SemanticMesh* tunnel_frame = nullptr;
+    if (!tunnels.empty() && below_floor) {
+        tunnel_frame = &addMesh(result.meshes, MeshMaterial::TunnelFrame);
+    }
     if (!tunnels.empty() && !below_floor) {
         appendTunnelPerimeterGlass(
             structure, boundary, profile_bottom, base_top, tunnels);
@@ -468,7 +472,8 @@ void populateAquariumGeometry(
     } else {
         appendTunnelPerimeterGlass(
             glass, boundary, below_floor ? 0.0F : kGlassBottom, glass_top, tunnels);
-        appendTunnelMeshes(structure, glass, request.tank, tunnels);
+        appendTunnelMeshes(tunnel_frame ? *tunnel_frame : structure,
+            glass, request.tank, tunnels);
     }
     addPerimeterSides(water_volume, boundary, water_bottom, water_y - 0.002F);
     if (!tunnels.empty() && !below_floor) {

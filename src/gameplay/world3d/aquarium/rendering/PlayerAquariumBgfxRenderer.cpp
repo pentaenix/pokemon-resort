@@ -27,6 +27,7 @@ std::array<float, 4> materialColor(geo::MeshMaterial material) {
     case geo::MeshMaterial::WaterVolume: return {0.10f, 0.48f, 0.68f, 0.11f};
     case geo::MeshMaterial::WaterSurface: return {0.24f, 0.73f, 0.87f, 0.32f};
     case geo::MeshMaterial::Glass: return {0.65f, 0.90f, 0.96f, 0.15f};
+    case geo::MeshMaterial::TunnelFrame: return {0.48f, 0.54f, 0.60f, 1.0f};
     }
     return {1.0f, 1.0f, 1.0f, 1.0f};
 }

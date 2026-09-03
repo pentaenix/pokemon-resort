@@ -14,7 +14,7 @@ void appendTunnelPerimeterGlass(
     const std::vector<ResolvedTunnel>& tunnels);
 
 void appendTunnelMeshes(
-    SemanticMesh& structure,
+    SemanticMesh& tunnel_frame,
     SemanticMesh& glass,
     const TankDesign& tank,
     const std::vector<ResolvedTunnel>& tunnels);
