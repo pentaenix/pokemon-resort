@@ -48,6 +48,14 @@ fs::path AquariumDesignStore::backupPath() const {
     return fs::path(primary_path_.string() + ".bak");
 }
 
+fs::path AquariumDesignStore::previousPath() const {
+    return fs::path(primary_path_.string() + ".previous");
+}
+
+fs::path AquariumDesignStore::temporaryPath() const {
+    return fs::path(primary_path_.string() + ".tmp");
+}
+
 AquariumStoreLoadResult AquariumDesignStore::loadOne(const fs::path& path) const {
     std::ifstream input(path, std::ios::binary);
     if (!input) return {AquariumStoreLoadStatus::Missing, std::nullopt, {}};
@@ -78,16 +86,43 @@ AquariumStoreLoadResult AquariumDesignStore::load() const {
         return primary;
     }
     AquariumStoreLoadResult backup = loadOne(backupPath());
+    if (backup.status == AquariumStoreLoadStatus::NewerVersion) return backup;
+    AquariumStoreLoadResult previous = loadOne(previousPath());
+    if (previous.status == AquariumStoreLoadStatus::NewerVersion) return previous;
+    AquariumStoreLoadResult temporary = loadOne(temporaryPath());
+    if (temporary.status == AquariumStoreLoadStatus::NewerVersion) return temporary;
+
     if (backup.status == AquariumStoreLoadStatus::Loaded) {
         backup.status = AquariumStoreLoadStatus::RecoveredBackup;
         return backup;
     }
-    if (backup.status == AquariumStoreLoadStatus::NewerVersion) return backup;
-    if (primary.status == AquariumStoreLoadStatus::Missing) return backup;
-    if (!backup.diagnostic.empty()) {
-        primary.diagnostic += primary.diagnostic.empty() ? backup.diagnostic : "; backup: " + backup.diagnostic;
+    if (previous.status == AquariumStoreLoadStatus::Loaded) {
+        previous.status = AquariumStoreLoadStatus::RecoveredPrevious;
+        return previous;
     }
-    return primary;
+    if (temporary.status == AquariumStoreLoadStatus::Loaded) {
+        temporary.status = AquariumStoreLoadStatus::RecoveredTemporary;
+        return temporary;
+    }
+
+    AquariumStoreLoadResult result = primary;
+    const auto appendDiagnostic = [&result](const char* source, const AquariumStoreLoadResult& candidate) {
+        if (candidate.diagnostic.empty()) return;
+        if (!result.diagnostic.empty()) result.diagnostic += "; ";
+        result.diagnostic += source;
+        result.diagnostic += ": ";
+        result.diagnostic += candidate.diagnostic;
+    };
+    appendDiagnostic("backup", backup);
+    appendDiagnostic("previous", previous);
+    appendDiagnostic("temporary", temporary);
+    if (result.status == AquariumStoreLoadStatus::Missing &&
+        (backup.status == AquariumStoreLoadStatus::Invalid ||
+         previous.status == AquariumStoreLoadStatus::Invalid ||
+         temporary.status == AquariumStoreLoadStatus::Invalid)) {
+        result.status = AquariumStoreLoadStatus::Invalid;
+    }
+    return result;
 }
 
 AquariumStoreLoadResult AquariumDesignStore::loadBackup() const {
@@ -102,13 +137,20 @@ bool AquariumDesignStore::saveTransactionally(
         if (error) *error = diagnostics.front();
         return false;
     }
+    for (const fs::path& candidate :
+         {primary_path_, backupPath(), previousPath(), temporaryPath()}) {
+        if (loadOne(candidate).status == AquariumStoreLoadStatus::NewerVersion) {
+            if (error) *error = "A newer aquarium save artifact must be preserved";
+            return false;
+        }
+    }
     std::error_code ec;
     fs::create_directories(primary_path_.parent_path(), ec);
     if (ec) {
         if (error) *error = "Could not create aquarium save directory: " + ec.message();
         return false;
     }
-    const fs::path temporary(primary_path_.string() + ".tmp");
+    const fs::path temporary = temporaryPath();
     {
         std::ofstream output(temporary, std::ios::binary | std::ios::trunc);
         if (!output) {
@@ -158,7 +200,7 @@ bool AquariumDesignStore::saveTransactionally(
     if (ec) {
         // Windows does not replace an existing destination. Preserve the primary,
         // then use a reversible two-rename promotion.
-        const fs::path displaced(primary_path_.string() + ".previous");
+        const fs::path displaced = previousPath();
         std::error_code fallback_ec;
         fs::remove(displaced, fallback_ec);
         fallback_ec.clear();

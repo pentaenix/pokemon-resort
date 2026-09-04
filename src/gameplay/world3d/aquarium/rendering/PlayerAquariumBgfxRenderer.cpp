@@ -13,6 +13,8 @@ namespace geo = pr::aquarium::geometry;
 
 namespace {
 
+constexpr std::uint32_t kResourceRetirementDelayFrames = 3;
+
 std::uint32_t packAbgr(float r, float g, float b, float a) {
     const auto byte = [](float value) {
         return static_cast<std::uint32_t>(std::lround(std::clamp(value, 0.0f, 1.0f) * 255.0f));
@@ -156,11 +158,17 @@ public:
     }
 
     bool publishStagedTanks() {
-        return resources_.publishStaged([](Mesh& previous) { previous.destroy(); });
+        return resources_.publishStaged(
+            [](Mesh& previous) { previous.destroy(); },
+            kResourceRetirementDelayFrames);
     }
 
     void discardStagedTanks() {
         resources_.discardStaged([](Mesh& candidate) { candidate.destroy(); });
+    }
+
+    void advanceFrame() {
+        resources_.advanceRetirements([](Mesh& retired) { retired.destroy(); });
     }
 
     void submit(std::uint16_t view_id, bool transparent,
@@ -256,6 +264,7 @@ bool PlayerAquariumBgfxRenderer::stageTanks(
 }
 bool PlayerAquariumBgfxRenderer::publishStagedTanks() { return impl_->publishStagedTanks(); }
 void PlayerAquariumBgfxRenderer::discardStagedTanks() { impl_->discardStagedTanks(); }
+void PlayerAquariumBgfxRenderer::advanceFrame() { impl_->advanceFrame(); }
 void PlayerAquariumBgfxRenderer::submitOpaque(std::uint16_t view_id) { impl_->submit(view_id, false); }
 void PlayerAquariumBgfxRenderer::submitTransparent(
     std::uint16_t view_id, float camera_x, float camera_y, float camera_z) {
@@ -263,6 +272,9 @@ void PlayerAquariumBgfxRenderer::submitTransparent(
 }
 std::size_t PlayerAquariumBgfxRenderer::resourceCount() const {
     return impl_->resources_.active().size() * 2U;
+}
+std::size_t PlayerAquariumBgfxRenderer::retiredResourceCount() const {
+    return impl_->resources_.retiredResourceCount() * 2U;
 }
 
 } // namespace pr::gameplay::world3d::aquarium::rendering

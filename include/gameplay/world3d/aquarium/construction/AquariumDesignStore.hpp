@@ -12,6 +12,8 @@ enum class AquariumStoreLoadStatus {
     Missing,
     Loaded,
     RecoveredBackup,
+    RecoveredPrevious,
+    RecoveredTemporary,
     NewerVersion,
     Invalid,
 };
@@ -28,6 +30,8 @@ public:
 
     const std::filesystem::path& primaryPath() const { return primary_path_; }
     std::filesystem::path backupPath() const;
+    std::filesystem::path previousPath() const;
+    std::filesystem::path temporaryPath() const;
     AquariumStoreLoadResult load() const;
     AquariumStoreLoadResult loadBackup() const;
     bool saveTransactionally(const AquariumDesignDocument& document, std::string* error = nullptr) const;

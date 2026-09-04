@@ -1083,6 +1083,50 @@ void storePreservesNewerDocumentsAndFailedWrites() {
         "failed unrelated save damaged the recoverable newer document");
 }
 
+void storeRecoversInterruptedPromotionsAndPreservesNewerArtifacts() {
+    const auto nonce = std::chrono::steady_clock::now().time_since_epoch().count();
+    const fs::path root = fs::temp_directory_path() /
+        ("pokemon_resort_aquarium_interrupted_" + std::to_string(nonce));
+    struct Cleanup { fs::path path; ~Cleanup() { std::error_code ec; fs::remove_all(path, ec); } } cleanup{root};
+    fs::create_directories(root);
+    construction::AquariumDesignStore store(root / "aquarium12.aquarium.json");
+    auto document = emptyDocument();
+
+    document.revision = 7;
+    {
+        std::ofstream temporary(store.temporaryPath(), std::ios::trunc);
+        temporary << construction::serializeAquariumDesignCanonical(document);
+    }
+    auto recovered = store.load();
+    require(recovered.status == construction::AquariumStoreLoadStatus::RecoveredTemporary &&
+            recovered.document && recovered.document->revision == 7,
+        "interrupted first-save temporary document was not recovered");
+
+    fs::rename(store.temporaryPath(), store.previousPath());
+    recovered = store.load();
+    require(recovered.status == construction::AquariumStoreLoadStatus::RecoveredPrevious &&
+            recovered.document && recovered.document->revision == 7,
+        "displaced primary from an interrupted fallback promotion was not recovered");
+
+    std::string newer = construction::serializeAquariumDesignCanonical(document);
+    const std::string old_version = "\"schemaVersion\": 5";
+    const auto version_position = newer.find(old_version);
+    require(version_position != std::string::npos,
+        "interrupted-save fixture schema version missing");
+    newer.replace(version_position, old_version.size(), "\"schemaVersion\": 6");
+    {
+        std::ofstream temporary(store.temporaryPath(), std::ios::trunc);
+        temporary << newer;
+    }
+    require(store.load().status == construction::AquariumStoreLoadStatus::NewerVersion,
+        "newer interrupted save artifact was hidden by an older recovery copy");
+    std::string error;
+    require(!store.saveTransactionally(document, &error) && !error.empty(),
+        "transactional save overwrote a newer interrupted artifact");
+    require(store.load().status == construction::AquariumStoreLoadStatus::NewerVersion,
+        "failed save did not preserve the newer interrupted artifact");
+}
+
 class FlatQuery final : public pr::gameplay::world3d::characters::CharacterTerrainQuery {
 public:
     float tileSize() const override { return 16.0f; }
@@ -1363,6 +1407,27 @@ void resourceGenerationRejectsCandidatesWithoutTouchingActiveResources() {
         "replacement did not publish atomically");
     require(destroyed.size() == 5 && destroyed[3] == 1 && destroyed[4] == 2,
         "replacement did not retire the previous resource generation");
+
+    destroyed.clear();
+    require(owner.stage({{7}}, true, destroy) && owner.publishStaged(destroy, 3),
+        "delayed-retirement fake GPU generation failed");
+    require(owner.active()[0].id == 7 && owner.retiredResourceCount() == 1 && destroyed.empty(),
+        "publication did not retain the old generation for its safety window");
+    owner.advanceRetirements(destroy);
+    owner.advanceRetirements(destroy);
+    require(owner.retiredResourceCount() == 1 && destroyed.empty(),
+        "old generation retired before the configured frame delay");
+    owner.advanceRetirements(destroy);
+    require(owner.retiredResourceCount() == 0 && destroyed.size() == 1 && destroyed[0] == 6,
+        "old generation was not destroyed at the end of the safety window");
+
+    require(owner.stage({{8}}, true, destroy) && owner.publishStaged(destroy, 3),
+        "clear-with-retirement fixture did not publish");
+    owner.clear(destroy);
+    require(owner.active().empty() && owner.retiredResourceCount() == 0 &&
+            std::find(destroyed.begin(), destroyed.end(), 7) != destroyed.end() &&
+            std::find(destroyed.begin(), destroyed.end(), 8) != destroyed.end(),
+        "shutdown did not destroy both active and delayed GPU generations");
 }
 
 } // namespace
@@ -1395,6 +1460,7 @@ int main() {
         run("loadedPlacementValidationRejectsBoundsAndOverlap", loadedPlacementValidationRejectsBoundsAndOverlap);
         run("storeRoundTripsAndRecoversBackup", storeRoundTripsAndRecoversBackup);
         run("storePreservesNewerDocumentsAndFailedWrites", storePreservesNewerDocumentsAndFailedWrites);
+        run("storeRecoversInterruptedPromotionsAndPreservesNewerArtifacts", storeRecoversInterruptedPromotionsAndPreservesNewerArtifacts);
         run("collisionOverlayCombinesStaticAndDynamicCells", collisionOverlayCombinesStaticAndDynamicCells);
         run("populationPolicyIsReplaceableAndNavigationIsDerived", populationPolicyIsReplaceableAndNavigationIsDerived);
         run("tunnelGestureCommitsCancelsAndClearsRuntimeCollision", tunnelGestureCommitsCancelsAndClearsRuntimeCollision);

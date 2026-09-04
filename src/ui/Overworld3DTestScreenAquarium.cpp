@@ -157,9 +157,16 @@ void Overworld3DTestScreen::configureAquariumConstruction(
             std::cerr << "[AquariumConstruction] event=save_rejected map="
                       << map_config->map_id << " reason=map_id_mismatch\n";
         }
-        if (loaded.status == aqc::AquariumStoreLoadStatus::RecoveredBackup) {
+        if (loaded.status == aqc::AquariumStoreLoadStatus::RecoveredBackup ||
+            loaded.status == aqc::AquariumStoreLoadStatus::RecoveredPrevious ||
+            loaded.status == aqc::AquariumStoreLoadStatus::RecoveredTemporary) {
+            const char* source = loaded.status == aqc::AquariumStoreLoadStatus::RecoveredBackup
+                ? "backup"
+                : loaded.status == aqc::AquariumStoreLoadStatus::RecoveredPrevious
+                    ? "previous"
+                    : "temporary";
             std::cerr << "[AquariumConstruction] event=save_recovered map="
-                      << map_config->map_id << " source=backup\n";
+                      << map_config->map_id << " source=" << source << '\n';
         }
     } else if (loaded.status == aqc::AquariumStoreLoadStatus::NewerVersion ||
                loaded.status == aqc::AquariumStoreLoadStatus::Invalid) {

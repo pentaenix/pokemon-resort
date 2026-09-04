@@ -37,9 +37,11 @@ public:
         std::string* error = nullptr);
     bool publishStagedTanks();
     void discardStagedTanks();
+    void advanceFrame();
     void submitOpaque(std::uint16_t view_id);
     void submitTransparent(std::uint16_t view_id, float camera_x, float camera_y, float camera_z);
     std::size_t resourceCount() const;
+    std::size_t retiredResourceCount() const;
 
 private:
     class Impl;

@@ -3683,6 +3683,7 @@ OverworldBgfxRenderer::EmbeddedViewportTexture OverworldBgfxRenderer::Impl::rend
     const std::string& debug_frame_counter_label,
     const RenderOptions& options) {
     if (!valid()) return {};
+    player_aquarium_renderer_.advanceFrame();
     backend_.reset(framebuffer_w, framebuffer_h);
     const int base_w = rendering::worldViewportBaseWidth(scene_);
     const int base_h = rendering::worldViewportBaseHeight(scene_);
