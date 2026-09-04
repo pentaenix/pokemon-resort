@@ -68,6 +68,47 @@ bool parsePosition(const JsonValue* value, std::array<float, 3>& out) {
     return true;
 }
 
+AquariumBuildingPresentationConfig parseBuildingPresentation(
+    const JsonValue* value,
+    AquariumBuildingPresentationConfig out = {}) {
+    if (!value || !value->isObject()) return out;
+    if (const JsonValue* camera = value->get("camera"); camera && camera->isObject()) {
+        if (const JsonValue* enabled = camera->get("enabled"); enabled && enabled->isBool()) {
+            out.camera.enabled = enabled->asBool();
+        }
+        out.camera.distance_behind_player_tiles = std::clamp(static_cast<float>(numberOr(
+            camera->get("distanceBehindPlayerTiles"),
+            out.camera.distance_behind_player_tiles)), 1.0f, 64.0f);
+        out.camera.height_above_player_tiles = std::clamp(static_cast<float>(numberOr(
+            camera->get("heightAbovePlayerTiles"),
+            out.camera.height_above_player_tiles)), 1.0f, 64.0f);
+    }
+    if (const JsonValue* lighting = value->get("lighting");
+        lighting && lighting->isObject()) {
+        if (const JsonValue* enabled = lighting->get("enabled");
+            enabled && enabled->isBool()) {
+            out.lighting.enabled = enabled->asBool();
+        }
+        out.lighting.brightness = std::clamp(static_cast<float>(numberOr(
+            lighting->get("brightness"), out.lighting.brightness)), 0.1f, 3.0f);
+        if (const JsonValue* tint = lighting->get("tint")) {
+            if (!tint->isArray() || tint->asArray().size() != 3U) {
+                throw std::runtime_error(
+                    "buildingPresentation.lighting.tint must contain [red, green, blue]");
+            }
+            for (std::size_t channel = 0; channel < 3U; ++channel) {
+                const double component = numberOr(&tint->asArray()[channel], -1.0);
+                if (!std::isfinite(component) || component < 0.0 || component > 3.0) {
+                    throw std::runtime_error(
+                        "buildingPresentation.lighting.tint components must be finite values from 0 to 3");
+                }
+                out.lighting.tint[channel] = static_cast<float>(component);
+            }
+        }
+    }
+    return out;
+}
+
 AquariumConstructionConfig parseConstruction(const JsonValue* value) {
     AquariumConstructionConfig out;
     if (!value || !value->isObject()) return out;
@@ -307,13 +348,29 @@ AquariumCatalog loadAquariumCatalog(const std::string& project_root, std::string
             0.0001f, 10.0f);
         out.pokemon_presentation = parsePokemonPresentation(
             root.get("pokemonPresentation"), out.pokemon_presentation);
+        out.building_presentation = parseBuildingPresentation(
+            root.get("buildingPresentation"), out.building_presentation);
         for (const JsonValue& map_value : maps->asArray()) {
             if (!map_value.isObject()) continue;
             AquariumMapConfig map;
             map.map_id = stringOr(map_value.get("mapId"));
+            map.building_presentation = parseBuildingPresentation(
+                map_value.get("buildingPresentation"), out.building_presentation);
             map.pokemon_scale = out.pokemon_scale;
             map.pokemon_presentation = parsePokemonPresentation(
                 map_value.get("pokemonPresentation"), out.pokemon_presentation);
+            if (map.building_presentation.lighting.enabled) {
+                map.pokemon_presentation.brightness = std::clamp(
+                    map.pokemon_presentation.brightness *
+                        map.building_presentation.lighting.brightness,
+                    0.1f, 3.0f);
+                for (std::size_t channel = 0; channel < 3U; ++channel) {
+                    map.pokemon_presentation.tint[channel] = std::clamp(
+                        map.pokemon_presentation.tint[channel] *
+                            map.building_presentation.lighting.tint[channel],
+                        0.0f, 3.0f);
+                }
+            }
             map.construction = parseConstruction(map_value.get("construction"));
             const JsonValue* tanks = map_value.get("tanks");
             if (tanks && tanks->isArray()) {
@@ -356,6 +413,21 @@ const AquariumMapConfig* aquariumMapConfig(const AquariumCatalog& catalog, const
         return map.map_id == map_id;
     });
     return found == catalog.maps.end() ? nullptr : &*found;
+}
+
+camera::Gen4CameraPreset aquariumBuildingCameraPreset(
+    const camera::Gen4CameraPreset& base,
+    const AquariumBuildingCameraConfig& config,
+    float tile_size) {
+    if (!config.enabled) return base;
+    constexpr float kRadiansToDegrees = 57.29577951308232f;
+    const float unit = std::max(1.0f, tile_size);
+    const float horizontal = config.distance_behind_player_tiles * unit;
+    const float vertical = config.height_above_player_tiles * unit;
+    camera::Gen4CameraPreset result = base;
+    result.distance = std::hypot(horizontal, vertical);
+    result.pitch_deg = -std::atan2(vertical, horizontal) * kRadiansToDegrees;
+    return result;
 }
 
 } // namespace pr::gameplay::world3d::aquarium

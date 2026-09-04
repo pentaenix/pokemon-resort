@@ -1,11 +1,32 @@
 #pragma once
 
+#include "gameplay/world3d/camera/Gen4CameraPreset.hpp"
+
 #include <array>
 #include <cstdint>
 #include <string>
 #include <vector>
 
 namespace pr::gameplay::world3d::aquarium {
+
+struct AquariumBuildingCameraConfig {
+    bool enabled = false;
+    // Intuitive Cartesian controls relative to the followed player. The
+    // runtime derives the orbit distance and pitch from these tile values.
+    float distance_behind_player_tiles = 24.0f;
+    float height_above_player_tiles = 34.0f;
+};
+
+struct AquariumBuildingLightingConfig {
+    bool enabled = false;
+    float brightness = 1.0f;
+    std::array<float, 3> tint{1.0f, 1.0f, 1.0f};
+};
+
+struct AquariumBuildingPresentationConfig {
+    AquariumBuildingCameraConfig camera;
+    AquariumBuildingLightingConfig lighting;
+};
 
 struct AquariumPokemonPresentationConfig {
     // Defaults mirror TEST ATTEND's active clear-sky Pokemon presentation.
@@ -111,6 +132,7 @@ struct AquariumConstructionConfig {
 
 struct AquariumMapConfig {
     std::string map_id;
+    AquariumBuildingPresentationConfig building_presentation;
     float pokemon_scale = 0.14f;
     AquariumPokemonPresentationConfig pokemon_presentation;
     std::vector<AquariumTankConfig> tanks;
@@ -122,6 +144,7 @@ struct AquariumCatalog {
     // controls every aquarium Pokemon without per-species correction tables.
     float pokemon_scale = 0.14f;
     AquariumPokemonPresentationConfig pokemon_presentation;
+    AquariumBuildingPresentationConfig building_presentation;
     std::vector<AquariumMapConfig> maps;
 };
 
@@ -129,5 +152,10 @@ AquariumCatalog loadAquariumCatalog(
     const std::string& project_root,
     std::string* error = nullptr);
 const AquariumMapConfig* aquariumMapConfig(const AquariumCatalog& catalog, const std::string& map_id);
+
+camera::Gen4CameraPreset aquariumBuildingCameraPreset(
+    const camera::Gen4CameraPreset& base,
+    const AquariumBuildingCameraConfig& config,
+    float tile_size);
 
 } // namespace pr::gameplay::world3d::aquarium

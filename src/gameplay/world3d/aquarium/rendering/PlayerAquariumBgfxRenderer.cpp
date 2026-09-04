@@ -92,6 +92,11 @@ public:
         initialized_ = false;
     }
 
+    void setLighting(float brightness, const std::array<float, 3>& tint) {
+        lighting_brightness_ = std::max(0.0f, brightness);
+        lighting_tint_ = tint;
+    }
+
     bool replaceTanks(
         const std::vector<construction::PlayerTankRuntime>& tanks,
         std::string* error) {
@@ -174,7 +179,11 @@ public:
     void submit(std::uint16_t view_id, bool transparent,
         float camera_x = 0.0f, float camera_y = 0.0f, float camera_z = 0.0f) {
         if (!initialized_ || !bgfx::isValid(program_)) return;
-        const float tint[4]{1.0f, 1.0f, 1.0f, 0.0f};
+        const float tint[4]{
+            lighting_tint_[0] * lighting_brightness_,
+            lighting_tint_[1] * lighting_brightness_,
+            lighting_tint_[2] * lighting_brightness_,
+            0.0f};
         const float adjust[4]{1.0f, 1.0f, 1.0f, 0.0f};
         const float zeros[4]{};
         const float light_dir[4]{-0.35f, 0.82f, 0.45f, 0.0f};
@@ -238,6 +247,8 @@ public:
     bgfx::UniformHandle light_params_uniform_ = BGFX_INVALID_HANDLE;
     AquariumResourceGeneration<Mesh> resources_;
     std::vector<construction::PlayerTankRuntime> pending_tanks_;
+    std::array<float, 3> lighting_tint_{1.0f, 1.0f, 1.0f};
+    float lighting_brightness_ = 1.0f;
     bool initialized_ = false;
 };
 
@@ -254,6 +265,10 @@ void PlayerAquariumBgfxRenderer::initialize(
         light_dir_uniform, light_params_uniform);
 }
 void PlayerAquariumBgfxRenderer::shutdown() { impl_->shutdown(); }
+void PlayerAquariumBgfxRenderer::setLighting(
+    float brightness, const std::array<float, 3>& tint) {
+    impl_->setLighting(brightness, tint);
+}
 bool PlayerAquariumBgfxRenderer::replaceTanks(
     const std::vector<construction::PlayerTankRuntime>& tanks, std::string* error) {
     return impl_->replaceTanks(tanks, error);

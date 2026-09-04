@@ -180,6 +180,9 @@ void Overworld3DTestScreen::initializeSceneState(bool reload_primary_scene) {
     // configured. A previous aquarium session must never leave construction
     // enabled while the primary outdoor scene is being rebuilt.
     active_world_map_id_ = scene_.id.empty() ? std::string{"testing"} : scene_.id;
+    aquarium_base_lighting_brightness_ = scene_.lighting_brightness;
+    aquarium_base_lighting_tint_ = {
+        scene_.lighting_tint_r, scene_.lighting_tint_g, scene_.lighting_tint_b};
     aquarium_inspection_facing_.clear();
     movement_config_ = gameplay::world3d::characters::loadCharacterMovementConfig(project_root_);
     character_ = gameplay::world3d::data::loadCharacterDefinition(project_root_, scene_.player.character_path);
@@ -281,6 +284,7 @@ void Overworld3DTestScreen::initializeSceneState(bool reload_primary_scene) {
     preset.fov_y_deg = scene_.camera_fov_y_deg;
     gameplay::world3d::rendering::applySceneCameraScaleToCameraPreset(preset, scene_);
     follow_camera_base_preset_ = preset;
+    aquarium_camera_base_preset_ = preset;
     camera_ = gameplay::world3d::camera::Gen4FollowCamera(preset);
     reloadFollowCameraPresetConfig();
     map_loaded_ = map_.load();
@@ -422,13 +426,14 @@ void Overworld3DTestScreen::reloadFollowCameraPresetConfig() {
             return;
         }
 
-        gameplay::world3d::camera::Gen4CameraPreset preset = follow_camera_base_preset_;
+        gameplay::world3d::camera::Gen4CameraPreset preset = aquarium_camera_base_preset_;
         preset.pitch_deg = static_cast<float>(pitch->asNumber());
         // Construction derives its slightly elevated view from the same live
         // gameplay pitch, rather than the scene's pre-hot-reload default.
-        follow_camera_base_preset_.pitch_deg = preset.pitch_deg;
-        camera_ = gameplay::world3d::camera::Gen4FollowCamera(preset);
-        camera_.setTarget(player_.position());
+        aquarium_camera_base_preset_ = preset;
+        applyAquariumBuildingPresentation(
+            gameplay::world3d::aquarium::aquariumMapConfig(
+                aquarium_catalog_, active_world_map_id_));
         std::cerr << "[Overworld3D] Reloaded follow camera preset "
                   << selected_preset
                   << " pitchDeg=" << preset.pitch_deg
@@ -581,6 +586,9 @@ bool Overworld3DTestScreen::activateWorldMap(
     restoreAquariumInspectionFacing();
     active_world_map_id_ = chunk.id.empty() ? chunk.scene.id : chunk.id;
     scene_ = chunk.scene;
+    aquarium_base_lighting_brightness_ = scene_.lighting_brightness;
+    aquarium_base_lighting_tint_ = {
+        scene_.lighting_tint_r, scene_.lighting_tint_g, scene_.lighting_tint_b};
     rebuildActiveWorldChunks();
     if (active_world_chunks_.empty()) return false;
 
@@ -600,6 +608,7 @@ bool Overworld3DTestScreen::activateWorldMap(
     preset.fov_y_deg = scene_.camera_fov_y_deg;
     gameplay::world3d::rendering::applySceneCameraScaleToCameraPreset(preset, scene_);
     follow_camera_base_preset_ = preset;
+    aquarium_camera_base_preset_ = preset;
     camera_ = gameplay::world3d::camera::Gen4FollowCamera(preset);
     reloadFollowCameraPresetConfig();
 

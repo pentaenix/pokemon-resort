@@ -306,6 +306,14 @@ public:
     bool publishStagedPlayerAquariumTanks();
     void discardStagedPlayerAquariumTanks();
     std::size_t playerAquariumResourceCount() const;
+    void setSceneLighting(float brightness, const std::array<float, 3>& tint) {
+        scene_.lighting_brightness = std::max(0.0f, brightness);
+        scene_.lighting_tint_r = tint[0];
+        scene_.lighting_tint_g = tint[1];
+        scene_.lighting_tint_b = tint[2];
+        player_aquarium_renderer_.setLighting(brightness, tint);
+        refreshBillboardDrawer();
+    }
     void setPlayerVisible(bool visible) { player_visible_ = visible; }
     void setInteriorWallCameraClip(camera::Vec3 center, float radius_world) {
         interior_wall_clip_[0] = center.x;
@@ -802,6 +810,11 @@ std::size_t OverworldBgfxRenderer::playerAquariumResourceCount() const {
     return impl_ ? impl_->playerAquariumResourceCount() : 0U;
 }
 
+void OverworldBgfxRenderer::setSceneLighting(
+    float brightness, const std::array<float, 3>& tint) {
+    if (impl_) impl_->setSceneLighting(brightness, tint);
+}
+
 void OverworldBgfxRenderer::setPlayerVisible(bool visible) {
     if (impl_) impl_->setPlayerVisible(visible);
 }
@@ -1190,6 +1203,9 @@ bool OverworldBgfxRenderer::Impl::initialize(
         layout_, world_program_, white_texture_.handle, tex_uniform_, tint_cutoff_uniform_,
         color_adjust_uniform_, texture_blur_uniform_, uv_offset_uniform_,
         light_dir_uniform_, light_params_uniform_);
+    player_aquarium_renderer_.setLighting(
+        scene_.lighting_brightness,
+        {scene_.lighting_tint_r, scene_.lighting_tint_g, scene_.lighting_tint_b});
     aquarium_construction_renderer_.initialize(
         layout_, world_program_, white_texture_.handle, tex_uniform_, tint_cutoff_uniform_,
         color_adjust_uniform_, texture_blur_uniform_, uv_offset_uniform_,

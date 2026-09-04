@@ -127,6 +127,7 @@ void Overworld3DTestScreen::reloadAquariumConfig(bool force) {
         ? scene_.id : active_world_map_id_;
     const auto* map_config =
         gameplay::world3d::aquarium::aquariumMapConfig(catalog, map_id);
+    applyAquariumBuildingPresentation(map_config);
     auto simulation = std::make_unique<gameplay::world3d::aquarium::AquariumSimulation>(
         project_root_, scene_,
         map_config);
@@ -150,6 +151,37 @@ void Overworld3DTestScreen::reloadAquariumConfig(bool force) {
     refreshAquariumRenderActors();
     std::cerr << "[Aquarium] Applied config for " << map_id << " with "
               << aquarium_simulation_->actors().size() << " actors\n";
+}
+
+void Overworld3DTestScreen::applyAquariumBuildingPresentation(
+    const gameplay::world3d::aquarium::AquariumMapConfig* map_config) {
+    namespace aquarium = gameplay::world3d::aquarium;
+    follow_camera_base_preset_ = aquarium_camera_base_preset_;
+    scene_.lighting_brightness = aquarium_base_lighting_brightness_;
+    scene_.lighting_tint_r = aquarium_base_lighting_tint_[0];
+    scene_.lighting_tint_g = aquarium_base_lighting_tint_[1];
+    scene_.lighting_tint_b = aquarium_base_lighting_tint_[2];
+
+    if (map_config) {
+        follow_camera_base_preset_ = aquarium::aquariumBuildingCameraPreset(
+            aquarium_camera_base_preset_, map_config->building_presentation.camera,
+            scene_.grid.tile_size);
+        const auto& lighting = map_config->building_presentation.lighting;
+        if (lighting.enabled) {
+            scene_.lighting_brightness = aquarium_base_lighting_brightness_ * lighting.brightness;
+            scene_.lighting_tint_r = aquarium_base_lighting_tint_[0] * lighting.tint[0];
+            scene_.lighting_tint_g = aquarium_base_lighting_tint_[1] * lighting.tint[1];
+            scene_.lighting_tint_b = aquarium_base_lighting_tint_[2] * lighting.tint[2];
+        }
+    }
+
+    camera_ = gameplay::world3d::camera::Gen4FollowCamera(follow_camera_base_preset_);
+    camera_.setTarget(player_.position());
+    if (bgfx_renderer_) {
+        bgfx_renderer_->setSceneLighting(
+            scene_.lighting_brightness,
+            {scene_.lighting_tint_r, scene_.lighting_tint_g, scene_.lighting_tint_b});
+    }
 }
 
 void Overworld3DTestScreen::configureAquariumConstruction(

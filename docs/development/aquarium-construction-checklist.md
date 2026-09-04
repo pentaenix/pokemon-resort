@@ -540,6 +540,7 @@ checked portal readability, route feel, geometry, and collision in Builder Lab.
 - [x] Benchmark rectangle, rounded shape, deep connected tunnels, and the eight-tank room limit after warm-up.
 - [x] Keep persistent derived caches disabled for v1: measured generation is already comfortably inside budget, while an extra cache would add another corruption/recovery surface. Any future cache must be disposable and keyed by document content, kernel ABI, schema, material profile, and render format.
 - [x] Run the complete Resort native build/test gate and the maker type/build, native/WASM parity, and full model validation gates.
+- [x] Add a hot-reloadable aquarium-only building presentation config with direct camera height/distance controls and a scoped room/tank/actor light grade; initialize it slightly lower, closer, and bluer without touching non-aquarium maps.
 - [ ] Player live gate: controller-only extended Builder Lab session, mouse/keyboard session, repeated aquarium/overworld transitions, restart/recovery walkthrough, and screenshots of Builder Lab plus authored aquarium12/outdoor scenes.
 - [ ] Confirm live commit telemetry meets the 4 ms GPU-upload target and produces no construction-induced frame above 33 ms on the release machine.
 

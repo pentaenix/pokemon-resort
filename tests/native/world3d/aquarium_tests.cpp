@@ -178,6 +178,23 @@ void configuredDewgongMovesInsidePlacedTank() {
             builder_lab->construction.room_trim_color[3] == 255 &&
             !aquarium_map->construction.has_room_trim_color,
         "builder lab must expose a separate empty full-room construction surface");
+    require(aquarium_map->building_presentation.camera.enabled &&
+            near(aquarium_map->building_presentation.camera.distance_behind_player_tiles, 22.0f) &&
+            near(aquarium_map->building_presentation.camera.height_above_player_tiles, 30.0f) &&
+            aquarium_map->building_presentation.lighting.enabled &&
+            near(aquarium_map->building_presentation.lighting.brightness, 1.0f) &&
+            near(aquarium_map->building_presentation.lighting.tint[0], 0.9f) &&
+            near(aquarium_map->building_presentation.lighting.tint[2], 1.08f) &&
+            builder_lab->building_presentation.camera.enabled &&
+            builder_lab->building_presentation.lighting.enabled,
+        "aquarium maps must inherit the aquarium-only building presentation");
+    pr::gameplay::world3d::camera::Gen4CameraPreset base_camera;
+    const auto aquarium_camera = aquarium::aquariumBuildingCameraPreset(
+        base_camera, aquarium_map->building_presentation.camera, 16.0f);
+    require(near(aquarium_camera.distance,
+                std::hypot(22.0f * 16.0f, 30.0f * 16.0f)) &&
+            near(aquarium_camera.pitch_deg, -53.746f),
+        "aquarium camera height/distance controls did not derive the expected orbit");
     const auto lab_allows_construction = [&](int column, int row) {
         return std::any_of(builder_lab->construction.allowed_cells.begin(),
             builder_lab->construction.allowed_cells.end(), [&](const auto& cell) {
@@ -194,8 +211,10 @@ void configuredDewgongMovesInsidePlacedTank() {
             near(aquarium_map->pokemon_presentation.directional, 0.34f) &&
             near(aquarium_map->pokemon_presentation.form_shadow, 0.24f) &&
             near(aquarium_map->pokemon_presentation.light_direction[2], 0.45f) &&
-            near(aquarium_map->pokemon_presentation.tint[1], 0.99f),
-        "aquarium Pokemon presentation must reproduce Attend's clear-scene lighting");
+            near(aquarium_map->pokemon_presentation.tint[0], 0.9f) &&
+            near(aquarium_map->pokemon_presentation.tint[1], 0.9603f) &&
+            near(aquarium_map->pokemon_presentation.tint[2], 1.026f),
+        "aquarium Pokemon presentation must include the scoped blue building light");
     require(near(aquarium_map->tanks[0].inspection_camera.focused_standoff_tiles, 8.7166932f) &&
             near(aquarium_map->tanks[0].inspection_camera.focused_near_clip, 12.0f) &&
             near(aquarium_map->tanks[0].inspection_camera.focused_wall_clip_radius_tiles, 1.5f) &&

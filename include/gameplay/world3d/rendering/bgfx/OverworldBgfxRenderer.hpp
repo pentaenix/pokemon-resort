@@ -9,6 +9,7 @@
 #include "gameplay/world3d/aquarium/construction/AquariumConstructionVisual.hpp"
 
 #include <SDL.h>
+#include <array>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -94,6 +95,7 @@ public:
     bool publishStagedPlayerAquariumTanks();
     void discardStagedPlayerAquariumTanks();
     std::size_t playerAquariumResourceCount() const;
+    void setSceneLighting(float brightness, const std::array<float, 3>& tint);
     void setPlayerVisible(bool visible);
     void setInteriorWallCameraClip(camera::Vec3 center, float radius_world);
     void setTextboxOverlay(dialogue::OverworldTextboxConfig config, bool visible, std::string text = {});

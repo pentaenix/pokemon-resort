@@ -1,5 +1,17 @@
 {
-  "schemaVersion": 4,
+  "schemaVersion": 5,
+  "buildingPresentation": {
+    "camera": {
+      "enabled": true,
+      "distanceBehindPlayerTiles": 22,
+      "heightAbovePlayerTiles": 30
+    },
+    "lighting": {
+      "enabled": true,
+      "brightness": 1,
+      "tint": [0.9, 0.97, 1.08]
+    }
+  },
   "pokemonScale": 0.27,
   "pokemonPresentation": {
     "brightness": 1.08,

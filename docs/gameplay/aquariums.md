@@ -19,6 +19,18 @@ volumes, and floor cutouts agree without a per-aquarium scale workaround.
 ```json
 {
   "pokemonScale": 0.3,
+  "buildingPresentation": {
+    "camera": {
+      "enabled": true,
+      "distanceBehindPlayerTiles": 22,
+      "heightAbovePlayerTiles": 30
+    },
+    "lighting": {
+      "enabled": true,
+      "brightness": 1,
+      "tint": [0.9, 0.97, 1.08]
+    }
+  },
   "maps": [{
     "mapId": "aquarium12",
     "tanks": [{
@@ -59,13 +71,24 @@ volumes, and floor cutouts agree without a per-aquarium scale workaround.
 }
 ```
 
+`buildingPresentation` is an aquarium-map-only camera and lighting override.
+`distanceBehindPlayerTiles` moves the normal follow camera horizontally behind
+the player and `heightAbovePlayerTiles` sets its vertical height; the runtime
+derives the camera pitch and orbit distance, so tuning the view does not require
+trigonometry. The current values are slightly closer and lower than the shared
+overworld camera. `lighting.brightness` and the RGB `tint` grade the aquarium
+room, authored and player-built tanks, overworld actors, and aquarium Pokémon.
+The block may be set once at the root for every configured aquarium map or
+overridden inside an individual map entry. Maps without a matching aquarium
+entry always retain their original camera and lighting.
+
 `species` is resolved case-insensitively by name against the existing Attend model catalog, preferring compiled `.glbz` assets. `form` optionally selects an Attend form ID such as `"00"`; rendering and physical bounds use the same form. `pokemonScale` is the one shared render scale for every species; Attend models retain their relative proportions, so changing it scales Dewgong, Clamperl, Kyogre, and future aquarium Pokémon together. `sizeMultiplier` is an optional per-entry exception and defaults to `1`.
 
 `pokemonPresentation` is an aquarium-only lighting and color grade. Its `brightness`, `pokemonBrightness`, `saturation`, `contrast`, `ambient`, `directional`, `formShadow`, `lightDirection`, and `tint` fields use the same meanings as Attend. The committed defaults reproduce Attend's clear-scene Pokémon presentation. Values may be overridden at map level, are copied into aquarium actor draw submissions, and never modify shared textures or the lighting of tanks, glass, scenery, overworld sprites, or Attend itself.
 
 `positionMeters` is the preferred readable position format: `{"x": -1.15, "y": 0.2, "z": -1.15}` in Aquarium Maker local metres. The older `startingPositionMeters: [x, y, z]` remains supported, and numeric strings are accepted. Invalid or missing coordinate fields reject a live edit instead of silently becoming zero. With `verticalAnchor: "bottom"`, Y is an offset above the lowest swim-volume layer. With `verticalAnchor: "floor"`, Y is an offset above the exported `coordinateSystem.floorLevelY`; this is the right anchor for shallow touch pools whose water layer sits above the physical floor. X and Z always remain tank-local. Positions that overlap exported glass or obstacle navigation are adjusted to a deterministic nearby navigable point and logged rather than allowing geometry to escape the tank.
 
-Both the game and Map Studio watch `aquariums.json` every 250 ms. Saving a valid edit rebuilds only the aquarium simulation and prints every resolved actor world position; it does not reload the map or the tank models. Invalid JSON is rejected while the previous live setup remains visible.
+Both the game and Map Studio watch `aquariums.json` every 250 ms. Saving a valid edit applies the aquarium camera/light grade and rebuilds only the aquarium simulation; it does not reload the map or tank models. Invalid JSON is rejected while the previous live setup remains visible.
 
 `movementPlane: "floor"` uses the exported navigation polygon as a horizontal walkable surface. It is intended for shallow touch pools: the visible model can extend above the thin water layer while rock holes and other polygon holes remain impassable. In this mode `bodyRadiusMeters` is the contact/navigation footprint, so broad fins or a face-up silhouette do not force a visual scale exception. The default, `volume`, keeps full 3D swimming. `pitchDegrees` rotates both the rendered model and its measured vertical bounds; `-90` lays a forward-facing Pokémon face-up on the pool floor.
 

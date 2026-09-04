@@ -4,6 +4,7 @@
 
 #include <bgfx/bgfx.h>
 
+#include <array>
 #include <memory>
 #include <string>
 #include <vector>
@@ -29,6 +30,7 @@ public:
         bgfx::UniformHandle light_dir_uniform,
         bgfx::UniformHandle light_params_uniform);
     void shutdown();
+    void setLighting(float brightness, const std::array<float, 3>& tint);
     bool replaceTanks(
         const std::vector<construction::PlayerTankRuntime>& tanks,
         std::string* error = nullptr);

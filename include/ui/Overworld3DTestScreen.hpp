@@ -105,6 +105,8 @@ private:
     buildStaticRenderChunks() const;
     void reloadWorldTerrainQueries();
     void reloadAquariumConfig(bool force);
+    void applyAquariumBuildingPresentation(
+        const gameplay::world3d::aquarium::AquariumMapConfig* map_config);
     void configureAquariumConstruction(const gameplay::world3d::aquarium::AquariumMapConfig* map_config);
     void refreshPlayerAquariumRuntime();
     void refreshAquariumRenderActors();
@@ -171,6 +173,7 @@ private:
     gameplay::world3d::characters::CharacterMovementConfig movement_config_{};
     gameplay::world3d::CharacterSpriteDefinition character_;
     gameplay::world3d::camera::Gen4CameraPreset follow_camera_base_preset_{};
+    gameplay::world3d::camera::Gen4CameraPreset aquarium_camera_base_preset_{};
     gameplay::world3d::camera::Gen4FollowCamera camera_;
     gameplay::world3d::characters::CharacterController player_;
     gameplay::world3d::characters::SpriteSheetAnimator animator_;
@@ -207,6 +210,8 @@ private:
     bool scene_initialized_ = false;
     std::unique_ptr<gameplay::world3d::npc::NpcActorDriver> npc_actor_driver_;
     gameplay::world3d::aquarium::AquariumCatalog aquarium_catalog_{};
+    float aquarium_base_lighting_brightness_ = 1.0f;
+    std::array<float, 3> aquarium_base_lighting_tint_{1.0f, 1.0f, 1.0f};
     std::filesystem::file_time_type aquarium_config_write_time_{};
     bool aquarium_config_write_time_known_ = false;
     double aquarium_config_poll_seconds_ = 0.0;
