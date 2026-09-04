@@ -4,6 +4,7 @@
 #include "aquarium_geometry/Kernel.hpp"
 
 #include <algorithm>
+#include <iterator>
 #include <optional>
 #include <set>
 #include <string>
@@ -141,7 +142,11 @@ TunnelHalfCellLayout buildTunnelHalfCellLayout(
     }
     for (int row = 0; row < depth; ++row) {
         for (int column = 0; column < width; ++column) {
-            if (!dry_union.count({column, row})) layout.water.push_back({column, row});
+            if (dry_union.count({column, row})) {
+                layout.dry.push_back({column, row});
+            } else {
+                layout.water.push_back({column, row});
+            }
         }
     }
     layout.dry_count = dry_union.size();
@@ -179,7 +184,19 @@ std::vector<ValidationDiagnostic> validateAndResolveTunnels(
         return diagnostics;
     }
     std::set<std::string> ids;
-    std::set<CellKey> used_cells;
+    std::vector<std::set<CellKey>> route_cell_sets(tank.tunnels.size());
+    for (std::size_t index = 0; index < tank.tunnels.size(); ++index) {
+        for (const CellPoint point : tank.tunnels[index].centreline_cells) {
+            route_cell_sets[index].emplace(point.column, point.row);
+        }
+    }
+    const auto usedByOtherRoute = [&](std::size_t own_index, GridCell cell) {
+        for (std::size_t other = 0; other < route_cell_sets.size(); ++other) {
+            if (other != own_index && route_cell_sets[other].count(
+                    {cell.column, cell.row})) return true;
+        }
+        return false;
+    };
     for (std::size_t index = 0; index < tank.tunnels.size(); ++index) {
         const TunnelDesign& tunnel = tank.tunnels[index];
         const std::string path = "/tank/tunnels/" + std::to_string(index);
@@ -205,20 +222,17 @@ std::vector<ValidationDiagnostic> validateAndResolveTunnels(
             cells.push_back(cell);
             const bool endpoint = cell_index == 0 ||
                 cell_index + 1U == tunnel.centreline_cells.size();
-            if (!(endpoint ? portalOutward(tank.footprint, cell).has_value()
-                           : interiorNode(tank.footprint, cell))) {
+            const bool portal = portalOutward(tank.footprint, cell).has_value();
+            const bool junction = endpoint && interiorNode(tank.footprint, cell) &&
+                usedByOtherRoute(index, cell);
+            if (!(endpoint ? portal || junction : interiorNode(tank.footprint, cell))) {
                 error(diagnostics, "tunnel_outside_footprint", path + "/centrelineCells",
-                    "Tunnel endpoints must be wall portals and intermediate points must use the walking grid inside the tank");
+                    "Tunnel endpoints must be wall portals or existing interior junctions, and intermediate points must remain inside the tank");
                 valid = false;
             }
             if (!route_cells.emplace(cell.column, cell.row).second) {
                 error(diagnostics, "tunnel_self_intersection", path + "/centrelineCells",
                     "A tunnel route cannot revisit a cell");
-                valid = false;
-            }
-            if (used_cells.count({cell.column, cell.row})) {
-                error(diagnostics, "tunnel_intersection", path + "/centrelineCells",
-                    "Tunnel routes cannot cross or overlap");
                 valid = false;
             }
             if (cell_index == 0) continue;
@@ -237,22 +251,29 @@ std::vector<ValidationDiagnostic> validateAndResolveTunnels(
                 "The authored route must be straight or contain exactly one elbow");
             valid = false;
         }
-        GridCell entry_outward{};
-        GridCell exit_outward{};
+        std::optional<GridCell> entry_outward;
+        std::optional<GridCell> exit_outward;
         if (cells.size() >= 2U) {
             const GridCell entry_inward = delta(cells[0], cells[1]);
             const GridCell exit_outward_candidate = delta(cells[cells.size() - 2U], cells.back());
-            entry_outward = {-entry_inward.column, -entry_inward.row};
-            exit_outward = exit_outward_candidate;
             const auto expected_entry = portalOutward(tank.footprint, cells.front());
             const auto expected_exit = portalOutward(tank.footprint, cells.back());
-            if (!expected_entry || !expected_exit ||
-                !same(entry_outward, *expected_entry) ||
-                !same(exit_outward, *expected_exit)) {
+            const GridCell entry_candidate{-entry_inward.column, -entry_inward.row};
+            const bool entry_junction = interiorNode(tank.footprint, cells.front()) &&
+                usedByOtherRoute(index, cells.front());
+            const bool exit_junction = interiorNode(tank.footprint, cells.back()) &&
+                usedByOtherRoute(index, cells.back());
+            if ((expected_entry && !same(entry_candidate, *expected_entry)) ||
+                (expected_exit && !same(exit_outward_candidate, *expected_exit)) ||
+                (!expected_entry && !entry_junction) ||
+                (!expected_exit && !exit_junction) ||
+                (!expected_entry && !expected_exit)) {
                 error(diagnostics, "invalid_tunnel_portal", path + "/centrelineCells",
-                    "Both tunnel endpoints must approach their wall portals from the tank interior");
+                    "A route needs at least one correctly approached wall portal; its other end may join an existing tunnel");
                 valid = false;
             }
+            if (expected_entry) entry_outward = entry_candidate;
+            if (expected_exit) exit_outward = exit_outward_candidate;
             if ((expected_entry && !tunnelPortalFitsBoundary(tank, cells.front())) ||
                 (expected_exit && !tunnelPortalFitsBoundary(tank, cells.back()))) {
                 error(diagnostics, "tunnel_portal_intersects_rounding",
@@ -262,7 +283,6 @@ std::vector<ValidationDiagnostic> validateAndResolveTunnels(
             }
         }
         if (!valid) continue;
-        used_cells.insert(route_cells.begin(), route_cells.end());
         if (!resolved) continue;
         ResolvedTunnel item;
         item.design = &tunnel;
@@ -283,6 +303,53 @@ std::vector<ValidationDiagnostic> validateAndResolveTunnels(
         item.route_local_world.push_back(
             localWalkingCellCentre(tank.footprint, cells.back()));
         resolved->push_back(std::move(item));
+    }
+
+    for (std::size_t left = 0; left < route_cell_sets.size(); ++left) {
+        for (std::size_t right = left + 1U; right < route_cell_sets.size(); ++right) {
+            std::vector<CellKey> shared;
+            std::set_intersection(route_cell_sets[left].begin(), route_cell_sets[left].end(),
+                route_cell_sets[right].begin(), route_cell_sets[right].end(),
+                std::back_inserter(shared));
+            const std::string path = "/tank/tunnels/" + std::to_string(right) +
+                "/centrelineCells";
+            if (shared.size() > 1U) {
+                error(diagnostics, "tunnel_overlap", path,
+                    "Connected tunnel routes may share one junction cell, not an overlapping segment");
+                continue;
+            }
+            if (shared.size() == 1U) {
+                const GridCell junction{shared.front().first, shared.front().second};
+                if (!interiorNode(tank.footprint, junction)) {
+                    error(diagnostics, "tunnel_shared_portal", path,
+                        "Tunnel routes must connect at an interior junction, not reuse a portal");
+                }
+            }
+            bool separated = true;
+            for (const auto& [left_column, left_row] : route_cell_sets[left]) {
+                for (const auto& [right_column, right_row] : route_cell_sets[right]) {
+                    if (std::max(std::abs(left_column - right_column),
+                            std::abs(left_row - right_row)) <= 2) {
+                        if (shared.size() == 1U) {
+                            const auto [junction_column, junction_row] = shared.front();
+                            const bool inside_junction =
+                                std::max(std::abs(left_column - junction_column),
+                                    std::abs(left_row - junction_row)) <= 2 &&
+                                std::max(std::abs(right_column - junction_column),
+                                    std::abs(right_row - junction_row)) <= 2;
+                            if (inside_junction) continue;
+                        }
+                        separated = false;
+                        break;
+                    }
+                }
+                if (!separated) break;
+            }
+            if (!separated) {
+                error(diagnostics, "tunnel_separation_too_small", path,
+                    "Separate tunnels need at least one clear walking-grid tile between their glass edges");
+            }
+        }
     }
     return diagnostics;
 }

@@ -535,14 +535,26 @@ void populateAquariumGeometry(
             result.collision.dry_corridor_cells.end(),
             tunnel.cells.begin(), tunnel.cells.end());
     }
-    for (std::size_t tunnel_index = 0; tunnel_index < tunnels.size(); ++tunnel_index) {
-        const ResolvedTunnel& tunnel = tunnels[tunnel_index];
+    for (const auto& dry_region : connectedCellRegions(tunnel_layout.dry)) {
         NavigationDryVolume dry;
-        dry.tunnel_id = tunnel.design->id;
+        for (std::size_t tunnel_index = 0; tunnel_index < tunnels.size(); ++tunnel_index) {
+            const bool owns_cell = std::any_of(dry_region.begin(), dry_region.end(),
+                [&](GridCell cell) {
+                    return std::any_of(
+                        tunnel_layout.dry_by_tunnel[tunnel_index].begin(),
+                        tunnel_layout.dry_by_tunnel[tunnel_index].end(),
+                        [&](GridCell owned) {
+                            return owned.column == cell.column && owned.row == cell.row;
+                        });
+                });
+            if (owns_cell) {
+                dry.tunnel_id = tunnels[tunnel_index].design->id;
+                break;
+            }
+        }
         dry.floor_y = 0.0F;
         dry.ceiling_y = tunnelDryCeiling(request.tank);
-        dry.area.outer = tunnelHalfCellBoundary(
-            tunnel_layout.dry_by_tunnel[tunnel_index], footprint);
+        dry.area.outer = tunnelHalfCellBoundary(dry_region, footprint);
         result.navigation.dry_volumes.push_back(std::move(dry));
     }
     std::sort(result.collision.dry_corridor_cells.begin(),

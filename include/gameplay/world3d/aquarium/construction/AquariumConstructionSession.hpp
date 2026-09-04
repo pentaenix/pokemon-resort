@@ -134,6 +134,7 @@ public:
     std::optional<std::string> tunnelIdAtCursor() const;
     bool extendTunnelRouteTo(pr::aquarium::geometry::GridCell cell);
     bool isTunnelPortalCell(pr::aquarium::geometry::GridCell cell) const;
+    bool isTunnelConnectionCell(pr::aquarium::geometry::GridCell cell) const;
     std::vector<pr::aquarium::geometry::GridCell> tunnelPortalCells() const;
     std::vector<pr::aquarium::geometry::GridCell> tunnelRoutingCells() const;
     std::vector<pr::aquarium::geometry::GridCell> tunnelRouteCells() const;

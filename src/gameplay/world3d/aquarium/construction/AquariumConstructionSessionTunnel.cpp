@@ -77,7 +77,11 @@ std::vector<geo::GridCell> AquariumConstructionSession::tunnelRoutingCells() con
     for (int row = top + 1; row < bottom; ++row) {
         for (int column = left + 1; column < right; ++column) {
             const geo::GridCell cell{column, row};
-            if (cellAllowed(cell) && !usedByTunnel(*tank, cell)) cells.push_back(cell);
+            // Existing centreline cells remain selectable so a new route can
+            // terminate at a T-junction or pass through a four-way crossing.
+            // Full validation still rejects overlapping segments and tunnel
+            // networks that run beside each other without a clear tile.
+            if (cellAllowed(cell)) cells.push_back(cell);
         }
     }
     return cells;
@@ -87,6 +91,11 @@ bool AquariumConstructionSession::isTunnelPortalCell(geo::GridCell cell) const {
     const auto portals = tunnelPortalCells();
     return std::any_of(portals.begin(), portals.end(),
         [&](geo::GridCell portal) { return same(cell, portal); });
+}
+
+bool AquariumConstructionSession::isTunnelConnectionCell(geo::GridCell cell) const {
+    const geo::TankDesign* tank = selectedTank();
+    return tank && usedByTunnel(*tank, cell);
 }
 
 std::vector<geo::GridCell> AquariumConstructionSession::tunnelRouteCells() const {

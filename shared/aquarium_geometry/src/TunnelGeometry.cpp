@@ -1,10 +1,15 @@
 #include "TunnelGeometry.hpp"
 
+#include "TunnelFloorGeometry.hpp"
+
 #include "aquarium_geometry/Kernel.hpp"
 
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <map>
+#include <set>
+#include <utility>
 #include <vector>
 
 namespace pr::aquarium::geometry::detail {
@@ -18,6 +23,7 @@ constexpr float kTunnelInnerHalfWidth = kTunnelOuterHalfWidth - kGlassThickness;
 constexpr float kTunnelNominalCrown = static_cast<float>(kTunnelCrownWorldUnits);
 constexpr float kGlassTopInset = 0.5168F;
 constexpr float kPi = 3.14159265358979323846F;
+using CellKey = std::pair<std::int32_t, std::int32_t>;
 
 Vec3 subtract(Vec3 lhs, Vec3 rhs) {
     return {lhs.x - rhs.x, lhs.y - rhs.y, lhs.z - rhs.z};
@@ -45,6 +51,17 @@ void addQuad(SemanticMesh& mesh, const std::array<Vec3, 4>& points) {
     }
     mesh.indices.insert(mesh.indices.end(),
         {base, base + 1U, base + 2U, base, base + 2U, base + 3U});
+}
+
+void addTriangle(SemanticMesh& mesh, const std::array<Vec3, 3>& points) {
+    const auto base = static_cast<std::uint32_t>(mesh.vertices.size());
+    const Vec3 normal = normalized(cross(
+        subtract(points[1], points[0]), subtract(points[2], points[0])));
+    constexpr std::array<Vec2, 3> uv{{{0, 0}, {1, 0}, {0, 1}}};
+    for (std::size_t index = 0; index < points.size(); ++index) {
+        mesh.vertices.push_back({points[index], normal, uv[index]});
+    }
+    mesh.indices.insert(mesh.indices.end(), {base, base + 1U, base + 2U});
 }
 
 struct ProfilePoint {
@@ -147,115 +164,48 @@ Vec2 localWalkingCellCentre(const FootprintDesign& footprint, GridCell cell) {
     };
 }
 
-void appendRailBox(
-    SemanticMesh& frame, Vec2 start, Vec2 end, float width,
-    float bottom, float top) {
-    const float dx = end.x - start.x;
-    const float dz = end.y - start.y;
-    const float length = std::max(0.0001F, std::hypot(dx, dz));
-    const Vec2 lateral{-dz / length * width * 0.5F,
-        dx / length * width * 0.5F};
-    const Vec2 start_left{start.x - lateral.x, start.y - lateral.y};
-    const Vec2 start_right{start.x + lateral.x, start.y + lateral.y};
-    const Vec2 end_right{end.x + lateral.x, end.y + lateral.y};
-    const Vec2 end_left{end.x - lateral.x, end.y - lateral.y};
-    addQuad(frame, {{{start_left.x, top, start_left.y},
-        {start_right.x, top, start_right.y},
-        {end_right.x, top, end_right.y},
-        {end_left.x, top, end_left.y}}});
-    addQuad(frame, {{{end_left.x, bottom, end_left.y},
-        {end_right.x, bottom, end_right.y},
-        {start_right.x, bottom, start_right.y},
-        {start_left.x, bottom, start_left.y}}});
-    addQuad(frame, {{{start_left.x, bottom, start_left.y},
-        {start_left.x, top, start_left.y},
-        {end_left.x, top, end_left.y},
-        {end_left.x, bottom, end_left.y}}});
-    addQuad(frame, {{{start_right.x, bottom, start_right.y},
-        {end_right.x, bottom, end_right.y},
-        {end_right.x, top, end_right.y},
-        {start_right.x, top, start_right.y}}});
-    addQuad(frame, {{{start_left.x, bottom, start_left.y},
-        {start_right.x, bottom, start_right.y},
-        {start_right.x, top, start_right.y},
-        {start_left.x, top, start_left.y}}});
-    addQuad(frame, {{{end_left.x, bottom, end_left.y},
-        {end_left.x, top, end_left.y},
-        {end_right.x, top, end_right.y},
-        {end_right.x, bottom, end_right.y}}});
+std::set<CellKey> sharedJunctionCells(const std::vector<ResolvedTunnel>& tunnels) {
+    std::map<CellKey, std::size_t> route_counts;
+    for (const ResolvedTunnel& tunnel : tunnels) {
+        std::set<CellKey> route_cells;
+        for (const GridCell cell : tunnel.cells) {
+            route_cells.emplace(cell.column, cell.row);
+        }
+        for (const CellKey cell : route_cells) ++route_counts[cell];
+    }
+    std::set<CellKey> junctions;
+    for (const auto& [cell, count] : route_counts) {
+        if (count > 1U) junctions.insert(cell);
+    }
+    return junctions;
 }
 
-void appendGlassFloorPanels(
-    SemanticMesh& frame,
+void appendTunnelRunsOutsideJunctions(
     SemanticMesh& glass,
     const FootprintDesign& footprint,
-    const ResolvedTunnel& tunnel) {
-    constexpr float kGlassFloorY = 0.03F;
-    constexpr float kFrameBottomY = 0.015F;
-    constexpr float kSideRailTopY = 1.36F;
-    constexpr float kSeparatorTopY = 0.24F;
-    constexpr float kSideRailWidth = 1.6F;
-    constexpr float kSeparatorWidth = 0.8F;
-    constexpr float kPanelGap = 0.92F;
-    std::vector<Vec2> route;
-    route.reserve(tunnel.cells.size());
-    for (const GridCell cell : tunnel.cells) {
-        route.push_back(localWalkingCellCentre(footprint, cell));
+    const ResolvedTunnel& tunnel,
+    const std::set<CellKey>& junctions,
+    const std::vector<ProfilePoint>& inner,
+    const std::vector<ProfilePoint>& outer) {
+    const bool touches_junction = std::any_of(tunnel.cells.begin(), tunnel.cells.end(),
+        [&](GridCell cell) { return junctions.count({cell.column, cell.row}) != 0U; });
+    if (!touches_junction) {
+        appendProfileSweep(glass, tunnel.route_local_world, inner, outer);
+        return;
     }
-    for (std::size_t index = 0; index + 1U < route.size(); ++index) {
-        const Vec2 a = route[index];
-        const Vec2 b = route[index + 1U];
-        const float dx = b.x - a.x;
-        const float dz = b.y - a.y;
-        const float length = std::max(0.0001F, std::hypot(dx, dz));
-        const Vec2 direction{dx / length, dz / length};
-        const Vec2 lateral{-direction.y, direction.x};
-        const Vec2 start{a.x + direction.x * kPanelGap * 0.5F,
-            a.y + direction.y * kPanelGap * 0.5F};
-        const Vec2 end{b.x - direction.x * kPanelGap * 0.5F,
-            b.y - direction.y * kPanelGap * 0.5F};
-        const float panel_half_width = kTunnelOuterHalfWidth - kSideRailWidth;
-        const Vec2 left_start{start.x - lateral.x * panel_half_width,
-            start.y - lateral.y * panel_half_width};
-        const Vec2 right_start{start.x + lateral.x * panel_half_width,
-            start.y + lateral.y * panel_half_width};
-        const Vec2 left_end{end.x - lateral.x * panel_half_width,
-            end.y - lateral.y * panel_half_width};
-        const Vec2 right_end{end.x + lateral.x * panel_half_width,
-            end.y + lateral.y * panel_half_width};
-        addQuad(glass, {{{left_start.x, kGlassFloorY, left_start.y},
-            {right_start.x, kGlassFloorY, right_start.y},
-            {right_end.x, kGlassFloorY, right_end.y},
-            {left_end.x, kGlassFloorY, left_end.y}}});
-
-        const Vec2 left_rail_a{a.x - lateral.x * (kTunnelOuterHalfWidth - kSideRailWidth * 0.5F),
-            a.y - lateral.y * (kTunnelOuterHalfWidth - kSideRailWidth * 0.5F)};
-        const Vec2 left_rail_b{b.x - lateral.x * (kTunnelOuterHalfWidth - kSideRailWidth * 0.5F),
-            b.y - lateral.y * (kTunnelOuterHalfWidth - kSideRailWidth * 0.5F)};
-        const Vec2 right_rail_a{a.x + lateral.x * (kTunnelOuterHalfWidth - kSideRailWidth * 0.5F),
-            a.y + lateral.y * (kTunnelOuterHalfWidth - kSideRailWidth * 0.5F)};
-        const Vec2 right_rail_b{b.x + lateral.x * (kTunnelOuterHalfWidth - kSideRailWidth * 0.5F),
-            b.y + lateral.y * (kTunnelOuterHalfWidth - kSideRailWidth * 0.5F)};
-        appendRailBox(frame, left_rail_a, left_rail_b, kSideRailWidth,
-            kFrameBottomY, kSideRailTopY);
-        appendRailBox(frame, right_rail_a, right_rail_b, kSideRailWidth,
-            kFrameBottomY, kSideRailTopY);
-
-        const Vec2 cross_a{a.x - lateral.x * kTunnelOuterHalfWidth,
-            a.y - lateral.y * kTunnelOuterHalfWidth};
-        const Vec2 cross_b{a.x + lateral.x * kTunnelOuterHalfWidth,
-            a.y + lateral.y * kTunnelOuterHalfWidth};
-        appendRailBox(frame, cross_a, cross_b, kSeparatorWidth,
-            kFrameBottomY, kSeparatorTopY);
-        if (index + 2U == route.size()) {
-            const Vec2 end_cross_a{b.x - lateral.x * kTunnelOuterHalfWidth,
-                b.y - lateral.y * kTunnelOuterHalfWidth};
-            const Vec2 end_cross_b{b.x + lateral.x * kTunnelOuterHalfWidth,
-                b.y + lateral.y * kTunnelOuterHalfWidth};
-            appendRailBox(frame, end_cross_a, end_cross_b, kSeparatorWidth,
-                kFrameBottomY, kSeparatorTopY);
+    std::vector<Vec2> run;
+    const auto flush = [&]() {
+        if (run.size() >= 2U) appendProfileSweep(glass, run, inner, outer);
+        run.clear();
+    };
+    for (const GridCell cell : tunnel.cells) {
+        if (junctions.count({cell.column, cell.row}) != 0U) {
+            flush();
+        } else {
+            run.push_back(localWalkingCellCentre(footprint, cell));
         }
     }
+    flush();
 }
 
 void appendPortalGlassCap(
@@ -279,7 +229,79 @@ void appendPortalGlassCap(
             portal.y + tangent.y * b.lateral};
         const Vec3 top_a{bottom_a.x, glass_top, bottom_a.z};
         const Vec3 top_b{bottom_b.x, glass_top, bottom_b.z};
-        addQuad(glass, {{bottom_b, bottom_a, top_a, top_b}});
+        const bool a_at_top = std::abs(bottom_a.y - glass_top) <= 0.0001F;
+        const bool b_at_top = std::abs(bottom_b.y - glass_top) <= 0.0001F;
+        if (a_at_top && b_at_top) continue;
+        if (a_at_top) {
+            addTriangle(glass, {{bottom_b, bottom_a, top_b}});
+        } else if (b_at_top) {
+            addTriangle(glass, {{bottom_b, bottom_a, top_a}});
+        } else {
+            addQuad(glass, {{bottom_b, bottom_a, top_a, top_b}});
+        }
+    }
+}
+
+void appendJunctionChamber(
+    SemanticMesh& glass,
+    const FootprintDesign& footprint,
+    GridCell junction,
+    const std::vector<ResolvedTunnel>& tunnels,
+    const std::vector<ProfilePoint>& inner,
+    const std::vector<ProfilePoint>& outer,
+    float inner_crown,
+    float outer_crown) {
+    const Vec2 center = localWalkingCellCentre(footprint, junction);
+    std::set<CellKey> directions;
+    for (const ResolvedTunnel& tunnel : tunnels) {
+        for (std::size_t index = 0; index < tunnel.cells.size(); ++index) {
+            if (tunnel.cells[index].column != junction.column ||
+                tunnel.cells[index].row != junction.row) continue;
+            if (index > 0U) {
+                directions.emplace(
+                    tunnel.cells[index - 1U].column - junction.column,
+                    tunnel.cells[index - 1U].row - junction.row);
+            }
+            if (index + 1U < tunnel.cells.size()) {
+                directions.emplace(
+                    tunnel.cells[index + 1U].column - junction.column,
+                    tunnel.cells[index + 1U].row - junction.row);
+            }
+        }
+    }
+
+    const float half = kTunnelOuterHalfWidth;
+    addQuad(glass, {{{center.x - half, outer_crown, center.y - half},
+        {center.x + half, outer_crown, center.y - half},
+        {center.x + half, outer_crown, center.y + half},
+        {center.x - half, outer_crown, center.y + half}}});
+    addQuad(glass, {{{center.x - half + kGlassThickness, inner_crown, center.y - half + kGlassThickness},
+        {center.x - half + kGlassThickness, inner_crown, center.y + half - kGlassThickness},
+        {center.x + half - kGlassThickness, inner_crown, center.y + half - kGlassThickness},
+        {center.x + half - kGlassThickness, inner_crown, center.y - half + kGlassThickness}}});
+
+    constexpr std::array<GridCell, 4> kSides{{
+        {0, -1}, {1, 0}, {0, 1}, {-1, 0},
+    }};
+    for (const GridCell direction : kSides) {
+        const Vec2 edge_center{
+            center.x + static_cast<float>(direction.column) * half,
+            center.y + static_cast<float>(direction.row) * half};
+        if (directions.count({direction.column, direction.row}) != 0U) {
+            appendPortalGlassCap(glass, edge_center, direction, outer, outer_crown);
+            appendPortalGlassCap(glass, edge_center, direction, inner, inner_crown);
+            continue;
+        }
+        const Vec2 tangent{
+            static_cast<float>(-direction.row),
+            static_cast<float>(direction.column)};
+        const Vec3 outer_left{edge_center.x - tangent.x * half, 0.0F,
+            edge_center.y - tangent.y * half};
+        const Vec3 outer_right{edge_center.x + tangent.x * half, 0.0F,
+            edge_center.y + tangent.y * half};
+        addQuad(glass, {{outer_right, outer_left,
+            {outer_left.x, outer_crown, outer_left.z},
+            {outer_right.x, outer_crown, outer_right.z}}});
     }
 }
 
@@ -346,8 +368,8 @@ void appendTunnelPerimeterGlass(
     float bottom, float top, const std::vector<ResolvedTunnel>& tunnels) {
     std::vector<Vec2> portals;
     for (const ResolvedTunnel& tunnel : tunnels) {
-        portals.push_back(tunnel.route_local_world.front());
-        portals.push_back(tunnel.route_local_world.back());
+        if (tunnel.entry_outward) portals.push_back(tunnel.route_local_world.front());
+        if (tunnel.exit_outward) portals.push_back(tunnel.route_local_world.back());
     }
     for (std::size_t index = 0; index < tank_boundary.size(); ++index) {
         const Vec2 start = tank_boundary[index];
@@ -388,22 +410,35 @@ void appendTunnelMeshes(
     const float outer_crown = inner_crown + kGlassThickness;
     const auto inner = archProfile(kTunnelInnerHalfWidth, inner_crown);
     const auto outer = archProfile(kTunnelOuterHalfWidth, outer_crown);
+    const auto junctions = sharedJunctionCells(tunnels);
     for (const ResolvedTunnel& tunnel : tunnels) {
-        appendProfileSweep(glass, tunnel.route_local_world, inner, outer);
-        appendPortalFrame(tunnel_frame, tunnel.route_local_world.front(),
-            tunnel.entry_outward, outer);
-        appendPortalFrame(tunnel_frame, tunnel.route_local_world.back(),
-            tunnel.exit_outward, outer);
-        if (tank.depth_steps > 0) {
-            appendGlassFloorPanels(
-                tunnel_frame, glass, tank.footprint, tunnel);
+        appendTunnelRunsOutsideJunctions(
+            glass, tank.footprint, tunnel, junctions, inner, outer);
+        if (tunnel.entry_outward) {
+            appendPortalFrame(tunnel_frame, tunnel.route_local_world.front(),
+                *tunnel.entry_outward, outer);
         }
-        appendPortalGlassCap(glass, tunnel.route_local_world.front(),
-            tunnel.entry_outward, outer, tank.height_steps * kVerticalStepWorldUnits -
-                kGlassTopInset);
-        appendPortalGlassCap(glass, tunnel.route_local_world.back(),
-            tunnel.exit_outward, outer, tank.height_steps * kVerticalStepWorldUnits -
-                kGlassTopInset);
+        if (tunnel.exit_outward) {
+            appendPortalFrame(tunnel_frame, tunnel.route_local_world.back(),
+                *tunnel.exit_outward, outer);
+        }
+        if (tunnel.entry_outward) {
+            appendPortalGlassCap(glass, tunnel.route_local_world.front(),
+                *tunnel.entry_outward, outer, tank.height_steps * kVerticalStepWorldUnits -
+                    kGlassTopInset);
+        }
+        if (tunnel.exit_outward) {
+            appendPortalGlassCap(glass, tunnel.route_local_world.back(),
+                *tunnel.exit_outward, outer, tank.height_steps * kVerticalStepWorldUnits -
+                    kGlassTopInset);
+        }
+    }
+    if (tank.depth_steps > 0) {
+        appendTunnelGlassFloors(tunnel_frame, glass, tank.footprint, tunnels);
+    }
+    for (const auto [column, row] : junctions) {
+        appendJunctionChamber(glass, tank.footprint, {column, row}, tunnels,
+            inner, outer, inner_crown, outer_crown);
     }
 }
 

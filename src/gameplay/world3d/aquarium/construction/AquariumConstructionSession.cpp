@@ -435,8 +435,9 @@ void AquariumConstructionSession::refreshDraftValidation() {
         }
         const geo::GridCell endpoint{draft_->tunnel_route.back().column,
             draft_->tunnel_route.back().row};
-        if (!isTunnelPortalCell(endpoint) || sameCell(endpoint, draft_->anchor)) {
-            validation_message_ = "Finish on a different glowing tank-edge portal";
+        if ((!isTunnelPortalCell(endpoint) && !isTunnelConnectionCell(endpoint)) ||
+            sameCell(endpoint, draft_->anchor)) {
+            validation_message_ = "Finish on another portal or a glowing tunnel junction";
             return;
         }
     }

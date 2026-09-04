@@ -124,7 +124,7 @@ void testRectangleGolden() {
         "interior occupied cell is not blocked");
     require(result.statistics.navigation_layer_count == 1, "navigation layer count changed");
     require(result.navigation.suggested_spawns.size() == 1, "spawn count changed");
-    require(result.content_hash == "fnv1a64:f971f058bcfafa00", "content hash changed: " + result.content_hash);
+    require(result.content_hash == "fnv1a64:a7c4b0150a3c90e3", "content hash changed: " + result.content_hash);
     require(result.statistics.water_volume_litres == 80735,
         "standard tank derived water volume changed");
 
@@ -397,13 +397,65 @@ void testStraightAndElbowTunnelsDeriveDrySpace() {
         "one-elbow tunnel did not preserve its ordered discrete route: " +
             std::to_string(elbow_result.collision.dry_corridor_cells.size()));
 
-    elbow.tank.tunnels.push_back({"tunnel_crossing", TunnelRoute::Straight,
+    AquariumBuildRequest crossing_request = rectangleRequest();
+    crossing_request.tank.footprint.depth_cells = 6;
+    crossing_request.tank.tunnels.push_back({"tunnel_crossing_horizontal", TunnelRoute::Straight,
+        {{7, 9}, {8, 9}, {9, 9}, {10, 9}, {11, 9}, {12, 9}, {13, 9}}});
+    crossing_request.tank.tunnels.push_back({"tunnel_crossing_vertical", TunnelRoute::Straight,
+        {{10, 6}, {10, 7}, {10, 8}, {10, 9}, {10, 10}, {10, 11}, {10, 12}}});
+    const AquariumBuildResult crossing = buildAquarium(crossing_request);
+    requireValidMeshSet(crossing, "connected four-way tunnel crossing");
+    require(crossing.collision.dry_corridor_cells.size() == 13U,
+        "crossing tunnel network did not union its shared walking cell");
+    require(crossing.navigation.dry_volumes.size() == 1U,
+        "connected crossing did not publish one unioned dry navigation volume");
+    crossing_request.tank.depth_steps = 6;
+    requireValidMeshSet(buildAquarium(crossing_request),
+        "below-floor connected tunnel crossing");
+
+    AquariumBuildRequest tee = rectangleRequest();
+    tee.tank.footprint.depth_cells = 6;
+    tee.tank.tunnels.push_back({"tunnel_trunk", TunnelRoute::Straight,
+        {{10, 6}, {10, 7}, {10, 8}, {10, 9}, {10, 10}, {10, 11}, {10, 12}}});
+    tee.tank.tunnels.push_back({"tunnel_branch", TunnelRoute::Straight,
+        {{7, 9}, {8, 9}, {9, 9}, {10, 9}}});
+    const AquariumBuildResult tee_result = buildAquarium(tee);
+    requireValidMeshSet(tee_result, "connected three-exit tunnel junction");
+    require(tee_result.collision.dry_corridor_cells.size() == 10U,
+        "T-junction did not union its shared walking cell");
+    require(tee_result.navigation.dry_volumes.size() == 1U,
+        "T-junction did not publish one unioned dry navigation volume");
+
+    AquariumBuildRequest crowded = rectangleRequest();
+    crowded.tank.footprint.depth_cells = 6;
+    crowded.tank.tunnels.push_back({"tunnel_left", TunnelRoute::Straight,
         {{9, 6}, {9, 7}, {9, 8}, {9, 9}, {9, 10}, {9, 11}, {9, 12}}});
-    const ValidationReport crossing = validateAquarium(elbow);
-    require(!crossing.valid() && std::any_of(crossing.diagnostics.begin(),
-            crossing.diagnostics.end(), [](const auto& diagnostic) {
-                return diagnostic.code == "tunnel_intersection";
-            }), "crossing tunnels were accepted");
+    crowded.tank.tunnels.push_back({"tunnel_right", TunnelRoute::Straight,
+        {{10, 6}, {10, 7}, {10, 8}, {10, 9}, {10, 10}, {10, 11}, {10, 12}}});
+    const ValidationReport crowded_report = validateAquarium(crowded);
+    require(!crowded_report.valid() && std::any_of(crowded_report.diagnostics.begin(),
+            crowded_report.diagnostics.end(), [](const auto& diagnostic) {
+                return diagnostic.code == "tunnel_separation_too_small";
+            }), "independent tunnels without a clear separating tile were accepted");
+
+    crowded.tank.tunnels.back().centreline_cells =
+        {{12, 6}, {12, 7}, {12, 8}, {12, 9}, {12, 10}, {12, 11}, {12, 12}};
+    require(validateAquarium(crowded).valid(),
+        "independent tunnels with one clear centreline tile were rejected");
+
+    AquariumBuildRequest crowded_connection = rectangleRequest();
+    crowded_connection.tank.footprint.width_cells = 8;
+    crowded_connection.tank.footprint.depth_cells = 6;
+    crowded_connection.tank.tunnels.push_back({"tunnel_vertical", TunnelRoute::Straight,
+        {{9, 6}, {9, 7}, {9, 8}, {9, 9}, {9, 10}, {9, 11}, {9, 12}}});
+    crowded_connection.tank.tunnels.push_back({"tunnel_false_branch", TunnelRoute::OneElbow,
+        {{7, 8}, {8, 8}, {9, 8}, {10, 8}, {10, 9}, {10, 10}, {10, 11}, {10, 12}}});
+    const ValidationReport crowded_connection_report = validateAquarium(crowded_connection);
+    require(!crowded_connection_report.valid() && std::any_of(
+            crowded_connection_report.diagnostics.begin(),
+            crowded_connection_report.diagnostics.end(), [](const auto& diagnostic) {
+                return diagnostic.code == "tunnel_separation_too_small";
+            }), "a junction incorrectly exempted parallel route sections from separation");
 
     straight.tank.corner_radius_steps = 1;
     const ValidationReport affected_rounding = validateAquarium(straight);

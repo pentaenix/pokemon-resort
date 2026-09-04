@@ -117,6 +117,14 @@ and navigation. Duplicate and redundant collinear points are removed after a
 tunnel region is clipped to a rounded footprint, preventing a valid tunnel near
 a curved corner from dropping part of the flat sand surface.
 
+ABI 14 treats routes that share exactly one interior walking cell as a connected
+tunnel network. Routes may terminate at that junction or cross it, producing
+three- and four-exit layouts; their dry cells, sand cutout, collision, and water
+navigation are unioned. The glass generator replaces intersecting tube walls
+with one shared junction canopy. Unconnected routes must leave at least one
+clear walking-grid tile between their glass shells, and overlapping segments
+remain invalid.
+
 ## Alternatives Considered
 
 - Separate C++ and TypeScript implementations constrained by golden files: lower initial porting cost, but still permits semantic drift.

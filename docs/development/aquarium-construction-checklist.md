@@ -7,7 +7,7 @@ Updated: 2026-09-03
 - Pokémon Resort branch: `codex/aquarium-construction-milestone-4` from the Milestone 3.5 checkpoint.
 - Aquarium maker branch: `codex/aquarium-construction-milestone-4` from the Milestone 3.5 checkpoint.
 - Pre-Milestone 1 aquarium work was integrated into both repositories before these branches were created.
-- Milestone 4 changes span both repositories because current kernel ABI 13 is consumed by the maker's browser-only WASM adapter.
+- Milestone 4 changes span both repositories because current kernel ABI 14 is consumed by the maker's browser-only WASM adapter.
 - No reset, clean, checkout, destructive operation, or broad reformat was performed.
 - Feature commits stage explicit Milestone 4 paths only.
 
@@ -474,7 +474,7 @@ is never an editable or duplicated numeric field in the authoritative save docum
 - [x] Create clean Milestone 4 branches in Resort and Aquarium Maker.
 - [x] Advance the shared kernel to ABI 10 and schema 5 after player review separated the walking-cell tunnel lattice from the shifted tank drawing lattice, limited traversable collision to the authored centreline, and aligned tunnel floors with the maker's open-floor/glass-bridge rules.
 - [x] Validate ordered whole-cell straight routes and routes with exactly one orthogonal elbow.
-- [x] Require two outward-facing boundary portals, reject self-intersections, crossings, overlaps, invalid route shapes, and boundary-skimming interiors.
+- [x] The initial slice required two outward-facing boundary portals and rejected intersections; ABI 14 retains self/segment-overlap protection while adding explicit interior junctions.
 - [x] Generate a fixed two-cell-wide, slightly taller arch shell, portal openings with glass infill above the arch, and a room-level dry floor strip from the same centreline.
 - [x] Separate conservative shell blockers from the wider visual/nav profile and clear collision only on authored centreline walking cells; shoulder cells remain blocked.
 - [x] Generate lower water regions around the dry corridor, full water above the crown, explicit dry-volume metadata, reachable spawns, and reduced derived water capacity.
@@ -499,7 +499,8 @@ is never an editable or duplicated numeric field in the authoritative save docum
 - [x] Distinguish the move gizmo from height/depth controls with a compact four-direction planar compass while preserving the established click–move–click interaction and hit target.
 - [ ] Route compatible discrete Aquarium Maker passage settings through ABI 10; the maker UI still keeps passages on its advanced legacy geometry path, while the shared JSON golden already proves native/WASM parity.
 - [ ] Extend portal cutting and water-region construction to rounded, rotated, L/U, and exterior-subtracted tanks after the rectangular seam is visually accepted.
-- [ ] Add multiple-tunnel player interaction and manual validation; the kernel already rejects crossing/overlapping routes.
+- [x] Add connected multi-exit tunnel networks: a new route may end on or cross one existing interior junction cell, producing three or four exits under the existing portal-to-route gesture.
+- [x] Require one clear walking-grid tile between the glass edges of independent tunnel networks, reject shared segments, and replace intersecting tube walls with a shared transparent junction canopy.
 
 Focused verification:
 
@@ -511,6 +512,7 @@ Focused verification:
 | `npm run validate:kernel` after floor-scaffold revision | Pass before portal frames; six exact native/WASM goldens, ABI 11/schema 5, rectangle hash `fnv1a64:3f7ec27c7b4f0782`, WASM p95 0.7381 ms |
 | `npm run validate:kernel` after portal-frame revision | Pass; six exact native/WASM goldens, ABI 12/schema 5, rectangle hash `fnv1a64:980d524c41647655`, WASM p95 0.7292 ms |
 | `npm run validate:kernel` after rounded-tunnel sand fix | Pass; seven exact native/WASM goldens, ABI 13/schema 5, rectangle hash `fnv1a64:f971f058bcfafa00`, WASM p95 0.7314 ms |
+| `npm run validate:kernel` after connected tunnel networks | Pass; eight exact native/WASM goldens, ABI 14/schema 5, rectangle hash `fnv1a64:a7c4b0150a3c90e3`, WASM p95 0.7300 ms |
 | `npm run check` | Pass; existing maker chunk-size warning only |
 
 Latest navigation-integration verification: `aquarium_tests`,

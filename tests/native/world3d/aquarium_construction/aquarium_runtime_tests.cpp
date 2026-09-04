@@ -1287,6 +1287,57 @@ void tunnelGestureCommitsCancelsAndClearsRuntimeCollision() {
         "tunnel removal was not reversible through construction history");
 }
 
+void connectedTunnelGesturesCreateThreeAndFourExits() {
+    auto document = emptyDocument();
+    geo::TankDesign tank;
+    tank.id = "tank_tunnel_network";
+    tank.footprint.origin_cell = {10, 10};
+    tank.footprint.width_cells = 8;
+    tank.footprint.depth_cells = 5;
+    document.tanks.push_back(tank);
+    construction::AquariumConstructionSession session;
+    session.configure("aquarium12", constructionConfig(), {}, document);
+    require(session.enter({10, 12}) && session.selectAtCursor(),
+        "tunnel-network tank was not selectable");
+
+    require(session.beginTunnelSelected(), "tunnel-network trunk did not begin");
+    session.pointAt({18, 12});
+    require(session.draftValid() && session.reviewDraft(),
+        "wall-to-wall tunnel trunk was not valid");
+    auto trunk = session.prepareCommit();
+    require(trunk && session.publish(std::move(*trunk)),
+        "wall-to-wall tunnel trunk did not publish");
+
+    session.pointAt({14, 10});
+    require(session.beginTunnelSelected(), "three-exit branch did not begin");
+    session.pointAt({14, 12});
+    if (!session.draftValid() || !session.reviewDraft()) {
+        throw std::runtime_error("route ending on an existing tunnel did not form a T-junction: " +
+            session.validationMessage());
+    }
+    auto tee = session.prepareCommit();
+    require(tee && session.publish(std::move(*tee)) &&
+            session.committedDesign().tanks.front().tunnels.size() == 2U,
+        "three-exit tunnel network did not publish");
+
+    session.pointAt({14, 15});
+    require(session.beginTunnelSelected(), "fourth tunnel exit did not begin");
+    session.pointAt({14, 12});
+    require(session.draftValid() && session.reviewDraft(),
+        "second branch did not connect to the shared junction");
+    auto crossing = session.prepareCommit();
+    require(crossing && session.publish(std::move(*crossing)) &&
+            session.committedDesign().tanks.front().tunnels.size() == 3U,
+        "four-exit tunnel network did not publish");
+
+    geo::AquariumBuildRequest request;
+    request.tank = session.committedDesign().tanks.front();
+    const auto result = geo::buildAquarium(request);
+    require(result.validation.valid() &&
+            result.collision.dry_corridor_cells.size() == 14U,
+        "connected tunnel exits did not share one dry crossing cell");
+}
+
 void resourceGenerationRejectsCandidatesWithoutTouchingActiveResources() {
     struct FakeResource { int id = 0; };
     aq::rendering::AquariumResourceGeneration<FakeResource> owner;
@@ -1347,6 +1398,7 @@ int main() {
         run("collisionOverlayCombinesStaticAndDynamicCells", collisionOverlayCombinesStaticAndDynamicCells);
         run("populationPolicyIsReplaceableAndNavigationIsDerived", populationPolicyIsReplaceableAndNavigationIsDerived);
         run("tunnelGestureCommitsCancelsAndClearsRuntimeCollision", tunnelGestureCommitsCancelsAndClearsRuntimeCollision);
+        run("connectedTunnelGesturesCreateThreeAndFourExits", connectedTunnelGesturesCreateThreeAndFourExits);
         run("resourceGenerationRejectsCandidatesWithoutTouchingActiveResources", resourceGenerationRejectsCandidatesWithoutTouchingActiveResources);
         std::cout << "aquarium_runtime_tests: ok\n";
         return 0;

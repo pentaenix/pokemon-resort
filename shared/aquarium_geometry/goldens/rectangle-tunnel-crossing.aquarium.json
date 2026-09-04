@@ -1,0 +1,64 @@
+{
+  "designId": "aqd_golden_tunnel_crossing",
+  "grid": {
+    "cellConvention": "integer-boundaries-half-cell-centres",
+    "metresPerCell": 1,
+    "origin": "map-north-west",
+    "placementOffsetCells": [0.5, 0.5],
+    "radiusStepWorldUnits": 4,
+    "tileWorldUnits": 16,
+    "verticalStepWorldUnits": 8
+  },
+  "mapId": "aquarium_builder_lab",
+  "populationPolicy": { "id": "placeholder-wishiwashi", "version": 1 },
+  "revision": 1,
+  "schema": "pokemon-resort-aquarium-design",
+  "schemaVersion": 5,
+  "tanks": [
+    {
+      "cornerRadii": [],
+      "cornerRadiusSteps": 0,
+      "depthSteps": 0,
+      "footprint": {
+        "depthCells": 5,
+        "originCell": { "column": 10, "row": 10 },
+        "rotationQuarterTurns": 0,
+        "shape": "rectangle",
+        "widthCells": 8
+      },
+      "glass": { "style": "clear-fixed-v1" },
+      "heightSteps": 8,
+      "id": "tank_golden_tunnel_crossing",
+      "substrate": { "kind": "sand-flat" },
+      "tunnels": [
+        {
+          "centrelineCells": [
+            { "column": 10, "row": 12 }, { "column": 11, "row": 12 },
+            { "column": 12, "row": 12 }, { "column": 13, "row": 12 },
+            { "column": 14, "row": 12 }, { "column": 15, "row": 12 },
+            { "column": 16, "row": 12 }, { "column": 17, "row": 12 },
+            { "column": 18, "row": 12 }
+          ],
+          "id": "tunnel_crossing_trunk",
+          "route": "straight"
+        },
+        {
+          "centrelineCells": [
+            { "column": 14, "row": 10 }, { "column": 14, "row": 11 },
+            { "column": 14, "row": 12 }
+          ],
+          "id": "tunnel_crossing_north_branch",
+          "route": "straight"
+        },
+        {
+          "centrelineCells": [
+            { "column": 14, "row": 15 }, { "column": 14, "row": 14 },
+            { "column": 14, "row": 13 }, { "column": 14, "row": 12 }
+          ],
+          "id": "tunnel_crossing_south_branch",
+          "route": "straight"
+        }
+      ]
+    }
+  ]
+}

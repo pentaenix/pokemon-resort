@@ -4,6 +4,7 @@ add_library(aquarium_geometry STATIC
     src/GeometryBuilder.cpp
     src/Kernel.cpp
     src/Tunnel.cpp
+    src/TunnelFloorGeometry.cpp
     src/TunnelGeometry.cpp
 )
 
