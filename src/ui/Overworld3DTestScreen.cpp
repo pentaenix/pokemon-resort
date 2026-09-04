@@ -592,6 +592,16 @@ bool Overworld3DTestScreen::activateWorldMap(
     rebuildActiveWorldChunks();
     if (active_world_chunks_.empty()) return false;
 
+    // The renderer owns GPU resources and render helpers for the previous
+    // scene. Tear it down before reloading destination aquarium state: that
+    // reload publishes lighting, Pokemon actors, floor cutouts, and player
+    // tank meshes whenever a renderer is present. Feeding those destination
+    // resources into the previous room's renderer immediately before its
+    // shutdown can invalidate bgfx handles during a linked-room transition.
+    shutdownBgfx();
+    sprite_renderer_.reset();
+    initialized_renderer_ = false;
+
     placed_models_.clear();
     placed_models_load_attempted_ = false;
 
@@ -622,9 +632,6 @@ bool Overworld3DTestScreen::activateWorldMap(
     water_particle_system_ = std::make_unique<gameplay::world3d::effects::ProceduralWaterParticleSystem>(
         project_root_, scene_, gameplay::world3d::effects::loadProceduralWaterParticleConfig(project_root_));
     reloadWorldTerrainQueries();
-    sprite_renderer_.reset();
-    initialized_renderer_ = false;
-    shutdownBgfx();
     std::cerr << "[Overworld3D] Activated map " << active_world_map_id_
               << " in space " << scene_.environment.space << '\n';
     return true;

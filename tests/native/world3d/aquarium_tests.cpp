@@ -179,21 +179,38 @@ void configuredDewgongMovesInsidePlacedTank() {
             !aquarium_map->construction.has_room_trim_color,
         "builder lab must expose a separate empty full-room construction surface");
     require(aquarium_map->building_presentation.camera.enabled &&
-            near(aquarium_map->building_presentation.camera.distance_behind_player_tiles, 22.0f) &&
-            near(aquarium_map->building_presentation.camera.height_above_player_tiles, 30.0f) &&
+            near(aquarium_map->building_presentation.camera.distance_behind_player_tiles,
+                catalog.building_presentation.camera.distance_behind_player_tiles) &&
+            near(aquarium_map->building_presentation.camera.height_above_player_tiles,
+                catalog.building_presentation.camera.height_above_player_tiles) &&
             aquarium_map->building_presentation.lighting.enabled &&
-            near(aquarium_map->building_presentation.lighting.brightness, 1.0f) &&
-            near(aquarium_map->building_presentation.lighting.tint[0], 0.9f) &&
-            near(aquarium_map->building_presentation.lighting.tint[2], 1.08f) &&
+            near(aquarium_map->building_presentation.lighting.brightness,
+                catalog.building_presentation.lighting.brightness) &&
+            near(aquarium_map->building_presentation.lighting.tint[0],
+                catalog.building_presentation.lighting.tint[0]) &&
+            near(aquarium_map->building_presentation.lighting.tint[2],
+                catalog.building_presentation.lighting.tint[2]) &&
             builder_lab->building_presentation.camera.enabled &&
-            builder_lab->building_presentation.lighting.enabled,
+            near(builder_lab->building_presentation.camera.distance_behind_player_tiles,
+                catalog.building_presentation.camera.distance_behind_player_tiles) &&
+            near(builder_lab->building_presentation.camera.height_above_player_tiles,
+                catalog.building_presentation.camera.height_above_player_tiles) &&
+            builder_lab->building_presentation.lighting.enabled &&
+            near(builder_lab->building_presentation.lighting.brightness,
+                catalog.building_presentation.lighting.brightness),
         "aquarium maps must inherit the aquarium-only building presentation");
     pr::gameplay::world3d::camera::Gen4CameraPreset base_camera;
     const auto aquarium_camera = aquarium::aquariumBuildingCameraPreset(
         base_camera, aquarium_map->building_presentation.camera, 16.0f);
+    const float camera_horizontal =
+        aquarium_map->building_presentation.camera.distance_behind_player_tiles * 16.0f;
+    const float camera_vertical =
+        aquarium_map->building_presentation.camera.height_above_player_tiles * 16.0f;
+    constexpr float radians_to_degrees = 57.29577951308232f;
     require(near(aquarium_camera.distance,
-                std::hypot(22.0f * 16.0f, 30.0f * 16.0f)) &&
-            near(aquarium_camera.pitch_deg, -53.746f),
+                std::hypot(camera_horizontal, camera_vertical)) &&
+            near(aquarium_camera.pitch_deg,
+                -std::atan2(camera_vertical, camera_horizontal) * radians_to_degrees),
         "aquarium camera height/distance controls did not derive the expected orbit");
     const auto lab_allows_construction = [&](int column, int row) {
         return std::any_of(builder_lab->construction.allowed_cells.begin(),
