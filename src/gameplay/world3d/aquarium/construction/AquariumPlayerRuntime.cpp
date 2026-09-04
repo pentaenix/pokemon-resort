@@ -18,73 +18,61 @@ std::string normalized(std::string value) {
     return value;
 }
 
-class PlaceholderWishiwashiPolicy final : public AquariumPopulationPolicy {
+class TestAquariumPopulationPolicy final : public AquariumPopulationPolicy {
 public:
     std::vector<AquariumSwimmerDefinition> populationFor(
         const PlayerTankRuntime& tank,
         const AquariumPopulationContext& context,
         std::vector<std::string>* diagnostics) const override {
         std::vector<AquariumSwimmerDefinition> population;
-        if (context.wishiwashi_model_path.empty()) {
-            if (diagnostics) diagnostics->push_back(
-                "Testing population Wishiwashi model was not found");
-        } else {
-            constexpr int kWishiwashiCount = 6;
-            for (int copy = 0; copy < kWishiwashiCount; ++copy) {
-                AquariumSwimmerDefinition swimmer = makeSwimmer(
-                    tank, context, "wishiwashi", "00",
-                    context.wishiwashi_model_path,
-                    "wishiwashi:" + std::to_string(copy));
-                swimmer.movement.id = tank.design.id + ":wishiwashi-school";
-                swimmer.movement.behavior = "school";
-                swimmer.movement.speed_meters_per_second = 0.34f;
-                swimmer.movement.turn_degrees_per_second = 180.0f;
-                swimmer.movement.body_radius_meters = 0.03f;
-                swimmer.formation_index = copy;
-                swimmer.formation_count = kWishiwashiCount;
-                population.push_back(std::move(swimmer));
-            }
-        }
-
-        if (context.clamperl_model_path.empty()) {
-            if (diagnostics) diagnostics->push_back(
-                "Testing population Clamperl model was not found");
-        } else {
-            AquariumSwimmerDefinition clamperl = makeSwimmer(
-                tank, context, "clamperl", "",
-                context.clamperl_model_path, "clamperl");
-            clamperl.movement.behavior = "stationary";
-            clamperl.movement.vertical_anchor = "bottom";
-            clamperl.movement.speed_meters_per_second = 0.0f;
-            clamperl.movement.body_radius_meters = 0.10f;
-            clamperl.movement.has_starting_position = true;
-            clamperl.movement.starting_position_meters = {-0.5f, 0.0f, -0.5f};
-            population.push_back(std::move(clamperl));
-        }
-
-        if (context.pyukumuku_model_path.empty()) {
-            if (diagnostics) diagnostics->push_back(
-                "Testing population Pyukumuku model was not found");
-        } else {
-            AquariumSwimmerDefinition pyukumuku = makeSwimmer(
-                tank, context, "pyukumuku", "",
-                context.pyukumuku_model_path, "pyukumuku");
-            pyukumuku.actor.animation = "walk";
-            pyukumuku.movement.animation = "walk";
-            pyukumuku.movement.behavior = "wander";
-            pyukumuku.movement.movement_plane = "floor";
-            pyukumuku.movement.vertical_anchor = "bottom";
-            pyukumuku.movement.speed_meters_per_second = 0.28f;
-            pyukumuku.movement.turn_degrees_per_second = 180.0f;
-            pyukumuku.movement.body_radius_meters = 0.18f;
-            pyukumuku.movement.has_starting_position = true;
-            pyukumuku.movement.starting_position_meters = {0.5f, 0.0f, 0.5f};
-            population.push_back(std::move(pyukumuku));
+        if (context.tank_index == 0U) {
+            appendFeatureSwimmer(
+                population, tank, context, diagnostics,
+                "milotic", "milotic:0", context.milotic_model_path,
+                "walk", "wander", 0.30f, 120.0f, 0.20f);
+            appendFeatureSwimmer(
+                population, tank, context, diagnostics,
+                "milotic", "milotic:1", context.milotic_model_path,
+                "walk", "wander", 0.27f, 110.0f, 0.20f);
+        } else if (context.tank_index == 1U) {
+            appendFeatureSwimmer(
+                population, tank, context, diagnostics,
+                "kyogre", "kyogre", context.kyogre_model_path,
+                "idle_default", "school", 0.42f, 90.0f, 0.35f);
         }
         return population;
     }
 
 private:
+    static void appendFeatureSwimmer(
+        std::vector<AquariumSwimmerDefinition>& population,
+        const PlayerTankRuntime& tank,
+        const AquariumPopulationContext& context,
+        std::vector<std::string>* diagnostics,
+        const std::string& species,
+        const std::string& stable_suffix,
+        const std::string& model_path,
+        const std::string& animation,
+        const std::string& behavior,
+        float speed,
+        float turn_speed,
+        float body_radius) {
+        if (model_path.empty()) {
+            if (diagnostics) diagnostics->push_back(
+                "Testing population " + species + " model was not found");
+            return;
+        }
+        AquariumSwimmerDefinition swimmer = makeSwimmer(
+            tank, context, species, "00", model_path, stable_suffix);
+        swimmer.actor.animation = animation;
+        swimmer.movement.animation = animation;
+        swimmer.movement.behavior = behavior;
+        swimmer.movement.speed_meters_per_second = speed;
+        swimmer.movement.turn_degrees_per_second = turn_speed;
+        swimmer.movement.body_radius_meters = body_radius;
+        population.push_back(std::move(swimmer));
+    }
+
     static AquariumSwimmerDefinition makeSwimmer(
         const PlayerTankRuntime& tank,
         const AquariumPopulationContext& context,
@@ -181,8 +169,8 @@ AquariumInspectionCameraConfig playerTankInspectionCamera() {
 
 } // namespace
 
-std::unique_ptr<AquariumPopulationPolicy> makePlaceholderWishiwashiPolicy() {
-    return std::make_unique<PlaceholderWishiwashiPolicy>();
+std::unique_ptr<AquariumPopulationPolicy> makeTestAquariumPopulationPolicy() {
+    return std::make_unique<TestAquariumPopulationPolicy>();
 }
 
 PlayerAquariumRuntimeSet buildPlayerAquariumRuntime(
@@ -203,10 +191,10 @@ PlayerAquariumRuntimeSet buildPlayerAquariumRuntime(
         });
         return found == models.end() ? std::string{} : found->path;
     };
-    const std::string wishiwashi_model_path = modelPath("wishiwashi");
-    const std::string clamperl_model_path = modelPath("clamperl");
-    const std::string pyukumuku_model_path = modelPath("pyukumuku");
-    for (const geo::TankDesign& design : document.tanks) {
+    const std::string milotic_model_path = modelPath("milotic");
+    const std::string kyogre_model_path = modelPath("kyogre");
+    for (std::size_t tank_index = 0; tank_index < document.tanks.size(); ++tank_index) {
+        const geo::TankDesign& design = document.tanks[tank_index];
         geo::AquariumBuildRequest request;
         request.tank = design;
         geo::AquariumBuildResult build = geo::buildAquarium(request);
@@ -252,11 +240,11 @@ PlayerAquariumRuntimeSet buildPlayerAquariumRuntime(
         }
         AquariumPopulationContext context{
             project_root,
+            tank_index,
             map_config.pokemon_scale,
             map_config.pokemon_presentation,
-            wishiwashi_model_path,
-            clamperl_model_path,
-            pyukumuku_model_path,
+            milotic_model_path,
+            kyogre_model_path,
         };
         AquariumPlayerTankSimulationInput simulation;
         simulation.tank_id = runtime.design.id;

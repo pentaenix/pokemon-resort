@@ -82,6 +82,8 @@ AquariumBuildingPresentationConfig parseBuildingPresentation(
         out.camera.height_above_player_tiles = std::clamp(static_cast<float>(numberOr(
             camera->get("heightAbovePlayerTiles"),
             out.camera.height_above_player_tiles)), 1.0f, 64.0f);
+        out.camera.far_clip_tiles = std::clamp(static_cast<float>(numberOr(
+            camera->get("farClipTiles"), out.camera.far_clip_tiles)), 0.0f, 256.0f);
     }
     if (const JsonValue* lighting = value->get("lighting");
         lighting && lighting->isObject()) {
@@ -467,6 +469,11 @@ camera::Gen4CameraPreset aquariumBuildingCameraPreset(
     camera::Gen4CameraPreset result = base;
     result.distance = std::hypot(horizontal, vertical);
     result.pitch_deg = -std::atan2(vertical, horizontal) * kRadiansToDegrees;
+    if (config.far_clip_tiles > 0.0f) {
+        result.far_clip = std::max(
+            result.near_clip + unit,
+            config.far_clip_tiles * unit);
+    }
     return result;
 }
 

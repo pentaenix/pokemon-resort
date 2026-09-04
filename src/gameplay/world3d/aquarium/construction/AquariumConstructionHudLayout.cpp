@@ -211,7 +211,9 @@ std::vector<ConstructionHudChoice> aquariumConstructionPropertyChoices(
     switch (visual.focused_action) {
     case ConstructionHudAction::Height:
         return stepperChoices(layout.property_options, visual.focused_action,
-            4, 12, tank->height_steps);
+            geo::kMinimumTankHeightSteps,
+            geo::kMaximumTankHeightSteps,
+            tank->height_steps);
     case ConstructionHudAction::Roundness: {
         const int maximum = geo::fittedCornerRadiusSteps(tank->footprint, 64);
         return stepperChoices(layout.property_options, visual.focused_action,

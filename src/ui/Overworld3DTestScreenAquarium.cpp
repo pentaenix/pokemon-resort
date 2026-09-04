@@ -290,7 +290,7 @@ void Overworld3DTestScreen::configureAquariumConstruction(
         map_config->map_id, construction_config,
         std::move(authored_obstacles), std::move(document));
     aquarium_construction_overlay_.configure(map_config->construction, project_root_);
-    aquarium_population_policy_ = aqc::makePlaceholderWishiwashiPolicy();
+    aquarium_population_policy_ = aqc::makeTestAquariumPopulationPolicy();
     refreshPlayerAquariumRuntime();
     const auto load_microseconds = std::chrono::duration_cast<std::chrono::microseconds>(
         std::chrono::steady_clock::now() - configure_started).count();
@@ -445,7 +445,7 @@ bool Overworld3DTestScreen::beginAquariumConstructionCommit(
                         std::chrono::steady_clock::now() - started).count();
                 return generated;
             }
-            auto policy = aqc::makePlaceholderWishiwashiPolicy();
+            auto policy = aqc::makeTestAquariumPopulationPolicy();
             generated.runtime = aqc::buildPlayerAquariumRuntime(
                 generated.candidate.document, scene, config, project_root,
                 *policy, &generated.diagnostics);
@@ -626,6 +626,7 @@ Overworld3DTestScreen::aquariumConstructionVisual() const {
     visual.visible = aquarium_construction_.active();
     visual.tile_world_units = scene_.grid.tile_size;
     visual.cursor = aquarium_construction_.cursor();
+    if (!visual.visible) return visual;
     visual.state = aquarium_construction_.state();
     visual.property_draft = aquarium_construction_.draftOperation() ==
         gameplay::world3d::aquarium::construction::ConstructionDraftOperation::Properties;
@@ -724,7 +725,24 @@ Overworld3DTestScreen::aquariumConstructionVisual() const {
         : std::vector<pr::aquarium::geometry::GridCell>{};
     const auto& construction_cells = visual.state == aqc::ConstructionState::TunnelRoute
         ? route_cells : aquarium_construction_.allowedCells();
+    auto working_view_center = visual.cursor;
+    if (visual.state != aqc::ConstructionState::TunnelRoute &&
+        aquarium_construction_camera_tracking_.initialized) {
+        const float tile = std::max(1.0f, visual.tile_world_units);
+        working_view_center = {
+            static_cast<int>(std::floor(
+                (aquarium_construction_camera_tracking_.center_x -
+                    visual.placement_offset_world_units) / tile)),
+            static_cast<int>(std::floor(
+                (aquarium_construction_camera_tracking_.center_z -
+                    visual.placement_offset_world_units) / tile)),
+        };
+    }
     for (const auto cell : construction_cells) {
+        if (visual.state != aqc::ConstructionState::TunnelRoute &&
+            !aqc::aquariumConstructionCellInWorkingView(cell, working_view_center)) {
+            continue;
+        }
         if (visual.state == aqc::ConstructionState::TunnelRoute &&
             std::any_of(visual.existing_tunnel_cells.begin(),
                 visual.existing_tunnel_cells.end(), [&](const auto occupied) {

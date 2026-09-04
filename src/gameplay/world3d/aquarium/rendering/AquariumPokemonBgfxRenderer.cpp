@@ -1,5 +1,7 @@
 #include "gameplay/world3d/aquarium/rendering/AquariumPokemonBgfxRenderer.hpp"
 
+#include "gameplay/world3d/aquarium/rendering/AquariumPokemonRuntimeLod.hpp"
+
 #include "gameplay/attend/rendering/AttendPokemonModel.hpp"
 #include "gameplay/attend/rendering/AttendPokemonMaterialPolicy.hpp"
 #include "gameplay/attend/rendering/AttendPokemonPresentation.hpp"
@@ -117,6 +119,7 @@ public:
     };
     struct Model {
         std::shared_ptr<const attend::AttendPokemonModel> source;
+        AquariumPokemonRuntimeLod runtime_lod;
         std::vector<Material> materials;
         std::vector<PrimitivePose> pose;
         std::string pose_animation;
@@ -128,6 +131,7 @@ public:
             pose.clear();
             for (Material& material : materials) material.texture.destroy();
             materials.clear();
+            runtime_lod = {};
             source = {};
             valid = false;
         }
@@ -196,6 +200,7 @@ public:
             std::cerr << "[Aquarium] " << last_error_ << '\n';
             return nullptr;
         }
+        model.runtime_lod = buildAquariumPokemonRuntimeLod(*model.source);
         model.materials.reserve(model.source->materials.size());
         for (const attend::AttendPokemonMaterial& source : model.source->materials) {
             Material material;
@@ -242,7 +247,10 @@ public:
         model.valid = true;
         std::cerr << "[Aquarium] Loaded Attend Pokemon " << path
                   << " primitives=" << model.source->primitives.size()
-                  << " animations=" << model.source->animations.size() << '\n';
+                  << " animations=" << model.source->animations.size()
+                  << " runtimeLodTriangles="
+                  << model.runtime_lod.statistics.source_triangles << "->"
+                  << model.runtime_lod.statistics.render_triangles << '\n';
         return &model;
     }
 
@@ -275,8 +283,13 @@ public:
         std::vector<Vertex> upload_vertices;
         for (std::size_t primitive_index = 0;
              primitive_index < source_model.primitives.size(); ++primitive_index) {
-            const attend::AttendPokemonPrimitive& source =
+            const attend::AttendPokemonPrimitive& original =
                 source_model.primitives[primitive_index];
+            const attend::AttendPokemonPrimitive& source =
+                primitive_index < model.runtime_lod.replacements.size() &&
+                    model.runtime_lod.replacements[primitive_index]
+                    ? *model.runtime_lod.replacements[primitive_index]
+                    : original;
             PrimitivePose& pose = model.pose[primitive_index];
             pose.visible = attend::attendPrimitiveVisibleForDefaultForm(
                 source_model, source, actor.form) && !source.indices.empty();

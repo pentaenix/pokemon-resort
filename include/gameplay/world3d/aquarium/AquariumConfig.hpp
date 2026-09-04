@@ -15,6 +15,9 @@ struct AquariumBuildingCameraConfig {
     // runtime derives the orbit distance and pitch from these tile values.
     float distance_behind_player_tiles = 24.0f;
     float height_above_player_tiles = 34.0f;
+    // Zero preserves the map camera's far plane. A positive value gives large
+    // aquarium rooms a local far plane without changing outdoor rendering.
+    float far_clip_tiles = 0.0f;
 };
 
 struct AquariumBuildingLightingConfig {

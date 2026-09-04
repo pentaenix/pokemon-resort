@@ -23,7 +23,8 @@ volumes, and floor cutouts agree without a per-aquarium scale workaround.
     "camera": {
       "enabled": true,
       "distanceBehindPlayerTiles": 22,
-      "heightAbovePlayerTiles": 30
+      "heightAbovePlayerTiles": 30,
+      "farClipTiles": 128
     },
     "lighting": {
       "enabled": true,
@@ -75,7 +76,10 @@ volumes, and floor cutouts agree without a per-aquarium scale workaround.
 `distanceBehindPlayerTiles` moves the normal follow camera horizontally behind
 the player and `heightAbovePlayerTiles` sets its vertical height; the runtime
 derives the camera pitch and orbit distance, so tuning the view does not require
-trigonometry. The current values are slightly closer and lower than the shared
+trigonometry. Optional `farClipTiles` extends how deeply that aquarium camera
+can render; zero or omission preserves the map camera's far plane. The Builder
+Lab uses 128 tiles so long player tanks remain complete while its override stays
+out of the authored gallery and every outdoor map. The current values are slightly closer and lower than the shared
 overworld camera. `lighting.brightness` and the RGB `tint` grade the aquarium
 room and ordinary overworld actors. `tankLighting` independently grades
 authored tank models, player-built tank meshes, and aquarium Pokémon so a dim
@@ -88,6 +92,14 @@ overridden inside an individual map entry. Maps without a matching aquarium
 entry always retain their original camera and lighting.
 
 `species` is resolved case-insensitively by name against the existing Attend model catalog, preferring compiled `.glbz` assets. `form` optionally selects an Attend form ID such as `"00"`; rendering and physical bounds use the same form. `pokemonScale` is the one shared render scale for every species; Attend models retain their relative proportions, so changing it scales Dewgong, Clamperl, Kyogre, and future aquarium Pokémon together. `sizeMultiplier` is an optional per-entry exception and defaults to `1`.
+
+The temporary player-tank population policy gives the first player tank two
+wandering Milotic using the walk clip and the second one continuously roaming
+Kyogre using the idle clip. No Wishiwashi, Clamperl, or Pyukumuku are added to these two
+test tanks. The aquarium renderer builds conservative, cached runtime LOD primitives from their normal
+Attend models. It preserves the original skeleton, animations, materials, UVs,
+and textures and creates no duplicate model assets. These assignments remain
+policy-owned and do not enter tank geometry, navigation, UI, or saves.
 
 `pokemonPresentation` is an aquarium-only lighting and color grade. Its `brightness`, `pokemonBrightness`, `saturation`, `contrast`, `ambient`, `directional`, `formShadow`, `lightDirection`, and `tint` fields use the same meanings as Attend. The committed defaults reproduce Attend's clear-scene Pokémon presentation. Values may be overridden at map level and are copied into aquarium actor draw submissions. When `tankLighting` is enabled, its brightness and tint are composed into the actor presentation instead of the darker room light. This never modifies shared textures, overworld sprites, or Attend itself.
 
@@ -136,7 +148,9 @@ Resort exterior → Aquarium Builder Lab
 
 `aquarium12` retains its three authored tanks, Pokémon, collision, and rounded
 floor cutout. The exterior aquarium door now enters `aquarium_builder_lab`, a
-separate 24×18 shell-less interior with no authored models or floor cutouts.
+separate shell-less interior with no authored models or floor cutouts. The
+Builder Lab is expanded to 54×33 cells: fifteen additional cells on each side
+and fifteen additional rows of depth. The authored gallery remains 24×18.
 The resort arrives through the lab's south doorway. The north doorway provides
 an optional two-way route to the authored gallery; walking back out of the
 gallery returns through that same north lab doorway. The south doorway returns
@@ -145,9 +159,14 @@ clearance, and a black lower front facade that hides below-floor tank geometry.
 Each three-cell-wide doorway responds across its complete width; its movement
 trigger is one row farther south than the original centre-only threshold.
 The lab has a clear walkable centre aisle and
-340 construction cells. The three-cell doorway lanes at both ends are
+1,600 construction cells. The three-cell doorway lanes at both ends are
 intentionally outside its construction mask so a saved tank cannot block
 travel.
+
+The 1,600-cell mask remains authoritative, but the yellow editor overlay only
+builds and uploads the camera-local working window. Outside construction mode it
+does not enumerate the mask at all. This keeps room size from multiplying
+per-frame overlay work while cursor panning still exposes every buildable cell.
 
 Construction documents remain map-scoped, so the gallery and lab use distinct
 save files. Press Z on keyboard or Y on controller while standing on a yellow
@@ -193,9 +212,9 @@ step.
 
 Each committed player tank carries kernel-derived water layers, dry tunnel
 exclusions, and suggested spawns into the ordinary `AquariumSimulation`. The
-temporary testing population policy currently contributes six schooling
-Wishiwashi, one bottom-resting Clamperl, and one floor-wandering Pyukumuku to
-each player-built tank. Geometry and simulation do not name those species. Fish movement, rendered
+temporary testing population policy contributes two Milotic to the first
+player tank and one Kyogre to the second, with no population in later tanks.
+Geometry and simulation do not name those species. Fish movement, rendered
 body clearance, layered/deep water, and tunnel avoidance therefore use the same
 containment code as authored aquariums. Rebuilding or deleting player tanks
 replaces only their simulated swimmers; authored populations remain live.

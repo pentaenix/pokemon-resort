@@ -656,6 +656,11 @@ void authoredObstaclesRemainVisibleAtBuildZoneEdges() {
 }
 
 void constructionVisualBuildsYellowCellsGizmosAndCanonicalHitTargets() {
+    require(construction::aquariumConstructionCellInWorkingView({20, 18}, {10, 10}) &&
+            construction::aquariumConstructionCellInWorkingView({0, 2}, {10, 10}) &&
+            !construction::aquariumConstructionCellInWorkingView({21, 10}, {10, 10}) &&
+            !construction::aquariumConstructionCellInWorkingView({10, 19}, {10, 10}),
+        "construction working view must bound room-grid rendering around the camera");
     construction::AquariumConstructionVisual visual;
     visual.visible = true;
     visual.cells = {{{10, 10}, 0.0f, false}, {{11, 10}, 0.0f, false}};
@@ -1208,29 +1213,30 @@ void populationPolicyIsReplaceableAndNavigationIsDerived() {
         "half-cell-installed 3x3 tank did not cover its south/east overlap cells");
 
     construction::AquariumPopulationContext context;
-    context.wishiwashi_model_path = "wishiwashi.glbz";
-    context.clamperl_model_path = "clamperl.glbz";
-    context.pyukumuku_model_path = "pyukumuku.glbz";
-    const auto testing_policy = construction::makePlaceholderWishiwashiPolicy();
+    context.milotic_model_path = "milotic-aquarium.glbz";
+    context.kyogre_model_path = "kyogre-aquarium.glbz";
+    const auto testing_policy = construction::makeTestAquariumPopulationPolicy();
     const auto population = testing_policy->populationFor(
         runtime.tanks.front(), context, nullptr);
-    require(population.size() == 8U &&
+    require(population.size() == 2U &&
             std::count_if(population.begin(), population.end(), [](const auto& swimmer) {
-                return swimmer.actor.species == "wishiwashi" &&
+                return swimmer.actor.species == "milotic" &&
+                    swimmer.actor.animation == "walk" &&
+                    swimmer.movement.behavior == "wander";
+            }) == 2 && population[0].actor.id != population[1].actor.id,
+        "first player tank must contain two distinct walking Milotic only");
+
+    context.tank_index = 1;
+    const auto second_population = testing_policy->populationFor(
+        runtime.tanks.front(), context, nullptr);
+    require(second_population.size() == 1U &&
+            std::count_if(second_population.begin(), second_population.end(), [](const auto& swimmer) {
+                return swimmer.actor.species == "kyogre" &&
+                    swimmer.actor.animation == "idle_default" &&
                     swimmer.movement.behavior == "school" &&
-                    swimmer.formation_count == 6;
-            }) == 6 &&
-            std::count_if(population.begin(), population.end(), [](const auto& swimmer) {
-                return swimmer.actor.species == "clamperl" &&
-                    swimmer.movement.behavior == "stationary" &&
-                    swimmer.movement.vertical_anchor == "bottom";
-            }) == 1 &&
-            std::count_if(population.begin(), population.end(), [](const auto& swimmer) {
-                return swimmer.actor.species == "pyukumuku" &&
-                    swimmer.movement.behavior == "wander" &&
-                    swimmer.movement.movement_plane == "floor";
+                    swimmer.movement.speed_meters_per_second == 0.42f;
             }) == 1,
-        "temporary player-tank policy must create six fish and two floor testers");
+        "second player tank must contain one continuously roaming idle-swimming Kyogre only");
 }
 
 void tunnelGestureCommitsCancelsAndClearsRuntimeCollision() {

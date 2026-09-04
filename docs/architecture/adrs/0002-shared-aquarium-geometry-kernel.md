@@ -125,6 +125,11 @@ with one shared junction canopy. Unconnected routes must leave at least one
 clear walking-grid tile between their glass shells, and overlapping segments
 remain invalid.
 
+ABI 15 raises the authored vertical limits without changing the schema: tank
+height now spans 4–22 half-cell steps and below-floor depth spans 0–18 steps.
+The shared constants are consumed by kernel validation and Resort construction
+controls so native and WASM callers cannot drift.
+
 ## Milestone 5 hardening record
 
 The v1 runtime deliberately does not persist derived geometry caches. Measured

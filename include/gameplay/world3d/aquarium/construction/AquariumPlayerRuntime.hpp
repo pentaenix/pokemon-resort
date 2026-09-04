@@ -24,11 +24,11 @@ struct PlayerTankRuntime {
 
 struct AquariumPopulationContext {
     std::filesystem::path project_root;
+    std::size_t tank_index = 0;
     float model_scale = 0.27f;
     AquariumPokemonPresentationConfig presentation;
-    std::string wishiwashi_model_path;
-    std::string clamperl_model_path;
-    std::string pyukumuku_model_path;
+    std::string milotic_model_path;
+    std::string kyogre_model_path;
 };
 
 class AquariumPopulationPolicy {
@@ -40,7 +40,7 @@ public:
         std::vector<std::string>* diagnostics) const = 0;
 };
 
-std::unique_ptr<AquariumPopulationPolicy> makePlaceholderWishiwashiPolicy();
+std::unique_ptr<AquariumPopulationPolicy> makeTestAquariumPopulationPolicy();
 
 struct PlayerAquariumRuntimeSet {
     std::uint64_t revision = 0;

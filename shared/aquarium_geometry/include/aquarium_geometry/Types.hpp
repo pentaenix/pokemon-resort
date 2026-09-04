@@ -6,7 +6,7 @@
 
 namespace pr::aquarium::geometry {
 
-inline constexpr std::uint32_t kKernelAbiVersion = 14;
+inline constexpr std::uint32_t kKernelAbiVersion = 15;
 inline constexpr std::uint32_t kDesignSchemaVersion = 5;
 inline constexpr std::int32_t kWorldUnitsPerCell = 16;
 inline constexpr std::int32_t kVerticalStepWorldUnits = 8;
@@ -16,6 +16,10 @@ inline constexpr std::int32_t kGlassThicknessMilliWorldUnits = 880;
 inline constexpr std::int32_t kTunnelOuterHalfWidthWorldUnits = 16;
 inline constexpr std::int32_t kTunnelCrownWorldUnits = 36;
 inline constexpr std::int32_t kMaxFootprintCells = 4096;
+inline constexpr std::int32_t kMinimumTankHeightSteps = 4;
+inline constexpr std::int32_t kMaximumTankHeightSteps = 22;
+inline constexpr std::int32_t kMinimumTankDepthSteps = 0;
+inline constexpr std::int32_t kMaximumTankDepthSteps = 18;
 
 enum class FootprintShape : std::uint8_t {
     Rectangle,

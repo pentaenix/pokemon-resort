@@ -146,7 +146,7 @@ void testRectangleGolden() {
         "interior occupied cell is not blocked");
     require(result.statistics.navigation_layer_count == 1, "navigation layer count changed");
     require(result.navigation.suggested_spawns.size() == 1, "spawn count changed");
-    require(result.content_hash == "fnv1a64:a7c4b0150a3c90e3", "content hash changed: " + result.content_hash);
+    require(result.content_hash == "fnv1a64:6e67b9b4c58cc66e", "content hash changed: " + result.content_hash);
     require(result.statistics.water_volume_litres == 80735,
         "standard tank derived water volume changed");
 
@@ -196,7 +196,7 @@ void testBelowFloorDepthAndVolume() {
     require(std::any_of(glass.vertices.begin(), glass.vertices.end(), [](const Vertex& vertex) {
                 return std::abs(vertex.position.y) < 0.0001F;
             }), "below-floor glass does not begin at the room floor");
-    request.tank.depth_steps = 13;
+    request.tank.depth_steps = kMaximumTankDepthSteps + 1;
     const ValidationReport invalid = validateAquarium(request);
     require(!invalid.valid() && std::any_of(invalid.diagnostics.begin(), invalid.diagnostics.end(),
             [](const auto& diagnostic) { return diagnostic.code == "depth_out_of_range"; }),
@@ -309,13 +309,18 @@ void testShapeOccupancyRotationAndValidation() {
     u_request.tank.footprint.depth_cells = 5;
     u_request.tank.footprint.notch_width_cells = 3;
     u_request.tank.footprint.notch_depth_cells = 3;
-    u_request.tank.height_steps = 12;
+    u_request.tank.height_steps = kMaximumTankHeightSteps;
     const AquariumBuildResult u_result = buildAquarium(u_request);
     require(u_result.validation.valid() && footprintCells(u_request.tank.footprint).size() == 26,
         "valid U footprint was rejected or occupied its opening");
     requireValidMeshSet(u_result, "U footprint");
-    requireNear(u_result.navigation.layers.front().ceiling_y, 85.4474F,
+    requireNear(u_result.navigation.layers.front().ceiling_y, 158.2474F,
         "maximum height did not reach the expected discrete water ceiling");
+
+    u_request.tank.height_steps = kMaximumTankHeightSteps + 1;
+    require(!validateAquarium(u_request).valid(),
+        "height above the player-facing maximum was accepted");
+    u_request.tank.height_steps = kMaximumTankHeightSteps;
 
     u_request.tank.footprint.notch_width_cells = 4;
     require(!validateAquarium(u_request).valid(), "U footprint accepted an arm thinner than two cells");

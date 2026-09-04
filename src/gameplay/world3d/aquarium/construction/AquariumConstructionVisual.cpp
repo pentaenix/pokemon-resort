@@ -258,6 +258,13 @@ void appendCellCross(
 
 } // namespace
 
+bool aquariumConstructionCellInWorkingView(
+    geo::GridCell cell,
+    geo::GridCell view_center) {
+    return std::abs(cell.column - view_center.column) <= kConstructionWorkingViewHalfColumns &&
+        std::abs(cell.row - view_center.row) <= kConstructionWorkingViewHalfRows;
+}
+
 ConstructionVisualMesh buildAquariumConstructionWorldMesh(
     const AquariumConstructionVisual& visual) {
     ConstructionVisualMesh mesh;

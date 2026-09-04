@@ -5,6 +5,8 @@
 #include "gameplay/world3d/aquarium/AquariumInspectionCamera.hpp"
 #include "gameplay/world3d/aquarium/AquariumInspectionFacing.hpp"
 #include "gameplay/attend/PokemonModelCatalog.hpp"
+#include "gameplay/attend/rendering/AttendPokemonModel.hpp"
+#include "gameplay/world3d/aquarium/rendering/AquariumPokemonRuntimeLod.hpp"
 #include "gameplay/world3d/camera/FreeCameraCapture.hpp"
 #include "gameplay/world3d/interiors/InteriorFloorCutout.hpp"
 
@@ -114,6 +116,40 @@ void navigationHonorsUndergroundLayersAndHoles() {
         "lower-layer obstacle holes must remain blocked");
 }
 
+void aquariumRuntimeLodPreservesAnimationAndReducesGeometry() {
+    namespace attend = pr::gameplay::attend::rendering;
+    namespace aquarium_rendering = pr::gameplay::world3d::aquarium::rendering;
+    const auto verify = [&](const char* filename, const char* animation) {
+        std::string error;
+        const auto source = attend::loadAttendPokemonModel(
+            (projectRoot() / "assets/pokemon_attend/pokemon_models" / filename).string(),
+            &error);
+        require(source.valid, "source aquarium Pokemon model must load");
+        const auto lod = aquarium_rendering::buildAquariumPokemonRuntimeLod(source);
+        require(lod.replacements.size() == source.primitives.size(),
+            "runtime LOD must preserve the source primitive layout");
+        require(lod.statistics.render_triangles > 0U &&
+                lod.statistics.render_triangles < lod.statistics.source_triangles,
+            "runtime LOD must reduce source triangles conservatively");
+        require(attend::findAttendPokemonAnimation(source, animation) != nullptr,
+            "source model lost a required swimming animation");
+        for (std::size_t i = 0; i < lod.replacements.size(); ++i) {
+            if (!lod.replacements[i]) continue;
+            const auto& reduced = *lod.replacements[i];
+            const auto& original = source.primitives[i];
+            require(reduced.material == original.material &&
+                    reduced.skin == original.skin &&
+                    reduced.mesh_node == original.mesh_node,
+                "runtime LOD must preserve material and skin bindings");
+            require(std::all_of(reduced.indices.begin(), reduced.indices.end(), [&](auto index) {
+                return index < reduced.vertices.size();
+            }), "runtime LOD emitted an invalid vertex index");
+        }
+    };
+    verify("pm0350_00_Milotic.glbz", "slot6_02");
+    verify("pm0382_00_Kyogre.glbz", "slot4_00");
+}
+
 void configuredDewgongMovesInsidePlacedTank() {
     pr::gameplay::world3d::SceneConfig scene;
     scene.id = "aquarium12";
@@ -166,10 +202,10 @@ void configuredDewgongMovesInsidePlacedTank() {
         aquarium::aquariumMapConfig(catalog, "aquarium_builder_lab");
     require(builder_lab && builder_lab->tanks.empty() &&
             builder_lab->construction.enabled &&
-            builder_lab->construction.allowed_cells.size() == 340U &&
+            builder_lab->construction.allowed_cells.size() == 1600U &&
             builder_lab->construction.has_return_cell &&
-            builder_lab->construction.return_cell.column == 12 &&
-            builder_lab->construction.return_cell.row == 16 &&
+            builder_lab->construction.return_cell.column == 27 &&
+            builder_lab->construction.return_cell.row == 31 &&
             builder_lab->construction.return_facing == "north" &&
             builder_lab->construction.has_room_trim_color &&
             builder_lab->construction.room_trim_color[0] == 67 &&
@@ -178,6 +214,9 @@ void configuredDewgongMovesInsidePlacedTank() {
             builder_lab->construction.room_trim_color[3] == 255 &&
             !aquarium_map->construction.has_room_trim_color,
         "builder lab must expose a separate empty full-room construction surface");
+    require(near(builder_lab->building_presentation.camera.far_clip_tiles, 128.0f) &&
+            near(aquarium_map->building_presentation.camera.far_clip_tiles, 0.0f),
+        "extended camera depth must remain local to the large Builder Lab");
     require(aquarium_map->building_presentation.camera.enabled &&
             near(aquarium_map->building_presentation.camera.distance_behind_player_tiles,
                 catalog.building_presentation.camera.distance_behind_player_tiles) &&
@@ -209,6 +248,8 @@ void configuredDewgongMovesInsidePlacedTank() {
     pr::gameplay::world3d::camera::Gen4CameraPreset base_camera;
     const auto aquarium_camera = aquarium::aquariumBuildingCameraPreset(
         base_camera, aquarium_map->building_presentation.camera, 16.0f);
+    const auto builder_camera = aquarium::aquariumBuildingCameraPreset(
+        base_camera, builder_lab->building_presentation.camera, 16.0f);
     const float camera_horizontal =
         aquarium_map->building_presentation.camera.distance_behind_player_tiles * 16.0f;
     const float camera_vertical =
@@ -217,7 +258,9 @@ void configuredDewgongMovesInsidePlacedTank() {
     require(near(aquarium_camera.distance,
                 std::hypot(camera_horizontal, camera_vertical)) &&
             near(aquarium_camera.pitch_deg,
-                -std::atan2(camera_vertical, camera_horizontal) * radians_to_degrees),
+                -std::atan2(camera_vertical, camera_horizontal) * radians_to_degrees) &&
+            near(aquarium_camera.far_clip, base_camera.far_clip) &&
+            near(builder_camera.far_clip, 2048.0f),
         "aquarium camera height/distance controls did not derive the expected orbit");
     const auto lab_allows_construction = [&](int column, int row) {
         return std::any_of(builder_lab->construction.allowed_cells.begin(),
@@ -225,9 +268,9 @@ void configuredDewgongMovesInsidePlacedTank() {
                 return cell.column == column && cell.row == row;
             });
     };
-    require(lab_allows_construction(1, 1) && lab_allows_construction(22, 16) &&
-            lab_allows_construction(12, 8) && !lab_allows_construction(12, 1) &&
-            !lab_allows_construction(12, 16),
+    require(lab_allows_construction(1, 1) && lab_allows_construction(52, 31) &&
+            lab_allows_construction(27, 16) && !lab_allows_construction(27, 1) &&
+            !lab_allows_construction(27, 31),
         "builder lab construction mask must keep both doorway circulation lanes clear");
     require(near(aquarium_map->pokemon_presentation.brightness,
                 catalog.pokemon_presentation.brightness *
@@ -652,6 +695,62 @@ void playerTankPopulationUsesRuntimeNavigation() {
         "replacing player tanks left stale simulated actors behind");
 }
 
+void largePlayerTankKyogreNavigatesWhileIdling() {
+    pr::gameplay::world3d::SceneConfig scene;
+    aquarium::AquariumSimulation simulation(projectRoot(), scene, nullptr);
+    const auto models = pr::gameplay::attend::discoverPokemonModels(
+        projectRoot() / "assets/pokemon_attend/pokemon_models");
+    const auto kyogre = std::find_if(models.begin(), models.end(), [](const auto& model) {
+        return model.id == "kyogre";
+    });
+    require(kyogre != models.end(), "Kyogre movement fixture requires its Attend model");
+
+    aquarium::AquariumNavigation navigation;
+    navigation.export_units_per_meter = 16.0f;
+    navigation.floor_level_y = 0.0f;
+    navigation.valid = true;
+    aquarium::SwimVolumeLayer layer;
+    layer.id = "large-player-water";
+    layer.y_bottom = -8.8f;
+    layer.y_top = 10.0f;
+    layer.polygons = {{{
+        {-8.5f, -11.0f}, {8.5f, -11.0f}, {8.5f, 11.0f}, {-8.5f, 11.0f}}}};
+    navigation.layers.push_back(layer);
+    navigation.suggested_spawns.push_back({0.0f, 0.6f, 0.0f});
+
+    aquarium::AquariumSwimmerDefinition swimmer;
+    swimmer.actor.id = "large-player-tank:kyogre";
+    swimmer.actor.species = "kyogre";
+    swimmer.actor.form = "00";
+    swimmer.actor.model_path = kyogre->path;
+    swimmer.actor.animation = "idle_default";
+    swimmer.actor.model_scale = 0.1f;
+    swimmer.movement.id = swimmer.actor.id;
+    swimmer.movement.species = swimmer.actor.species;
+    swimmer.movement.animation = swimmer.actor.animation;
+    swimmer.movement.behavior = "school";
+    swimmer.movement.speed_meters_per_second = 0.42f;
+    swimmer.movement.turn_degrees_per_second = 90.0f;
+    swimmer.movement.body_radius_meters = 0.35f;
+    swimmer.seed = 382U;
+
+    aquarium::AquariumPlayerTankSimulationInput tank;
+    tank.tank_id = "large-player-tank";
+    tank.navigation = navigation;
+    tank.swimmers.push_back(swimmer);
+    simulation.replacePlayerTanks({tank});
+    require(simulation.actors().size() == 1U,
+        "Kyogre did not fit inside a large generated player tank");
+    const auto initial = simulation.actors().front().world_position;
+    for (int frame = 0; frame < 600; ++frame) simulation.update(1.0 / 60.0);
+    const auto moved = simulation.actors().front().world_position;
+    const float dx = moved[0] - initial[0];
+    const float dy = moved[1] - initial[1];
+    const float dz = moved[2] - initial[2];
+    require(dx * dx + dy * dy + dz * dz > 1.0f,
+        "roaming Kyogre remained stationary while its idle animation played");
+}
+
 void focusViewSupportsEveryTankFace() {
     aquarium::AquariumTankRuntime tank;
     tank.placement_id = "four_faces";
@@ -749,8 +848,10 @@ int main() {
         positionParsingRejectsSilentZeroes();
         inspectionFacingRestoresEveryApproachDirection();
         navigationHonorsUndergroundLayersAndHoles();
+        aquariumRuntimeLodPreservesAnimationAndReducesGeometry();
         configuredDewgongMovesInsidePlacedTank();
         playerTankPopulationUsesRuntimeNavigation();
+        largePlayerTankKyogreNavigatesWhileIdling();
         focusViewSupportsEveryTankFace();
         polygonCutoutPreservesPartialFloorCells();
         freeCameraCaptureIsPasteReady();

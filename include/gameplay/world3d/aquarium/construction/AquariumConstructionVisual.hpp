@@ -157,6 +157,13 @@ struct ConstructionGizmoHit {
     std::optional<std::string> tunnel_id;
 };
 
+inline constexpr int kConstructionWorkingViewHalfColumns = 10;
+inline constexpr int kConstructionWorkingViewHalfRows = 8;
+
+bool aquariumConstructionCellInWorkingView(
+    pr::aquarium::geometry::GridCell cell,
+    pr::aquarium::geometry::GridCell view_center);
+
 ConstructionVisualMesh buildAquariumConstructionWorldMesh(
     const AquariumConstructionVisual& visual);
 

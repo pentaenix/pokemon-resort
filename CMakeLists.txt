@@ -93,6 +93,16 @@ set(RESORT_STORAGE_SOURCES
 # WebAssembly adapter. This target has no SDL, bgfx, or editor dependencies.
 add_subdirectory(shared/aquarium_geometry)
 
+add_library(aquarium_pokemon_runtime_lod STATIC
+    src/gameplay/world3d/aquarium/rendering/AquariumPokemonRuntimeLod.cpp
+    ${bgfx_cmake_SOURCE_DIR}/bgfx/3rdparty/meshoptimizer/src/simplifier.cpp
+)
+target_include_directories(aquarium_pokemon_runtime_lod
+    PUBLIC include
+    PRIVATE ${bgfx_cmake_SOURCE_DIR}/bgfx/3rdparty
+)
+target_compile_features(aquarium_pokemon_runtime_lod PRIVATE cxx_std_17)
+
 add_library(world3d_bgfx_renderer STATIC
     src/core/crypto/Sha256.cpp
     src/gameplay/attend/rendering/AttendBgfxRenderer.cpp
@@ -136,7 +146,7 @@ add_library(world3d_bgfx_renderer STATIC
 target_include_directories(world3d_bgfx_renderer PUBLIC include)
 target_include_directories(world3d_bgfx_renderer PRIVATE ${bgfx_cmake_SOURCE_DIR}/bimg/3rdparty/tinyexr/deps/miniz)
 target_compile_features(world3d_bgfx_renderer PRIVATE cxx_std_20)
-target_link_libraries(world3d_bgfx_renderer PUBLIC aquarium_geometry bgfx bx bimg SDL2::SDL2 SDL2_image::SDL2_image SDL2_ttf::SDL2_ttf PkgConfig::ZSTD)
+target_link_libraries(world3d_bgfx_renderer PUBLIC aquarium_geometry aquarium_pokemon_runtime_lod bgfx bx bimg SDL2::SDL2 SDL2_image::SDL2_image SDL2_ttf::SDL2_ttf PkgConfig::ZSTD)
 
 add_executable(title_screen_demo
     src/main.cpp
@@ -742,7 +752,7 @@ add_executable(aquarium_tests
 )
 target_include_directories(aquarium_tests PRIVATE include)
 target_compile_definitions(aquarium_tests PRIVATE PR_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
-target_link_libraries(aquarium_tests PRIVATE SDL2::SDL2 PkgConfig::ZSTD)
+target_link_libraries(aquarium_tests PRIVATE aquarium_pokemon_runtime_lod SDL2::SDL2 PkgConfig::ZSTD)
 add_test(NAME aquarium_tests COMMAND aquarium_tests)
 target_include_directories(owmap_overworld_loader_tests PRIVATE
     include

@@ -1622,20 +1622,20 @@ void testCurrentMapProjectSourcesLoadInRuntime() {
                     "each aquarium exit cell transfers one row south of the room");
             }
         } else if (scene.id == "aquarium_builder_lab") {
-            expect(scene.map_type == "interior" && scene.grid.width == 24 &&
-                    scene.grid.height == 18 && scene.models.empty() &&
+            expect(scene.map_type == "interior" && scene.grid.width == 54 &&
+                    scene.grid.height == 33 && scene.models.empty() &&
                     scene.interior.floor_cutouts.empty(),
                 "builder lab is a separate empty procedural aquarium room");
             expect(scene.interior.openings.size() == 2U &&
-                    !pr::gameplay::world3d::interiors::boundaryCellBlocked(scene, 12, 0) &&
-                    !pr::gameplay::world3d::interiors::boundaryCellBlocked(scene, 12, 17) &&
-                    pr::gameplay::world3d::interiors::boundaryCellBlocked(scene, 0, 8) &&
-                    pr::gameplay::world3d::interiors::boundaryCellBlocked(scene, 23, 8),
+                    !pr::gameplay::world3d::interiors::boundaryCellBlocked(scene, 27, 0) &&
+                    !pr::gameplay::world3d::interiors::boundaryCellBlocked(scene, 27, 32) &&
+                    pr::gameplay::world3d::interiors::boundaryCellBlocked(scene, 0, 16) &&
+                    pr::gameplay::world3d::interiors::boundaryCellBlocked(scene, 53, 16),
                 "builder lab keeps north/south circulation open and side walls closed");
             pr::gameplay::world3d::characters::CharacterController movement(scene);
-            for (int row = 2; row <= 16; ++row) {
+            for (int row = 2; row <= 31; ++row) {
                 expect(movement.teleportToTile(
-                        12, row - 1, pr::gameplay::world3d::FacingDirection::South),
+                        27, row - 1, pr::gameplay::world3d::FacingDirection::South),
                     "builder lab movement test can sample its center aisle");
                 const auto step = movement.moveInput(0, 1, 0.02);
                 expect(step.attempted_step && !step.blocked,
@@ -1651,11 +1651,11 @@ void testCurrentMapProjectSourcesLoadInRuntime() {
                 });
             expect(scene.anchors.size() == 2U &&
                     resort_anchor != scene.anchors.end() &&
-                    resort_anchor->tile_x == 12 && resort_anchor->tile_y == 17 &&
+                    resort_anchor->tile_x == 27 && resort_anchor->tile_y == 32 &&
                     resort_anchor->facing ==
                         pr::gameplay::world3d::FacingDirection::North &&
                     gallery_anchor != scene.anchors.end() &&
-                    gallery_anchor->tile_x == 12 && gallery_anchor->tile_y == 0 &&
+                    gallery_anchor->tile_x == 27 && gallery_anchor->tile_y == 0 &&
                     gallery_anchor->facing ==
                         pr::gameplay::world3d::FacingDirection::South,
                 "resort and gallery travel arrive through their matching lab doorways");
@@ -1677,16 +1677,16 @@ void testCurrentMapProjectSourcesLoadInRuntime() {
                 });
             expect(scene.door_triggers.size() == 6U && scene.links.size() == 2U &&
                     gallery_door != scene.door_triggers.end() &&
-                    gallery_door->tile_x == 12 && gallery_door->tile_y == 1 &&
+                    gallery_door->tile_x == 27 && gallery_door->tile_y == 1 &&
                     gallery_link != scene.links.end() &&
                     gallery_link->destination_map_id == "aquarium12" &&
                     gallery_link->destination_anchor_id == "anchor" &&
                     exit_door != scene.door_triggers.end() &&
-                    exit_door->tile_x == 12 && exit_door->tile_y == 18 &&
+                    exit_door->tile_x == 27 && exit_door->tile_y == 33 &&
                     exit_link != scene.links.end() &&
                     exit_link->destination_map_id == "0",
                 "builder lab links north to the authored gallery and south to the resort");
-            for (int x = 11; x <= 13; ++x) {
+            for (int x = 26; x <= 28; ++x) {
                 expect(pr::gameplay::world3d::doors::findDoorTrigger(
                         std::vector<pr::gameplay::world3d::characters::LoadedWorldChunk>{{
                             scene.id, scene, 0, 0}},
@@ -1695,7 +1695,7 @@ void testCurrentMapProjectSourcesLoadInRuntime() {
                 expect(pr::gameplay::world3d::doors::findDoorTrigger(
                         std::vector<pr::gameplay::world3d::characters::LoadedWorldChunk>{{
                             scene.id, scene, 0, 0}},
-                        x, 17, x, 18, 0, 1).has_value(),
+                        x, 32, x, 33, 0, 1).has_value(),
                     "each builder-lab south-door cell transfers");
             }
         }

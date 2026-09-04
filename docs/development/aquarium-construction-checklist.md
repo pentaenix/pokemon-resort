@@ -174,7 +174,7 @@ The shared gizmo foundation owns semantic handles, focus, hit testing, and visua
 - `AquariumConstructionSession`: committed/draft state separation, rectangle placement, fast validation, player-cell protection, cancellation, and immutable commit candidates.
 - `AquariumDesignStore`: canonical per-profile/map documents, read-back validation, durable temporary writes, validated backups, atomic promotion, and newer/invalid recovery behavior.
 - `AquariumCollisionOverlay`: generated collision composed over static OWMAP terrain queries used by player, follower, and NPC movement.
-- `AquariumPlayerRuntime`: rebuildable kernel geometry/navigation/collision plus replaceable population policy; the v1 policy supplies one deterministic Wishiwashi actor per tank.
+- `AquariumPlayerRuntime`: rebuildable kernel geometry/navigation/collision plus replaceable population policy; the current test policy supplies two deterministic Milotic in the first player tank and one Kyogre in the second.
 - `AquariumConstructionOverlay`: nonnumeric grid, cursor, silhouette, fixed-height ticks, confirm/cancel glyphs, and pattern-plus-color validity feedback.
 - `PlayerAquariumBgfxRenderer`: four semantic material passes, locally scoped glass/water state, stable transparent sorting, and staged candidate upload/publish/discard ownership.
 - `Overworld3DTestScreenAquarium`: aquarium12 document lifecycle, worker generation, render-thread upload, transactional commit publication, diagnostics, and map-scoped construction configuration.
@@ -368,7 +368,7 @@ remain out of scope until that review is accepted.
 - `AquariumTankEditing`: shape-aware occupancy, selection, centres, movement, and eight-direction resizing.
 - `AquariumConstructionVisual` and `AquariumConstructionHudLayout`: spatial move/resize gizmos, safe-view hit testing, contextual property choices, tick/arc feedback, and compact focusable controls without numeric labels.
 - `Overworld3DTestScreenAquariumConstructionUi`: construction-only pointer, HUD, gizmo, and semantic property dispatch.
-- `aquarium_builder_lab.owmap`: empty procedural construction room; its config owns the 340-cell safe mask and no authored tank catalog entries.
+- `aquarium_builder_lab.owmap`: empty 54×33 procedural construction room; its config owns the 1,600-cell safe mask and no authored tank catalog entries.
 - Aquarium Maker `resortKernel.ts`: strict whole-cell compatible-subset mapper with advanced-feature fallback.
 
 ### Milestone 3 deterministic and performance evidence
@@ -494,7 +494,7 @@ is never an editable or duplicated numeric field in the authoritative save docum
 - [x] Replace the rejected depth ladder with an x-ray dotted tank wireframe: the actual rounded bottom perimeter and vertical corner guides descend to the authored discrete depth while the compact depth knob remains unobtrusive.
 - [x] Replace the height pip column with the same dotted-volume language: draft height shows the actual rounded top perimeter and vertical guides while retaining the direct height knob.
 - [x] Feed every committed player tank's derived navigation layers and population-policy output into the existing aquarium simulation; generated swimmers now move with rendered-body clearance through deep/layered water while avoiding tunnel dry regions, and player-tank replacement leaves authored swimmers intact.
-- [x] Expand the temporary player-tank testing policy to six schooling Wishiwashi, one stationary bottom-anchored Clamperl, and one floor-wandering Pyukumuku per tank without changing authored aquarium populations.
+- [x] Replace the earlier stress-test population with two walking Milotic in the first player tank and one idle-animated Kyogre on a continuous collision-checked roaming loop in the second; remove Wishiwashi, Clamperl, and Pyukumuku from player tanks without changing authored aquarium populations.
 - [x] Register player-built tank bounds with the existing two-stage aquarium inspection camera after load and every committed edit, using close-focus tuning without altering authored tank camera presets.
 - [x] Distinguish the move gizmo from height/depth controls with a compact four-direction planar compass while preserving the established click–move–click interaction and hit target.
 - [ ] Route compatible discrete Aquarium Maker passage settings through ABI 10; the maker UI still keeps passages on its advanced legacy geometry path, while the shared JSON golden already proves native/WASM parity.
@@ -547,6 +547,12 @@ checked portal readability, route feel, geometry, and collision in Builder Lab.
 - [x] Separate dim aquarium-room ambience from bright exhibit lighting, apply the exhibit grade to authored tanks, player tanks, and Pokémon, and add configurable soft floor spill around tank footprints without global bloom or shared render-state changes.
 - [x] Keep school and wander navigation moving around concave walls and dry tunnel volumes by abandoning blocked steering targets for deterministic validated detours.
 - [x] Carry player-tank corner radius into the exhibit-light footprint so curved glass corners do not leave unlit floor wedges.
+- [x] Add an aquarium-only runtime-LOD prototype for Milotic and Kyogre, preserving the original skeleton, animations, materials, UVs, and textures without creating duplicate model assets.
+- [x] Expand the empty Builder Lab from 24×18 to 54×33 cells, recenter both three-cell doorways, and grow its doorway-safe construction mask from 340 to 1,600 cells without changing the authored gallery.
+- [x] Keep the enlarged room responsive by skipping all construction-mask work while dormant and rendering only a camera-local 21×17-cell working window while editing.
+- [x] Raise maximum player-tank height by five world tiles and maximum below-floor depth by three world tiles through shared ABI-15 limits.
+- [x] Reduce the temporary two-tank population to two walking Milotic in the first tank and one idle-swimming Kyogre in the second.
+- [x] Give the enlarged Builder Lab a map-local 128-tile camera far plane so long tanks are not clipped, without changing authored aquarium or outdoor cameras.
 - [ ] Player live gate: controller-only extended Builder Lab session, mouse/keyboard session, repeated aquarium/overworld transitions, restart/recovery walkthrough, and screenshots of Builder Lab plus authored aquarium12/outdoor scenes.
 - [ ] Confirm live commit telemetry meets the 4 ms GPU-upload target and produces no construction-induced frame above 33 ms on the release machine.
 
