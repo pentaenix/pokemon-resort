@@ -365,7 +365,20 @@ void Overworld3DTestScreen::refreshPlayerAquariumRuntime() {
 void Overworld3DTestScreen::refreshAquariumRenderActors() {
     if (!bgfx_renderer_) return;
     std::vector<gameplay::world3d::aquarium::AquariumPokemonActor> actors;
-    if (aquarium_simulation_) actors = aquarium_simulation_->actors();
+    std::vector<gameplay::world3d::aquarium::AquariumTankRuntime> tanks;
+    if (aquarium_simulation_) {
+        actors = aquarium_simulation_->actors();
+        tanks = aquarium_simulation_->tanks();
+    }
+    const std::string map_id = active_world_map_id_.empty()
+        ? scene_.id : active_world_map_id_;
+    const auto* map_config = gameplay::world3d::aquarium::aquariumMapConfig(
+        aquarium_catalog_, map_id);
+    bgfx_renderer_->setAquariumTankLights(
+        std::move(tanks),
+        map_config
+            ? map_config->building_presentation.tank_lighting
+            : gameplay::world3d::aquarium::AquariumTankLightingConfig{});
     bgfx_renderer_->setAquariumPokemonActors(std::move(actors));
 }
 

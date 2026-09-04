@@ -196,7 +196,8 @@ void AquariumSimulation::replacePlayerTanks(
             input.world_origin[1],
             input.world_origin[1] + vertical[0] * world_units_per_meter,
             input.world_origin[1] + vertical[1] * world_units_per_meter,
-            input.inspection_camera});
+            input.inspection_camera,
+            input.light_corner_radius_world});
 
         for (const AquariumSwimmerDefinition& definition : input.swimmers) {
             if (definition.actor.model_path.empty()) {
@@ -276,6 +277,15 @@ bool AquariumSimulation::appendSwimmer(
         (tank.horizontal_bounds[1] - tank.horizontal_bounds[0]) * 0.5f,
         (tank.vertical_bounds[1] - tank.vertical_bounds[0]) * 0.5f,
         (tank.horizontal_bounds[3] - tank.horizontal_bounds[2]) * 0.5f};
+    if (swimmer.floor_navigation && !swimmer.navigation.layers.empty()) {
+        const auto lowest_layer = std::min_element(
+            swimmer.navigation.layers.begin(), swimmer.navigation.layers.end(),
+            [](const SwimVolumeLayer& lhs, const SwimVolumeLayer& rhs) {
+                return lhs.y_bottom < rhs.y_bottom;
+            });
+        swimmer.floor_navigation_y =
+            (lowest_layer->y_bottom + lowest_layer->y_top) * 0.5f;
+    }
     swimmer.rng.seed(seed);
     swimmer.local_position = resolveStartingPosition(swimmer, movement, copy, count);
     if (!containsBody(swimmer, swimmer.local_position)) {
@@ -293,7 +303,11 @@ bool AquariumSimulation::appendSwimmer(
 
 bool AquariumSimulation::containsBody(const Swimmer& swimmer, Point3 origin) const {
     if (swimmer.floor_navigation) {
-        origin[1] = swimmer.volume_center[1];
+        // Floor actors use the horizontal polygon from the lowest navigation
+        // layer. Their rendered substrate height can differ from the exported
+        // swim slice (as in the authored touch pool), while using the overall
+        // volume midpoint could incorrectly select water above a dry tunnel.
+        origin[1] = swimmer.floor_navigation_y;
         return containsPoint(swimmer.navigation, origin, swimmer.radius);
     }
     if (!containsPoint(swimmer.navigation, origin, swimmer.radius)) return false;
@@ -310,8 +324,8 @@ bool AquariumSimulation::segmentNavigable(
     Point3 from,
     Point3 to) const {
     if (swimmer.floor_navigation) {
-        from[1] = swimmer.volume_center[1];
-        to[1] = swimmer.volume_center[1];
+        from[1] = swimmer.floor_navigation_y;
+        to[1] = swimmer.floor_navigation_y;
     }
     return segmentIsNavigable(swimmer.navigation, from, to, swimmer.radius);
 }
@@ -442,29 +456,45 @@ bool AquariumSimulation::chooseTarget(Swimmer& swimmer) {
     return false;
 }
 
-void AquariumSimulation::moveTowardTarget(Swimmer& swimmer, Point3 target, float dt) {
+bool AquariumSimulation::moveTowardTarget(Swimmer& swimmer, Point3 target, float dt) {
     const float dx = target[0] - swimmer.local_position[0];
     const float dy = target[1] - swimmer.local_position[1];
     const float dz = target[2] - swimmer.local_position[2];
     const float distance = std::sqrt(dx * dx + dy * dy + dz * dz);
-    if (distance <= 0.0001f) return;
+    if (distance <= 0.0001f) return true;
     const float step = std::min(distance, swimmer.speed * dt);
     Point3 candidate{
         swimmer.local_position[0] + dx / distance * step,
         swimmer.local_position[1] + dy / distance * step,
         swimmer.local_position[2] + dz / distance * step};
     if (!containsBody(swimmer, candidate) ||
-        !segmentNavigable(swimmer, swimmer.local_position, candidate)) return;
+        !segmentNavigable(swimmer, swimmer.local_position, candidate)) return false;
     swimmer.local_position = candidate;
     const float target_yaw = std::atan2(dx, dz) * 180.0f / kPi + swimmer.tank.yaw_degrees;
     const float yaw_delta = wrapDegrees(target_yaw - swimmer.actor.world_yaw_degrees);
     const float max_turn = swimmer.turn_speed * dt;
     swimmer.actor.world_yaw_degrees = wrapDegrees(
         swimmer.actor.world_yaw_degrees + std::clamp(yaw_delta, -max_turn, max_turn));
+    return true;
 }
 
 void AquariumSimulation::updateSchool(Swimmer& swimmer, float dt) {
     swimmer.school_elapsed += dt;
+    const auto distance_to = [&](Point3 target) {
+        const float dx = target[0] - swimmer.local_position[0];
+        const float dy = target[1] - swimmer.local_position[1];
+        const float dz = target[2] - swimmer.local_position[2];
+        return std::sqrt(dx * dx + dy * dy + dz * dz);
+    };
+    if (swimmer.school_detouring) {
+        if (distance_to(swimmer.local_target) < std::max(0.04f, swimmer.speed * dt * 1.5f)) {
+            swimmer.school_detouring = false;
+        } else if (!moveTowardTarget(swimmer, swimmer.local_target, dt)) {
+            swimmer.school_detouring = chooseTarget(swimmer);
+        }
+        return;
+    }
+
     const float orbit_x = std::max(
         0.05f, (swimmer.volume_half_extent[0] - swimmer.radius) * 0.62f);
     const float orbit_z = std::max(
@@ -502,8 +532,24 @@ void AquariumSimulation::updateSchool(Swimmer& swimmer, float dt) {
         target[0] + repel_x * swimmer.radius,
         target[1] + repel_y * swimmer.radius,
         target[2] + repel_z * swimmer.radius};
-    if (containsBody(swimmer, separated)) target = separated;
-    moveTowardTarget(swimmer, target, dt);
+    if (containsBody(swimmer, separated) &&
+        segmentNavigable(swimmer, swimmer.local_position, separated)) {
+        target = separated;
+    }
+    if (containsBody(swimmer, target) &&
+        segmentNavigable(swimmer, swimmer.local_position, target) &&
+        moveTowardTarget(swimmer, target, dt)) {
+        return;
+    }
+
+    // Bounding-box school orbits are intentionally simple, but concave tanks
+    // and dry tunnel volumes can cross that orbit. Switch to a deterministic,
+    // fully validated waypoint until the swimmer has cleared the obstacle,
+    // then resume the formation instead of pushing forever into the wall.
+    swimmer.school_detouring = chooseTarget(swimmer);
+    if (swimmer.school_detouring) {
+        moveTowardTarget(swimmer, swimmer.local_target, dt);
+    }
 }
 
 void AquariumSimulation::syncActor(Swimmer& swimmer) {
@@ -534,7 +580,9 @@ void AquariumSimulation::update(double dt_seconds) {
             chooseTarget(swimmer);
             continue;
         }
-        moveTowardTarget(swimmer, swimmer.local_target, dt);
+        if (!moveTowardTarget(swimmer, swimmer.local_target, dt)) {
+            chooseTarget(swimmer);
+        }
         swimmer.actor.animation_time_seconds += dt_seconds;
         syncActor(swimmer);
     }

@@ -266,6 +266,12 @@ PlayerAquariumRuntimeSet buildPlayerAquariumRuntime(
             runtime.world_floor_y,
             runtime.world_center_z};
         simulation.inspection_camera = playerTankInspectionCamera();
+        int maximum_radius_steps = runtime.design.corner_radius_steps;
+        for (const auto& corner : runtime.design.corner_radii) {
+            maximum_radius_steps = std::max(maximum_radius_steps, corner.radius_steps);
+        }
+        simulation.light_corner_radius_world = static_cast<float>(
+            maximum_radius_steps * geo::kRadiusStepWorldUnits);
         simulation.swimmers = population_policy.populationFor(
             runtime, context, diagnostics);
         out.simulation_tanks.push_back(std::move(simulation));

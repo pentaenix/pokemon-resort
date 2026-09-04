@@ -77,14 +77,19 @@ the player and `heightAbovePlayerTiles` sets its vertical height; the runtime
 derives the camera pitch and orbit distance, so tuning the view does not require
 trigonometry. The current values are slightly closer and lower than the shared
 overworld camera. `lighting.brightness` and the RGB `tint` grade the aquarium
-room, authored and player-built tanks, overworld actors, and aquarium Pokémon.
+room and ordinary overworld actors. `tankLighting` independently grades
+authored tank models, player-built tank meshes, and aquarium Pokémon so a dim
+room can retain bright, readable exhibits. Its `spillColor`, `spillOpacity`,
+and `spillReachTiles` produce a soft additive ring on the floor outside each
+tank footprint; this is local aquarium geometry, not global bloom or a shared
+shader-state change.
 The block may be set once at the root for every configured aquarium map or
 overridden inside an individual map entry. Maps without a matching aquarium
 entry always retain their original camera and lighting.
 
 `species` is resolved case-insensitively by name against the existing Attend model catalog, preferring compiled `.glbz` assets. `form` optionally selects an Attend form ID such as `"00"`; rendering and physical bounds use the same form. `pokemonScale` is the one shared render scale for every species; Attend models retain their relative proportions, so changing it scales Dewgong, Clamperl, Kyogre, and future aquarium Pokémon together. `sizeMultiplier` is an optional per-entry exception and defaults to `1`.
 
-`pokemonPresentation` is an aquarium-only lighting and color grade. Its `brightness`, `pokemonBrightness`, `saturation`, `contrast`, `ambient`, `directional`, `formShadow`, `lightDirection`, and `tint` fields use the same meanings as Attend. The committed defaults reproduce Attend's clear-scene Pokémon presentation. Values may be overridden at map level, are copied into aquarium actor draw submissions, and never modify shared textures or the lighting of tanks, glass, scenery, overworld sprites, or Attend itself.
+`pokemonPresentation` is an aquarium-only lighting and color grade. Its `brightness`, `pokemonBrightness`, `saturation`, `contrast`, `ambient`, `directional`, `formShadow`, `lightDirection`, and `tint` fields use the same meanings as Attend. The committed defaults reproduce Attend's clear-scene Pokémon presentation. Values may be overridden at map level and are copied into aquarium actor draw submissions. When `tankLighting` is enabled, its brightness and tint are composed into the actor presentation instead of the darker room light. This never modifies shared textures, overworld sprites, or Attend itself.
 
 `positionMeters` is the preferred readable position format: `{"x": -1.15, "y": 0.2, "z": -1.15}` in Aquarium Maker local metres. The older `startingPositionMeters: [x, y, z]` remains supported, and numeric strings are accepted. Invalid or missing coordinate fields reject a live edit instead of silently becoming zero. With `verticalAnchor: "bottom"`, Y is an offset above the lowest swim-volume layer. With `verticalAnchor: "floor"`, Y is an offset above the exported `coordinateSystem.floorLevelY`; this is the right anchor for shallow touch pools whose water layer sits above the physical floor. X and Z always remain tank-local. Positions that overlap exported glass or obstacle navigation are adjusted to a deterministic nearby navigable point and logged rather than allowing geometry to escape the tank.
 

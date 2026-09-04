@@ -40,6 +40,8 @@ struct AquariumTankRuntime {
     float water_bottom_world = 0.0f;
     float water_top_world = 0.0f;
     AquariumInspectionCameraConfig inspection_camera;
+    // Optional player-design radius used only to shape local exhibit-light spill.
+    float light_corner_radius_world = 0.0f;
 };
 
 // Runtime-only population request used by generated player tanks. The
@@ -60,6 +62,7 @@ struct AquariumPlayerTankSimulationInput {
     float yaw_degrees = 0.0f;
     AquariumInspectionCameraConfig inspection_camera;
     std::vector<AquariumSwimmerDefinition> swimmers;
+    float light_corner_radius_world = 0.0f;
 };
 
 class AquariumSimulation {
@@ -101,10 +104,12 @@ private:
         float lower_extent = 0.0f;
         float upper_extent = 0.0f;
         bool floor_navigation = false;
+        float floor_navigation_y = 0.0f;
         Behavior behavior = Behavior::Wander;
         std::string school_id;
         float school_phase = 0.0f;
         float school_elapsed = 0.0f;
+        bool school_detouring = false;
         Point3 volume_center{};
         Point3 volume_half_extent{};
         std::mt19937 rng;
@@ -138,7 +143,7 @@ private:
         int copy,
         int count);
     void updateSchool(Swimmer& swimmer, float dt);
-    void moveTowardTarget(Swimmer& swimmer, Point3 target, float dt);
+    bool moveTowardTarget(Swimmer& swimmer, Point3 target, float dt);
     void syncActor(Swimmer& swimmer);
 
     std::filesystem::path project_root_;

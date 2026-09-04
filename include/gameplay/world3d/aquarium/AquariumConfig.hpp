@@ -23,9 +23,19 @@ struct AquariumBuildingLightingConfig {
     std::array<float, 3> tint{1.0f, 1.0f, 1.0f};
 };
 
+struct AquariumTankLightingConfig {
+    bool enabled = false;
+    float brightness = 1.0f;
+    std::array<float, 3> tint{1.0f, 1.0f, 1.0f};
+    std::array<float, 3> spill_color{0.18f, 0.58f, 0.86f};
+    float spill_opacity = 0.0f;
+    float spill_reach_tiles = 1.5f;
+};
+
 struct AquariumBuildingPresentationConfig {
     AquariumBuildingCameraConfig camera;
     AquariumBuildingLightingConfig lighting;
+    AquariumTankLightingConfig tank_lighting;
 };
 
 struct AquariumPokemonPresentationConfig {

@@ -544,6 +544,9 @@ checked portal readability, route feel, geometry, and collision in Builder Lab.
 - [x] Harden linked-room renderer ownership by retiring the source room before destination aquarium lighting, actors, floor cutouts, and player-tank meshes are published.
 - [x] Raise both aquarium rooms' side/back walls from four to eight tiles, cap openings above three-tile door clearance, and add an aquarium-only black lower facade to hide deep-tank geometry below the front floor edge.
 - [x] Expand each aquarium doorway to three movement triggers and move its activation row one cell south; halo-row south exits use the no-prestep transfer script while anchors remain centred and stable.
+- [x] Separate dim aquarium-room ambience from bright exhibit lighting, apply the exhibit grade to authored tanks, player tanks, and Pokémon, and add configurable soft floor spill around tank footprints without global bloom or shared render-state changes.
+- [x] Keep school and wander navigation moving around concave walls and dry tunnel volumes by abandoning blocked steering targets for deterministic validated detours.
+- [x] Carry player-tank corner radius into the exhibit-light footprint so curved glass corners do not leave unlit floor wedges.
 - [ ] Player live gate: controller-only extended Builder Lab session, mouse/keyboard session, repeated aquarium/overworld transitions, restart/recovery walkthrough, and screenshots of Builder Lab plus authored aquarium12/outdoor scenes.
 - [ ] Confirm live commit telemetry meets the 4 ms GPU-upload target and produces no construction-induced frame above 33 ms on the release machine.
 

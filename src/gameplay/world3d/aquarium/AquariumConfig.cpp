@@ -106,6 +106,39 @@ AquariumBuildingPresentationConfig parseBuildingPresentation(
             }
         }
     }
+    if (const JsonValue* tank_lighting = value->get("tankLighting");
+        tank_lighting && tank_lighting->isObject()) {
+        if (const JsonValue* enabled = tank_lighting->get("enabled");
+            enabled && enabled->isBool()) {
+            out.tank_lighting.enabled = enabled->asBool();
+        }
+        out.tank_lighting.brightness = std::clamp(static_cast<float>(numberOr(
+            tank_lighting->get("brightness"), out.tank_lighting.brightness)), 0.1f, 3.0f);
+        out.tank_lighting.spill_opacity = std::clamp(static_cast<float>(numberOr(
+            tank_lighting->get("spillOpacity"), out.tank_lighting.spill_opacity)), 0.0f, 1.0f);
+        out.tank_lighting.spill_reach_tiles = std::clamp(static_cast<float>(numberOr(
+            tank_lighting->get("spillReachTiles"), out.tank_lighting.spill_reach_tiles)), 0.0f, 6.0f);
+        const auto parse_color = [&](const char* field, std::array<float, 3>& color) {
+            const JsonValue* json = tank_lighting->get(field);
+            if (!json) return;
+            if (!json->isArray() || json->asArray().size() != 3U) {
+                throw std::runtime_error(
+                    std::string("buildingPresentation.tankLighting.") + field +
+                    " must contain [red, green, blue]");
+            }
+            for (std::size_t channel = 0; channel < 3U; ++channel) {
+                const double component = numberOr(&json->asArray()[channel], -1.0);
+                if (!std::isfinite(component) || component < 0.0 || component > 3.0) {
+                    throw std::runtime_error(
+                        std::string("buildingPresentation.tankLighting.") + field +
+                        " components must be finite values from 0 to 3");
+                }
+                color[channel] = static_cast<float>(component);
+            }
+        };
+        parse_color("tint", out.tank_lighting.tint);
+        parse_color("spillColor", out.tank_lighting.spill_color);
+    }
     return out;
 }
 
@@ -359,15 +392,22 @@ AquariumCatalog loadAquariumCatalog(const std::string& project_root, std::string
             map.pokemon_scale = out.pokemon_scale;
             map.pokemon_presentation = parsePokemonPresentation(
                 map_value.get("pokemonPresentation"), out.pokemon_presentation);
-            if (map.building_presentation.lighting.enabled) {
+            AquariumTankLightingConfig actor_lighting =
+                map.building_presentation.tank_lighting;
+            if (!actor_lighting.enabled && map.building_presentation.lighting.enabled) {
+                actor_lighting.enabled = true;
+                actor_lighting.brightness = map.building_presentation.lighting.brightness;
+                actor_lighting.tint = map.building_presentation.lighting.tint;
+            }
+            if (actor_lighting.enabled) {
                 map.pokemon_presentation.brightness = std::clamp(
                     map.pokemon_presentation.brightness *
-                        map.building_presentation.lighting.brightness,
+                        actor_lighting.brightness,
                     0.1f, 3.0f);
                 for (std::size_t channel = 0; channel < 3U; ++channel) {
                     map.pokemon_presentation.tint[channel] = std::clamp(
                         map.pokemon_presentation.tint[channel] *
-                            map.building_presentation.lighting.tint[channel],
+                            actor_lighting.tint[channel],
                         0.0f, 3.0f);
                 }
             }

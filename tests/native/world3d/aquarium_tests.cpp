@@ -190,6 +190,13 @@ void configuredDewgongMovesInsidePlacedTank() {
                 catalog.building_presentation.lighting.tint[0]) &&
             near(aquarium_map->building_presentation.lighting.tint[2],
                 catalog.building_presentation.lighting.tint[2]) &&
+            aquarium_map->building_presentation.tank_lighting.enabled &&
+            near(aquarium_map->building_presentation.tank_lighting.brightness,
+                catalog.building_presentation.tank_lighting.brightness) &&
+            near(aquarium_map->building_presentation.tank_lighting.spill_opacity,
+                catalog.building_presentation.tank_lighting.spill_opacity) &&
+            near(aquarium_map->building_presentation.tank_lighting.spill_reach_tiles,
+                catalog.building_presentation.tank_lighting.spill_reach_tiles) &&
             builder_lab->building_presentation.camera.enabled &&
             near(builder_lab->building_presentation.camera.distance_behind_player_tiles,
                 catalog.building_presentation.camera.distance_behind_player_tiles) &&
@@ -222,16 +229,24 @@ void configuredDewgongMovesInsidePlacedTank() {
             lab_allows_construction(12, 8) && !lab_allows_construction(12, 1) &&
             !lab_allows_construction(12, 16),
         "builder lab construction mask must keep both doorway circulation lanes clear");
-    require(near(aquarium_map->pokemon_presentation.brightness, 1.08f) &&
+    require(near(aquarium_map->pokemon_presentation.brightness,
+                catalog.pokemon_presentation.brightness *
+                    catalog.building_presentation.tank_lighting.brightness) &&
             near(aquarium_map->pokemon_presentation.pokemon_brightness, 1.02f) &&
             near(aquarium_map->pokemon_presentation.ambient, 0.74f) &&
             near(aquarium_map->pokemon_presentation.directional, 0.34f) &&
             near(aquarium_map->pokemon_presentation.form_shadow, 0.24f) &&
             near(aquarium_map->pokemon_presentation.light_direction[2], 0.45f) &&
-            near(aquarium_map->pokemon_presentation.tint[0], 0.9f) &&
-            near(aquarium_map->pokemon_presentation.tint[1], 0.9603f) &&
-            near(aquarium_map->pokemon_presentation.tint[2], 1.026f),
-        "aquarium Pokemon presentation must include the scoped blue building light");
+            near(aquarium_map->pokemon_presentation.tint[0],
+                catalog.pokemon_presentation.tint[0] *
+                    catalog.building_presentation.tank_lighting.tint[0]) &&
+            near(aquarium_map->pokemon_presentation.tint[1],
+                catalog.pokemon_presentation.tint[1] *
+                    catalog.building_presentation.tank_lighting.tint[1]) &&
+            near(aquarium_map->pokemon_presentation.tint[2],
+                catalog.pokemon_presentation.tint[2] *
+                    catalog.building_presentation.tank_lighting.tint[2]),
+        "aquarium Pokemon presentation must inherit the independent tank light");
     require(near(aquarium_map->tanks[0].inspection_camera.focused_standoff_tiles, 8.7166932f) &&
             near(aquarium_map->tanks[0].inspection_camera.focused_near_clip, 12.0f) &&
             near(aquarium_map->tanks[0].inspection_camera.focused_wall_clip_radius_tiles, 1.5f) &&
@@ -255,7 +270,8 @@ void configuredDewgongMovesInsidePlacedTank() {
         "one global scale must control every aquarium Pokemon");
     require(simulation.actors().front().animation == "idle_default",
         "Dewgong must use its authored idle animation while swimming");
-    require(near(simulation.actors().front().presentation.brightness, 1.08f) &&
+    require(near(simulation.actors().front().presentation.brightness,
+                aquarium_map->pokemon_presentation.brightness) &&
             near(simulation.actors().front().presentation.pokemon_brightness, 1.02f) &&
             near(simulation.actors().front().presentation.light_direction[2], 0.45f),
         "every aquarium actor must carry the scoped Attend presentation values");
@@ -565,11 +581,15 @@ void playerTankPopulationUsesRuntimeNavigation() {
     swimmer.actor.model_scale = 0.27f;
     swimmer.movement.id = swimmer.actor.id;
     swimmer.movement.species = swimmer.actor.species;
-    swimmer.movement.behavior = "wander";
+    swimmer.movement.behavior = "school";
     swimmer.movement.speed_meters_per_second = 0.34f;
     swimmer.movement.turn_degrees_per_second = 180.0f;
     swimmer.movement.body_radius_meters = 0.03f;
+    swimmer.movement.has_starting_position = true;
+    swimmer.movement.starting_position_meters = {-0.8f, -0.8f, 0.0f};
     swimmer.seed = 147U;
+    swimmer.formation_index = 0;
+    swimmer.formation_count = 1;
 
     aquarium::AquariumPlayerTankSimulationInput tank;
     tank.tank_id = "player-tank";
@@ -599,6 +619,8 @@ void playerTankPopulationUsesRuntimeNavigation() {
         "player-built tank did not support the existing two-stage inspection zoom");
 
     bool moved = false;
+    float five_second_motion = 0.0f;
+    auto previous = initial;
     for (int frame = 0; frame < 60 * 30; ++frame) {
         simulation.update(1.0 / 60.0);
         const auto& actor = simulation.actors().front();
@@ -612,6 +634,17 @@ void playerTankPopulationUsesRuntimeNavigation() {
         const float dy = actor.world_position[1] - initial[1];
         const float dz = actor.world_position[2] - initial[2];
         moved = moved || std::sqrt(dx * dx + dy * dy + dz * dz) > 1.0f;
+        const float frame_dx = actor.world_position[0] - previous[0];
+        const float frame_dy = actor.world_position[1] - previous[1];
+        const float frame_dz = actor.world_position[2] - previous[2];
+        five_second_motion += std::sqrt(
+            frame_dx * frame_dx + frame_dy * frame_dy + frame_dz * frame_dz);
+        previous = actor.world_position;
+        if ((frame + 1) % (60 * 5) == 0) {
+            require(five_second_motion > 1.0f,
+                "school swimmer became stuck against a dry tunnel or tank wall");
+            five_second_motion = 0.0f;
+        }
     }
     require(moved, "player-tank placeholder remained a static rendered actor");
     simulation.replacePlayerTanks({});

@@ -84,6 +84,9 @@ public:
     void setStaticMapChunks(std::vector<StaticMapChunk> chunks);
     void setAquariumPokemonActors(
         std::vector<aquarium::AquariumPokemonActor> actors);
+    void setAquariumTankLights(
+        std::vector<aquarium::AquariumTankRuntime> tanks,
+        const aquarium::AquariumTankLightingConfig& lighting);
     void setAquariumConstructionVisual(
         aquarium::construction::AquariumConstructionVisual visual);
     bool replacePlayerAquariumTanks(
