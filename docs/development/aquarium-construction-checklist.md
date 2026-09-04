@@ -7,7 +7,7 @@ Updated: 2026-09-03
 - Pokémon Resort branch: `codex/aquarium-construction-milestone-4` from the Milestone 3.5 checkpoint.
 - Aquarium maker branch: `codex/aquarium-construction-milestone-4` from the Milestone 3.5 checkpoint.
 - Pre-Milestone 1 aquarium work was integrated into both repositories before these branches were created.
-- Milestone 4 changes span both repositories because current kernel ABI 12 is consumed by the maker's browser-only WASM adapter.
+- Milestone 4 changes span both repositories because current kernel ABI 13 is consumed by the maker's browser-only WASM adapter.
 - No reset, clean, checkout, destructive operation, or broad reformat was performed.
 - Feature commits stage explicit Milestone 4 paths only.
 
@@ -490,6 +490,7 @@ is never an editable or duplicated numeric field in the authoritative save docum
 - [x] Make normal placement a stable click-start/click-finish rectangle gesture; remove implicit hover-paint after tank selection, merge drawn footprints that overlap or share an edge, and keep tanks separate when a full empty-cell gap remains.
 - [x] Make below-floor tunnel glass readable as a floor using an ABI-11 cool-grey scaffold: maker-proportioned raised side rails and shallow crossbars divide every transparent walking-cell panel without changing collision or navigation.
 - [x] Frame both tunnel portals with the same cool-grey scaffold material so entrances remain legible against glass and water without narrowing the walking opening.
+- [x] Preserve every flat-sand region when a tunnel meets a rounded tank end by sanitizing clipped geometry before shared sand triangulation and navigation publication.
 - [x] Replace the rejected depth ladder with an x-ray dotted tank wireframe: the actual rounded bottom perimeter and vertical corner guides descend to the authored discrete depth while the compact depth knob remains unobtrusive.
 - [x] Replace the height pip column with the same dotted-volume language: draft height shows the actual rounded top perimeter and vertical guides while retaining the direct height knob.
 - [x] Feed every committed player tank's derived navigation layers and population-policy output into the existing aquarium simulation; generated swimmers now move with rendered-body clearance through deep/layered water while avoiding tunnel dry regions, and player-tank replacement leaves authored swimmers intact.
@@ -509,6 +510,7 @@ Focused verification:
 | `npm run validate:kernel` | Pass before the floor-scaffold revision; five exact native/WASM goldens, ABI 10/schema 5, rectangle hash `fnv1a64:80593cdcf5817e67`, WASM p95 1.4190 ms |
 | `npm run validate:kernel` after floor-scaffold revision | Pass before portal frames; six exact native/WASM goldens, ABI 11/schema 5, rectangle hash `fnv1a64:3f7ec27c7b4f0782`, WASM p95 0.7381 ms |
 | `npm run validate:kernel` after portal-frame revision | Pass; six exact native/WASM goldens, ABI 12/schema 5, rectangle hash `fnv1a64:980d524c41647655`, WASM p95 0.7292 ms |
+| `npm run validate:kernel` after rounded-tunnel sand fix | Pass; seven exact native/WASM goldens, ABI 13/schema 5, rectangle hash `fnv1a64:f971f058bcfafa00`, WASM p95 0.7314 ms |
 | `npm run check` | Pass; existing maker chunk-size warning only |
 
 Latest navigation-integration verification: `aquarium_tests`,

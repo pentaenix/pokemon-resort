@@ -33,9 +33,10 @@ constexpr float kHalfCellWorldUnits =
     static_cast<float>(kWorldUnitsPerCell) * 0.5F;
 float canonicalFloat(float value) {
     constexpr double kOutputStepsPerWorldUnit = 10000.0;
-    return static_cast<float>(std::round(
+    const float canonical = static_cast<float>(std::round(
         static_cast<double>(value) * kOutputStepsPerWorldUnit) /
         kOutputStepsPerWorldUnit);
+    return canonical == 0.0F ? 0.0F : canonical;
 }
 
 void canonicalizeResultFloats(AquariumBuildResult& result) {
@@ -273,6 +274,47 @@ float polygonSignedArea(const std::vector<Vec2>& polygon) {
     return twice_area * 0.5F;
 }
 
+bool nearlySamePoint(Vec2 left, Vec2 right) {
+    constexpr float kPointEpsilon = 0.0001F;
+    return std::abs(left.x - right.x) <= kPointEpsilon &&
+        std::abs(left.y - right.y) <= kPointEpsilon;
+}
+
+std::vector<Vec2> sanitizePolygon(std::vector<Vec2> polygon) {
+    std::vector<Vec2> clean;
+    clean.reserve(polygon.size());
+    for (const Vec2 point : polygon) {
+        if (clean.empty() || !nearlySamePoint(clean.back(), point)) {
+            clean.push_back(point);
+        }
+    }
+    if (clean.size() > 1U && nearlySamePoint(clean.front(), clean.back())) {
+        clean.pop_back();
+    }
+
+    bool removed = true;
+    while (removed && clean.size() >= 3U) {
+        removed = false;
+        for (std::size_t index = 0; index < clean.size(); ++index) {
+            const Vec2 previous = clean[(index + clean.size() - 1U) % clean.size()];
+            const Vec2 current = clean[index];
+            const Vec2 next = clean[(index + 1U) % clean.size()];
+            const float between = (current.x - previous.x) * (current.x - next.x) +
+                (current.y - previous.y) * (current.y - next.y);
+            if (std::abs(polygonCross(previous, current, next)) <= 0.0001F &&
+                between <= 0.0001F) {
+                clean.erase(clean.begin() + static_cast<std::ptrdiff_t>(index));
+                removed = true;
+                break;
+            }
+        }
+    }
+    if (clean.size() >= 3U && polygonSignedArea(clean) < 0.0F) {
+        std::reverse(clean.begin(), clean.end());
+    }
+    return clean;
+}
+
 Vec2 lineIntersection(Vec2 start, Vec2 end, Vec2 clip_start, Vec2 clip_end) {
     const Vec2 segment{end.x - start.x, end.y - start.y};
     const Vec2 edge{clip_end.x - clip_start.x, clip_end.y - clip_start.y};
@@ -309,7 +351,7 @@ std::vector<Vec2> clipPolygonToConvex(
         }
         subject = std::move(output);
     }
-    return subject;
+    return sanitizePolygon(std::move(subject));
 }
 
 bool pointInTriangle(Vec2 point, Vec2 a, Vec2 b, Vec2 c) {

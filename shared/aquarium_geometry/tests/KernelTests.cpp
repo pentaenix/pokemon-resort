@@ -40,6 +40,11 @@ float dot(const Vec3& left, const Vec3& right) {
     return left.x * right.x + left.y * right.y + left.z * right.z;
 }
 
+bool nearlySamePoint(Vec2 left, Vec2 right) {
+    return std::fabs(left.x - right.x) <= 0.0001F &&
+        std::fabs(left.y - right.y) <= 0.0001F;
+}
+
 AquariumBuildRequest rectangleRequest() {
     AquariumBuildRequest request;
     request.tank.id = "tank_golden_rectangle_even";
@@ -119,7 +124,7 @@ void testRectangleGolden() {
         "interior occupied cell is not blocked");
     require(result.statistics.navigation_layer_count == 1, "navigation layer count changed");
     require(result.navigation.suggested_spawns.size() == 1, "spawn count changed");
-    require(result.content_hash == "fnv1a64:980d524c41647655", "content hash changed: " + result.content_hash);
+    require(result.content_hash == "fnv1a64:f971f058bcfafa00", "content hash changed: " + result.content_hash);
     require(result.statistics.water_volume_litres == 80735,
         "standard tank derived water volume changed");
 
@@ -457,6 +462,42 @@ void testStraightAndElbowTunnelsDeriveDrySpace() {
             }), "tunnel was accepted below the three-level minimum height");
 }
 
+void testRoundedTunnelKeepsEverySandRegion() {
+    AquariumBuildRequest request;
+    request.tank.id = "tank_rounded_tunnel_sand_regression";
+    request.tank.footprint.origin_cell = {13, 8};
+    request.tank.footprint.width_cells = 7;
+    request.tank.footprint.depth_cells = 5;
+    request.tank.height_steps = 6;
+    request.tank.corner_radii = {
+        {{0, 5}, 8},
+        {{7, 5}, 6},
+    };
+    request.tank.tunnels.push_back({"tunnel_south_curve", TunnelRoute::Straight,
+        {{16, 13}, {16, 12}, {16, 11}, {16, 10}, {16, 9}, {16, 8}}});
+
+    const AquariumBuildResult result = buildAquarium(request);
+    requireValidMeshSet(result, "rounded tunnel beside sand regions");
+    require(result.navigation.layers.size() == 3U,
+        "rounded tunnel did not split its lower water into two regions");
+
+    std::size_t expected_sand_indices = 0U;
+    for (std::size_t layer_index = 0; layer_index + 1U < result.navigation.layers.size();
+         ++layer_index) {
+        const auto& polygon = result.navigation.layers[layer_index].area.outer;
+        require(polygon.size() >= 3U, "rounded tunnel produced an empty water region");
+        for (std::size_t point_index = 0; point_index < polygon.size(); ++point_index) {
+            require(!nearlySamePoint(polygon[point_index],
+                        polygon[(point_index + 1U) % polygon.size()]),
+                "rounded tunnel left a duplicate polygon point");
+        }
+        expected_sand_indices += (polygon.size() - 2U) * 3U;
+    }
+    const SemanticMesh& sand = meshWithMaterial(result, MeshMaterial::Sand);
+    require(sand.indices.size() == expected_sand_indices,
+        "rounded tunnel failed to triangulate every visible sand region");
+}
+
 } // namespace
 
 int main() {
@@ -473,6 +514,7 @@ int main() {
         testCornerRadiiAreIndependentAndStable();
         testUnsafeAreaDoesNotAllocateFootprintMemory();
         testStraightAndElbowTunnelsDeriveDrySpace();
+        testRoundedTunnelKeepsEverySandRegion();
         std::cout << "aquarium_geometry_tests: ok\n";
         return 0;
     } catch (const std::exception& error) {

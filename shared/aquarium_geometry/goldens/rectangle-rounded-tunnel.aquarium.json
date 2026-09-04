@@ -1,0 +1,61 @@
+{
+  "designId": "aqd_golden_rounded_tunnel",
+  "grid": {
+    "cellConvention": "integer-boundaries-half-cell-centres",
+    "metresPerCell": 1,
+    "origin": "map-north-west",
+    "placementOffsetCells": [0.5, 0.5],
+    "radiusStepWorldUnits": 4,
+    "tileWorldUnits": 16,
+    "verticalStepWorldUnits": 8
+  },
+  "mapId": "aquarium_builder_lab",
+  "populationPolicy": {
+    "id": "placeholder-wishiwashi",
+    "version": 1
+  },
+  "revision": 1,
+  "schema": "pokemon-resort-aquarium-design",
+  "schemaVersion": 5,
+  "tanks": [
+    {
+      "cornerRadii": [
+        {
+          "radiusSteps": 8,
+          "vertex": { "column": 0, "row": 5 }
+        },
+        {
+          "radiusSteps": 6,
+          "vertex": { "column": 7, "row": 5 }
+        }
+      ],
+      "cornerRadiusSteps": 0,
+      "depthSteps": 0,
+      "footprint": {
+        "depthCells": 5,
+        "originCell": { "column": 13, "row": 8 },
+        "rotationQuarterTurns": 0,
+        "shape": "rectangle",
+        "widthCells": 7
+      },
+      "glass": { "style": "clear-fixed-v1" },
+      "heightSteps": 6,
+      "id": "tank_golden_rounded_tunnel",
+      "substrate": { "kind": "sand-flat" },
+      "tunnels": [
+        {
+          "centrelineCells": [
+            { "column": 16, "row": 13 },
+            { "column": 16, "row": 12 },
+            { "column": 16, "row": 11 },
+            { "column": 16, "row": 10 },
+            { "column": 16, "row": 9 },
+            { "column": 16, "row": 8 }
+          ],
+          "id": "tunnel_golden_rounded_south",
+          "route": "straight"
+        }
+      ]
+    }
+  ]
+}

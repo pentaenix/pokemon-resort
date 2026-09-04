@@ -112,6 +112,11 @@ ABI 12 extends that same semantic frame around both portal arches. The border
 is derived from the fixed tunnel profile, rendered on both faces, and does not
 alter the authored route, portal aperture, collision, or navigation volume.
 
+ABI 13 sanitizes the clipped water-region polygons shared by sand triangulation
+and navigation. Duplicate and redundant collinear points are removed after a
+tunnel region is clipped to a rounded footprint, preventing a valid tunnel near
+a curved corner from dropping part of the flat sand surface.
+
 ## Alternatives Considered
 
 - Separate C++ and TypeScript implementations constrained by golden files: lower initial porting cost, but still permits semantic drift.
