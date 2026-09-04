@@ -4,12 +4,12 @@ Updated: 2026-09-03
 
 ## Working-state guardrails
 
-- Pokémon Resort branch: `codex/aquarium-construction-milestone-4` from the Milestone 3.5 checkpoint.
-- Aquarium maker branch: `codex/aquarium-construction-milestone-4` from the Milestone 3.5 checkpoint.
+- Pokémon Resort branch: `codex/aquarium-construction-milestone-5` from the approved Milestone 4 checkpoint.
+- Aquarium maker branch: `codex/aquarium-construction-milestone-5` from the approved Milestone 4 checkpoint.
 - Pre-Milestone 1 aquarium work was integrated into both repositories before these branches were created.
-- Milestone 4 changes span both repositories because current kernel ABI 14 is consumed by the maker's browser-only WASM adapter.
+- Kernel ABI 14 is consumed by the maker's browser-only WASM adapter; Milestone 5 changes the Resort runtime and shared verification only.
 - No reset, clean, checkout, destructive operation, or broad reformat was performed.
-- Feature commits stage explicit Milestone 4 paths only.
+- Feature commits stage explicit Milestone 5 paths only.
 
 ## Milestone status
 
@@ -18,10 +18,10 @@ Updated: 2026-09-03
 | 0 — branches, baseline, contracts, kernel harness | Complete | Approved 2026-08-28 |
 | 1 — fixed rectangle vertical slice | Complete | User authorized Milestone 2 on 2026-08-29; detailed usability comments deferred to review |
 | 2 — editing and history | Complete | User authorized Milestone 3 on 2026-08-29 |
-| 3 — height, L/U shapes, roundness | Review checkpoint ready | Awaiting player review and revision comments |
-| 3.5 — below-floor depth and derived volume | Review checkpoint ready | Awaiting player review before tunnels |
-| 4 — tunnels | In progress — first playable slice | Awaiting straight/elbow route UX and rendering review |
-| 5 — recovery, performance, release hardening | Not started | Blocked on Milestone 4 approval |
+| 3 — height, L/U shapes, roundness | Complete | User advanced through the revision checkpoint |
+| 3.5 — below-floor depth and derived volume | Complete | User advanced to tunnels after review |
+| 4 — tunnels | Complete | User authorized Milestone 5 on 2026-09-03 |
+| 5 — recovery, performance, release hardening | Review checkpoint ready | Automated gate complete; live visual/controller soak remains |
 
 ## Milestone 0 checklist
 
@@ -48,16 +48,16 @@ Updated: 2026-09-03
 ## Current golden evidence
 
 - Fixture: `shared/aquarium_geometry/goldens/rectangle-even.aquarium.json`.
-- Kernel ABI: 6.
-- Current design schema: 4; schema 1/2/3 documents remain readable migration inputs.
-- Rectangle hash: `fnv1a64:4de4c4c06e5a7006`.
+- Kernel ABI: 14.
+- Current design schema: 5; schema 1/2/3/4 documents remain readable migration inputs.
+- Rectangle hash: `fnv1a64:a7c4b0150a3c90e3`.
 - Meshes: 5 semantic material groups (structure, flat sand, water volume, water surface, glass).
 - Vertices: 188.
 - Indices: 282.
 - Triangles: 94.
 - Collision: all 24 occupied cells.
 - Navigation: 1 layer and 1 suggested spawn.
-- Native/WASM result: exact JSON equality for rectangle, rounded L, and rotated U fixtures.
+- Native/WASM result: exact JSON equality for all eight current fixtures, including depth, rounded-tunnel sand, bridge framing, and connected tunnel networks.
 
 ## Verification log
 
@@ -90,9 +90,9 @@ Render isolation was verified from the generated link graph: `title_screen_demo`
 
 ## Next milestone boundary
 
-Milestone 3 is at its review checkpoint. Milestone 4 must not begin without
-explicit user approval; straight and one-elbow tunnels, portal sockets, dry
-corridors, and layered tunnel navigation remain out of the current change.
+Milestone 5 is the final v1 hardening checkpoint. Feature expansion remains
+out of scope until its live controller, rendering, save-recovery, and repeated
+map-transition review is accepted.
 
 ## Milestone 1 work log
 
@@ -524,3 +524,57 @@ failure, which this change does not touch.
 Review boundary: this is intentionally the smallest end-to-end tunnel slice.
 Do not add shaped/rounded seams or existing-tunnel editing until the player has
 checked portal readability, route feel, geometry, and collision in Builder Lab.
+
+## Milestone 5 — recovery, performance, and release hardening
+
+### Implemented
+
+- [x] Create clean matching Milestone 5 branches without disturbing the approved Milestone 4 commits.
+- [x] Recover a validated backup, displaced `.previous` primary, or fully written `.tmp` candidate after an interrupted save promotion.
+- [x] Treat a newer-schema primary, backup, previous, or temporary artifact as read-only and refuse to overwrite it from an older executable.
+- [x] Keep invalid artifacts in place while authored aquarium content remains loadable and construction disables safely.
+- [x] Retire replaced player-aquarium GPU generations after three rendered frames; drain active, staged, and retired handles on shutdown.
+- [x] Stress 256 resource-generation swaps and prove every fake GPU handle is destroyed exactly once with a bounded retirement queue.
+- [x] Log load status, schema, kernel ABI, revision, operation names, geometry/resource counts, water volume, generation/upload budgets, and measured timings.
+- [x] Add explicit stale-kernel and newer-design-schema rejection coverage so derived data cannot cross an incompatible version boundary.
+- [x] Benchmark rectangle, rounded shape, deep connected tunnels, and the eight-tank room limit after warm-up.
+- [x] Keep persistent derived caches disabled for v1: measured generation is already comfortably inside budget, while an extra cache would add another corruption/recovery surface. Any future cache must be disposable and keyed by document content, kernel ABI, schema, material profile, and render format.
+- [x] Run the complete Resort native build/test gate and the maker type/build, native/WASM parity, and full model validation gates.
+- [ ] Player live gate: controller-only extended Builder Lab session, mouse/keyboard session, repeated aquarium/overworld transitions, restart/recovery walkthrough, and screenshots of Builder Lab plus authored aquarium12/outdoor scenes.
+- [ ] Confirm live commit telemetry meets the 4 ms GPU-upload target and produces no construction-induced frame above 33 ms on the release machine.
+
+### Measured evidence
+
+Native kernel benchmark, 2,000 samples after 100 warmups:
+
+| Fixture | Tanks/sample | p50 | p95 | p99 | Maximum |
+|---|---:|---:|---:|---:|---:|
+| Rectangle | 1 | 0.1605 ms | 0.2009 ms | 0.2307 ms | 0.3597 ms |
+| Rounded U | 1 | 1.2516 ms | 1.3289 ms | 1.3908 ms | 35.9917 ms |
+| Deep four-exit tunnel | 1 | 1.7904 ms | 1.8925 ms | 1.9567 ms | 48.0223 ms |
+| Eight rounded U tanks | 8 | 10.0738 ms | 10.2240 ms | 10.4655 ms | 55.2164 ms |
+
+The p95 values are below the 50 ms rectangle, 100 ms complex-geometry, and
+20 ms eight-tank CPU targets. The isolated maximum spikes did not affect p95;
+live frame/upload telemetry remains part of the player gate.
+
+| Verification | Result |
+|---|---|
+| `cmake --build build -j4` | Pass; all configured native targets and the shipping executable build |
+| `ctest --test-dir build --output-on-failure` | 69/74 pass; exactly the five documented pre-construction baseline failures remain |
+| Save interruption/newer-version and 256-generation lifecycle tests | Pass in `aquarium_runtime_tests` |
+| Kernel ABI/schema invalidation and geometry suite | Pass in `aquarium_geometry_tests` |
+| `npm run check` | Pass; existing maker chunk-size warning only |
+| `npm run validate:kernel` | Pass; eight exact native/WASM goldens, ABI 14, WASM p95 1.3035 ms |
+| `npm run validate:model` | Pass for the maker's complete standard, shaped, tunnel, depth, navigation, and decor matrix |
+
+The unchanged five native-suite failures are the gameplay-to-Resort boundary
+import, two Attend catalog fixture expectations, compact window width, early
+ramp rise, and RTPKS ocean sampling. No file involved in those failures was
+changed by Milestone 5.
+
+### Review boundary
+
+The code and automated release gate are ready. Do not declare v1 released or
+begin post-v1 features until the user completes the live visual/controller and
+map-transition soak above. Corrections found there remain Milestone 5 work.

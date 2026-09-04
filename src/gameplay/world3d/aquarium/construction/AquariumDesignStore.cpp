@@ -81,16 +81,18 @@ AquariumStoreLoadResult AquariumDesignStore::loadOne(const fs::path& path) const
 
 AquariumStoreLoadResult AquariumDesignStore::load() const {
     AquariumStoreLoadResult primary = loadOne(primary_path_);
-    if (primary.status == AquariumStoreLoadStatus::Loaded ||
-        primary.status == AquariumStoreLoadStatus::NewerVersion) {
-        return primary;
-    }
     AquariumStoreLoadResult backup = loadOne(backupPath());
-    if (backup.status == AquariumStoreLoadStatus::NewerVersion) return backup;
     AquariumStoreLoadResult previous = loadOne(previousPath());
-    if (previous.status == AquariumStoreLoadStatus::NewerVersion) return previous;
     AquariumStoreLoadResult temporary = loadOne(temporaryPath());
+
+    // Any future-version artifact may be the newest confirmed document from
+    // an interrupted transaction. Keep the whole store read-only so an older
+    // executable cannot silently erase it while loading another valid copy.
+    if (primary.status == AquariumStoreLoadStatus::NewerVersion) return primary;
+    if (backup.status == AquariumStoreLoadStatus::NewerVersion) return backup;
+    if (previous.status == AquariumStoreLoadStatus::NewerVersion) return previous;
     if (temporary.status == AquariumStoreLoadStatus::NewerVersion) return temporary;
+    if (primary.status == AquariumStoreLoadStatus::Loaded) return primary;
 
     if (backup.status == AquariumStoreLoadStatus::Loaded) {
         backup.status = AquariumStoreLoadStatus::RecoveredBackup;

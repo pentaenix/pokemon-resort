@@ -125,6 +125,26 @@ with one shared junction canopy. Unconnected routes must leave at least one
 clear walking-grid tile between their glass shells, and overlapping segments
 remain invalid.
 
+## Milestone 5 hardening record
+
+The v1 runtime deliberately does not persist derived geometry caches. Measured
+native p95 generation is 0.2009 ms for a rectangle, 1.8925 ms for a deep
+four-exit tunnel tank, and 10.2240 ms for eight rounded tanks, so a cache would
+add recovery and invalidation complexity without addressing a measured
+bottleneck. If profiling later justifies one, it remains disposable and must be
+keyed by canonical design content, kernel ABI, design schema, material profile,
+and render format. The kernel now has explicit tests rejecting mismatched ABI
+and schema requests.
+
+Transactional loading examines the primary, validated backup, displaced
+primary, and complete temporary candidate. A future-schema artifact anywhere
+holds the store read-only; supported interrupted candidates can be recovered
+without deleting the original evidence. Player aquarium GPU resources use
+candidate staging and atomic publication, then retain the old generation for
+three rendered frames before the sole render owner destroys it. Structured
+runtime telemetry records version, revision, command/history semantics,
+geometry and resource counts, generation and upload time, and budget results.
+
 ## Alternatives Considered
 
 - Separate C++ and TypeScript implementations constrained by golden files: lower initial porting cost, but still permits semantic drift.

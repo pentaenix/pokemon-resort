@@ -52,6 +52,54 @@ gameplay::world3d::FacingDirection constructionReturnFacing(
     return gameplay::world3d::FacingDirection::South;
 }
 
+const char* aquariumCommandName(
+    gameplay::world3d::aquarium::construction::AquariumCommandKind kind) {
+    using Kind = gameplay::world3d::aquarium::construction::AquariumCommandKind;
+    switch (kind) {
+    case Kind::CreateTank: return "create_tank";
+    case Kind::EditTank: return "edit_tank";
+    case Kind::DeleteTank: return "delete_tank";
+    case Kind::EditTankSet: return "edit_tank_set";
+    }
+    return "unknown";
+}
+
+const char* aquariumHistoryActionName(
+    gameplay::world3d::aquarium::construction::ConstructionHistoryAction action) {
+    using Action = gameplay::world3d::aquarium::construction::ConstructionHistoryAction;
+    switch (action) {
+    case Action::RecordNew: return "record_new";
+    case Action::Undo: return "undo";
+    case Action::Redo: return "redo";
+    }
+    return "unknown";
+}
+
+const char* aquariumLoadStatusName(
+    gameplay::world3d::aquarium::construction::AquariumStoreLoadStatus status) {
+    using Status = gameplay::world3d::aquarium::construction::AquariumStoreLoadStatus;
+    switch (status) {
+    case Status::Missing: return "missing";
+    case Status::Loaded: return "loaded";
+    case Status::RecoveredBackup: return "recovered_backup";
+    case Status::RecoveredPrevious: return "recovered_previous";
+    case Status::RecoveredTemporary: return "recovered_temporary";
+    case Status::NewerVersion: return "newer_version";
+    case Status::Invalid: return "invalid";
+    }
+    return "unknown";
+}
+
+bool aquariumUsesComplexGeometry(
+    const gameplay::world3d::aquarium::construction::AquariumDesignDocument& document) {
+    return std::any_of(document.tanks.begin(), document.tanks.end(), [](const auto& tank) {
+        return tank.corner_radius_steps > 0 || !tank.corner_radii.empty() ||
+            !tank.tunnels.empty() ||
+            tank.footprint.shape != pr::aquarium::geometry::FootprintShape::Rectangle ||
+            !tank.footprint.subtracted_cells.empty();
+    });
+}
+
 } // namespace
 
 void Overworld3DTestScreen::reloadAquariumConfig(bool force) {
@@ -148,7 +196,10 @@ void Overworld3DTestScreen::configureAquariumConstruction(
     document.design_id = "aqd_" + aquariumProfileId(persistence) + "_" + map_config->map_id;
     document.map_id = map_config->map_id;
     bool loaded_document_rejected = false;
+    const auto document_load_started = std::chrono::steady_clock::now();
     const aqc::AquariumStoreLoadResult loaded = aquarium_design_store_->load();
+    const auto document_load_microseconds = std::chrono::duration_cast<std::chrono::microseconds>(
+        std::chrono::steady_clock::now() - document_load_started).count();
     if (loaded.document) {
         if (loaded.document->map_id == map_config->map_id) {
             document = *loaded.document;
@@ -212,13 +263,18 @@ void Overworld3DTestScreen::configureAquariumConstruction(
     const auto load_microseconds = std::chrono::duration_cast<std::chrono::microseconds>(
         std::chrono::steady_clock::now() - configure_started).count();
     std::cerr << "[AquariumConstruction] event=document_loaded map=" << map_config->map_id
+              << " status=" << aquariumLoadStatusName(loaded.status)
+              << " schema=" << pr::aquarium::geometry::kDesignSchemaVersion
+              << " kernelAbi=" << pr::aquarium::geometry::kKernelAbiVersion
               << " revision=" << aquarium_construction_.committedDesign().revision
               << " tanks=" << aquarium_construction_.committedDesign().tanks.size()
-              << " loadUs=" << load_microseconds << '\n';
+              << " documentLoadUs=" << document_load_microseconds
+              << " configureUs=" << load_microseconds << '\n';
 }
 
 void Overworld3DTestScreen::refreshPlayerAquariumRuntime() {
     namespace aq = gameplay::world3d::aquarium;
+    const auto rebuild_started = std::chrono::steady_clock::now();
     const std::string map_id = active_world_map_id_.empty() ? scene_.id : active_world_map_id_;
     const aq::AquariumMapConfig* map_config = aq::aquariumMapConfig(aquarium_catalog_, map_id);
     if (!map_config || !aquarium_population_policy_) {
@@ -257,6 +313,21 @@ void Overworld3DTestScreen::refreshPlayerAquariumRuntime() {
         }
     }
     refreshAquariumRenderActors();
+    const auto rebuild_microseconds = std::chrono::duration_cast<std::chrono::microseconds>(
+        std::chrono::steady_clock::now() - rebuild_started).count();
+    std::size_t mesh_count = 0;
+    std::size_t vertex_count = 0;
+    for (const auto& tank : player_aquarium_runtime_.tanks) {
+        mesh_count += tank.build.meshes.meshes.size();
+        vertex_count += tank.build.statistics.vertex_count;
+    }
+    std::cerr << "[AquariumConstruction] event=runtime_rebuilt map=" << map_id
+              << " revision=" << player_aquarium_runtime_.revision
+              << " tanks=" << player_aquarium_runtime_.tanks.size()
+              << " meshes=" << mesh_count
+              << " vertices=" << vertex_count
+              << " resources=" << (bgfx_renderer_ ? bgfx_renderer_->playerAquariumResourceCount() : 0U)
+              << " rebuildUs=" << rebuild_microseconds << '\n';
 }
 
 void Overworld3DTestScreen::refreshAquariumRenderActors() {
@@ -310,8 +381,8 @@ bool Overworld3DTestScreen::beginAquariumConstructionCommit(
     const auto config = *map_config;
     const auto project_root = std::filesystem::path(project_root_);
     const std::uint64_t operation_token = candidate->operation_token;
-    const int command_kind = static_cast<int>(candidate->command.kind);
-    const int history_action = static_cast<int>(candidate->history_action);
+    const char* command_kind = aquariumCommandName(candidate->command.kind);
+    const char* history_action = aquariumHistoryActionName(candidate->history_action);
     aquarium_commit_future_ = std::async(std::launch::async,
         [candidate = std::move(*candidate), scene, config, project_root]() mutable {
             const auto started = std::chrono::steady_clock::now();
@@ -341,8 +412,8 @@ bool Overworld3DTestScreen::beginAquariumConstructionCommit(
     std::cerr << "[AquariumConstruction] event=generation_started map=" << map_id
               << " revision=" << aquarium_construction_.committedDesign().revision + 1
               << " token=" << operation_token
-              << " commandKind=" << command_kind
-              << " historyAction=" << history_action << '\n';
+              << " command=" << command_kind
+              << " history=" << history_action << '\n';
     return true;
 }
 
@@ -422,8 +493,8 @@ void Overworld3DTestScreen::updateAquariumConstructionCommit() {
     }
     const std::uint64_t revision = generated.candidate.document.revision;
     const std::uint64_t operation_token = generated.candidate.operation_token;
-    const int command_kind = static_cast<int>(generated.candidate.command.kind);
-    const int history_action = static_cast<int>(generated.candidate.history_action);
+    const char* command_kind = aquariumCommandName(generated.candidate.command.kind);
+    const char* history_action = aquariumHistoryActionName(generated.candidate.history_action);
     if (!aquarium_construction_.publish(std::move(generated.candidate))) {
         std::cerr << "[AquariumConstruction] event=commit_failed stage=publish reason=stale_token\n";
         return;
@@ -441,11 +512,14 @@ void Overworld3DTestScreen::updateAquariumConstructionCommit() {
         triangle_count += tank.build.statistics.triangle_count;
         water_volume_litres += tank.water_volume_litres;
     }
+    const std::int64_t generation_budget_us = aquariumUsesComplexGeometry(
+        aquarium_construction_.committedDesign()) ? 100000 : 50000;
+    constexpr std::int64_t kUploadBudgetUs = 4000;
     std::cerr << "[AquariumConstruction] event=commit map=" << map_id
               << " revision=" << revision
               << " token=" << operation_token
-              << " commandKind=" << command_kind
-              << " historyAction=" << history_action
+              << " command=" << command_kind
+              << " history=" << history_action
               << " tanks=" << player_aquarium_runtime_.tanks.size()
               << " meshes=" << mesh_count
               << " vertices=" << vertex_count
@@ -453,7 +527,13 @@ void Overworld3DTestScreen::updateAquariumConstructionCommit() {
               << " waterVolumeLitres=" << water_volume_litres
               << " resources=" << (bgfx_renderer_ ? bgfx_renderer_->playerAquariumResourceCount() : 0U)
               << " generationUs=" << generated.generation_microseconds
-              << " uploadUs=" << upload_microseconds << '\n';
+              << " generationBudgetUs=" << generation_budget_us
+              << " generationWithinBudget="
+              << (generated.generation_microseconds <= generation_budget_us ? 1 : 0)
+              << " uploadUs=" << upload_microseconds
+              << " uploadBudgetUs=" << kUploadBudgetUs
+              << " uploadWithinBudget=" << (upload_microseconds <= kUploadBudgetUs ? 1 : 0)
+              << '\n';
 }
 
 void Overworld3DTestScreen::applyAquariumConstructionCamera(double delta_seconds) {

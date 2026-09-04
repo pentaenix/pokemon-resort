@@ -108,6 +108,28 @@ void testValidationRejectsUnsafeDimensions() {
             "coordinate overflow diagnostic changed");
 }
 
+void testVersionBoundaryRejectsStaleDerivedData() {
+    AquariumBuildRequest stale_kernel = rectangleRequest();
+    stale_kernel.kernel_abi_version = kKernelAbiVersion - 1;
+    const ValidationReport stale_report = validateAquarium(stale_kernel);
+    require(!stale_report.valid() && std::any_of(
+            stale_report.diagnostics.begin(), stale_report.diagnostics.end(),
+            [](const auto& diagnostic) {
+                return diagnostic.code == "unsupported_kernel_abi";
+            }),
+        "stale kernel ABI was accepted as reusable derived geometry");
+
+    AquariumBuildRequest newer_schema = rectangleRequest();
+    newer_schema.design_schema_version = kDesignSchemaVersion + 1;
+    const ValidationReport newer_report = validateAquarium(newer_schema);
+    require(!newer_report.valid() && std::any_of(
+            newer_report.diagnostics.begin(), newer_report.diagnostics.end(),
+            [](const auto& diagnostic) {
+                return diagnostic.code == "unsupported_design_schema";
+            }),
+        "newer design schema was accepted by an older geometry kernel");
+}
+
 void testRectangleGolden() {
     const AquariumBuildResult result = buildAquarium(rectangleRequest());
     require(result.validation.valid(), "golden rectangle failed validation");
@@ -557,6 +579,7 @@ int main() {
         testCanonicalTransforms();
         testValidationIsStable();
         testValidationRejectsUnsafeDimensions();
+        testVersionBoundaryRejectsStaleDerivedData();
         testRectangleGolden();
         testBelowFloorDepthAndVolume();
         testQuarterTurnSwapsRectangleAxes();

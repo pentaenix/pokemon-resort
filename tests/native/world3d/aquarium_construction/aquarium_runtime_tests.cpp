@@ -1118,8 +1118,9 @@ void storeRecoversInterruptedPromotionsAndPreservesNewerArtifacts() {
         std::ofstream temporary(store.temporaryPath(), std::ios::trunc);
         temporary << newer;
     }
+    fs::copy_file(store.previousPath(), store.primaryPath());
     require(store.load().status == construction::AquariumStoreLoadStatus::NewerVersion,
-        "newer interrupted save artifact was hidden by an older recovery copy");
+        "newer interrupted save artifact was hidden by an older valid primary");
     std::string error;
     require(!store.saveTransactionally(document, &error) && !error.empty(),
         "transactional save overwrote a newer interrupted artifact");
@@ -1430,6 +1431,32 @@ void resourceGenerationRejectsCandidatesWithoutTouchingActiveResources() {
         "shutdown did not destroy both active and delayed GPU generations");
 }
 
+void resourceGenerationStressRetiresEveryHandleExactlyOnce() {
+    struct FakeResource { int id = 0; };
+    aq::rendering::AquariumResourceGeneration<FakeResource> owner;
+    std::vector<int> destroyed;
+    const auto destroy = [&](FakeResource& resource) { destroyed.push_back(resource.id); };
+    constexpr int kGenerations = 256;
+    for (int generation = 0; generation < kGenerations; ++generation) {
+        require(owner.stage({{generation}}, true, destroy) &&
+                owner.publishStaged(destroy, 3),
+            "resource stress fixture could not publish a valid generation");
+        owner.advanceRetirements(destroy);
+        require(owner.active().size() == 1 && owner.active()[0].id == generation,
+            "resource stress publication did not leave exactly one active generation");
+        require(owner.retiredResourceCount() <= 2,
+            "resource retirement queue grew beyond its bounded safety window");
+    }
+    owner.clear(destroy);
+    std::sort(destroyed.begin(), destroyed.end());
+    require(destroyed.size() == kGenerations,
+        "resource stress shutdown leaked or double-destroyed a handle");
+    for (int id = 0; id < kGenerations; ++id) {
+        require(destroyed[static_cast<std::size_t>(id)] == id,
+            "resource stress shutdown did not destroy each handle exactly once");
+    }
+}
+
 } // namespace
 
 int main() {
@@ -1466,6 +1493,7 @@ int main() {
         run("tunnelGestureCommitsCancelsAndClearsRuntimeCollision", tunnelGestureCommitsCancelsAndClearsRuntimeCollision);
         run("connectedTunnelGesturesCreateThreeAndFourExits", connectedTunnelGesturesCreateThreeAndFourExits);
         run("resourceGenerationRejectsCandidatesWithoutTouchingActiveResources", resourceGenerationRejectsCandidatesWithoutTouchingActiveResources);
+        run("resourceGenerationStressRetiresEveryHandleExactlyOnce", resourceGenerationStressRetiresEveryHandleExactlyOnce);
         std::cout << "aquarium_runtime_tests: ok\n";
         return 0;
     } catch (const std::exception& error) {
