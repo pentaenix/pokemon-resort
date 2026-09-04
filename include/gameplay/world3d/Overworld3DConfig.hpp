@@ -347,6 +347,10 @@ struct InteriorDefaultRoomConfig {
     bool enabled = true;
     float wall_height_tiles = 4.0f;
     float front_wall_height_tiles = 0.35f;
+    // Boundary openings keep their lower portion clear while the wall/lintel
+    // continues above them. A large default preserves legacy full-height
+    // openings unless a room explicitly opts into a lower doorway.
+    float opening_height_tiles = 16.0f;
     float trim_height_tiles = 0.125f;
     int walkable_inset_tiles = 1;
     float wall_face_offset_tiles = 0.5f;
@@ -355,6 +359,9 @@ struct InteriorDefaultRoomConfig {
     float entry_extension_depth_tiles = 0.0f;
     bool black_top_cap = true;
     float top_cap_depth_tiles = 0.125f;
+    // Optional opaque curtain below the south/front floor edge. Deep interior
+    // geometry remains hidden below the room datum without changing collision.
+    float lower_facade_depth_tiles = 0.0f;
     TerrainColor floor_color_a{72, 80, 94, 255};
     TerrainColor floor_color_b{80, 89, 104, 255};
     TerrainColor wall_color_ns{58, 64, 78, 255};
@@ -362,6 +369,7 @@ struct InteriorDefaultRoomConfig {
     TerrainColor trim_color{96, 104, 122, 255};
     TerrainColor baseboard_color{42, 47, 58, 255};
     TerrainColor top_cap_color{0, 0, 0, 255};
+    TerrainColor lower_facade_color{0, 0, 0, 255};
 };
 
 struct InteriorMapConfig {

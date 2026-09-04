@@ -148,14 +148,19 @@ void testInteriorEnvironmentMetadataLoads() {
                 "enabled": true,
                 "wallHeightTiles": 2.5,
                 "frontWallHeightTiles": 0.25,
+                "openingHeightTiles": 1.5,
                 "trimHeightTiles": 0.2,
                 "walkableInsetTiles": 1,
                 "wallFaceOffsetTiles": 0.125,
                 "entryExtensionDepthTiles": 0.75,
                 "blackTopCap": true,
                 "topCapDepthTiles": 0.2,
+                "lowerFacadeDepthTiles": 6,
                 "floorColors": { "checkerA": [10, 20, 30, 255] },
-                "wallColors": { "topCap": [1, 2, 3, 255] }
+                "wallColors": {
+                    "topCap": [1, 2, 3, 255],
+                    "lowerFacade": [4, 5, 6, 255]
+                }
             }
         }
     })json");
@@ -179,7 +184,10 @@ void testInteriorEnvironmentMetadataLoads() {
             std::abs(scene.interior.default_room.entry_extension_depth_tiles - 0.75f) < 0.001f &&
             scene.interior.default_room.black_top_cap &&
             std::abs(scene.interior.default_room.top_cap_depth_tiles - 0.2f) < 0.001f &&
-            scene.interior.default_room.top_cap_color.b == 3,
+            std::abs(scene.interior.default_room.opening_height_tiles - 1.5f) < 0.001f &&
+            std::abs(scene.interior.default_room.lower_facade_depth_tiles - 6.0f) < 0.001f &&
+            scene.interior.default_room.top_cap_color.b == 3 &&
+            scene.interior.default_room.lower_facade_color.b == 6,
         "default room boundary safety and top-cap settings load from metadata");
     expect(!pr::gameplay::world3d::rendering::shouldRenderDefaultInteriorRoom(scene),
         "a complete authored shell suppresses the procedural default room");
@@ -189,7 +197,9 @@ void testInteriorEnvironmentMetadataLoads() {
         pr::gameplay::world3d::rendering::defaultInteriorOpeningCovers(
             shell_less, "south", 5) &&
         std::abs(pr::gameplay::world3d::rendering::defaultInteriorWallHeightTiles(
-            shell_less, "south") - 0.25f) < 0.001f,
+            shell_less, "south") - 0.25f) < 0.001f &&
+        std::abs(pr::gameplay::world3d::rendering::defaultInteriorOpeningHeightTiles(
+            shell_less, "north") - 1.5f) < 0.001f,
         "shell-less interiors render the default room while preserving doorway gaps");
     expect(pr::gameplay::world3d::interiors::boundaryCellBlocked(shell_less, 0, 0) &&
             !pr::gameplay::world3d::interiors::boundaryCellBlocked(shell_less, 5, 5) &&
@@ -1511,8 +1521,13 @@ void testCurrentMapProjectSourcesLoadInRuntime() {
         } else if (scene.id == "aquarium12") {
             expect(scene.grid.width == 24 && scene.grid.height == 18,
                 "aquarium gallery keeps its compact tank-focused footprint");
-            expect(std::abs(scene.interior.default_room.wall_height_tiles - 4.0f) < 0.001f,
-                "current shell-less interior uses the new four-tile default walls");
+            expect(std::abs(scene.interior.default_room.wall_height_tiles - 8.0f) < 0.001f &&
+                    std::abs(scene.interior.default_room.opening_height_tiles - 3.0f) < 0.001f &&
+                    std::abs(scene.interior.default_room.lower_facade_depth_tiles - 8.0f) < 0.001f &&
+                    scene.interior.default_room.lower_facade_color.r == 0 &&
+                    scene.interior.default_room.lower_facade_color.g == 0 &&
+                    scene.interior.default_room.lower_facade_color.b == 0,
+                "aquarium rooms use eight-tile walls, three-tile doors, and a black lower facade");
             expect(scene.interior.default_room.walkable_inset_tiles == 1 &&
                     std::abs(scene.interior.default_room.wall_face_offset_tiles - 0.5f) < 0.001f &&
                     std::abs(scene.interior.default_room.entry_extension_depth_tiles) < 0.001f &&
@@ -1586,22 +1601,26 @@ void testCurrentMapProjectSourcesLoadInRuntime() {
                     entry_anchor->tile_x == 12 && entry_anchor->tile_y == 17 &&
                     entry_anchor->facing == pr::gameplay::world3d::FacingDirection::North,
                 "aquarium arrival starts on the in-bounds entry row facing inward");
-            expect(scene.door_triggers.size() == 1U &&
-                    scene.door_triggers.front().id == "aquarium_exit" &&
-                    scene.door_triggers.front().tile_x == 12 &&
-                    scene.door_triggers.front().tile_y == 17 &&
-                    scene.door_triggers.front().script_id ==
-                        "interior_exit_step_then_transfer",
-                "aquarium starts its scripted exit when entering the visible threshold row");
+            expect(scene.door_triggers.size() == 3U &&
+                    std::all_of(scene.door_triggers.begin(), scene.door_triggers.end(),
+                        [](const auto& door) {
+                            return door.tile_x >= 11 && door.tile_x <= 13 &&
+                                door.tile_y == 18 &&
+                                door.link_id == "aquarium_exit_link" &&
+                                door.script_id == "door_exit_default";
+                        }),
+                "all three aquarium exit cells transfer from the row south of the room");
             expect(scene.links.size() == 1U &&
                     scene.links.front().destination_map_id == "aquarium_builder_lab" &&
                     scene.links.front().destination_anchor_id == "from_gallery",
                 "the authored aquarium gallery returns through the builder lab north door");
             const std::vector<pr::gameplay::world3d::characters::LoadedWorldChunk> room_chunks{{
                 scene.id, scene, 0, 0}};
-            expect(pr::gameplay::world3d::doors::findDoorTrigger(
-                    room_chunks, 12, 16, 12, 17, 0, 1).has_value(),
-                "moving south into the threshold starts the one-cell pre-transfer exit step");
+            for (int x = 11; x <= 13; ++x) {
+                expect(pr::gameplay::world3d::doors::findDoorTrigger(
+                        room_chunks, x, 17, x, 18, 0, 1).has_value(),
+                    "each aquarium exit cell transfers one row south of the room");
+            }
         } else if (scene.id == "aquarium_builder_lab") {
             expect(scene.map_type == "interior" && scene.grid.width == 24 &&
                     scene.grid.height == 18 && scene.models.empty() &&
@@ -1656,17 +1675,29 @@ void testCurrentMapProjectSourcesLoadInRuntime() {
                 scene.links.begin(), scene.links.end(), [](const auto& link) {
                     return link.id == "builder_lab_exit_link";
                 });
-            expect(scene.door_triggers.size() == 2U && scene.links.size() == 2U &&
+            expect(scene.door_triggers.size() == 6U && scene.links.size() == 2U &&
                     gallery_door != scene.door_triggers.end() &&
-                    gallery_door->tile_x == 12 && gallery_door->tile_y == 0 &&
+                    gallery_door->tile_x == 12 && gallery_door->tile_y == 1 &&
                     gallery_link != scene.links.end() &&
                     gallery_link->destination_map_id == "aquarium12" &&
                     gallery_link->destination_anchor_id == "anchor" &&
                     exit_door != scene.door_triggers.end() &&
-                    exit_door->tile_x == 12 && exit_door->tile_y == 17 &&
+                    exit_door->tile_x == 12 && exit_door->tile_y == 18 &&
                     exit_link != scene.links.end() &&
                     exit_link->destination_map_id == "0",
                 "builder lab links north to the authored gallery and south to the resort");
+            for (int x = 11; x <= 13; ++x) {
+                expect(pr::gameplay::world3d::doors::findDoorTrigger(
+                        std::vector<pr::gameplay::world3d::characters::LoadedWorldChunk>{{
+                            scene.id, scene, 0, 0}},
+                        x, 2, x, 1, 0, -1).has_value(),
+                    "each builder-lab north-door cell transfers");
+                expect(pr::gameplay::world3d::doors::findDoorTrigger(
+                        std::vector<pr::gameplay::world3d::characters::LoadedWorldChunk>{{
+                            scene.id, scene, 0, 0}},
+                        x, 17, x, 18, 0, 1).has_value(),
+                    "each builder-lab south-door cell transfers");
+            }
         }
         chunks.push_back({id->asString(), scene, 0, 0});
     }

@@ -541,6 +541,9 @@ checked portal readability, route feel, geometry, and collision in Builder Lab.
 - [x] Keep persistent derived caches disabled for v1: measured generation is already comfortably inside budget, while an extra cache would add another corruption/recovery surface. Any future cache must be disposable and keyed by document content, kernel ABI, schema, material profile, and render format.
 - [x] Run the complete Resort native build/test gate and the maker type/build, native/WASM parity, and full model validation gates.
 - [x] Add a hot-reloadable aquarium-only building presentation config with direct camera height/distance controls and a scoped room/tank/actor light grade; initialize it slightly lower, closer, and bluer without touching non-aquarium maps.
+- [x] Harden linked-room renderer ownership by retiring the source room before destination aquarium lighting, actors, floor cutouts, and player-tank meshes are published.
+- [x] Raise both aquarium rooms' side/back walls from four to eight tiles, cap openings above three-tile door clearance, and add an aquarium-only black lower facade to hide deep-tank geometry below the front floor edge.
+- [x] Expand each aquarium doorway to three movement triggers and move its activation row one cell south; halo-row south exits use the no-prestep transfer script while anchors remain centred and stable.
 - [ ] Player live gate: controller-only extended Builder Lab session, mouse/keyboard session, repeated aquarium/overworld transitions, restart/recovery walkthrough, and screenshots of Builder Lab plus authored aquarium12/outdoor scenes.
 - [ ] Confirm live commit telemetry meets the 4 ms GPU-upload target and produces no construction-induced frame above 33 ms on the release machine.
 
@@ -568,6 +571,7 @@ live frame/upload telemetry remains part of the player gate.
 | `npm run check` | Pass; existing maker chunk-size warning only |
 | `npm run validate:kernel` | Pass; eight exact native/WASM goldens, ABI 14, WASM p95 1.3035 ms |
 | `npm run validate:model` | Pass for the maker's complete standard, shaped, tunnel, depth, navigation, and decor matrix |
+| Aquarium doorway/wall follow-up | Shipping target, `aquarium_tests`, `door_travel_tests`, `map_metadata_editing_tests`, project validation, headless startup, and 12-frame Metal map-maker smoke pass; the existing early-ramp-rise failure still prevents the combined OWMAP loader executable from reaching its later current-map assertions |
 
 The unchanged five native-suite failures are the gameplay-to-Resort boundary
 import, two Attend catalog fixture expectations, compact window width, early

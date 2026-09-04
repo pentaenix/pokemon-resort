@@ -135,7 +135,11 @@ separate 24×18 shell-less interior with no authored models or floor cutouts.
 The resort arrives through the lab's south doorway. The north doorway provides
 an optional two-way route to the authored gallery; walking back out of the
 gallery returns through that same north lab doorway. The south doorway returns
-to the resort. The lab has a clear walkable centre aisle and
+to the resort. Both rooms use eight-tile side/back walls, three-tile-high door
+clearance, and a black lower front facade that hides below-floor tank geometry.
+Each three-cell-wide doorway responds across its complete width; its movement
+trigger is one row farther south than the original centre-only threshold.
+The lab has a clear walkable centre aisle and
 340 construction cells. The three-cell doorway lanes at both ends are
 intentionally outside its construction mask so a saved tank cannot block
 travel.

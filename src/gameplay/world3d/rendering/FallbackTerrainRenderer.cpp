@@ -364,41 +364,77 @@ void renderFallbackTerrain(
                     top_cap_color, false);
             }
         };
+        const auto push_boundary_segment = [&](std::string_view edge,
+                                                bool opening,
+                                                float ax, float az, float ay,
+                                                float bx, float bz, float by,
+                                                float height_tiles,
+                                                SDL_Color body_color) {
+            if (!opening) {
+                push_wall_segment(
+                    edge, ax, az, ay, bx, bz, by, height_tiles, body_color);
+                return;
+            }
+            const float clearance_tiles =
+                defaultInteriorOpeningHeightTiles(scene, edge);
+            const float lintel_height_tiles =
+                std::max(0.0f, height_tiles - clearance_tiles);
+            if (lintel_height_tiles <= 0.001f) return;
+            const float clearance = clearance_tiles * tile_size;
+            push_wall_segment(
+                edge, ax, az, ay + clearance, bx, bz, by + clearance,
+                lintel_height_tiles, body_color);
+        };
+        const float lower_facade_depth =
+            std::max(0.0f, room.lower_facade_depth_tiles) * tile_size;
+        if (lower_facade_depth > 0.001f) {
+            const SDL_Color lower_facade_color = toSdlColor(room.lower_facade_color);
+            for (int x = 0; x < grid_w; ++x) {
+                float south[4]{};
+                corner_heights(x, grid_h - 1, south);
+                const auto line = interiors::placeDefaultRoomWallLine(
+                    scene, "south", tile_size,
+                    (x + 1) * tile_size, grid_h * tile_size,
+                    x * tile_size, grid_h * tile_size);
+                push_quad_face(
+                    line.ax, south[2] - lower_facade_depth, line.az,
+                    line.bx, south[3] - lower_facade_depth, line.bz,
+                    line.bx, south[3], line.bz,
+                    line.ax, south[2], line.az,
+                    lower_facade_color, false);
+            }
+        }
         for (int x = 0; x < grid_w; ++x) {
             float north[4]{};
             corner_heights(x, 0, north);
-            if (!defaultInteriorOpeningCovers(scene, "north", x)) {
-                push_wall_segment("north",
-                    x * tile_size, 0.0f, north[0],
-                    (x + 1) * tile_size, 0.0f, north[1],
-                    defaultInteriorWallHeightTiles(scene, "north"), wall_color_ns);
-            }
+            push_boundary_segment("north",
+                defaultInteriorOpeningCovers(scene, "north", x),
+                x * tile_size, 0.0f, north[0],
+                (x + 1) * tile_size, 0.0f, north[1],
+                defaultInteriorWallHeightTiles(scene, "north"), wall_color_ns);
             float south[4]{};
             corner_heights(x, grid_h - 1, south);
-            if (!defaultInteriorOpeningCovers(scene, "south", x)) {
-                push_wall_segment("south",
-                    (x + 1) * tile_size, grid_h * tile_size, south[2],
-                    x * tile_size, grid_h * tile_size, south[3],
-                    defaultInteriorWallHeightTiles(scene, "south"), wall_color_ns);
-            }
+            push_boundary_segment("south",
+                defaultInteriorOpeningCovers(scene, "south", x),
+                (x + 1) * tile_size, grid_h * tile_size, south[2],
+                x * tile_size, grid_h * tile_size, south[3],
+                defaultInteriorWallHeightTiles(scene, "south"), wall_color_ns);
         }
         for (int z = 0; z < grid_h; ++z) {
             float west[4]{};
             corner_heights(0, z, west);
-            if (!defaultInteriorOpeningCovers(scene, "west", z)) {
-                push_wall_segment("west",
-                    0.0f, (z + 1) * tile_size, west[3],
-                    0.0f, z * tile_size, west[0],
-                    defaultInteriorWallHeightTiles(scene, "west"), wall_color_ew);
-            }
+            push_boundary_segment("west",
+                defaultInteriorOpeningCovers(scene, "west", z),
+                0.0f, (z + 1) * tile_size, west[3],
+                0.0f, z * tile_size, west[0],
+                defaultInteriorWallHeightTiles(scene, "west"), wall_color_ew);
             float east[4]{};
             corner_heights(grid_w - 1, z, east);
-            if (!defaultInteriorOpeningCovers(scene, "east", z)) {
-                push_wall_segment("east",
-                    grid_w * tile_size, z * tile_size, east[1],
-                    grid_w * tile_size, (z + 1) * tile_size, east[2],
-                    defaultInteriorWallHeightTiles(scene, "east"), wall_color_ew);
-            }
+            push_boundary_segment("east",
+                defaultInteriorOpeningCovers(scene, "east", z),
+                grid_w * tile_size, z * tile_size, east[1],
+                grid_w * tile_size, (z + 1) * tile_size, east[2],
+                defaultInteriorWallHeightTiles(scene, "east"), wall_color_ew);
         }
     }
 

@@ -117,6 +117,10 @@ void applyInteriorDefaultRoomConfig(
         static_cast<float>(numOr(
             room->get("frontWallHeightTiles"), out.front_wall_height_tiles)),
         0.0f, 16.0f);
+    out.opening_height_tiles = std::clamp(
+        static_cast<float>(numOr(
+            room->get("openingHeightTiles"), out.opening_height_tiles)),
+        0.0f, 16.0f);
     out.trim_height_tiles = std::clamp(
         static_cast<float>(numOr(room->get("trimHeightTiles"), out.trim_height_tiles)),
         0.0f, 2.0f);
@@ -135,6 +139,10 @@ void applyInteriorDefaultRoomConfig(
         static_cast<float>(numOr(
             room->get("topCapDepthTiles"), out.top_cap_depth_tiles)),
         0.0f, 1.0f);
+    out.lower_facade_depth_tiles = std::clamp(
+        static_cast<float>(numOr(
+            room->get("lowerFacadeDepthTiles"), out.lower_facade_depth_tiles)),
+        0.0f, 16.0f);
     if (const JsonValue* floor = room->get("floorColors"); floor && floor->isObject()) {
         applyColor(out.floor_color_a, floor->get("checkerA"));
         applyColor(out.floor_color_b, floor->get("checkerB"));
@@ -145,6 +153,7 @@ void applyInteriorDefaultRoomConfig(
         applyColor(out.trim_color, walls->get("trim"));
         applyColor(out.baseboard_color, walls->get("baseboard"));
         applyColor(out.top_cap_color, walls->get("topCap"));
+        applyColor(out.lower_facade_color, walls->get("lowerFacade"));
     }
 }
 

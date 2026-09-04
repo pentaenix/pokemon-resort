@@ -89,6 +89,8 @@ InteriorRoomProjection projectInteriorRoom(const OwmapDocument& document) {
     if (room && room->isObject()) {
         result.wall_height_tiles = std::clamp(
             floatOr(room->get("wallHeightTiles"), result.wall_height_tiles), 0.0f, 16.0f);
+        result.opening_height_tiles = std::clamp(
+            floatOr(room->get("openingHeightTiles"), result.opening_height_tiles), 0.0f, 16.0f);
         result.walkable_inset_tiles = std::clamp(
             intOr(room->get("walkableInsetTiles"), result.walkable_inset_tiles), 0, 8);
         result.wall_face_offset_tiles = std::clamp(
@@ -99,6 +101,9 @@ InteriorRoomProjection projectInteriorRoom(const OwmapDocument& document) {
                 result.entry_extension_depth_tiles),
             0.0f, 8.0f);
         result.black_top_cap = boolOr(room->get("blackTopCap"), result.black_top_cap);
+        result.lower_facade_depth_tiles = std::clamp(
+            floatOr(room->get("lowerFacadeDepthTiles"), result.lower_facade_depth_tiles),
+            0.0f, 16.0f);
     }
     if (const JsonValue* openings = interior->get("openings");
         openings && openings->isArray()) {

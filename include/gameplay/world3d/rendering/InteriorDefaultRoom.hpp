@@ -21,4 +21,10 @@ inline float defaultInteriorWallHeightTiles(
     return interiors::wallHeightTiles(scene, edge);
 }
 
+inline float defaultInteriorOpeningHeightTiles(
+    const SceneConfig& scene,
+    std::string_view edge) {
+    return interiors::openingHeightTiles(scene, edge);
+}
+
 } // namespace pr::gameplay::world3d::rendering

@@ -300,8 +300,9 @@ void testInteriorProjectionAndResizePreserveAuthoringGrids() {
         "grid":{"width":3,"height":2,"tileSize":16},
         "player":{"spawnTile":[2,1]},
         "interior":{"shellModelId":"","defaultRoom":{"enabled":true,
-            "wallHeightTiles":4,"walkableInsetTiles":1,"wallFaceOffsetTiles":0.75,
+            "wallHeightTiles":4,"openingHeightTiles":3,"walkableInsetTiles":1,"wallFaceOffsetTiles":0.75,
             "entryExtensionDepthTiles":0.5,
+            "lowerFacadeDepthTiles":8,
             "blackTopCap":true},
             "openings":[{"edge":"south","from":1,"to":2}]},
         "tileLayers":{"version":1,"layers":[{"id":"base","name":"Base","visible":true,
@@ -311,8 +312,10 @@ void testInteriorProjectionAndResizePreserveAuthoringGrids() {
     })"));
     auto room = pr::mapmaker::projectInteriorRoom(map);
     expect(room.default_room && room.wall_height_tiles == 4.0f &&
+            room.opening_height_tiles == 3.0f &&
             room.walkable_inset_tiles == 1 && room.wall_face_offset_tiles == 0.75f &&
             room.entry_extension_depth_tiles == 0.5f &&
+            room.lower_facade_depth_tiles == 8.0f &&
             room.black_top_cap &&
             room.openings.size() == 1 && room.openings[0].to == 2,
         "shell-less interior default room and openings should project");

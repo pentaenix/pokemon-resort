@@ -44,10 +44,12 @@ struct InteriorOpeningProjection {
 struct InteriorRoomProjection {
     bool default_room = false;
     float wall_height_tiles = 4.0f;
+    float opening_height_tiles = 16.0f;
     int walkable_inset_tiles = 1;
     float wall_face_offset_tiles = 0.5f;
     float entry_extension_depth_tiles = 0.0f;
     bool black_top_cap = true;
+    float lower_facade_depth_tiles = 0.0f;
     std::vector<InteriorOpeningProjection> openings;
 };
 

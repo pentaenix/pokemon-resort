@@ -41,6 +41,12 @@ inline float wallHeightTiles(const SceneConfig& scene, std::string_view edge) {
     return edge == "south" ? room.front_wall_height_tiles : room.wall_height_tiles;
 }
 
+inline float openingHeightTiles(const SceneConfig& scene, std::string_view edge) {
+    return std::min(
+        wallHeightTiles(scene, edge),
+        std::max(0.0f, scene.interior.default_room.opening_height_tiles));
+}
+
 // Entry extensions are authored in tile units, but they are rendered and
 // traversed as complete cells. Normalizing once prevents a single floor
 // texture from being stretched over a fractional or multi-cell strip.

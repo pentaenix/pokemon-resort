@@ -85,12 +85,14 @@ alignment without changing the version-1 binary envelope:
       "enabled": true,
       "wallHeightTiles": 4.0,
       "frontWallHeightTiles": 0.35,
+      "openingHeightTiles": 16.0,
       "trimHeightTiles": 0.125,
       "walkableInsetTiles": 1,
       "wallFaceOffsetTiles": 0.5,
       "entryExtensionDepthTiles": 0.0,
       "blackTopCap": true,
-      "topCapDepthTiles": 0.125
+      "topCapDepthTiles": 0.125,
+      "lowerFacadeDepthTiles": 0.0
     }
   }
 }
@@ -111,7 +113,7 @@ alignment without changing the version-1 binary envelope:
   presentable before it is decorated. Resizing the OWMAP immediately resizes the
   procedural room. Set `defaultRoom.enabled` to `false` to opt out. The floor and
   wall palettes may be overridden with `floorColors.checkerA/checkerB` and
-  `wallColors.northSouth/eastWest/trim/baseboard/topCap` RGBA arrays. Default
+  `wallColors.northSouth/eastWest/trim/baseboard/topCap/lowerFacade` RGBA arrays. Default
   back and side walls are four tiles tall. `wallFaceOffsetTiles: 0.5` places each
   face through the center of its boundary cell. The complete floor cells remain
   at their original scale and are cropped at the wall plane. Perpendicular wall
@@ -119,6 +121,9 @@ alignment without changing the version-1 binary envelope:
   are stretched. The default one-cell boundary collision
   aligns with those faces, while explicit openings and cardinal-halo doors carve
   reachable paths through it.
+  `openingHeightTiles` limits the clear vertical portion of an opening; wall
+  geometry continues above that height to form a lintel. Its legacy-safe default
+  is `16`, which leaves ordinary four-tile openings fully clear.
   New interiors author a three-cell-wide south opening in the final in-bounds
   row, producing exactly one three-by-one entry vestibule at normal tile scale.
   Put the arrival anchor and a scripted invisible exit trigger on its center
@@ -130,6 +135,9 @@ alignment without changing the version-1 binary envelope:
   and cardinal-halo doors or explicit openings carve through it.
   `blackTopCap` and `topCapDepthTiles` hide the reverse
   side of the wall with a narrow outward-facing cap.
+  `lowerFacadeDepthTiles` optionally extends an opaque south-facing curtain below
+  the front floor edge. It is useful for rooms with below-floor geometry that
+  should not be visible from the gameplay camera and defaults to `0`.
 - `floorDatum` is the source-model world-space floor elevation used during import.
 - `floorCutouts` removes geometry from the procedural default-room floor without stretching adjacent cells. Legacy `{x,y,width,height}` tile rectangles remain supported. A convex `localPolygon` paired with `placementId` is transformed with that model's position/yaw/scale, then cut exactly from intersecting cells while preserving each cell's original UV domain. This is the preferred form for rounded tanks, angled stairwells, and tunnels; collision remains explicitly authored in the OWMAP.
 - `gridOrigin` is the source-model X/Z position corresponding to OWMAP tile `[0,0]`.
