@@ -15,6 +15,9 @@ struct AquariumBuildingCameraConfig {
     // runtime derives the orbit distance and pitch from these tile values.
     float distance_behind_player_tiles = 24.0f;
     float height_above_player_tiles = 34.0f;
+    // Zero preserves the map camera's near plane. Aquarium interiors can use
+    // a smaller local value so swimmers above close tunnel cameras stay visible.
+    float near_clip_tiles = 0.0f;
     // Zero preserves the map camera's far plane. A positive value gives large
     // aquarium rooms a local far plane without changing outdoor rendering.
     float far_clip_tiles = 0.0f;
@@ -33,12 +36,28 @@ struct AquariumTankLightingConfig {
     std::array<float, 3> spill_color{0.18f, 0.58f, 0.86f};
     float spill_opacity = 0.0f;
     float spill_reach_tiles = 1.5f;
+    // Artistic player-water absorption multiplier. Zero disables attenuation;
+    // one is the authored baseline. Deliberately uncapped for murky-water tuning.
+    float water_attenuation_intensity = 1.0f;
+    // Playback multiplier for the translucent Black 2 upper-water material.
+    // Zero freezes the authored UV timeline without affecting bounded fog.
+    float water_surface_speed = 1.0f;
+    // Player-built substrate darkening. Zero preserves the source texture and
+    // one fades it to black; scoped to aquarium tank sand only.
+    float sand_darkening = 0.0f;
 };
 
 struct AquariumBuildingPresentationConfig {
     AquariumBuildingCameraConfig camera;
     AquariumBuildingLightingConfig lighting;
     AquariumTankLightingConfig tank_lighting;
+};
+
+struct AquariumPokemonEmissionConfig {
+    float bulb_brightness = 1.0f;
+    float halo_brightness = 0.55f;
+    // Fraction restored after bounded fog, with ordinary scene depth occlusion.
+    float fog_retention = 0.4f;
 };
 
 struct AquariumPokemonPresentationConfig {
@@ -52,6 +71,7 @@ struct AquariumPokemonPresentationConfig {
     float form_shadow = 0.24f;
     std::array<float, 3> light_direction{-0.35f, 0.82f, 0.45f};
     std::array<float, 3> tint{1.0f, 0.99f, 0.95f};
+    AquariumPokemonEmissionConfig emission;
 };
 
 struct AquariumInspectionCameraConfig {
@@ -107,6 +127,23 @@ struct AquariumPokemonConfig {
     // Model-space pitch applied before the tank's world yaw. -90 rotates a
     // forward-facing model onto its back so its front points upward.
     float pitch_degrees = 0.0f;
+    // School/patrol vertical amplitude as a fraction of usable water height.
+    float vertical_movement_scale = 0.34f;
+    // Maximum dynamic pitch while following a rising/falling swim path.
+    float swim_pitch_degrees = 0.0f;
+    // Optional inertial steering. Zero preserves immediate path changes.
+    float motion_smoothing_seconds = 0.0f;
+    float pitch_turn_degrees_per_second = 20.0f;
+    // Couples horizontal translation to the rendered heading. Useful for fish
+    // that should steer in arcs instead of sliding sideways toward formation slots.
+    bool forward_only = false;
+    bool continuous_cruise = false;
+    bool habitat_tour = false;
+    // Runtime actor ID followed by escort behavior. Offsets describe a loose
+    // safety envelope around the leader's measured body, not world-space slots.
+    std::string follow_actor_id;
+    float follow_distance_meters = 0.65f;
+    float follow_vertical_gap_meters = 0.08f;
     // Optional Aquarium Maker-space origin. The runtime validates it against the
     // water volume and the rendered model bounds before using it.
     std::array<float, 3> starting_position_meters{};
@@ -119,6 +156,31 @@ struct AquariumPokemonConfig {
     std::string movement_plane = "volume";
     // stationary, wander, or school. Empty/legacy values infer from speed.
     std::string behavior;
+    // Optional timid/local-movement behavior used by catalogue-driven player
+    // populations. Threat names are normalized species slugs.
+    bool random_start = false;
+    float idle_seconds_minimum = 0.0f;
+    float idle_seconds_maximum = 0.0f;
+    float local_move_distance_meters = 0.0f;
+    float flee_radius_meters = 0.0f;
+    float flee_distance_meters = 0.0f;
+    float flee_speed_multiplier = 1.0f;
+    std::vector<std::string> threat_species;
+    // Resolved catalogue activity policy. Zero timings preserve continuous
+    // legacy motion for authored tanks and ordinary free swimmers.
+    std::string idle_animation;
+    float idle_pitch_degrees = 0.0f;
+    float move_seconds_minimum = 0.0f;
+    float move_seconds_maximum = 0.0f;
+    float rest_seconds_minimum = 0.0f;
+    float rest_seconds_maximum = 0.0f;
+    float roaming_height_meters = 0.0f;
+    float crowd_body_scale = 0.68f;
+    bool rest_at_bottom = false;
+    // Player-stocked species carry an offline, animation-sampled envelope in
+    // model units. Authored tanks may omit it and retain legacy live measuring.
+    bool has_baked_physical_envelope = false;
+    std::array<float, 6> baked_physical_envelope{};
 };
 
 struct AquariumTankConfig {
@@ -136,6 +198,8 @@ struct AquariumConstructionConfig {
     };
     bool enabled = false;
     std::vector<Cell> allowed_cells;
+    // Runtime-only compatibility strip. New/changed footprints may not use it.
+    std::vector<Cell> legacy_wall_cells;
     bool has_return_cell = false;
     Cell return_cell;
     std::string return_facing = "south";

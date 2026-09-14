@@ -89,6 +89,12 @@ public:
         const aquarium::AquariumTankLightingConfig& lighting);
     void setAquariumConstructionVisual(
         aquarium::construction::AquariumConstructionVisual visual);
+    void setAquariumStockingOverlay(
+        const std::vector<std::uint8_t>& rgba,
+        int width,
+        int height,
+        std::string content_key,
+        bool visible);
     bool replacePlayerAquariumTanks(
         const std::vector<aquarium::construction::PlayerTankRuntime>& tanks,
         std::string* error = nullptr);

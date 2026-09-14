@@ -23,7 +23,8 @@ Door scripts use trigger `MOVE_TOWARD` and add these ordered actions:
 - `PLAY_TILE_ANIMATION` with `value: "open"` or `value: "close"`. Close plays
   the trigger-phase RTPKS animation in reverse unless the tile names a close clip.
 - `TRANSITION_CLOSE` and `TRANSITION_OPEN`, using the same circular iris
-  transition configuration as Attend.
+  transition configuration as Attend. A positive `durationSeconds` overrides
+  timing for that action only; omission preserves the configured default.
 - `TELEPORT_TO_LINK`, which resolves the trigger's link and destination anchor.
 - `MOVE_PLAYER`, with `direction` and `tiles`, for the authored step out of a door.
 
@@ -31,6 +32,11 @@ Approaching a door first turns the player toward its trigger without starting a
 movement step. The default enter script then opens the tile once, holds its open
 pose, closes the iris, teleports, and opens the iris. The default exit script closes the iris, teleports, opens the iris, moves the
 player south one tile, and closes the referenced exterior door tile.
+
+Generated aquarium internal links use `aquarium_room_transfer`: 0.14s close,
+0.18s open and a 0.12s forward arrival step. They omit the invisible door-tile
+animation wait. Nominal scripted delay is 0.44s instead of 1.83s, excluding
+synchronous room loading and frame scheduling. Exterior doors retain their scripts.
 
 The language is deliberately linear. Branches, loops, durable state, smart-object reservations, and multi-actor handshakes are future extensions.
 

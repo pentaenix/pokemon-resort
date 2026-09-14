@@ -15,6 +15,7 @@ public:
     void clear();
 
     bool active() const { return previous_facing_.has_value(); }
+    FacingDirection worldFacing(FacingDirection fallback) const { return previous_facing_.value_or(fallback); }
 
 private:
     std::optional<FacingDirection> previous_facing_;

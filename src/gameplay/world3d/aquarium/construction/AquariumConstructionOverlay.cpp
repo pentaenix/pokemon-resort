@@ -95,6 +95,23 @@ void drawTrash(SDL_Renderer* renderer, const ConstructionHudRect& rect) {
     SDL_RenderFillRect(renderer, &lid);
 }
 
+void drawFish(SDL_Renderer* renderer, const ConstructionHudRect& rect) {
+    color(renderer, {255, 255, 246, 255});
+    const int cx = rect.x + rect.width / 2 - 2;
+    const int cy = rect.y + rect.height / 2;
+    const int rx = rect.width / 6;
+    const int ry = rect.height / 8;
+    for (int y = -ry; y <= ry; ++y) {
+        const float unit = 1.0f - static_cast<float>(y * y) / std::max(1, ry * ry);
+        const int x = static_cast<int>(rx * std::sqrt(std::max(0.0f, unit)));
+        SDL_RenderDrawLine(renderer, cx - x, cy + y, cx + x, cy + y);
+    }
+    const SDL_Point tail[4]{{cx - rx, cy}, {cx - rx - rect.width / 7, cy - ry},
+        {cx - rx - rect.width / 7, cy + ry}, {cx - rx, cy}};
+    SDL_RenderDrawLines(renderer, tail, 4);
+    SDL_RenderDrawPoint(renderer, cx + rx / 2, cy - 2);
+}
+
 void drawModeSymbol(SDL_Renderer* renderer, const ConstructionHudRect& rect, bool add) {
     color(renderer, {255, 255, 246, 255});
     const int cx = rect.x + rect.width / 2;
@@ -139,6 +156,7 @@ std::string hintFor(const AquariumConstructionSession& session) {
     case ConstructionState::DeleteConfirm:
     case ConstructionState::Building: return "Building tank…";
     case ConstructionState::Dormant: return {};
+    case ConstructionState::ResizeRoom: return "Arrows resize  •  A confirms  •  B cancels";
     }
     return {};
 }
@@ -189,7 +207,21 @@ void AquariumConstructionOverlay::render(
             focused_action == ConstructionHudAction::Delete, {225, 91, 87, 255});
         drawTrash(renderer, layout.remove);
     }
+    if (layout.stock.width > 0) {
+        const bool can_stock = session.state() == ConstructionState::Selected;
+        drawButtonBase(renderer, layout.stock, can_stock,
+            focused_action == ConstructionHudAction::Stock, {73, 174, 190, 255});
+        drawFish(renderer, layout.stock);
+    }
     const ConstructionHudRect finish = layout.build.width > 0 ? layout.build : layout.exit;
+    if(layout.decorate.width>0) {
+        drawButtonBase(renderer,layout.decorate,session.state()==ConstructionState::Selected,
+            focused_action==ConstructionHudAction::Decorate,{73,174,190,255});
+        const int x=layout.decorate.x+layout.decorate.width/2,y=layout.decorate.y+layout.decorate.height/2;
+        SDL_SetRenderDrawColor(renderer,245,252,255,255);
+        SDL_Rect stem{x-3,y-18,6,36};SDL_RenderFillRect(renderer,&stem);
+        SDL_RenderDrawLine(renderer,x,y+5,x-16,y-7);SDL_RenderDrawLine(renderer,x,y+5,x+16,y-7);
+    }
     if (finish.width > 0) {
         const ConstructionHudAction finish_action = layout.build.width > 0
             ? ConstructionHudAction::Build : ConstructionHudAction::Exit;

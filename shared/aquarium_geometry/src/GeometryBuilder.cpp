@@ -22,7 +22,7 @@ constexpr float kBaseOverhang = 1.6F;
 constexpr float kFrameOverhang = 0.88F;
 constexpr float kFrameWidth = 1.6F;
 constexpr float kGlassBottom = 1.608F;
-constexpr float kSandSurfaceY = 3.016F;
+constexpr float kSandSurfaceY = kFlatSandSurfaceWorldUnits;
 constexpr float kTopRimHeight = 1.52F;
 constexpr float kGlassTopInset = 0.5168F;
 constexpr float kWaterCeilingInset = 0.88F;
@@ -588,7 +588,7 @@ void populateAquariumGeometry(
         }
         const float lower_ceiling = std::min(water_y, dry_ceiling);
         const float corridor_floor = below_floor
-            ? std::max(sand_surface_y, 0.0F) : sand_surface_y;
+            ? std::max(sand_surface_y, -kGlassThickness) : sand_surface_y;
         if (lower_ceiling > corridor_floor + 0.001F) {
             for (const auto& region : tunnel_water_regions) {
                 NavigationLayer layer;

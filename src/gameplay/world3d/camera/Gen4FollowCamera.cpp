@@ -46,6 +46,8 @@ void Gen4FollowCamera::setManualPose(Vec3 position, float yaw_deg, float pitch_d
     // Gen 4-style map coordinates use +X as east and +Z as south. When the camera
     // looks north from the south side of the map, east should appear on screen-right.
     right_ = normalize(cross(forward_, world_up));
+    if (std::abs(std::cos(pitch)) < 0.00001f)
+        right_ = Vec3{-std::cos(yaw), 0.0f, std::sin(yaw)};
     up_ = normalize(cross(right_, forward_));
 }
 

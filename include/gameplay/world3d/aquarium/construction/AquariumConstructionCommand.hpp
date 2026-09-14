@@ -14,6 +14,8 @@ enum class AquariumCommandKind {
     EditTank,
     DeleteTank,
     EditTankSet,
+    EditPopulation,
+    EditDecorations,
 };
 
 enum class AquariumCommandDirection {
@@ -33,6 +35,9 @@ struct AquariumConstructionCommand {
     // ordering, or per-tank properties.
     std::vector<pr::aquarium::geometry::TankDesign> tanks_before;
     std::vector<pr::aquarium::geometry::TankDesign> tanks_after;
+    std::optional<AquariumTankPopulation> population_before;
+    std::optional<AquariumTankPopulation> population_after;
+    std::vector<decorations::Decoration> decorations_before, decorations_after;
 };
 
 bool tankDesignEquivalent(

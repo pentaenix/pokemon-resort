@@ -13,6 +13,12 @@ uniform vec4 u_cameraClip;
 
 void main()
 {
+    // Inspection encodes {axis (0=X, 2=Z), wall coordinate, thickness, -1}.
+    // This affects only the chosen room wall, never tank glass or shared shaders.
+    if (u_cameraClip.w < -0.5) {
+        float coordinate = u_cameraClip.x < 1.0 ? v_position0.x : v_position0.z;
+        if (abs(coordinate-u_cameraClip.y) < u_cameraClip.z) discard;
+    }
     // Default room walls use an identity model transform, so v_position0 is
     // world space. Only this wall-specific program receives a non-zero radius.
     if (u_cameraClip.w > 0.001 && distance(v_position0, u_cameraClip.xyz) < u_cameraClip.w)

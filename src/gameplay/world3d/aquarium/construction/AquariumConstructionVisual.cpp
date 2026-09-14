@@ -6,6 +6,7 @@
 #include <array>
 #include <cmath>
 #include <limits>
+#include <map>
 
 namespace pr::gameplay::world3d::aquarium::construction {
 namespace geo = pr::aquarium::geometry;
@@ -185,8 +186,9 @@ std::vector<GizmoWorldPoint> gizmoWorldPoints(const AquariumConstructionVisual& 
     const float center_x = (west + east) * 0.5f;
     const float center_z = (north + south) * 0.5f;
     const float floor_y = floorForCell(visual, visualTankCentreCell(*tank));
-    // Tank editing handles sit just above the flat sand surface so committed
-    // opaque sand cannot hide them. Height remains at the actual tank top.
+    // All editing handles stay just above the flat sand surface. In particular,
+    // height must not follow the actual roof: a tall tank would move its own
+    // lowering control off-screen.
     const float y = floor_y + 3.65f;
     std::vector<GizmoWorldPoint> points;
     const bool editing_with_handles = visual.state == ConstructionState::Selected ||
@@ -194,11 +196,15 @@ std::vector<GizmoWorldPoint> gizmoWorldPoints(const AquariumConstructionVisual& 
         visual.state == ConstructionState::ResizeTank ||
         (visual.state == ConstructionState::DraftReview && visual.property_draft);
     if (!editing_with_handles) return {};
-    // Keep the compact move and depth controls separate at the 3x3 minimum.
-    constexpr float kCentreKnobSeparation = 7.0f;
+    // Keep movement centered and pair the above/below controls symmetrically
+    // inside even the 3x3 minimum footprint.
+    constexpr float kCentreKnobSeparation = 11.0f;
     points = {
         {{ConstructionGizmoKind::Move, AquariumResizeHandle::SouthEast, std::nullopt, std::nullopt},
-            {center_x - kCentreKnobSeparation, y, center_z}},
+            {center_x, y, center_z}},
+        {{ConstructionGizmoKind::Height, AquariumResizeHandle::SouthEast,
+            std::nullopt, std::nullopt},
+            {center_x - kCentreKnobSeparation, y + 0.12f, center_z}},
         {{ConstructionGizmoKind::Depth, AquariumResizeHandle::SouthEast, std::nullopt, std::nullopt},
             {center_x + kCentreKnobSeparation, y + 0.12f, center_z}},
         {{ConstructionGizmoKind::Resize, AquariumResizeHandle::North, std::nullopt, std::nullopt}, {center_x, y, north}},
@@ -206,9 +212,6 @@ std::vector<GizmoWorldPoint> gizmoWorldPoints(const AquariumConstructionVisual& 
         {{ConstructionGizmoKind::Resize, AquariumResizeHandle::South, std::nullopt, std::nullopt}, {center_x, y, south}},
         {{ConstructionGizmoKind::Resize, AquariumResizeHandle::West, std::nullopt, std::nullopt}, {west, y, center_z}},
     };
-    points.push_back({{ConstructionGizmoKind::Height, AquariumResizeHandle::SouthEast,
-        std::nullopt, std::nullopt}, {center_x, floor_y + tank->height_steps * geo::kVerticalStepWorldUnits,
-        center_z}});
     for (const auto& corner : geo::footprintCorners(footprint)) {
         if (!corner.convex) continue;
         const float vertex_x = west + corner.vertex.column * tile;
@@ -260,15 +263,41 @@ void appendCellCross(
 
 bool aquariumConstructionCellInWorkingView(
     geo::GridCell cell,
-    geo::GridCell view_center) {
-    return std::abs(cell.column - view_center.column) <= kConstructionWorkingViewHalfColumns &&
-        std::abs(cell.row - view_center.row) <= kConstructionWorkingViewHalfRows;
+    const camera::Gen4FollowCamera& camera, int width, int height,
+    float tile, float offset, float floor) {
+    float x=0,y=0,depth=0;
+    if(!camera.worldToScreen({(cell.column+.5f)*tile+offset,floor,
+        (cell.row+.5f)*tile+offset},width,height,x,y,depth)) return false;
+    // Screen-space padding retains partially visible cells at every zoom level.
+    return x>=-64 && y>=-64 && x<=width+64 && y<=height+64;
 }
 
 ConstructionVisualMesh buildAquariumConstructionWorldMesh(
     const AquariumConstructionVisual& visual) {
     ConstructionVisualMesh mesh;
-    if (!visual.visible || visual.cells.empty()) return mesh;
+    if (!visual.visible) return mesh;
+    if (visual.room_outline) {
+        const auto b=*visual.room_outline;
+        const auto color=visual.draft_valid ? colorAbgr(246,199,62,255) : colorAbgr(240,74,74,255);
+        const float step=visual.tile_world_units;
+        for(float x=b[0];x<b[2];x+=step) for(float z:{b[1],b[3]})
+            appendLine(mesh,x,z,std::min(x+step*.65f,b[2]),z,0.5f,1.0f,color);
+        for(float z=b[1];z<b[3];z+=step) for(float x:{b[0],b[2]})
+            appendLine(mesh,x,z,x,std::min(z+step*.65f,b[3]),0.5f,1.0f,color);
+        for(const auto& p:visual.room_portals)
+            appendLine(mesh,p[0],p[1],p[2],p[3],0.8f,3.0f,colorAbgr(90,234,244,255));
+        return mesh;
+    }
+    if (visual.cells.empty()) return mesh;
+    // Selection/draft cells used to rescan the entire visible grid per cell.
+    // Build once per mesh, preserving the original first-match/default rules.
+    std::map<std::pair<int, int>, float> floor_index;
+    for (const auto& surface : visual.cells)
+        floor_index.emplace(std::make_pair(surface.cell.column, surface.cell.row), surface.floor_y);
+    const auto floor_at = [&](geo::GridCell cell) {
+        const auto found = floor_index.find({cell.column, cell.row});
+        return found == floor_index.end() ? 0.0f : found->second;
+    };
     const float tile = visual.tile_world_units;
     constexpr std::uint32_t kAllowedFill = colorAbgr(244, 194, 55, 88);
     constexpr std::uint32_t kBlockedFill = colorAbgr(66, 64, 58, 150);
@@ -307,7 +336,7 @@ ConstructionVisualMesh buildAquariumConstructionWorldMesh(
     for (const geo::GridCell cell : visual.locked_cells) {
         const float x0 = static_cast<float>(cell.column) * tile + offset;
         const float z0 = static_cast<float>(cell.row) * tile + offset;
-        const float y = floorForCell(visual, cell) + 0.27f;
+        const float y = floor_at(cell) + 0.27f;
         appendQuad(mesh, x0 + 1.0f, z0 + 1.0f, x0 + tile - 1.0f, z0 + tile - 1.0f,
             y, kLockedFill);
         appendCellCross(mesh, x0, z0, tile, y + 0.04f, kLockedMark);
@@ -317,20 +346,20 @@ ConstructionVisualMesh buildAquariumConstructionWorldMesh(
         const float x0 = static_cast<float>(cell.column) * tile + offset;
         const float z0 = static_cast<float>(cell.row) * tile + offset;
         appendBorder(mesh, x0 + 1.4f, z0 + 1.4f, x0 + tile - 1.4f, z0 + tile - 1.4f,
-            floorForCell(visual, cell) + 0.31f, 0.55f, kOriginal);
+            floor_at(cell) + 0.31f, 0.55f, kOriginal);
     }
 
     for (const geo::GridCell cell : visual.selected_cells) {
         const float x0 = static_cast<float>(cell.column) * tile + offset;
         const float z0 = static_cast<float>(cell.row) * tile + offset;
         appendBorder(mesh, x0 + 0.8f, z0 + 0.8f, x0 + tile - 0.8f, z0 + tile - 0.8f,
-            floorForCell(visual, cell) + 0.39f, 0.8f, kSelected);
+            floor_at(cell) + 0.39f, 0.8f, kSelected);
     }
 
     for (const geo::GridCell cell : visual.draft_cells) {
         const float x0 = static_cast<float>(cell.column) * tile + offset;
         const float z0 = static_cast<float>(cell.row) * tile + offset;
-        const float y = floorForCell(visual, cell) + 0.24f;
+        const float y = floor_at(cell) + 0.24f;
         appendQuad(mesh, x0 + 1.0f, z0 + 1.0f, x0 + tile - 1.0f, z0 + tile - 1.0f,
             y, visual.draft_valid ? kValidFill : kInvalidFill);
         if (!visual.draft_valid) {
@@ -344,7 +373,7 @@ ConstructionVisualMesh buildAquariumConstructionWorldMesh(
     for (const geo::GridCell cell : visual.cut_cells) {
         const float x0 = static_cast<float>(cell.column) * tile + offset;
         const float z0 = static_cast<float>(cell.row) * tile + offset;
-        const float y = floorForCell(visual, cell) + 0.32f;
+        const float y = floor_at(cell) + 0.32f;
         appendQuad(mesh, x0 + 2.2f, z0 + 2.2f, x0 + tile - 2.2f, z0 + tile - 2.2f,
             y, kCutFill);
         appendCellCross(mesh, x0, z0, tile, y + 0.03f, kCutMark);
@@ -355,26 +384,26 @@ ConstructionVisualMesh buildAquariumConstructionWorldMesh(
         const float z0 = static_cast<float>(cell.row) * tile;
         appendBorder(mesh, x0 + 3.0f, z0 + 3.0f,
             x0 + tile - 3.0f, z0 + tile - 3.0f,
-            floorForCell(visual, cell) + 3.84f, 1.15f, kTunnelExisting);
+            floor_at(cell) + 3.84f, 1.15f, kTunnelExisting);
     }
     for (std::size_t index = 0; index < visual.tunnel_route_cells.size(); ++index) {
         const geo::GridCell cell = visual.tunnel_route_cells[index];
         const float center_x = (static_cast<float>(cell.column) + 0.5f) * tile;
         const float center_z = (static_cast<float>(cell.row) + 0.5f) * tile;
         appendDiamond(mesh, center_x, center_z,
-            floorForCell(visual, cell) + 3.96f, index == 0 ? 3.5f : 2.8f, kTunnel);
+            floor_at(cell) + 3.96f, index == 0 ? 3.5f : 2.8f, kTunnel);
         if (index > 0) {
             const geo::GridCell previous = visual.tunnel_route_cells[index - 1U];
             appendLine(mesh,
                 (static_cast<float>(previous.column) + 0.5f) * tile,
                 (static_cast<float>(previous.row) + 0.5f) * tile,
-                center_x, center_z, floorForCell(visual, cell) + 3.88f,
+                center_x, center_z, floor_at(cell) + 3.88f,
                 static_cast<float>(geo::kTunnelOuterHalfWidthWorldUnits * 2),
                 kTunnelFootprint);
             appendLine(mesh,
                 (static_cast<float>(previous.column) + 0.5f) * tile,
                 (static_cast<float>(previous.row) + 0.5f) * tile,
-                center_x, center_z, floorForCell(visual, cell) + 3.92f,
+                center_x, center_z, floor_at(cell) + 3.92f,
                 2.2f, kTunnel);
         }
     }
@@ -383,7 +412,7 @@ ConstructionVisualMesh buildAquariumConstructionWorldMesh(
         for (const geo::GridCell cell : visual.tunnel_portal_cells) {
             const float center_x = (static_cast<float>(cell.column) + 0.5f) * tile;
             const float center_z = (static_cast<float>(cell.row) + 0.5f) * tile;
-            const float y = floorForCell(visual, cell) + 3.88f;
+            const float y = floor_at(cell) + 3.88f;
             appendDiamond(mesh, center_x, center_z, y, 3.1f, kTunnel);
             appendDiamond(mesh, center_x, center_z, y + 0.04f, 1.25f, kAnchor);
         }
@@ -392,7 +421,7 @@ ConstructionVisualMesh buildAquariumConstructionWorldMesh(
     const float cursor_offset = visual.state == ConstructionState::TunnelRoute ? 0.0f : offset;
     const float cursor_x = static_cast<float>(visual.cursor.column) * tile + cursor_offset;
     const float cursor_z = static_cast<float>(visual.cursor.row) * tile + cursor_offset;
-    const float cursor_y = floorForCell(visual, visual.cursor) + 0.35f;
+    const float cursor_y = floor_at(visual.cursor) + 0.35f;
     if (visual.state == ConstructionState::TunnelRoute) {
         appendDiamond(mesh, cursor_x + tile * 0.5f, cursor_z + tile * 0.5f,
             cursor_y + 3.67f, 4.1f, kCursor);
@@ -408,7 +437,7 @@ ConstructionVisualMesh buildAquariumConstructionWorldMesh(
         const float center_x = (static_cast<float>(visual.anchor->column) + 0.5f) * tile + anchor_offset;
         const float center_z = (static_cast<float>(visual.anchor->row) + 0.5f) * tile + anchor_offset;
         appendDiamond(mesh, center_x, center_z,
-            floorForCell(visual, *visual.anchor) + 0.48f, 3.1f, kAnchor);
+            floor_at(*visual.anchor) + 0.48f, 3.1f, kAnchor);
     }
     if (visual.state == ConstructionState::ResizeFootprint ||
         visual.state == ConstructionState::MoveTank ||
@@ -459,6 +488,20 @@ ConstructionVisualMesh buildAquariumConstructionWorldMesh(
                     gizmo.world.x + 2.2f, gizmo.world.z - 2.2f,
                     gizmo.world.y + 0.09f, 1.15f, kInvalidFill);
             }
+            if (height) {
+                // Match the depth control with an opposite, screen-readable
+                // arrow while both knobs remain beside the move compass.
+                const float arrow_y = gizmo.world.y + 0.08f;
+                appendLine(mesh, gizmo.world.x, gizmo.world.z - 2.7f,
+                    gizmo.world.x, gizmo.world.z - 7.2f,
+                    arrow_y, 1.25f, kSelected);
+                appendLine(mesh, gizmo.world.x, gizmo.world.z - 7.2f,
+                    gizmo.world.x - 2.3f, gizmo.world.z - 4.9f,
+                    arrow_y + 0.01f, 1.25f, kSelected);
+                appendLine(mesh, gizmo.world.x, gizmo.world.z - 7.2f,
+                    gizmo.world.x + 2.3f, gizmo.world.z - 4.9f,
+                    arrow_y + 0.02f, 1.25f, kSelected);
+            }
             if (depth) {
                 // North-oriented construction cameras project +Z downward on
                 // screen, so this small arrow reads as "below the floor" while
@@ -482,7 +525,7 @@ ConstructionVisualMesh buildAquariumConstructionWorldMesh(
             tank.footprint.origin_cell.column, geo::occupiedWidthCells(tank.footprint)) + offset;
         const float center_z = geo::footprintCentreWorld(
             tank.footprint.origin_cell.row, geo::occupiedDepthCells(tank.footprint)) + offset;
-        const float floor_y = floorForCell(visual, visualTankCentreCell(tank));
+        const float floor_y = floor_at(visualTankCentreCell(tank));
         const auto boundary = geo::footprintBoundaryLocalWorld(
             tank.footprint, tank.corner_radius_steps, tank.corner_radii);
         for (std::size_t index = 0; index < boundary.size(); ++index) {

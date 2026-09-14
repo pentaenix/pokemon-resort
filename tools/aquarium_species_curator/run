@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+TOOL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(cd "$TOOL_DIR/../.." && pwd)"
+RAE_DIR="${PKR_RAE_DIR:-$PROJECT_DIR/../rae}"
+PYTHON_BIN="${PKR_AQUARIUM_CURATOR_PYTHON:-$RAE_DIR/.venv/bin/python}"
+
+if [[ ! -x "$PYTHON_BIN" ]]; then
+    echo "aquarium curator: missing Python environment: $PYTHON_BIN" >&2
+    echo "Install RAE's requirements or set PKR_AQUARIUM_CURATOR_PYTHON." >&2
+    exit 1
+fi
+if [[ ! -f "$RAE_DIR/src/ui/preview/static/glb_viewer.html" ]]; then
+    echo "aquarium curator: RAE viewport not found under: $RAE_DIR" >&2
+    exit 1
+fi
+
+export PYTHONPATH="$RAE_DIR${PYTHONPATH:+:$PYTHONPATH}"
+cd "$PROJECT_DIR"
+if [[ "${1:-}" == "--propose-remaining" ]]; then
+    shift
+    exec "$PYTHON_BIN" -m tools.aquarium_species_curator.propose_remaining "$@"
+fi
+exec "$PYTHON_BIN" -m tools.aquarium_species_curator.app "$@"

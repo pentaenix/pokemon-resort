@@ -7,6 +7,8 @@
 #include "gameplay/world3d/aquarium/construction/AquariumTankEditing.hpp"
 
 #include <optional>
+#include <map>
+#include <set>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -16,7 +18,8 @@ namespace pr::gameplay::world3d::aquarium::construction {
 std::vector<std::string> validateAquariumPlacement(
     const AquariumDesignDocument& document,
     const AquariumConstructionConfig& config,
-    const std::vector<pr::aquarium::geometry::GridCell>& authored_obstacles);
+    const std::vector<pr::aquarium::geometry::GridCell>& authored_obstacles,
+    const AquariumDesignDocument* existing = nullptr);
 
 enum class ConstructionState {
     Dormant,
@@ -31,6 +34,7 @@ enum class ConstructionState {
     DraftReview,
     DeleteConfirm,
     Building,
+    ResizeRoom, // Presentation-only state; room drafts belong to the room controller.
 };
 
 enum class ConstructionDraftOperation {
@@ -94,6 +98,7 @@ public:
         AquariumDesignDocument committed);
 
     bool available() const { return available_; }
+    void updateRoomBuildZone(const AquariumConstructionConfig& config);
     bool active() const { return state_ != ConstructionState::Dormant; }
     ConstructionState state() const { return state_; }
     const AquariumDesignDocument& committedDesign() const { return committed_; }
@@ -148,6 +153,19 @@ public:
     std::optional<ConstructionCommitCandidate> prepareDelete();
     std::optional<ConstructionCommitCandidate> prepareUndo();
     std::optional<ConstructionCommitCandidate> prepareRedo();
+    std::optional<ConstructionCommitCandidate> preparePopulationChange(
+        const std::string& tank_id,
+        std::vector<AquariumResidentSelection> residents);
+    std::optional<ConstructionCommitCandidate> prepareDecorationChange(
+        const std::string& tank_id, std::vector<decorations::Decoration> objects);
+    std::optional<ConstructionCommitCandidate> prepareExhibitPresetChange(
+        const std::string& tank_id, std::string preset_id);
+    std::optional<ConstructionCommitCandidate> prepareExhibitStyleChange(
+        const std::string& tank_id,
+        std::string preset_id,
+        int brightness_level,
+        int murkiness_level,
+        std::string substrate_kind);
     bool candidateCurrent(const ConstructionCommitCandidate& candidate) const;
     bool publish(ConstructionCommitCandidate candidate);
     void rejectCommit(std::string message);
@@ -175,12 +193,16 @@ private:
     bool ensurePropertyDraft();
     void syncTunnelCandidate();
 
+    void rebuildCellIndex();
+
     bool available_ = false;
     std::string map_id_;
     ConstructionState state_ = ConstructionState::Dormant;
     AquariumDesignDocument committed_;
     std::vector<pr::aquarium::geometry::GridCell> allowed_cells_;
     std::vector<pr::aquarium::geometry::GridCell> authored_obstacles_;
+    std::set<std::pair<int, int>> allowed_cell_index_;
+    std::map<std::pair<int, int>, std::vector<std::string>> occupied_cell_index_;
     pr::aquarium::geometry::GridCell cursor_{};
     std::optional<ConstructionDraft> draft_;
     std::optional<std::string> selected_tank_id_;

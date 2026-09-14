@@ -32,6 +32,26 @@ Overworld3DTestScreen::aquariumConstructionCellAt(int logical_x, int logical_y) 
         projection_w, projection_h);
 }
 
+std::optional<pr::aquarium::geometry::GridCell>
+Overworld3DTestScreen::aquariumConstructionTankCellAt(
+    int logical_x, int logical_y) const {
+    if (!aquarium_construction_.active()) return std::nullopt;
+    const int logical_w = std::max(1, app_config_.window.virtual_width);
+    const int logical_h = std::max(1, app_config_.window.virtual_height);
+    const SDL_Rect viewport = visibleWorldViewportRect(logical_w, logical_h);
+    const SDL_Point point{logical_x, logical_y};
+    if (!SDL_PointInRect(&point, &viewport)) return std::nullopt;
+    const int projection_w = scene_.world_viewport.enabled
+        ? gameplay::world3d::rendering::worldViewportBaseWidth(scene_) : logical_w;
+    const int projection_h = scene_.world_viewport.enabled
+        ? gameplay::world3d::rendering::worldViewportBaseHeight(scene_) : logical_h;
+    const int projected_x = (logical_x - viewport.x) * projection_w / std::max(1, viewport.w);
+    const int projected_y = (logical_y - viewport.y) * projection_h / std::max(1, viewport.h);
+    return gameplay::world3d::aquarium::construction::hitTestAquariumConstructionTankCell(
+        aquariumConstructionVisual(), aquarium_construction_.committedDesign().tanks,
+        camera_, projected_x, projected_y, projection_w, projection_h);
+}
+
 std::optional<gameplay::world3d::aquarium::construction::ConstructionGizmoHit>
 Overworld3DTestScreen::aquariumConstructionGizmoAt(int logical_x, int logical_y) const {
     if (!aquarium_construction_.active()) return std::nullopt;
@@ -61,6 +81,9 @@ bool Overworld3DTestScreen::handleAquariumConstructionPointerPressed(
     int logical_x, int logical_y) {
     namespace aqc = gameplay::world3d::aquarium::construction;
     const auto hud_hit = aquariumConstructionHudHitAt(logical_x, logical_y);
+    if (aquarium_room_draft_) {
+        return handleAquariumRoomPointer(logical_x,logical_y,true);
+    }
     if (aquarium_pointer_operation_active_) {
         if (hud_hit.action == aqc::ConstructionHudAction::Cancel) {
             aquarium_construction_focused_action_ = hud_hit.action;
@@ -133,6 +156,17 @@ bool Overworld3DTestScreen::handleAquariumConstructionPointerPressed(
             syncAquariumConstructionFocus();
         }
         return true;
+    }
+    if (!subtract_request &&
+        (aquarium_construction_.state() == aqc::ConstructionState::Browse ||
+         aquarium_construction_.state() == aqc::ConstructionState::Selected)) {
+        if (const auto tank_cell = aquariumConstructionTankCellAt(logical_x, logical_y)) {
+            aquarium_construction_.pointAt(*tank_cell);
+            aquarium_construction_.selectAtCursor();
+            resetAquariumConstructionPointerOperation();
+            syncAquariumConstructionFocus();
+            return true;
+        }
     }
     if (const auto cell = aquariumConstructionCellAt(logical_x, logical_y)) {
         aquarium_construction_.pointAt(*cell);
@@ -230,6 +264,7 @@ Overworld3DTestScreen::aquariumConstructionHudHitAt(int logical_x, int logical_y
 }
 
 bool Overworld3DTestScreen::aquariumConstructionUiAt(int logical_x, int logical_y) const {
+    if (aquarium_room_draft_) return true;
     namespace aqc = gameplay::world3d::aquarium::construction;
     const int width = std::max(1, app_config_.window.virtual_width);
     const int height = std::max(1, app_config_.window.virtual_height);
@@ -246,6 +281,12 @@ bool Overworld3DTestScreen::activateAquariumConstructionAction(
     namespace aqc = gameplay::world3d::aquarium::construction;
     bool handled = true;
     switch (action) {
+        case aqc::ConstructionHudAction::Room:
+            return beginAquariumRoomResize();
+        case aqc::ConstructionHudAction::RoomNarrower: return adjustAquariumRoomSize(-1,0);
+        case aqc::ConstructionHudAction::RoomWider: return adjustAquariumRoomSize(1,0);
+        case aqc::ConstructionHudAction::RoomShallower: return adjustAquariumRoomSize(0,-1);
+        case aqc::ConstructionHudAction::RoomDeeper: return adjustAquariumRoomSize(0,1);
         case aqc::ConstructionHudAction::Place:
             aquarium_subtract_mode_ = false;
             handled = true;
@@ -277,6 +318,7 @@ bool Overworld3DTestScreen::activateAquariumConstructionAction(
             handled = aquarium_construction_.reviewDraft();
             break;
         case aqc::ConstructionHudAction::Build:
+            if (aquarium_room_draft_) return commitAquariumRoomResize();
             if (aquarium_construction_.state() != aqc::ConstructionState::DraftReview) {
                 aquarium_construction_.reviewDraft();
             }
@@ -284,6 +326,12 @@ bool Overworld3DTestScreen::activateAquariumConstructionAction(
             break;
         case aqc::ConstructionHudAction::Adjust:
             handled = aquarium_construction_.adjustDraft();
+            break;
+        case aqc::ConstructionHudAction::Stock:
+            handled = beginAquariumStocking();
+            break;
+        case aqc::ConstructionHudAction::Decorate:
+            handled = beginAquariumDecorations();
             break;
         case aqc::ConstructionHudAction::Delete:
             if (aquarium_construction_.state() != aqc::ConstructionState::DeleteConfirm) {
@@ -298,6 +346,7 @@ bool Overworld3DTestScreen::activateAquariumConstructionAction(
             handled = aquarium_construction_.canRedo() && redoAquariumConstruction();
             break;
         case aqc::ConstructionHudAction::Cancel:
+            if (aquarium_room_draft_) { cancelAquariumRoomResize(); return true; }
             handled = aquarium_construction_.cancel();
             if (handled) resetAquariumConstructionPointerOperation();
             else onBackPressed();
@@ -387,6 +436,7 @@ bool Overworld3DTestScreen::setAquariumConstructionPropertyValue(
 }
 
 void Overworld3DTestScreen::syncAquariumConstructionFocus() {
+    if (aquarium_room_draft_) return;
     namespace aqc = gameplay::world3d::aquarium::construction;
     const auto state = aquarium_construction_.state();
     const bool property_draft = aquarium_construction_.draftOperation() ==
@@ -437,7 +487,12 @@ void Overworld3DTestScreen::requestAquariumConstructionErrorFeedback() {
 }
 
 void Overworld3DTestScreen::exitAquariumConstruction() {
+    closeAquariumDecorations();
+    aquarium_room_draft_.reset();
+    aquarium_room_gesture_.reset();
+    aquarium_room_candidate_.reset();
     if (!aquarium_construction_.active()) return;
+    closeAquariumStocking();
     aquarium_construction_.exit();
     gameplay::world3d::aquarium::construction::resetAquariumConstructionCamera(
         aquarium_construction_camera_tracking_);

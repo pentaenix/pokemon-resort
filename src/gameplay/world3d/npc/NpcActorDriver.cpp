@@ -180,6 +180,7 @@ NpcActorDriver::NpcActorDriver(std::string project_root, const SceneConfig& scen
 
 void NpcActorDriver::initializeDefaultSceneActors(const camera::Vec3& player_position) {
     actors_.clear();
+    visitor_plan_.revision.clear();
     reserved_tiles_.clear();
     const float tile_size = std::max(1.0f, scene_->grid.tile_size);
     reserved_tiles_.push_back({
@@ -364,6 +365,7 @@ void NpcActorDriver::update(double dt) {
             continue;
         }
 
+        if (actor.aquarium_visitor) continue; // Session director owns their goals/rests.
         if (tryEvacuateReservedTile(actor)) {
             continue;
         }
@@ -385,6 +387,7 @@ void NpcActorDriver::update(double dt) {
             }
         }
     }
+    updateAquariumVisitors(dt);
 }
 
 void NpcActorDriver::setPlayerReservedTile(int tx, int ty) {
@@ -410,6 +413,19 @@ bool NpcActorDriver::canPlayerEnterTile(int from_tx, int from_ty, int to_tx, int
             continue;
         }
 
+        if (actor.aquarium_visitor) {
+            const auto index=static_cast<std::size_t>(&actor-actors_.data());
+            if(actor.visitor_watching || interaction_locked_actor_==index)return false;
+            // Follow a departing walker, but never cross an oncoming step.
+            if(actor.moving) {
+                if(actor_on_tile && !actor_targeting_tile &&
+                    !(actor.target_tile_x==from_tx&&actor.target_tile_y==from_ty))continue;
+                return false;
+            }
+            if(!actor.path.empty()&&actorCanYieldFromTile(actor,from_tx,from_ty))continue;
+            return false;
+        }
+
         if (actor.definition.kind != NpcActorKind::Pokemon ||
             pokemon_collision_mode_ == PokemonCollisionMode::BlockCell ||
             followerPokemonSettledWithTarget(actor)) {
@@ -425,7 +441,7 @@ bool NpcActorDriver::canPlayerEnterTile(int from_tx, int from_ty, int to_tx, int
 
 std::optional<std::string> NpcActorDriver::interactableActorIdAtTile(int tx, int ty) const {
     for (const Actor& actor : actors_) {
-        if (actor.moving) {
+        if (actor.moving || !visitorConversationAvailable(actor)) {
             continue;
         }
         if (actor.tile_x == tx && actor.tile_y == ty) {
@@ -446,6 +462,8 @@ bool NpcActorDriver::setInteractionLockedActor(const std::string& actor_id) {
         interaction_locked_actor_.reset();
         return false;
     }
+    if(interaction_locked_actor_==*index)return true;
+    if(!beginVisitorConversation(actor))return false;
     actor.path.clear();
     actor.wait_seconds = 0.25;
     actor.target_tile_x = actor.tile_x;
@@ -570,6 +588,12 @@ void NpcActorDriver::collectBillboardDraws(
         rendering::CharacterBillboardDraw draw{};
         draw.character = &actor.character;
         draw.source_rect = actor.source_rect;
+        if(actor.aquarium_visitor) {
+            const auto pose=camera.pose();
+            const int row=aquariumVisitorSpriteRow(actor.character,actor.facing,pose.forward.x,pose.forward.z);
+            // Preserve the current walk/idle frame; rotate presentation only.
+            draw.source_rect.y=row*std::max(1,actor.character.frame_height);
+        }
         draw.activity_id = actor.animator ? actor.animator->textureSheetId() : std::string{};
         draw.draw_shadow = !actor.animator || !actor.animator->swimming();
         draw.use_run_texture = actor.animator ? actor.animator->running() : actor.running;
@@ -585,7 +609,7 @@ void NpcActorDriver::collectBillboardDraws(
             actor.terrain_binding,
             actor.character,
             actor.position,
-            actor.source_rect,
+            draw.source_rect,
             viewport_w,
             viewport_h,
             1.0f,

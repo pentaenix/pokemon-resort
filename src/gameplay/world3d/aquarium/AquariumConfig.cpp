@@ -82,6 +82,8 @@ AquariumBuildingPresentationConfig parseBuildingPresentation(
         out.camera.height_above_player_tiles = std::clamp(static_cast<float>(numberOr(
             camera->get("heightAbovePlayerTiles"),
             out.camera.height_above_player_tiles)), 1.0f, 64.0f);
+        out.camera.near_clip_tiles = std::clamp(static_cast<float>(numberOr(
+            camera->get("nearClipTiles"), out.camera.near_clip_tiles)), 0.0f, 16.0f);
         out.camera.far_clip_tiles = std::clamp(static_cast<float>(numberOr(
             camera->get("farClipTiles"), out.camera.far_clip_tiles)), 0.0f, 256.0f);
     }
@@ -120,6 +122,24 @@ AquariumBuildingPresentationConfig parseBuildingPresentation(
             tank_lighting->get("spillOpacity"), out.tank_lighting.spill_opacity)), 0.0f, 1.0f);
         out.tank_lighting.spill_reach_tiles = std::clamp(static_cast<float>(numberOr(
             tank_lighting->get("spillReachTiles"), out.tank_lighting.spill_reach_tiles)), 0.0f, 6.0f);
+        const float attenuation = static_cast<float>(numberOr(
+            tank_lighting->get("waterAttenuationIntensity"),
+            out.tank_lighting.water_attenuation_intensity));
+        if (std::isfinite(attenuation)) {
+            out.tank_lighting.water_attenuation_intensity = std::max(0.0f, attenuation);
+        }
+        const float water_surface_speed = static_cast<float>(numberOr(
+            tank_lighting->get("waterSurfaceSpeed"),
+            out.tank_lighting.water_surface_speed));
+        if (std::isfinite(water_surface_speed)) {
+            out.tank_lighting.water_surface_speed =
+                std::clamp(water_surface_speed, 0.0f, 4.0f);
+        }
+        const float sand_darkening = static_cast<float>(numberOr(
+            tank_lighting->get("sandDarkening"), out.tank_lighting.sand_darkening));
+        if (std::isfinite(sand_darkening)) {
+            out.tank_lighting.sand_darkening = std::clamp(sand_darkening, 0.0f, 1.0f);
+        }
         const auto parse_color = [&](const char* field, std::array<float, 3>& color) {
             const JsonValue* json = tank_lighting->get(field);
             if (!json) return;
@@ -240,6 +260,16 @@ AquariumPokemonPresentationConfig parsePokemonPresentation(
     };
     parse_vector("lightDirection", out.light_direction, -1.0f, 1.0f);
     parse_vector("tint", out.tint, 0.0f, 3.0f);
+    if (const auto* emission = value->get("emission"); emission && emission->isObject()) {
+        const auto bounded = [&](const char* key, float fallback, double maximum) {
+            const double number = numberOr(emission->get(key), fallback);
+            return std::isfinite(number)
+                ? static_cast<float>(std::clamp(number, 0.0, maximum)) : fallback;
+        };
+        out.emission.bulb_brightness = bounded("bulbBrightness", out.emission.bulb_brightness, 4.0);
+        out.emission.halo_brightness = bounded("haloBrightness", out.emission.halo_brightness, 4.0);
+        out.emission.fog_retention = bounded("fogRetention", out.emission.fog_retention, 1.0);
+    }
     return out;
 }
 
@@ -265,6 +295,29 @@ AquariumPokemonConfig parsePokemon(const JsonValue& value) {
     out.pitch_degrees = std::clamp(
         static_cast<float>(numberOr(value.get("pitchDegrees"), out.pitch_degrees)),
         -360.0f, 360.0f);
+    out.vertical_movement_scale = std::clamp(static_cast<float>(numberOr(
+        value.get("verticalMovementScale"), out.vertical_movement_scale)), 0.0f, 0.9f);
+    out.swim_pitch_degrees = std::clamp(static_cast<float>(numberOr(
+        value.get("swimPitchDegrees"), out.swim_pitch_degrees)), 0.0f, 35.0f);
+    out.motion_smoothing_seconds = std::clamp(static_cast<float>(numberOr(
+        value.get("motionSmoothingSeconds"), out.motion_smoothing_seconds)), 0.0f, 3.0f);
+    out.pitch_turn_degrees_per_second = std::clamp(static_cast<float>(numberOr(
+        value.get("pitchTurnDegreesPerSecond"),
+        out.pitch_turn_degrees_per_second)), 1.0f, 180.0f);
+    if (const JsonValue* forward_only = value.get("forwardOnly");
+        forward_only && forward_only->isBool()) {
+        out.forward_only = forward_only->asBool();
+    }
+    if(const auto* cruise=value.get("continuousCruise"); cruise && cruise->isBool())
+        out.continuous_cruise=cruise->asBool();
+    if(const auto* tour=value.get("habitatTour"); tour && tour->isBool())
+        out.habitat_tour=tour->asBool();
+    out.follow_actor_id = stringOr(value.get("followActorId"));
+    out.follow_distance_meters = std::clamp(static_cast<float>(numberOr(
+        value.get("followDistanceMeters"), out.follow_distance_meters)), 0.05f, 8.0f);
+    out.follow_vertical_gap_meters = std::clamp(static_cast<float>(numberOr(
+        value.get("followVerticalGapMeters"),
+        out.follow_vertical_gap_meters)), 0.0f, 4.0f);
     const JsonValue* start = value.get("positionMeters");
     if (!start) start = value.get("startingPositionMeters");
     if (parsePosition(start, out.starting_position_meters)) {
@@ -469,6 +522,9 @@ camera::Gen4CameraPreset aquariumBuildingCameraPreset(
     camera::Gen4CameraPreset result = base;
     result.distance = std::hypot(horizontal, vertical);
     result.pitch_deg = -std::atan2(vertical, horizontal) * kRadiansToDegrees;
+    if (config.near_clip_tiles > 0.0f) {
+        result.near_clip = std::max(0.01f, config.near_clip_tiles * unit);
+    }
     if (config.far_clip_tiles > 0.0f) {
         result.far_clip = std::max(
             result.near_clip + unit,

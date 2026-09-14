@@ -14,11 +14,16 @@ struct AquariumConstructionCameraOverview {
 struct AquariumConstructionCameraTrackingState {
     float center_x = 0.0f;
     float center_z = 0.0f;
+    float zoom_scale = 1.0f;
     bool initialized = false;
     bool property_panel_visible = false;
 };
 
 void resetAquariumConstructionCamera(AquariumConstructionCameraTrackingState& state);
+
+void adjustAquariumConstructionCameraZoom(
+    AquariumConstructionCameraTrackingState& state,
+    int wheel_steps);
 
 AquariumConstructionCameraOverview trackAquariumConstructionCursor(
     AquariumConstructionCameraTrackingState& state,

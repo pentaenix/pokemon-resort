@@ -1,0 +1,16 @@
+{
+  "id": "aquarium_room_transfer",
+  "kind": "door",
+  "targetGates": ["DOOR"],
+  "trigger": "MOVE_TOWARD",
+  "priority": 0,
+  "weight": 1,
+  "cooldownSeconds": 0,
+  "when": {},
+  "actions": [
+    { "action": "TRANSITION_CLOSE", "durationSeconds": 0.14 },
+    { "action": "TELEPORT_TO_LINK" },
+    { "action": "TRANSITION_OPEN", "durationSeconds": 0.18 },
+    { "action": "MOVE_PLAYER", "direction": "forward", "tiles": 1, "durationSeconds": 0.12 }
+  ]
+}

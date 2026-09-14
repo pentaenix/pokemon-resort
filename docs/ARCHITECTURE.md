@@ -118,6 +118,77 @@ its navigation layers and suggested spawns are converted from kernel world units
 to the simulator's tank-local metres, then a replaceable population policy
 supplies swimmer definitions. Successful construction publication replaces only
 the player-built subset, leaving authored tank swimmers and their state intact.
+Aquarium room layout groundwork lives in the independent `aquarium_room_layout`
+contract library under `gameplay/world3d/aquarium/rooms`: signed room-local bounds,
+stable door endpoint connections, safe candidate edits, and canonical versioned
+JSON. `AquariumRoomRuntime` and `AquariumBuildingScene` project signed bounds into procedural
+terrain, wall openings, anchors, and three-cell triggers; its shared wall-face
+test excludes partial construction cells without changing walking collision.
+`AquariumRoomStore` owns synced/read-back/atomic room JSON and backup recovery.
+`Overworld3DTestScreenAquariumRooms` owns building commits; its RoomHandles adapter
+provides four wall knobs and linked-room plus handles. Room-frame metadata rebases
+local tank coordinates without moving tanks when the north/west wall changes.
+See [independent aquarium rooms](gameplay/aquarium-rooms.md) for invariants and
+remaining integration checkpoints. Tank envelope v6 adds room-frame provenance on
+the next confirmed tank save; the geometry kernel contract is unchanged.
+
+Aquarium motion uses three focused runtime modules: `AquariumMotion` proposes
+poses without publishing them, `AquariumBodyNavigation` validates complete baked
+body envelopes and caches a lazy layered waypoint lattice, and
+`AquariumSimulationMotion` owns route following, containment/crowd acceptance,
+and progress recovery. Searches advance in round-robin batches of 24 queue
+visits per simulation step, with quarter-cell refinement when the half-cell
+lattice cannot connect a passage. No worker, render, editor, or save dependency
+is introduced. Geometry replacement discards derived navigation caches; fixed
+steps and stable actor IDs keep routing/recovery deterministic. Visual lean is
+independent from locomotion pitch, and hover locomotion preserves upright poses.
+Large-cruiser profiles use continuous forward arcs: body-scaled turn-rate limits,
+reversing-arc swept-path look-ahead, and no orientation-only publication during
+blockage/recovery. Other profiles retain their existing turning rules.
+Construction cell queries use `AquariumConstructionCellIndex`: derived allowed
+and occupied-cell lookups rebuilt on configure, room-zone change and every
+published command (including history). Drafts cannot mutate this committed index.
+World preview generation indexes visible floor heights once per mesh rather than
+searching the entire visible grid for every selected/draft cell.
+Cruise look-ahead is cached for 0.20–0.26 seconds with immediate swept-body
+validation each step. Kyogre's habitat tour alternates depth bands and adds
+clearance-checked local banking; neither rotates a blocked actor through glass.
+`AquariumCruiseBank` suppresses brief/sub-threshold steering corrections, requires
+one second of consistent turning, and eases a maximum six-degree roll at no more
+than two degrees/second. Reversals unwind first; clearance fits the allowed roll
+instead of unconditionally snapping to level. It does not affect navigation.
+Stocked escorts receive explicit same-tank host IDs before spawning (Kyogre has
+priority), with matching base speed and school fallback. Host avoidance is
+asymmetric: escorts yield, while host steering/gating ignores its own escorts
+and penetration correction never pushes the host. Cruise yaw eases near its
+target heading in the shared motion proposal and arc predictor. Kyogre pulse rendering
+uses a dedicated fragment program owned by the world renderer and per-draw pulse
+uniforms owned by the aquarium Pokémon renderer; shared world shaders are unchanged.
+`AquariumSchoolSimulation` computes shared-direction, seven-neighbour steering
+from a stable snapshot per tank/species/form, using an X-sorted spatial index.
+`AquariumSimulationSchool` owns shared destinations and staggered visibility/
+steering probes, feeding the existing movement/recovery owner. Members have no
+phase-offset paths or formation slots; cohesion has a comfort zone, separation
+uses body dimensions, and pace varies with individual identity and group lag.
+Explicit escorts retain their host-relative solver; lone schoolers explore.
+`AquariumConvexWater` caches exact inward planes for single-layer convex tanks;
+valid eroded-volume endpoints prove swept segment containment. Concave tanks,
+holes, layered water and floor locomotion retain original navigation checks.
+These caches and group intentions are runtime-only and discarded on replacement.
+Player-tank murkiness is a bounded render composite rather than an object
+material grade. Aquarium-only `AquariumPokemonEmission` supplies a scoped
+compatibility policy for Chinchou/Lanturn bulb cores and additive glow shells
+whose legacy exports lack emission metadata. It changes per-draw presentation,
+not shared lighting or shaders. After fog, a depth-tested redraw of only those
+bulbs restores a restrained emission floor before transparent glass/water.
+Core/halo intensity and fog retention come from the inherited aquarium JSON
+`pokemonPresentation.emission` config, carried by each actor independently of exhibit dimming.
+The low-resolution world color and opaque depth feed a
+tank-silhouette pass; its fragment shader reconstructs the visible surface and
+measures only the camera-ray interval inside water before applying the authored
+visibility curve. The result is copied back onto the original depth/stencil
+target, then water surface and glass render normally. The auxiliary color target
+is disposable renderer state and is never part of the saved aquarium design.
 
 The Operations Desk Map Editor owns RTPKS authoring. Its Tile Pack Editor may
 reorganize tabs and smart paths or append assets, but must never renumber an
@@ -128,6 +199,24 @@ identifies a transition family and mask, Map Studio resolves the stable tile id
 when painting, and the native runtime renders the stored id without topology
 inference. See [`docs/gameplay/owmap_format.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/gameplay/owmap_format.md)
 and [`docs/gameplay/owmap_tile_layers_proposal.md`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/docs/gameplay/owmap_tile_layers_proposal.md).
+
+### Aquarium Species Curator
+
+[`tools/aquarium_species_curator`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/tools/aquarium_species_curator)
+is a developer-only Python review workflow. It discovers Water-type Attend
+models plus explicit ecological exceptions, uses the sibling RAE GLB viewport
+for model and animation inspection, and atomically authors the versioned
+`config/gameplay/world3d/aquarium_species.json` catalogue. The normal game build
+does not import Python, Qt, Three.js, or RAE. Its native catalogue loader exposes
+only approved entries to the construction stocking overlay and population
+policy. Per-tank saves contain stable species IDs and counts, never copied model
+or behavior data. Capacity masks are abstract stocking budgets, while actual
+placement remains derived from aquarium navigation volumes. A tool-only native
+baker samples the chosen movement/rest animations through the shipping Attend
+model loader and records versioned physical envelopes in the catalogue. The
+pure `AquariumHabitatValidator` checks those envelopes against generated tank
+navigation before population commands commit; the simulation consumes the same
+envelopes so admission and spawning cannot drift apart.
 
 ### Native Pokemon Resort Map Maker
 
@@ -462,3 +551,37 @@ Read task-specific files rather than always starting from `TitleScreen.cpp`:
 - Use backend docs before building UI against canonical Resort storage.
 
 When in doubt, preserve existing seams: config parser, pure controller, presenter, renderer, bridge boundary, save-library parser/cache, backend service. New behavior should usually extend one of those before expanding `App.cpp`, `TitleScreen.cpp`, or `TransferSystemScreen.cpp`.
+# Aquarium decoration UI boundary
+
+Aquarium visitors reuse `NpcActorDriver` motors, animation, dialogue and reservations.
+`NpcAquariumVisitors.cpp` owns their session director; `AquariumVisitors.cpp` owns
+config/capacity and pure grid routes. The screen's aquarium visitor adapter supplies
+committed tank collision-derived viewing spots and linked room doors. Session state
+survives room driver replacement without serialization. Inactive rooms retain state;
+only the active room simulates walking. Path searches are limited to one per frame.
+`AquariumVisitorDialogue` selects authored templates using the watched exhibit's
+runtime population and decoration context. Session records own two-exchange limits;
+successful interaction locking consumes one allowance and fixes that exchange's line.
+The shared recent-template list limits repetition without changing save data.
+The follower receives the same room viewing spots and current NPC reservations.
+`AquariumFollowerPlanner` chooses bounded room-local routes; `FollowerAquariumInterest`
+owns watching/return timing using the existing follower motor, without invoking the
+ordinary nature-idle/replay planner inside aquariums. Both actors share directional
+sprite-row projection; this never mutates their world-facing direction.
+
+Aquarium inspection is owned by `AquariumInspectionCamera`: inspecting, whole-tank,
+Pokemon-follow, and return states. `Overworld3DTestScreenAquariumInspection.cpp`
+adapts resident picking/tracking. Inspection visibility is a temporary render-only
+tank filter; it never rebuilds geometry or removes residents. The wall-only shader
+also supports an explicit single-wall plane mode, cleared on inspection exit.
+Resident close-ups combine approached-face glass clearance with optical FOV zoom;
+overview/exit restore the original FOV. Foreground overlapping tank bounds are
+culled with a depth tolerance that preserves same-row neighbors.
+
+`aquarium/decorations` owns asset catalogue, tank-local transforms, validation,
+arrangement history and preview tray. The screen adapts pointer/controller input
+without changing the normal construction camera angle. Standard accept/cancel,
+delete and history controls use the existing construction HUD renderer and the
+shared `aquariumDecorationHudLayout` for both rendering and hit testing. The tray
+does not duplicate or cover those buttons. Mouse operations end on release;
+persisted decoration arrangements continue through aquarium commit transactions.

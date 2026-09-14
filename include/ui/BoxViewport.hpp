@@ -91,8 +91,13 @@ public:
         Normal,   // name pill + left/right arrows
         BoxSpace, // name pill only (no L/R arrows)
     };
+    enum class FooterMode {
+        Standard,
+        Hidden,
+    };
     void setHeaderMode(HeaderMode mode, bool show_down_arrow);
     HeaderMode headerMode() const { return header_mode_; }
+    void setFooterMode(FooterMode mode) { footer_mode_ = mode; }
     void setBoxSpaceActive(bool active);
     void setItemOverlayActive(bool active);
     void setFocusDimming(bool active, std::optional<int> focused_slot, const Color& dim_color);
@@ -136,6 +141,7 @@ private:
     mutable bool title_dirty_ = true;
 
     HeaderMode header_mode_ = HeaderMode::Normal;
+    FooterMode footer_mode_ = FooterMode::Standard;
     bool box_space_scroll_arrow_visible_ = false;
     bool box_space_active_ = false;
     bool item_overlay_active_ = false;

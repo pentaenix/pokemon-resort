@@ -1,0 +1,12 @@
+{
+  "enabled": true,
+  "walkableCellsPerVisitor": 32,
+  "maxVisitorsPerRoom": 24,
+  "initialFill": 0.65,
+  "adultWalkSpeedMultiplier": 0.55,
+  "watchMinSeconds": 5,
+  "watchMaxSeconds": 20,
+  "arrivalIntervalSeconds": 35,
+  "exitChanceAfterWatching": 0.18,
+  "roomChangeChanceAfterWatching": 0.25
+}

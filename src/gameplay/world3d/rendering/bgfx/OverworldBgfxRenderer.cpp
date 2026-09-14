@@ -11,6 +11,7 @@
 #include "gameplay/world3d/interiors/DefaultRoomGeometry.hpp"
 #include "gameplay/world3d/interiors/InteriorFloorCutout.hpp"
 #include "gameplay/world3d/aquarium/rendering/AquariumFloorCutouts.hpp"
+#include "gameplay/world3d/aquarium/AquariumExhibitPreset.hpp"
 #include "gameplay/world3d/aquarium/rendering/AquariumPokemonBgfxRenderer.hpp"
 #include "gameplay/world3d/aquarium/rendering/AquariumConstructionBgfxRenderer.hpp"
 #include "gameplay/world3d/aquarium/rendering/PlayerAquariumBgfxRenderer.hpp"
@@ -300,6 +301,12 @@ public:
         const aquarium::AquariumTankLightingConfig& lighting);
     void setAquariumConstructionVisual(
         aquarium::construction::AquariumConstructionVisual visual);
+    void setAquariumStockingOverlay(
+        const std::vector<std::uint8_t>& rgba,
+        int width,
+        int height,
+        std::string content_key,
+        bool visible);
     bool replacePlayerAquariumTanks(
         const std::vector<aquarium::construction::PlayerTankRuntime>& tanks,
         std::string* error);
@@ -315,7 +322,11 @@ public:
         scene_.lighting_tint_g = tint[1];
         scene_.lighting_tint_b = tint[2];
         if (!aquarium_tank_lighting_.enabled) {
-            player_aquarium_renderer_.setLighting(brightness, tint);
+            player_aquarium_renderer_.setLighting(
+                brightness, tint,
+                aquarium_tank_lighting_.water_attenuation_intensity,
+                aquarium_tank_lighting_.water_surface_speed,
+                aquarium_tank_lighting_.sand_darkening);
         }
         refreshBillboardDrawer();
     }
@@ -324,7 +335,7 @@ public:
         interior_wall_clip_[0] = center.x;
         interior_wall_clip_[1] = center.y;
         interior_wall_clip_[2] = center.z;
-        interior_wall_clip_[3] = std::max(0.0f, radius_world);
+        interior_wall_clip_[3] = radius_world; // Negative: explicit inspection wall-plane mode.
     }
     void setTextboxOverlay(dialogue::OverworldTextboxConfig config, bool visible, std::string text);
     void setAttendButtonOverlay(std::string icon_path, SDL_Rect logical_rect, bool visible);
@@ -536,6 +547,10 @@ private:
     bgfx::VertexLayout layout_{};
     bgfx::ProgramHandle world_program_ = BGFX_INVALID_HANDLE;
     bgfx::ProgramHandle wall_clip_program_ = BGFX_INVALID_HANDLE;
+    bgfx::ProgramHandle aquarium_water_program_ = BGFX_INVALID_HANDLE;
+    bgfx::ProgramHandle aquarium_glass_program_ = BGFX_INVALID_HANDLE;
+    bgfx::ProgramHandle aquarium_pulse_program_ = BGFX_INVALID_HANDLE;
+    bgfx::ProgramHandle aquarium_fog_program_ = BGFX_INVALID_HANDLE;
     bgfx::ProgramHandle billboard_program_ = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle tex_uniform_ = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle tint_cutoff_uniform_ = BGFX_INVALID_HANDLE;
@@ -546,10 +561,15 @@ private:
     bgfx::UniformHandle light_params_uniform_ = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle camera_clip_uniform_ = BGFX_INVALID_HANDLE;
     TextureGpuResource white_texture_;
+    std::array<TextureGpuResource, aquarium::kAquariumSubstratePresets.size()>
+        aquarium_substrate_textures_;
+    TextureGpuResource aquarium_water_surface_texture_;
+    aquarium::rendering::AquariumWaterSurfaceMaterial aquarium_water_surface_material_{};
     TextureGpuResource shadow_texture_;
     TextureGpuResource textbox_texture_;
     TextureGpuResource textbox_text_texture_;
     TextureGpuResource attend_button_texture_;
+    TextureGpuResource aquarium_stocking_texture_;
     dialogue::OverworldTextboxConfig textbox_config_{};
     std::string textbox_texture_path_;
     std::string textbox_text_;
@@ -559,6 +579,9 @@ private:
     std::string attend_button_texture_path_;
     SDL_Rect attend_button_logical_rect_{};
     bool attend_button_visible_ = false;
+    bool aquarium_stocking_overlay_visible_ = false;
+    bool aquarium_decoration_editing_ = false;
+    std::string aquarium_stocking_content_key_;
     float iris_logical_x_ = 0.0f;
     float iris_logical_y_ = 0.0f;
     float iris_closed_amount_ = 0.0f;
@@ -586,12 +609,14 @@ private:
     std::vector<aquarium::AquariumTankRuntime> aquarium_tank_lights_;
     aquarium::AquariumTankLightingConfig aquarium_tank_lighting_{};
     PixelWorldTarget pixel_world_target_;
+    PixelWorldTarget aquarium_fog_target_;
     bool override_animation_clock_ = false;
     bool animations_enabled_ = true;
     double animation_time_seconds_ = 0.0;
 
     bool createPrograms();
     bool loadTilePackage();
+    bool loadAquariumSubstrateTextures();
     bool buildTerrain();
     bool stagePlayerAquariumFloorCutouts(
         const std::vector<aquarium::construction::PlayerTankRuntime>& tanks,
@@ -623,7 +648,11 @@ private:
         const std::string& fallback_path,
         const char* debug_name,
         bool flip_vertically = false) const;
+    TextureGpuResource createAquariumMossTexture(
+        const std::vector<std::uint8_t>& dirt_bytes,
+        const std::vector<std::uint8_t>& grass_bytes) const;
     bool ensurePixelWorldTarget(int width, int height);
+    bool ensureAquariumFogTarget(int width, int height);
     bool ensureTextboxTexture();
     bool ensureTextboxTextTexture(int wrap_width);
     bool ensureAttendButtonTexture();
@@ -670,6 +699,7 @@ private:
         int base_viewport_w,
         int base_viewport_h) const;
     void submitAttendButtonOverlay(int framebuffer_w, int framebuffer_h, int logical_w, int logical_h) const;
+    void submitAquariumStockingOverlay(int framebuffer_w, int framebuffer_h) const;
     void submitBlackIrisTransition(int framebuffer_w, int framebuffer_h, int logical_w, int logical_h) const;
     void submitOverlaySlice(
         bgfx::ViewId view_id,
@@ -801,6 +831,18 @@ void OverworldBgfxRenderer::setAquariumTankLights(
 void OverworldBgfxRenderer::setAquariumConstructionVisual(
     aquarium::construction::AquariumConstructionVisual visual) {
     if (impl_) impl_->setAquariumConstructionVisual(std::move(visual));
+}
+
+void OverworldBgfxRenderer::setAquariumStockingOverlay(
+    const std::vector<std::uint8_t>& rgba,
+    int width,
+    int height,
+    std::string content_key,
+    bool visible) {
+    if (impl_) {
+        impl_->setAquariumStockingOverlay(
+            rgba, width, height, std::move(content_key), visible);
+    }
 }
 
 bool OverworldBgfxRenderer::replacePlayerAquariumTanks(
@@ -967,7 +1009,10 @@ void OverworldBgfxRenderer::Impl::setAquariumTankLights(
         lighting.enabled
             ? lighting.tint
             : std::array<float, 3>{
-                scene_.lighting_tint_r, scene_.lighting_tint_g, scene_.lighting_tint_b});
+                scene_.lighting_tint_r, scene_.lighting_tint_g, scene_.lighting_tint_b},
+        lighting.water_attenuation_intensity,
+        lighting.water_surface_speed,
+        lighting.sand_darkening);
 
     std::unordered_set<std::string> tank_ids;
     for (const auto& tank : aquarium_tank_lights_) tank_ids.insert(tank.placement_id);
@@ -978,7 +1023,30 @@ void OverworldBgfxRenderer::Impl::setAquariumTankLights(
 
 void OverworldBgfxRenderer::Impl::setAquariumConstructionVisual(
     aquarium::construction::AquariumConstructionVisual visual) {
+    aquarium_decoration_editing_=!visual.decoration_focus_tank.empty();
+    player_aquarium_renderer_.setDecorationFocus(visual.decoration_focus_tank);
+    player_aquarium_renderer_.setInspectionHiddenTanks(visual.inspection_hidden_tanks);
     aquarium_construction_renderer_.setVisual(std::move(visual));
+}
+
+void OverworldBgfxRenderer::Impl::setAquariumStockingOverlay(
+    const std::vector<std::uint8_t>& rgba,
+    int width,
+    int height,
+    std::string content_key,
+    bool visible) {
+    aquarium_stocking_overlay_visible_ = visible;
+    if (!visible || rgba.empty() || width <= 0 || height <= 0) return;
+    if (aquarium_stocking_texture_.valid() &&
+        aquarium_stocking_content_key_ == content_key) {
+        return;
+    }
+    TextureGpuResource candidate = createTextureFromRgba(
+        rgba.data(), width, height, "aquarium-stocking-overlay");
+    if (!candidate.valid()) return;
+    aquarium_stocking_texture_.destroy();
+    aquarium_stocking_texture_ = candidate;
+    aquarium_stocking_content_key_ = std::move(content_key);
 }
 
 bool OverworldBgfxRenderer::Impl::replacePlayerAquariumTanks(
@@ -1233,10 +1301,25 @@ bool OverworldBgfxRenderer::Impl::initialize(
 
     aquarium_pokemon_renderer_.initialize(
         layout_, world_program_, tex_uniform_, tint_cutoff_uniform_, color_adjust_uniform_,
-        texture_blur_uniform_, uv_offset_uniform_, light_dir_uniform_, light_params_uniform_);
+        texture_blur_uniform_, uv_offset_uniform_, light_dir_uniform_, light_params_uniform_, aquarium_pulse_program_);
     aquarium_pokemon_renderer_.setActors(aquarium_pokemon_actors_);
+    if (scene_.environment.space.rfind("interior:aquarium", 0) == 0 &&
+        !loadAquariumSubstrateTextures()) {
+        std::cerr << "[Aquarium] One or more substrate textures are unavailable; using flat tint\n";
+    }
+    std::array<bgfx::TextureHandle, aquarium::kAquariumSubstratePresets.size()>
+        substrate_handles{};
+    for (std::size_t index = 0; index < substrate_handles.size(); ++index) {
+        substrate_handles[index] = aquarium_substrate_textures_[index].valid()
+            ? aquarium_substrate_textures_[index].handle : white_texture_.handle;
+    }
     player_aquarium_renderer_.initialize(
-        layout_, world_program_, white_texture_.handle, tex_uniform_, tint_cutoff_uniform_,
+        layout_, world_program_, aquarium_water_program_, aquarium_glass_program_,
+        aquarium_fog_program_,
+        white_texture_.handle,
+        substrate_handles,
+        aquarium_water_surface_material_,
+        tex_uniform_, tint_cutoff_uniform_,
         color_adjust_uniform_, texture_blur_uniform_, uv_offset_uniform_,
         light_dir_uniform_, light_params_uniform_);
     player_aquarium_renderer_.setLighting(
@@ -1246,7 +1329,10 @@ bool OverworldBgfxRenderer::Impl::initialize(
         aquarium_tank_lighting_.enabled
             ? aquarium_tank_lighting_.tint
             : std::array<float, 3>{
-                scene_.lighting_tint_r, scene_.lighting_tint_g, scene_.lighting_tint_b});
+                scene_.lighting_tint_r, scene_.lighting_tint_g, scene_.lighting_tint_b},
+        aquarium_tank_lighting_.water_attenuation_intensity,
+        aquarium_tank_lighting_.water_surface_speed,
+        aquarium_tank_lighting_.sand_darkening);
     aquarium_construction_renderer_.initialize(
         layout_, world_program_, white_texture_.handle, tex_uniform_, tint_cutoff_uniform_,
         color_adjust_uniform_, texture_blur_uniform_, uv_offset_uniform_,
@@ -1272,6 +1358,7 @@ void OverworldBgfxRenderer::Impl::shutdown() {
     player_aquarium_renderer_.shutdown();
     aquarium_pokemon_renderer_.shutdown();
     pixel_world_target_.destroy();
+    aquarium_fog_target_.destroy();
     terrain_flat_top_mesh_.destroy();
     terrain_slope_top_mesh_.destroy();
     terrain_wall_mesh_.destroy();
@@ -1306,11 +1393,17 @@ void OverworldBgfxRenderer::Impl::shutdown() {
     textbox_texture_.destroy();
     textbox_text_texture_.destroy();
     attend_button_texture_.destroy();
+    aquarium_stocking_texture_.destroy();
+    for (auto& texture : aquarium_substrate_textures_) texture.destroy();
+    aquarium_water_surface_texture_.destroy();
+    aquarium_water_surface_material_ = {};
     textbox_texture_path_.clear();
     textbox_font_.reset();
     cached_textbox_text_.clear();
     cached_textbox_wrap_width_ = 0;
     attend_button_texture_path_.clear();
+    aquarium_stocking_content_key_.clear();
+    aquarium_stocking_overlay_visible_ = false;
     white_texture_.destroy();
     destroyPrograms();
     if (bgfx::isValid(tex_uniform_)) {
@@ -1353,27 +1446,69 @@ bool OverworldBgfxRenderer::Impl::createPrograms() {
     const std::filesystem::path shader_root = backend_.shaderDirectory();
     const std::string shader_subdir = backend_.shaderSubdirectory();
     bgfx::ShaderHandle vs_world = loadShader(shader_root, shader_subdir, "vs_world");
+    const auto pulse_vs=loadShader(shader_root,shader_subdir,"vs_world");
+    const auto pulse_fs=loadShader(shader_root,shader_subdir,"fs_aquarium_pokemon_pulse");
+    if(!bgfx::isValid(pulse_vs) || !bgfx::isValid(pulse_fs)) {
+        if(bgfx::isValid(pulse_vs)) bgfx::destroy(pulse_vs);
+        if(bgfx::isValid(pulse_fs)) bgfx::destroy(pulse_fs);
+        if(bgfx::isValid(vs_world)) bgfx::destroy(vs_world);
+        last_error_="Could not load aquarium pulse shaders";
+        return false;
+    }
+    aquarium_pulse_program_=bgfx::createProgram(pulse_vs,pulse_fs,true);
     bgfx::ShaderHandle vs_wall = loadShader(shader_root, shader_subdir, "vs_world");
+    bgfx::ShaderHandle vs_aquarium_water = loadShader(
+        shader_root, shader_subdir, "vs_world");
+    bgfx::ShaderHandle vs_aquarium_glass = loadShader(
+        shader_root, shader_subdir, "vs_world");
+    bgfx::ShaderHandle vs_aquarium_fog = loadShader(
+        shader_root, shader_subdir, "vs_aquarium_fog_volume");
     bgfx::ShaderHandle vs_billboard = loadShader(shader_root, shader_subdir, "vs_billboard");
     bgfx::ShaderHandle fs = loadShader(shader_root, shader_subdir, "fs_textured_cutout");
     bgfx::ShaderHandle fs_wall = loadShader(shader_root, shader_subdir, "fs_textured_wall_clip");
+    bgfx::ShaderHandle fs_aquarium_water = loadShader(
+        shader_root, shader_subdir, "fs_aquarium_water");
+    bgfx::ShaderHandle fs_aquarium_glass = loadShader(
+        shader_root, shader_subdir, "fs_aquarium_glass");
+    bgfx::ShaderHandle fs_aquarium_fog = loadShader(
+        shader_root, shader_subdir, "fs_aquarium_fog_volume");
     bgfx::ShaderHandle fs_billboard = loadShader(shader_root, shader_subdir, "fs_textured_cutout");
     if (!bgfx::isValid(vs_world) || !bgfx::isValid(vs_wall) ||
+        !bgfx::isValid(vs_aquarium_water) || !bgfx::isValid(vs_aquarium_glass) ||
+        !bgfx::isValid(vs_aquarium_fog) ||
         !bgfx::isValid(vs_billboard) || !bgfx::isValid(fs) ||
-        !bgfx::isValid(fs_wall) || !bgfx::isValid(fs_billboard)) {
+        !bgfx::isValid(fs_wall) || !bgfx::isValid(fs_aquarium_water) ||
+        !bgfx::isValid(fs_aquarium_glass) ||
+        !bgfx::isValid(fs_aquarium_fog) ||
+        !bgfx::isValid(fs_billboard)) {
         last_error_ = "Could not load bgfx shader binaries from " + shader_root.string();
         if (bgfx::isValid(vs_world)) bgfx::destroy(vs_world);
         if (bgfx::isValid(vs_wall)) bgfx::destroy(vs_wall);
+        if (bgfx::isValid(vs_aquarium_water)) bgfx::destroy(vs_aquarium_water);
+        if (bgfx::isValid(vs_aquarium_glass)) bgfx::destroy(vs_aquarium_glass);
+        if (bgfx::isValid(vs_aquarium_fog)) bgfx::destroy(vs_aquarium_fog);
         if (bgfx::isValid(vs_billboard)) bgfx::destroy(vs_billboard);
         if (bgfx::isValid(fs)) bgfx::destroy(fs);
         if (bgfx::isValid(fs_wall)) bgfx::destroy(fs_wall);
+        if (bgfx::isValid(fs_aquarium_water)) bgfx::destroy(fs_aquarium_water);
+        if (bgfx::isValid(fs_aquarium_glass)) bgfx::destroy(fs_aquarium_glass);
+        if (bgfx::isValid(fs_aquarium_fog)) bgfx::destroy(fs_aquarium_fog);
         if (bgfx::isValid(fs_billboard)) bgfx::destroy(fs_billboard);
         return false;
     }
     world_program_ = bgfx::createProgram(vs_world, fs, true);
     wall_clip_program_ = bgfx::createProgram(vs_wall, fs_wall, true);
+    aquarium_water_program_ = bgfx::createProgram(
+        vs_aquarium_water, fs_aquarium_water, true);
+    aquarium_glass_program_ = bgfx::createProgram(
+        vs_aquarium_glass, fs_aquarium_glass, true);
+    aquarium_fog_program_ = bgfx::createProgram(
+        vs_aquarium_fog, fs_aquarium_fog, true);
     billboard_program_ = bgfx::createProgram(vs_billboard, fs_billboard, true);
-    if (!bgfx::isValid(world_program_) || !bgfx::isValid(wall_clip_program_) ||
+    if (!bgfx::isValid(aquarium_pulse_program_) || !bgfx::isValid(world_program_) || !bgfx::isValid(wall_clip_program_) ||
+        !bgfx::isValid(aquarium_water_program_) ||
+        !bgfx::isValid(aquarium_glass_program_) ||
+        !bgfx::isValid(aquarium_fog_program_) ||
         !bgfx::isValid(billboard_program_)) {
         last_error_ = "Could not create bgfx shader programs";
         return false;
@@ -1382,6 +1517,8 @@ bool OverworldBgfxRenderer::Impl::createPrograms() {
 }
 
 void OverworldBgfxRenderer::Impl::destroyPrograms() {
+    if(bgfx::isValid(aquarium_pulse_program_)) bgfx::destroy(aquarium_pulse_program_);
+    aquarium_pulse_program_=BGFX_INVALID_HANDLE;
     if (bgfx::isValid(world_program_)) {
         bgfx::destroy(world_program_);
         world_program_ = BGFX_INVALID_HANDLE;
@@ -1389,6 +1526,18 @@ void OverworldBgfxRenderer::Impl::destroyPrograms() {
     if (bgfx::isValid(wall_clip_program_)) {
         bgfx::destroy(wall_clip_program_);
         wall_clip_program_ = BGFX_INVALID_HANDLE;
+    }
+    if (bgfx::isValid(aquarium_water_program_)) {
+        bgfx::destroy(aquarium_water_program_);
+        aquarium_water_program_ = BGFX_INVALID_HANDLE;
+    }
+    if (bgfx::isValid(aquarium_glass_program_)) {
+        bgfx::destroy(aquarium_glass_program_);
+        aquarium_glass_program_ = BGFX_INVALID_HANDLE;
+    }
+    if (bgfx::isValid(aquarium_fog_program_)) {
+        bgfx::destroy(aquarium_fog_program_);
+        aquarium_fog_program_ = BGFX_INVALID_HANDLE;
     }
     if (bgfx::isValid(billboard_program_)) {
         bgfx::destroy(billboard_program_);
@@ -1464,6 +1613,58 @@ OverworldBgfxRenderer::Impl::TextureGpuResource OverworldBgfxRenderer::Impl::dec
     return out;
 }
 
+OverworldBgfxRenderer::Impl::TextureGpuResource
+OverworldBgfxRenderer::Impl::createAquariumMossTexture(
+    const std::vector<std::uint8_t>& dirt_bytes,
+    const std::vector<std::uint8_t>& grass_bytes) const {
+    const auto decode = [](const std::vector<std::uint8_t>& bytes) {
+        if (bytes.empty()) return static_cast<SDL_Surface*>(nullptr);
+        SDL_RWops* rw = SDL_RWFromConstMem(bytes.data(), static_cast<int>(bytes.size()));
+        SDL_Surface* source = rw ? IMG_Load_RW(rw, 1) : nullptr;
+        if (!source) return static_cast<SDL_Surface*>(nullptr);
+        SDL_Surface* converted = SDL_ConvertSurfaceFormat(
+            source, SDL_PIXELFORMAT_RGBA32, 0);
+        SDL_FreeSurface(source);
+        return converted;
+    };
+    SDL_Surface* dirt = decode(dirt_bytes);
+    SDL_Surface* grass = decode(grass_bytes);
+    if (!dirt || !grass) {
+        if (dirt) SDL_FreeSurface(dirt);
+        if (grass) SDL_FreeSurface(grass);
+        return {};
+    }
+
+    constexpr int kSize = 32;
+    std::vector<std::uint8_t> pixels(kSize * kSize * 4U, 255);
+    const auto sample = [](SDL_Surface* surface, int x, int y, int channel) {
+        x = (x % surface->w + surface->w) % surface->w;
+        y = (y % surface->h + surface->h) % surface->h;
+        const auto* row = static_cast<const std::uint8_t*>(surface->pixels) +
+            static_cast<std::size_t>(surface->h - 1 - y) * surface->pitch;
+        return row[x * 4 + channel];
+    };
+    for (int y = 0; y < kSize; ++y) {
+        for (int x = 0; x < kSize; ++x) {
+            const float field = std::sin((x + 3) * 0.31f) +
+                std::sin((y + 7) * 0.27f) + std::sin((x + y) * 0.17f);
+            const float moss = std::clamp((field - 0.15f) * 0.58f, 0.0f, 0.78f);
+            const std::size_t out = static_cast<std::size_t>((y * kSize + x) * 4);
+            for (int channel = 0; channel < 3; ++channel) {
+                const float dirt_value = sample(dirt, x, y, channel);
+                const float grass_value = sample(grass, x, y, channel);
+                const float swamp_green = dirt_value * 0.30f + grass_value * 0.70f;
+                pixels[out + static_cast<std::size_t>(channel)] =
+                    static_cast<std::uint8_t>(std::lround(
+                        dirt_value * (1.0f - moss) + swamp_green * moss));
+            }
+        }
+    }
+    SDL_FreeSurface(dirt);
+    SDL_FreeSurface(grass);
+    return createTextureFromRgba(pixels.data(), kSize, kSize, "aquarium-substrate-moss");
+}
+
 bool OverworldBgfxRenderer::Impl::ensurePixelWorldTarget(int width, int height) {
     width = std::max(1, width);
     height = std::max(1, height);
@@ -1478,7 +1679,9 @@ bool OverworldBgfxRenderer::Impl::ensurePixelWorldTarget(int width, int height) 
         false,
         1,
         bgfx::TextureFormat::RGBA8,
-        BGFX_TEXTURE_RT | BGFX_SAMPLER_MIN_POINT | BGFX_SAMPLER_MAG_POINT | BGFX_SAMPLER_MIP_POINT);
+        BGFX_TEXTURE_RT | BGFX_TEXTURE_BLIT_DST |
+            BGFX_SAMPLER_MIN_POINT | BGFX_SAMPLER_MAG_POINT |
+            BGFX_SAMPLER_MIP_POINT);
     bgfx::TextureHandle depth = bgfx::createTexture2D(
         static_cast<std::uint16_t>(width),
         static_cast<std::uint16_t>(height),
@@ -1507,6 +1710,56 @@ bool OverworldBgfxRenderer::Impl::ensurePixelWorldTarget(int width, int height) 
     pixel_world_target_.height = height;
     std::cerr << "[OverworldBgfx] Pixel-perfect world target "
               << width << "x" << height << '\n';
+    return true;
+}
+
+bool OverworldBgfxRenderer::Impl::ensureAquariumFogTarget(int width, int height) {
+    width = std::max(1, width);
+    height = std::max(1, height);
+    if (aquarium_fog_target_.valid() &&
+        aquarium_fog_target_.width == width &&
+        aquarium_fog_target_.height == height) {
+        return true;
+    }
+
+    aquarium_fog_target_.destroy();
+    bgfx::TextureHandle color = bgfx::createTexture2D(
+        static_cast<std::uint16_t>(width),
+        static_cast<std::uint16_t>(height),
+        false,
+        1,
+        bgfx::TextureFormat::RGBA8,
+        BGFX_TEXTURE_RT | BGFX_TEXTURE_BLIT_DST |
+            BGFX_SAMPLER_MIN_POINT | BGFX_SAMPLER_MAG_POINT |
+            BGFX_SAMPLER_MIP_POINT);
+    bgfx::TextureHandle depth_stencil = bgfx::createTexture2D(
+        static_cast<std::uint16_t>(width),
+        static_cast<std::uint16_t>(height),
+        false,
+        1,
+        bgfx::TextureFormat::D24S8,
+        BGFX_TEXTURE_RT);
+    if (!bgfx::isValid(color) || !bgfx::isValid(depth_stencil)) {
+        if (bgfx::isValid(color)) bgfx::destroy(color);
+        if (bgfx::isValid(depth_stencil)) bgfx::destroy(depth_stencil);
+        last_error_ = "Could not create aquarium fog color target";
+        return false;
+    }
+    bgfx::Attachment attachments[2];
+    attachments[0].init(color);
+    attachments[1].init(depth_stencil);
+    aquarium_fog_target_.frame_buffer = bgfx::createFrameBuffer(2, attachments, true);
+    if (!aquarium_fog_target_.valid()) {
+        bgfx::destroy(color);
+        bgfx::destroy(depth_stencil);
+        last_error_ = "Could not create aquarium fog framebuffer";
+        return false;
+    }
+    aquarium_fog_target_.width = width;
+    aquarium_fog_target_.height = height;
+    bgfx::setName(color, "aquarium-bounded-fog-color");
+    std::cerr << "[AquariumFog] Bounded scene-depth target "
+              << width << 'x' << height << '\n';
     return true;
 }
 
@@ -1615,6 +1868,110 @@ bool OverworldBgfxRenderer::Impl::loadTilePackage() {
     }
     tile_package_ = std::move(package);
     return true;
+}
+
+bool OverworldBgfxRenderer::Impl::loadAquariumSubstrateTextures() {
+    for (auto& texture : aquarium_substrate_textures_) texture.destroy();
+    aquarium_water_surface_texture_.destroy();
+    aquarium_water_surface_material_ = {};
+    const std::filesystem::path pack_path = std::filesystem::path(project_root_) /
+        "assets/overworld/tilepacks/maptiles.rtpks";
+    std::vector<int> tile_ids;
+    tile_ids.reserve(aquarium::kAquariumSubstratePresets.size() + 2U);
+    for (const auto& preset : aquarium::kAquariumSubstratePresets) {
+        tile_ids.push_back(preset.resort_tile_id);
+    }
+    // Moss is a tiny runtime composition of these two Black 2 floor materials.
+    tile_ids.push_back(100);
+    // Open-ocean tile 3287 contains an opaque lower plane and a separately
+    // scrolling translucent upper plane. Player tanks consume only the upper.
+    tile_ids.push_back(3287);
+    std::string error;
+    const data::RtpksTilePackage package = data::loadRtpksTilePackageForTiles(
+        pack_path.string(), tile_ids, &error);
+    bool complete = true;
+    for (std::size_t index = 0; index < aquarium::kAquariumSubstratePresets.size(); ++index) {
+        const auto& preset = aquarium::kAquariumSubstratePresets[index];
+        const data::RtpksTileMesh* tile = package.tileById(preset.resort_tile_id);
+        const data::RtpksMaterialRange* best_range = nullptr;
+        if (tile) {
+            for (const auto& range : tile->material_ranges) {
+                if (!best_range || range.tri_count + range.quad_count >
+                        best_range->tri_count + best_range->quad_count) {
+                    best_range = &range;
+                }
+            }
+        }
+        const data::RtpksMaterial* material = best_range
+            ? package.materialById(best_range->material_id) : nullptr;
+        if (!material || material->image_bytes.empty()) {
+            complete = false;
+            std::cerr << "[Aquarium] Missing substrate material kind=" << preset.kind
+                      << " tile=" << preset.resort_tile_id << '\n';
+            continue;
+        }
+        const std::string debug_name = std::string("aquarium-substrate-") +
+            std::string(preset.kind);
+        aquarium_substrate_textures_[index] = decodeImageBytes(
+            material->image_bytes, "", debug_name.c_str(), true);
+        complete = complete && aquarium_substrate_textures_[index].valid();
+    }
+    const auto materialForTile = [&](int tile_id) -> const data::RtpksMaterial* {
+        const data::RtpksTileMesh* tile = package.tileById(tile_id);
+        if (!tile || tile->material_ranges.empty()) return nullptr;
+        const auto best = std::max_element(tile->material_ranges.begin(),
+            tile->material_ranges.end(), [](const auto& lhs, const auto& rhs) {
+                return lhs.tri_count + lhs.quad_count < rhs.tri_count + rhs.quad_count;
+            });
+        return package.materialById(best->material_id);
+    };
+    const data::RtpksMaterial* dirt = materialForTile(104);
+    const data::RtpksMaterial* grass = materialForTile(100);
+    const std::size_t moss_index = aquarium::aquariumSubstratePresetIndex("moss-flat");
+    if (dirt && grass) {
+        aquarium_substrate_textures_[moss_index].destroy();
+        aquarium_substrate_textures_[moss_index] = createAquariumMossTexture(
+            dirt->image_bytes, grass->image_bytes);
+        complete = complete && aquarium_substrate_textures_[moss_index].valid();
+    } else {
+        complete = false;
+    }
+    const data::RtpksMaterial* upper_water = nullptr;
+    if (const data::RtpksTileMesh* ocean = package.tileById(3287)) {
+        for (const auto& range : ocean->material_ranges) {
+            const data::RtpksMaterial* candidate = package.materialById(range.material_id);
+            if (candidate && candidate->name == "sea_mizu1_1") {
+                upper_water = candidate;
+                break;
+            }
+        }
+    }
+    if (upper_water && !upper_water->image_bytes.empty()) {
+        aquarium_water_surface_texture_ = decodeImageBytes(
+            upper_water->image_bytes, "", "aquarium-water-surface", true);
+        aquarium_water_surface_material_.texture = aquarium_water_surface_texture_.handle;
+        aquarium_water_surface_material_.animation_uv_offsets =
+            upper_water->animation_uv_offsets;
+        aquarium_water_surface_material_.u_per_tile = upper_water->u_per_tile;
+        aquarium_water_surface_material_.v_per_tile = upper_water->v_per_tile;
+        aquarium_water_surface_material_.uv_wrap_period = {
+            upper_water->wrap_s == "clamp" ? 0.0f :
+                upper_water->wrap_s == "mirror" ? 2.0f : 1.0f,
+            upper_water->wrap_t == "clamp" ? 0.0f :
+                upper_water->wrap_t == "mirror" ? 2.0f : 1.0f,
+        };
+        aquarium_water_surface_material_.animation_timebase_hz =
+            upper_water->animation_timebase_hz;
+        aquarium_water_surface_material_.opacity = std::clamp(
+            static_cast<float>(upper_water->alpha) / 31.0f, 0.0f, 1.0f);
+        aquarium_water_surface_material_.animation_loop = upper_water->animation_loop;
+        complete = complete && aquarium_water_surface_texture_.valid();
+    } else {
+        complete = false;
+        std::cerr << "[Aquarium] Missing translucent Black 2 water material sea_mizu1_1\n";
+    }
+    if (!error.empty()) std::cerr << "[Aquarium] " << error << '\n';
+    return complete;
 }
 
 bool OverworldBgfxRenderer::Impl::buildTileLayers() {
@@ -3119,11 +3476,17 @@ void OverworldBgfxRenderer::Impl::submitAquariumTankLightSpills(
         return;
     }
 
-    constexpr std::uint16_t kSegments = 32;
-    const std::uint32_t vertex_count =
-        static_cast<std::uint32_t>(aquarium_tank_lights_.size()) * kSegments * 2U;
-    const std::uint32_t index_count =
-        static_cast<std::uint32_t>(aquarium_tank_lights_.size()) * kSegments * 6U;
+    constexpr std::uint16_t kFallbackSegments = 32;
+    std::uint32_t vertex_count = 0;
+    std::uint32_t index_count = 0;
+    for (const auto& tank : aquarium_tank_lights_) {
+        const std::uint32_t segments = static_cast<std::uint32_t>(
+            tank.light_boundary_local_meters.size() >= 3U
+                ? tank.light_boundary_local_meters.size()
+                : kFallbackSegments);
+        vertex_count += segments * 2U;
+        index_count += segments * 6U;
+    }
     if (vertex_count > UINT16_MAX ||
         bgfx::getAvailTransientVertexBuffer(vertex_count, layout_) < vertex_count ||
         bgfx::getAvailTransientIndexBuffer(index_count) < index_count) {
@@ -3141,55 +3504,121 @@ void OverworldBgfxRenderer::Impl::submitAquariumTankLightSpills(
     const float tile_size = std::max(1.0f, scene_.grid.tile_size);
     const float fallback_inner_round = tile_size * 0.10f;
     const float outer_round = aquarium_tank_lighting_.spill_reach_tiles * tile_size;
-    const std::uint32_t inner_color = packAbgr(
-        aquarium_tank_lighting_.spill_color[0],
-        aquarium_tank_lighting_.spill_color[1],
-        aquarium_tank_lighting_.spill_color[2],
-        aquarium_tank_lighting_.spill_opacity);
-    const std::uint32_t outer_color = packAbgr(
-        aquarium_tank_lighting_.spill_color[0],
-        aquarium_tank_lighting_.spill_color[1],
-        aquarium_tank_lighting_.spill_color[2], 0.0f);
     constexpr float kPi = 3.14159265358979323846f;
 
     std::uint32_t vertex_cursor = 0;
     std::uint32_t index_cursor = 0;
     for (const auto& tank : aquarium_tank_lights_) {
+        const auto* exhibit = tank.exhibit_preset_id.empty()
+            ? nullptr
+            : &aquarium::aquariumExhibitPreset(tank.exhibit_preset_id);
+        const std::array<float, 3>& spill = exhibit
+            ? exhibit->spill_color : aquarium_tank_lighting_.spill_color;
+        const float tank_brightness = aquarium::aquariumBrightnessMultiplier(
+            tank.brightness_level);
+        const float spill_opacity = aquarium_tank_lighting_.spill_opacity *
+            (exhibit ? exhibit->spill_opacity_multiplier : 1.0f) *
+            std::sqrt(tank_brightness);
+        const std::uint32_t inner_color = packAbgr(
+            spill[0] * tank_brightness, spill[1] * tank_brightness,
+            spill[2] * tank_brightness, spill_opacity);
+        const std::uint32_t outer_color = packAbgr(
+            spill[0] * tank_brightness, spill[1] * tank_brightness,
+            spill[2] * tank_brightness, 0.0f);
         const float yaw = tank.yaw_degrees * kPi / 180.0f;
         const float yaw_cos = std::cos(yaw);
         const float yaw_sin = std::sin(yaw);
-        const float half_width = std::max(0.0f, tank.half_width_world);
-        const float half_depth = std::max(0.0f, tank.half_depth_world);
-        const float inner_round = std::clamp(
-            tank.light_corner_radius_world > 0.0f
-                ? tank.light_corner_radius_world
-                : fallback_inner_round,
-            fallback_inner_round,
-            std::max(fallback_inner_round, std::min(half_width, half_depth)));
-        const float corner_center_x = std::max(0.0f, half_width - inner_round);
-        const float corner_center_z = std::max(0.0f, half_depth - inner_round);
+        std::vector<aquarium::Point2> inner_ring;
+        if (tank.light_boundary_local_meters.size() >= 3U) {
+            inner_ring.reserve(tank.light_boundary_local_meters.size());
+            for (const aquarium::Point2 point : tank.light_boundary_local_meters) {
+                inner_ring.push_back({
+                    point[0] * tank.units_per_meter_world,
+                    point[1] * tank.units_per_meter_world});
+            }
+        } else {
+            const float half_width = std::max(0.0f, tank.half_width_world);
+            const float half_depth = std::max(0.0f, tank.half_depth_world);
+            const float inner_round = std::clamp(
+                tank.light_corner_radius_world > 0.0f
+                    ? tank.light_corner_radius_world
+                    : fallback_inner_round,
+                fallback_inner_round,
+                std::max(fallback_inner_round, std::min(half_width, half_depth)));
+            const float corner_center_x = std::max(0.0f, half_width - inner_round);
+            const float corner_center_z = std::max(0.0f, half_depth - inner_round);
+            inner_ring.reserve(kFallbackSegments);
+            for (std::uint16_t segment = 0; segment < kFallbackSegments; ++segment) {
+                const float angle = 2.0f * kPi * static_cast<float>(segment) /
+                    static_cast<float>(kFallbackSegments);
+                const float axis_x = std::cos(angle);
+                const float axis_z = std::sin(angle);
+                inner_ring.push_back({
+                    std::copysign(corner_center_x, axis_x) + axis_x * inner_round,
+                    std::copysign(corner_center_z, axis_z) + axis_z * inner_round});
+            }
+        }
+        if (inner_ring.size() < 3U) continue;
+
+        float signed_twice_area = 0.0f;
+        for (std::size_t index = 0; index < inner_ring.size(); ++index) {
+            const auto& a = inner_ring[index];
+            const auto& b = inner_ring[(index + 1U) % inner_ring.size()];
+            signed_twice_area += a[0] * b[1] - b[0] * a[1];
+        }
+        const float winding = signed_twice_area >= 0.0f ? 1.0f : -1.0f;
+        const auto outwardNormal = [winding](
+            const aquarium::Point2& from,
+            const aquarium::Point2& to) {
+            const float dx = to[0] - from[0];
+            const float dz = to[1] - from[1];
+            const float length = std::max(0.0001f, std::hypot(dx, dz));
+            return aquarium::Point2{
+                winding * dz / length,
+                winding * -dx / length};
+        };
         const std::uint16_t base = static_cast<std::uint16_t>(vertex_cursor);
-        for (std::uint16_t segment = 0; segment < kSegments; ++segment) {
-            const float angle = 2.0f * kPi * static_cast<float>(segment) /
-                static_cast<float>(kSegments);
-            const float axis_x = std::cos(angle);
-            const float axis_z = std::sin(angle);
-            const float corner_x = std::copysign(corner_center_x, axis_x);
-            const float corner_z = std::copysign(corner_center_z, axis_z);
-            const auto write_vertex = [&](float radius, std::uint32_t color) {
-                const float local_x = corner_x + axis_x * radius;
-                const float local_z = corner_z + axis_z * radius;
+        for (std::size_t segment = 0; segment < inner_ring.size(); ++segment) {
+            const auto& previous = inner_ring[
+                (segment + inner_ring.size() - 1U) % inner_ring.size()];
+            const auto& current = inner_ring[segment];
+            const auto& next = inner_ring[(segment + 1U) % inner_ring.size()];
+            const aquarium::Point2 incoming_normal = outwardNormal(previous, current);
+            const aquarium::Point2 outgoing_normal = outwardNormal(current, next);
+            aquarium::Point2 miter{
+                incoming_normal[0] + outgoing_normal[0],
+                incoming_normal[1] + outgoing_normal[1]};
+            const float miter_length = std::hypot(miter[0], miter[1]);
+            if (miter_length > 0.0001f) {
+                miter[0] /= miter_length;
+                miter[1] /= miter_length;
+            } else {
+                miter = outgoing_normal;
+            }
+            const float alignment = miter[0] * outgoing_normal[0] +
+                miter[1] * outgoing_normal[1];
+            const float miter_distance = alignment > 0.25f
+                ? std::min(outer_round / alignment, outer_round * 2.0f)
+                : outer_round;
+            const aquarium::Point2 outer{
+                current[0] + miter[0] * miter_distance,
+                current[1] + miter[1] * miter_distance};
+            const auto write_vertex = [&](const aquarium::Point2& local, std::uint32_t color) {
+                const float local_x = local[0];
+                const float local_z = local[1];
                 const float world_x = tank.world_center[0] + local_x * yaw_cos + local_z * yaw_sin;
                 const float world_z = tank.world_center[2] - local_x * yaw_sin + local_z * yaw_cos;
                 vertices[vertex_cursor++] = Vertex{
                     world_x, tank.floor_y_world + 0.08f, world_z,
                     color, 0.5f, 0.5f, 0.0f, 1.0f, 0.0f};
             };
-            write_vertex(inner_round, inner_color);
-            write_vertex(inner_round + outer_round, outer_color);
+            write_vertex(current, inner_color);
+            write_vertex(outer, outer_color);
         }
-        for (std::uint16_t segment = 0; segment < kSegments; ++segment) {
-            const std::uint16_t next = static_cast<std::uint16_t>((segment + 1U) % kSegments);
+        for (std::uint16_t segment = 0;
+             segment < static_cast<std::uint16_t>(inner_ring.size()); ++segment) {
+            const std::uint16_t next = static_cast<std::uint16_t>(
+                (segment + 1U) % inner_ring.size());
             const std::uint16_t inner = static_cast<std::uint16_t>(base + segment * 2U);
             const std::uint16_t outer = static_cast<std::uint16_t>(inner + 1U);
             const std::uint16_t next_inner = static_cast<std::uint16_t>(base + next * 2U);
@@ -3260,16 +3689,17 @@ void OverworldBgfxRenderer::Impl::submitPixelWorldToBackbuffer(
         100.0f,
         0.0f,
         backend_.homogeneousDepth());
-    bgfx::setViewTransform(3, view, proj);
+    constexpr bgfx::ViewId kWorldPresentationView = 6;
+    bgfx::setViewTransform(kWorldPresentationView, view, proj);
     bgfx::setViewRect(
-        3,
+        kWorldPresentationView,
         0,
         0,
         static_cast<std::uint16_t>(framebuffer_w),
         static_cast<std::uint16_t>(framebuffer_h));
-    bgfx::setViewFrameBuffer(3, BGFX_INVALID_HANDLE);
-    bgfx::setViewClear(3, BGFX_CLEAR_COLOR, 0x000000ff, 1.0f, 0);
-    bgfx::setViewMode(3, bgfx::ViewMode::Sequential);
+    bgfx::setViewFrameBuffer(kWorldPresentationView, BGFX_INVALID_HANDLE);
+    bgfx::setViewClear(kWorldPresentationView, BGFX_CLEAR_COLOR, 0x000000ff, 1.0f, 0);
+    bgfx::setViewMode(kWorldPresentationView, bgfx::ViewMode::Sequential);
 
     bgfx::TransientVertexBuffer tvb;
     bgfx::TransientIndexBuffer tib;
@@ -3314,7 +3744,7 @@ void OverworldBgfxRenderer::Impl::submitPixelWorldToBackbuffer(
     bgfx::setUniform(light_dir_uniform_, light_dir);
     bgfx::setUniform(light_params_uniform_, light_params);
     bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A);
-    bgfx::submit(3, world_program_);
+    bgfx::submit(kWorldPresentationView, world_program_);
 }
 
 void OverworldBgfxRenderer::Impl::submitOverlaySlice(
@@ -3417,7 +3847,7 @@ void OverworldBgfxRenderer::Impl::submitTextboxOverlay(
         100.0f,
         0.0f,
         backend_.homogeneousDepth());
-    constexpr bgfx::ViewId kTextboxView = 4;
+    constexpr bgfx::ViewId kTextboxView = 9;
     bgfx::setViewTransform(kTextboxView, view, proj);
     bgfx::setViewRect(
         kTextboxView,
@@ -3481,7 +3911,7 @@ void OverworldBgfxRenderer::Impl::submitAttendButtonOverlay(
     bx::mtxOrtho(proj, 0.0f, static_cast<float>(std::max(1, framebuffer_w)),
         static_cast<float>(std::max(1, framebuffer_h)), 0.0f, 0.0f, 100.0f, 0.0f,
         backend_.homogeneousDepth());
-    constexpr bgfx::ViewId kAttendButtonView = 5;
+    constexpr bgfx::ViewId kAttendButtonView = 10;
     bgfx::setViewTransform(kAttendButtonView, view, proj);
     bgfx::setViewRect(kAttendButtonView, 0, 0,
         static_cast<std::uint16_t>(std::max(1, framebuffer_w)),
@@ -3497,6 +3927,33 @@ void OverworldBgfxRenderer::Impl::submitAttendButtonOverlay(
         attend_button_logical_rect_.h * framebuffer_h / std::max(1, logical_h)};
     submitOverlaySlice(kAttendButtonView, attend_button_texture_.handle,
         attend_button_texture_.width, attend_button_texture_.height, src, dst);
+}
+
+void OverworldBgfxRenderer::Impl::submitAquariumStockingOverlay(
+    int framebuffer_w, int framebuffer_h) const {
+    if (!aquarium_stocking_overlay_visible_ || !aquarium_stocking_texture_.valid()) return;
+    framebuffer_w = std::max(1, framebuffer_w);
+    framebuffer_h = std::max(1, framebuffer_h);
+    float view[16];
+    float projection[16];
+    identity(view);
+    bx::mtxOrtho(projection, 0.0f, static_cast<float>(framebuffer_w),
+        static_cast<float>(framebuffer_h), 0.0f, 0.0f, 100.0f, 0.0f,
+        backend_.homogeneousDepth());
+    constexpr bgfx::ViewId kStockingView = 8;
+    bgfx::setViewTransform(kStockingView, view, projection);
+    bgfx::setViewRect(kStockingView, 0, 0,
+        static_cast<std::uint16_t>(framebuffer_w),
+        static_cast<std::uint16_t>(framebuffer_h));
+    bgfx::setViewFrameBuffer(kStockingView, BGFX_INVALID_HANDLE);
+    bgfx::setViewClear(kStockingView, BGFX_CLEAR_NONE);
+    bgfx::setViewMode(kStockingView, bgfx::ViewMode::Sequential);
+    const SDL_Rect source{
+        0, 0, aquarium_stocking_texture_.width, aquarium_stocking_texture_.height};
+    const SDL_Rect destination{0, 0, framebuffer_w, framebuffer_h};
+    submitOverlaySlice(kStockingView, aquarium_stocking_texture_.handle,
+        aquarium_stocking_texture_.width, aquarium_stocking_texture_.height,
+        source, destination);
 }
 
 void OverworldBgfxRenderer::Impl::submitBlackIrisTransition(
@@ -3529,7 +3986,7 @@ void OverworldBgfxRenderer::Impl::submitBlackIrisTransition(
     float view[16], proj[16], model[16]; identity(view); identity(model);
     bx::mtxOrtho(proj, 0, static_cast<float>(framebuffer_w), static_cast<float>(framebuffer_h), 0,
         0, 100, 0, backend_.homogeneousDepth());
-    constexpr bgfx::ViewId view_id = 7;
+    constexpr bgfx::ViewId view_id = 11;
     bgfx::setViewTransform(view_id, view, proj);
     bgfx::setViewRect(view_id, 0, 0, static_cast<uint16_t>(framebuffer_w), static_cast<uint16_t>(framebuffer_h));
     bgfx::setViewFrameBuffer(view_id, BGFX_INVALID_HANDLE);
@@ -3918,6 +4375,7 @@ OverworldBgfxRenderer::EmbeddedViewportTexture OverworldBgfxRenderer::Impl::rend
     }
     if (!pixel_world_enabled) {
         pixel_world_target_.destroy();
+        aquarium_fog_target_.destroy();
     }
     const int world_view_w = pixel_world_enabled ? render_w : std::max(1, framebuffer_w);
     const int world_view_h = pixel_world_enabled ? render_h : std::max(1, framebuffer_h);
@@ -3986,6 +4444,12 @@ OverworldBgfxRenderer::EmbeddedViewportTexture OverworldBgfxRenderer::Impl::rend
     override_animation_clock_ = options.override_animation_clock;
     animations_enabled_ = options.animations_enabled;
     animation_time_seconds_ = options.animation_time_seconds;
+    const double aquarium_surface_time_seconds = override_animation_clock_
+        ? std::max(0.0, animation_time_seconds_)
+        : std::chrono::duration<double>(
+            std::chrono::steady_clock::now().time_since_epoch()).count();
+    player_aquarium_renderer_.setAnimationClock(
+        animations_enabled_, aquarium_surface_time_seconds);
 
     float ident[16];
     identity(ident);
@@ -3995,7 +4459,11 @@ OverworldBgfxRenderer::EmbeddedViewportTexture OverworldBgfxRenderer::Impl::rend
         for (ModelGpuResource& model : chunk.models) updateModelAnimation(model);
         updateDoorTileAnimations(chunk.tile_layer_mesh);
     }
-    submitMesh(terrain_flat_top_mesh_, ident, world_program_, MaterialClass::Opaque, 0.0f, stateFor(MaterialClass::Opaque));
+    if(!aquarium_decoration_editing_) {
+    if(interior_wall_clip_[3]<-.5f)
+        submitMesh(terrain_flat_top_mesh_,ident,wall_clip_program_,MaterialClass::Opaque,0.0f,
+            stateFor(MaterialClass::Opaque),0,false,interior_wall_clip_);
+    else submitMesh(terrain_flat_top_mesh_, ident, world_program_, MaterialClass::Opaque, 0.0f, stateFor(MaterialClass::Opaque));
     submitMesh(terrain_slope_top_mesh_, ident, world_program_, MaterialClass::Opaque, 0.0f, stateFor(MaterialClass::Opaque));
     submitMesh(
         terrain_wall_mesh_, ident, wall_clip_program_, MaterialClass::Opaque, 0.0f,
@@ -4014,7 +4482,9 @@ OverworldBgfxRenderer::EmbeddedViewportTexture OverworldBgfxRenderer::Impl::rend
             submitMesh(model.mesh, model.model_matrix, world_program_, MaterialClass::Opaque, 0.0f, stateFor(MaterialClass::Opaque));
         }
     }
+    }
     player_aquarium_renderer_.submitOpaque(1);
+    if(!aquarium_decoration_editing_) {
     submitAquariumTankLightSpills(1);
     submitMesh(tile_layer_mesh_, ident, world_program_, MaterialClass::MaskCutout, 0.5f, stateFor(MaterialClass::MaskCutout));
     for (const ModelGpuResource& model : models_) {
@@ -4028,11 +4498,13 @@ OverworldBgfxRenderer::EmbeddedViewportTexture OverworldBgfxRenderer::Impl::rend
         }
     }
 
+    }
     // Aquarium actors are real skinned Attend models. Player-built glass/water
     // is submitted with the other late transparent geometry below.
     aquarium_pokemon_renderer_.submit(1, false);
     aquarium_pokemon_renderer_.submit(1, true);
 
+    if(!aquarium_decoration_editing_) {
     // RAE material-motion tiles may carry a source display-list order that
     // crosses opaque/cutout/blend classes (notably Gen 5 shoreline layers).
     // Submit those ranges once, in their stable renderOrder, on the sequential
@@ -4052,6 +4524,7 @@ OverworldBgfxRenderer::EmbeddedViewportTexture OverworldBgfxRenderer::Impl::rend
     submitMesh(tile_layer_mesh_, ident, world_program_, MaterialClass::TrueBlend, 0.0f, stateFor(MaterialClass::TrueBlend), 1);
     for (const StaticChunkGpuResource& chunk : static_chunks_) {
         submitMesh(chunk.tile_layer_mesh, chunk.world_matrix, world_program_, MaterialClass::TrueBlend, 0.0f, stateFor(MaterialClass::TrueBlend), 1);
+    }
     }
     aquarium_construction_renderer_.submitWorld(1);
 
@@ -4107,6 +4580,7 @@ OverworldBgfxRenderer::EmbeddedViewportTexture OverworldBgfxRenderer::Impl::rend
             billboard_drawer_->submitCharacterDraw(camera, character_draw);
         }
 
+        if(!aquarium_decoration_editing_) {
         for (const ModelGpuResource& model : models_) {
             submitMesh(model.mesh, model.model_matrix, world_program_, MaterialClass::TrueBlend, 0.0f,
                 stateFor(MaterialClass::TrueBlend), 1, false, nullptr, model.aquarium_tank_lit);
@@ -4117,7 +4591,9 @@ OverworldBgfxRenderer::EmbeddedViewportTexture OverworldBgfxRenderer::Impl::rend
             }
         }
 
-        std::vector<rendering::TextureBillboardDraw> transparent_textures = texture_draws;
+        }
+        std::vector<rendering::TextureBillboardDraw> transparent_textures = aquarium_decoration_editing_
+            ? std::vector<rendering::TextureBillboardDraw>{} : texture_draws;
         std::stable_sort(
             transparent_textures.begin(),
             transparent_textures.end(),
@@ -4131,11 +4607,78 @@ OverworldBgfxRenderer::EmbeddedViewportTexture OverworldBgfxRenderer::Impl::rend
         }
     }
     const auto aquarium_camera_pose = camera.pose();
-    player_aquarium_renderer_.submitTransparent(
-        1,
-        aquarium_camera_pose.position.x,
-        aquarium_camera_pose.position.y,
-        aquarium_camera_pose.position.z);
+    bool submitted_bounded_fog = false;
+    if (!aquarium_decoration_editing_ && pixel_world_enabled && player_aquarium_renderer_.resourceCount() > 0U &&
+        ensureAquariumFogTarget(world_view_w, world_view_h)) {
+        const bgfx::TextureHandle scene_color = bgfx::getTexture(
+            pixel_world_target_.frame_buffer, 0);
+        const bgfx::TextureHandle scene_depth = bgfx::getTexture(
+            pixel_world_target_.frame_buffer, 1);
+        const bgfx::TextureHandle fog_color = bgfx::getTexture(
+            aquarium_fog_target_.frame_buffer, 0);
+        if (bgfx::isValid(scene_color) && bgfx::isValid(scene_depth) &&
+            bgfx::isValid(fog_color)) {
+            // Preserve all pixels outside the water proxies, then accumulate
+            // each tank's bounded scene/depth contribution over this copy.
+            bgfx::blit(
+                2, fog_color, 0, 0, scene_color, 0, 0,
+                static_cast<std::uint16_t>(world_view_w),
+                static_cast<std::uint16_t>(world_view_h));
+
+            bgfx::setViewTransform(3, view, proj);
+            bgfx::setViewFrameBuffer(3, aquarium_fog_target_.frame_buffer);
+            bgfx::setViewRect(
+                3, 0, 0,
+                static_cast<std::uint16_t>(world_view_w),
+                static_cast<std::uint16_t>(world_view_h));
+            // The stencil is private to this composite. Each tank receives a
+            // different reference so its closed proxy contributes at most once
+            // per pixel while a second tank may still accumulate there.
+            bgfx::setViewClear(3, BGFX_CLEAR_STENCIL, 0, 1.0f, 0);
+            bgfx::setViewMode(3, bgfx::ViewMode::Sequential);
+            float view_projection[16];
+            float inverse_view_projection[16];
+            bx::mtxMul(view_projection, view, proj);
+            bx::mtxInverse(inverse_view_projection, view_projection);
+            player_aquarium_renderer_.submitFog(
+                3, scene_depth, inverse_view_projection,
+                aquarium_camera_pose.position.x,
+                aquarium_camera_pose.position.y,
+                aquarium_camera_pose.position.z,
+                backend_.homogeneousDepth());
+
+            // Restore the fogged color to the original target so its opaque
+            // depth/stencil remains authoritative for glass and water surface.
+            bgfx::blit(
+                4, scene_color, 0, 0, fog_color, 0, 0,
+                static_cast<std::uint16_t>(world_view_w),
+                static_cast<std::uint16_t>(world_view_h));
+            bgfx::setViewTransform(5, view, proj);
+            bgfx::setViewFrameBuffer(5, world_frame_buffer);
+            bgfx::setViewRect(
+                5, 0, 0,
+                static_cast<std::uint16_t>(world_view_w),
+                static_cast<std::uint16_t>(world_view_h));
+            bgfx::setViewClear(5, BGFX_CLEAR_NONE);
+            bgfx::setViewMode(5, bgfx::ViewMode::Sequential);
+            // Restore only the luminous bulbs after fog. Original scene depth
+            // remains attached, so this cannot reveal fish through walls/floors.
+            aquarium_pokemon_renderer_.submitEmission(5);
+            player_aquarium_renderer_.submitTransparent(
+                5,
+                aquarium_camera_pose.position.x,
+                aquarium_camera_pose.position.y,
+                aquarium_camera_pose.position.z);
+            submitted_bounded_fog = true;
+        }
+    }
+    if (!submitted_bounded_fog) {
+        player_aquarium_renderer_.submitTransparent(
+            1,
+            aquarium_camera_pose.position.x,
+            aquarium_camera_pose.position.y,
+            aquarium_camera_pose.position.z);
+    }
 
     override_animation_clock_ = previous_override_animation_clock;
     animations_enabled_ = previous_animations_enabled;
@@ -4161,8 +4704,9 @@ OverworldBgfxRenderer::EmbeddedViewportTexture OverworldBgfxRenderer::Impl::rend
     // Geometry stays in the pixel-world view; these vector icons use the full
     // logical canvas and therefore keep crisp, stable hit bounds.
     aquarium_construction_renderer_.submitHud(
-        6, framebuffer_w, framebuffer_h, logical_w, logical_h,
+        7, framebuffer_w, framebuffer_h, logical_w, logical_h,
         backend_.homogeneousDepth());
+    submitAquariumStockingOverlay(framebuffer_w, framebuffer_h);
 
     if (textbox_overlay_visible_ && ensureTextboxTexture()) {
         SDL_Rect world_viewport{0, 0, std::max(1, framebuffer_w), std::max(1, framebuffer_h)};

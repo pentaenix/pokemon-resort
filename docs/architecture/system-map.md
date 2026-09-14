@@ -1,6 +1,9 @@
 # System Map (Domain-First)
 
 ## Domains
+- Aquarium visitors stay inside `gameplay/world3d/npc`; the aquarium screen supplies
+  committed collision-derived viewing spots and room connections. The director adds
+  no renderer, save database, or developer-tool dependency.
 - `engine`: reusable runtime systems (rendering/input/audio/camera core/chunk runtime).
 - `gameplay`: game rules and 3D world behavior (player/NPC/dialogue/events/quests/followers).
 - `gameplay/attend`: Pokemon interaction-scene config and rendering helpers; currently used by the `RESORT -> TEST ATTEND` debug scene. `config/gameplay/pokemon_attend.json` is a manifest that links concern-specific debug, interaction, provider, and environment files under `config/gameplay/pokemon_attend/` so temporary scene selections, shared interaction tuning, Pokemon-provider behavior, and Alola-map presentation stay separate. The attend Pokemon renderer consumes provider/exporter policy metadata such as RAE `renderClass`, sampler wrap, eye-sheet UVs, and mesh draw order behind this module boundary.
@@ -8,6 +11,7 @@
 - `ui`: presentation and screen-level adapters, including reusable logical-coordinate overlays under `ui/overlay`.
 - `data`: authored configs and content packs.
 - `tools/map_maker`: standalone map-authoring application. Its pure document/project/command/selection/validation core owns edits; its preview adapter consumes the game world loader and renderer without becoming a runtime dependency.
+- `tools/aquarium_species_curator`: standalone developer review workflow for aquarium eligibility, presentation, behavior, and abstract stocking capacity. It uses RAE's GLB viewport and writes versioned data under `config/`; production targets never consume the Python tool or RAE.
 - `shared/aquarium_geometry`: dependency-light deterministic aquarium geometry kernel shared by the native game and a tool-only WASM adapter. It owns no rendering, persistence, UI, or frame lifecycle.
 
 ## Dependency Direction
@@ -18,6 +22,7 @@
 - `ui` -> may compose `engine`, `gameplay`, and `transfer/contracts`.
 - `ui/overlay` -> shared SDL overlay primitives only; consuming screens own semantic actions such as weather, tutorials, or overworld controls.
 - `tools/map_maker` -> may consume `core/config` JSON and public `gameplay/world3d` data, camera, terrain, and rendering seams. Production `engine`, `gameplay`, `transfer`, `ui`, and `resort` modules must not consume `mapmaker/*`.
+- `tools/aquarium_species_curator` -> may consume RAE's developer-only preview surface and authored Pokémon assets. The eventual runtime consumes only its validated JSON output.
 - `shared/aquarium_geometry` -> standalone C++ standard library only; it cannot import gameplay, UI, SDL, bgfx, map-maker, or aquarium-maker code.
 - `tools/aquarium_geometry_wasm` -> may adapt canonical design JSON to the shared kernel for Emscripten; production targets cannot consume this adapter.
 

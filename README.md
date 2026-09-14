@@ -92,6 +92,7 @@ Use this map before changing code:
 - **Pokemon cry assets:** `src/core/assets/PokemonCryAssets.cpp` owns reusable Pokemon cry asset lookup by species id. `src/core/app/audio/PokemonCryPlayer.cpp` turns resolved cries into app one-shot SFX requests for Attend and future UI/gameplay callers.
 - **Resort backend:** `src/resort/` and `include/resort/` own canonical Pokemon storage, import/export services, repositories, and SQLite persistence.
 - **Native map authoring:** `tools/map_maker/` owns lossless OWMAP documents, project/source reuse, commands, selection, validation, the ImGui editor shell, and the exact-game preview adapter. It is a standalone tool; shipping runtime code must not depend on it.
+- **Aquarium species curation:** `tools/aquarium_species_curator/` is a developer-only Python review app that uses the sibling RAE viewport and writes the versioned aquarium-species catalogue. It is not part of the game build; see its local README for the output contract and launch command.
 
 ## Config Sources Of Truth
 

@@ -1,7 +1,9 @@
 #include "gameplay/world3d/aquarium/construction/AquariumDesign.hpp"
+#include "gameplay/world3d/aquarium/AquariumSubstratePreset.hpp"
 
 #include "aquarium_geometry/Kernel.hpp"
 #include "core/config/Json.hpp"
+#include "gameplay/world3d/aquarium/AquariumExhibitPreset.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -118,6 +120,17 @@ geometry::TankDesign parseTank(const JsonValue& value) {
     tank.height_steps = requiredInt32(value, "heightSteps");
     tank.depth_steps = optionalInt32(value, "depthSteps", 0);
     tank.corner_radius_steps = requiredInt32(value, "cornerRadiusSteps");
+    if (const JsonValue* preset = value.get("exhibitPreset")) {
+        if (!preset->isString() ||
+            !aquarium::isAquariumExhibitPreset(preset->asString())) {
+            throw std::runtime_error("Unsupported aquarium exhibit preset");
+        }
+        tank.exhibit_preset = preset->asString();
+    }
+    tank.brightness_level = optionalInt32(
+        value, "brightnessLevel", aquarium::kAquariumDefaultBrightnessLevel);
+    tank.murkiness_level = optionalInt32(
+        value, "murkinessLevel", aquarium::kAquariumDefaultMurkinessLevel);
     if (const JsonValue* radii = value.get("cornerRadii")) {
         if (!radii->isArray()) throw std::runtime_error("cornerRadii must be an array");
         for (const JsonValue& item : radii->asArray()) {
@@ -132,9 +145,11 @@ geometry::TankDesign parseTank(const JsonValue& value) {
 
     const JsonValue& substrate = required(value, "substrate");
     const JsonValue& glass = required(value, "glass");
-    if (!substrate.isObject() || requiredString(substrate, "kind") != "sand-flat") {
-        throw std::runtime_error("Version 1 requires sand-flat substrate");
+    if (!substrate.isObject() ||
+        !aquarium::isAquariumSubstratePreset(requiredString(substrate, "kind"))) {
+        throw std::runtime_error("Unsupported aquarium substrate");
     }
+    tank.substrate_kind = requiredString(substrate, "kind");
     if (!glass.isObject() || requiredString(glass, "style") != "clear-fixed-v1") {
         throw std::runtime_error("Version 1 requires clear-fixed-v1 glass");
     }
@@ -187,6 +202,42 @@ JsonValue serializePoint(const geometry::CellPoint& point) {
     return JsonValue(JsonValue::Object{
         {"column", JsonValue(static_cast<double>(point.column))},
         {"row", JsonValue(static_cast<double>(point.row))},
+    });
+}
+
+AquariumTankPopulation parseTankPopulation(const JsonValue& value) {
+    if (!value.isObject()) throw std::runtime_error("Tank population must be an object");
+    AquariumTankPopulation population;
+    population.tank_id = requiredString(value, "tankId");
+    const JsonValue& residents = required(value, "residents");
+    if (!residents.isArray()) throw std::runtime_error("Population residents must be an array");
+    for (const JsonValue& resident_value : residents.asArray()) {
+        if (!resident_value.isObject()) throw std::runtime_error("Resident must be an object");
+        const std::int64_t count = requiredInteger(resident_value, "count");
+        if (count < 1 || count > std::numeric_limits<std::uint32_t>::max()) {
+            throw std::runtime_error("Resident count is out of range");
+        }
+        population.residents.push_back({
+            requiredString(resident_value, "speciesId"), static_cast<std::uint32_t>(count)});
+    }
+    return population;
+}
+
+JsonValue serializeTankPopulation(const AquariumTankPopulation& population) {
+    JsonValue::Array residents;
+    auto sorted = population.residents;
+    std::sort(sorted.begin(), sorted.end(), [](const auto& lhs, const auto& rhs) {
+        return lhs.species_id < rhs.species_id;
+    });
+    for (const AquariumResidentSelection& resident : sorted) {
+        residents.emplace_back(JsonValue::Object{
+            {"count", JsonValue(static_cast<double>(resident.count))},
+            {"speciesId", JsonValue(resident.species_id)},
+        });
+    }
+    return JsonValue(JsonValue::Object{
+        {"residents", JsonValue(std::move(residents))},
+        {"tankId", JsonValue(population.tank_id)},
     });
 }
 
@@ -255,11 +306,14 @@ JsonValue serializeTank(const geometry::TankDesign& tank) {
         {"cornerRadii", JsonValue(std::move(corner_radii))},
         {"cornerRadiusSteps", JsonValue(static_cast<double>(tank.corner_radius_steps))},
         {"depthSteps", JsonValue(static_cast<double>(tank.depth_steps))},
+        {"exhibitPreset", JsonValue(tank.exhibit_preset)},
+        {"brightnessLevel", JsonValue(static_cast<double>(tank.brightness_level))},
         {"footprint", JsonValue(std::move(footprint))},
         {"glass", JsonValue(JsonValue::Object{{"style", JsonValue(std::string("clear-fixed-v1"))}})},
         {"heightSteps", JsonValue(static_cast<double>(tank.height_steps))},
         {"id", JsonValue(tank.id)},
-        {"substrate", JsonValue(JsonValue::Object{{"kind", JsonValue(std::string("sand-flat"))}})},
+        {"murkinessLevel", JsonValue(static_cast<double>(tank.murkiness_level))},
+        {"substrate", JsonValue(JsonValue::Object{{"kind", JsonValue(tank.substrate_kind)}})},
         {"tunnels", JsonValue(std::move(tunnels))},
     });
 }
@@ -267,9 +321,12 @@ JsonValue serializeTank(const geometry::TankDesign& tank) {
 } // namespace
 
 std::vector<std::string> validateAquariumDesign(const AquariumDesignDocument& document) {
-    std::vector<std::string> diagnostics;
+    std::vector<std::string> diagnostics=decorations::validateDecorations(document.tank_decorations);
     if (document.design_id.empty()) diagnostics.push_back("missing_design_id");
     if (document.map_id.empty()) diagnostics.push_back("missing_map_id");
+    if (document.room_frame && (document.room_frame->column < -4096 || document.room_frame->column > 4096 ||
+        document.room_frame->row < -4096 || document.room_frame->row > 4096))
+        diagnostics.push_back("invalid_room_frame");
     if (document.revision > 9007199254740991ULL) diagnostics.push_back("revision_exceeds_json_integer_range");
     if (document.population_policy.id != "placeholder-wishiwashi" ||
         document.population_policy.version != 1) {
@@ -282,10 +339,40 @@ std::vector<std::string> validateAquariumDesign(const AquariumDesignDocument& do
         } else if (!ids.insert(tank.id).second) {
             diagnostics.push_back("duplicate_tank_id:" + tank.id);
         }
+        if (!aquarium::isAquariumExhibitPreset(tank.exhibit_preset)) {
+            diagnostics.push_back("unsupported_exhibit_preset:" + tank.id);
+        }
+        if (!aquarium::isAquariumSubstratePreset(tank.substrate_kind)) {
+            diagnostics.push_back("unsupported_substrate:" + tank.id);
+        }
+        if (tank.brightness_level < 0 ||
+            tank.brightness_level >= aquarium::kAquariumBrightnessLevelCount) {
+            diagnostics.push_back("invalid_brightness_level:" + tank.id);
+        }
+        if (tank.murkiness_level < 0 ||
+            tank.murkiness_level >= aquarium::kAquariumMurkinessLevelCount) {
+            diagnostics.push_back("invalid_murkiness_level:" + tank.id);
+        }
         geometry::AquariumBuildRequest request;
         request.tank = tank;
         for (const geometry::ValidationDiagnostic& diagnostic : geometry::validateAquarium(request).diagnostics) {
             diagnostics.push_back(tank.id + ":" + diagnostic.code);
+        }
+    }
+    std::set<std::string> population_tank_ids;
+    for (const AquariumTankPopulation& population : document.tank_populations) {
+        if (!ids.count(population.tank_id)) {
+            diagnostics.push_back("population_unknown_tank:" + population.tank_id);
+        } else if (!population_tank_ids.insert(population.tank_id).second) {
+            diagnostics.push_back("duplicate_tank_population:" + population.tank_id);
+        }
+        std::set<std::string> resident_ids;
+        for (const AquariumResidentSelection& resident : population.residents) {
+            if (resident.species_id.empty() || resident.count == 0) {
+                diagnostics.push_back("invalid_resident:" + population.tank_id);
+            } else if (!resident_ids.insert(resident.species_id).second) {
+                diagnostics.push_back("duplicate_resident:" + population.tank_id + ":" + resident.species_id);
+            }
         }
     }
     return diagnostics;
@@ -300,12 +387,12 @@ AquariumDesignLoadResult parseAquariumDesign(const std::string& text) {
             throw std::runtime_error("Unrecognized aquarium design schema");
         }
         const std::int64_t version = requiredInteger(root, "schemaVersion");
-        if (version > geometry::kDesignSchemaVersion) {
+        if (version > kAquariumDocumentSchemaVersion) {
             result.status = AquariumDesignLoadStatus::NewerVersion;
             result.diagnostics.push_back("newer_schema_version");
             return result;
         }
-        if (version < 1 || version > geometry::kDesignSchemaVersion) {
+        if (version < 1 || version > kAquariumDocumentSchemaVersion) {
             throw std::runtime_error("No migration exists for aquarium design schema version " + std::to_string(version));
         }
 
@@ -331,6 +418,14 @@ AquariumDesignLoadResult parseAquariumDesign(const std::string& text) {
         }
 
         AquariumDesignDocument document;
+        if (version >= 6 && (version == 6 || root.get("roomFrame"))) {
+            const auto& frame = required(root, "roomFrame");
+            document.room_frame = geometry::GridCell{
+                requiredInt32(frame,"column"),requiredInt32(frame,"row")};
+            if(document.room_frame->column < -4096 || document.room_frame->column > 4096 ||
+               document.room_frame->row < -4096 || document.room_frame->row > 4096)
+                throw std::runtime_error("Room frame out of range");
+        }
         document.design_id = requiredString(root, "designId");
         document.map_id = requiredString(root, "mapId");
         const std::int64_t revision = requiredInteger(root, "revision");
@@ -350,7 +445,15 @@ AquariumDesignLoadResult parseAquariumDesign(const std::string& text) {
             document.tanks.push_back(parseTank(tank));
             if (version < 5) migrateLegacyTunnelGrid(document.tanks.back());
         }
+        if (const JsonValue* populations = root.get("tankPopulations")) {
+            if (!populations->isArray()) throw std::runtime_error("tankPopulations must be an array");
+            for (const JsonValue& population : populations->asArray()) {
+                document.tank_populations.push_back(parseTankPopulation(population));
+            }
+        }
 
+        if (const auto* decorations=root.get("tankDecorations"))
+            document.tank_decorations=aquarium::decorations::parseDecorations(*decorations);
         result.diagnostics = validateAquariumDesign(document);
         if (!result.diagnostics.empty()) return result;
         result.status = AquariumDesignLoadStatus::Loaded;
@@ -368,6 +471,14 @@ std::string serializeAquariumDesignCanonical(const AquariumDesignDocument& docum
     }
     JsonValue::Array tanks;
     for (const geometry::TankDesign& tank : document.tanks) tanks.push_back(serializeTank(tank));
+    JsonValue::Array populations;
+    auto sorted_populations = document.tank_populations;
+    std::sort(sorted_populations.begin(), sorted_populations.end(), [](const auto& lhs, const auto& rhs) {
+        return lhs.tank_id < rhs.tank_id;
+    });
+    for (const AquariumTankPopulation& population : sorted_populations) {
+        populations.push_back(serializeTankPopulation(population));
+    }
     JsonValue root(JsonValue::Object{
         {"designId", JsonValue(document.design_id)},
         {"grid", JsonValue(JsonValue::Object{
@@ -387,9 +498,42 @@ std::string serializeAquariumDesignCanonical(const AquariumDesignDocument& docum
         {"revision", JsonValue(static_cast<double>(document.revision))},
         {"schema", JsonValue(std::string(kAquariumDesignSchema))},
         {"schemaVersion", JsonValue(static_cast<double>(geometry::kDesignSchemaVersion))},
+        {"tankPopulations", JsonValue(std::move(populations))},
         {"tanks", JsonValue(std::move(tanks))},
     });
+    if(document.room_frame) {
+        root["schemaVersion"]=JsonValue(double(kAquariumDocumentSchemaVersion));
+        root["roomFrame"]=JsonValue(JsonValue::Object{
+            {"column",JsonValue(double(document.room_frame->column))},
+            {"row",JsonValue(double(document.room_frame->row))}});
+    }
+    if (!document.tank_decorations.empty()) {
+        root["schemaVersion"]=JsonValue(double(kAquariumDocumentSchemaVersion));
+        root["tankDecorations"]=decorations::serializeDecorations(document.tank_decorations);
+    }
     return serializeJsonValue(root, JsonStyle::Pretty, 2) + "\n";
+}
+
+void rebaseAquariumDesign(AquariumDesignDocument& document,int column,int row) {
+    const auto before=document.room_frame.value_or(geometry::GridCell{});
+    for(auto& tank:document.tanks) {
+        tank.footprint.origin_cell.column+=before.column-column;
+        tank.footprint.origin_cell.row+=before.row-row;
+        for(auto& tunnel:tank.tunnels) for(auto& point:tunnel.centreline_cells) {
+            point.column+=before.column-column;
+            point.row+=before.row-row;
+        }
+    }
+    document.room_frame=geometry::GridCell{column,row};
+}
+
+const AquariumTankPopulation* aquariumTankPopulation(
+    const AquariumDesignDocument& document, const std::string& tank_id) {
+    const auto found = std::find_if(document.tank_populations.begin(),
+        document.tank_populations.end(), [&](const auto& population) {
+            return population.tank_id == tank_id;
+        });
+    return found == document.tank_populations.end() ? nullptr : &*found;
 }
 
 } // namespace pr::gameplay::world3d::aquarium::construction

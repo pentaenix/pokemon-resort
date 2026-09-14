@@ -214,7 +214,7 @@ void directPaintGesturesCommitAsSingleUndoableCommands() {
         "delete-by-subtraction did not prepare a delete command");
 }
 
-void exteriorPaintMergesAndErasesMultipleTanksUndoably() {
+void exteriorPaintMergesWithoutCrossTankSubtraction() {
     auto document = emptyDocument();
     geo::TankDesign alpha;
     alpha.id = "tank_alpha";
@@ -276,21 +276,23 @@ void exteriorPaintMergesAndErasesMultipleTanksUndoably() {
     require(erase.beginPaintSelected(true),
         "minus selection could not restart after explicit cancellation");
     erase.pointAt({10, 10});
-    require(erase.draftValid() && erase.draftCells().size() == 60,
-        "one rectangular minus selection did not cover both tanks from exterior space");
-    require(erase.reviewDraft(), "multi-delete paint did not enter review");
+    require(erase.draftValid(),
+        "single-target minus selection was not valid");
+    require(erase.reviewDraft(), "single-target minus paint did not enter review");
     auto deleted = erase.prepareCommit();
-    require(deleted && deleted->document.tanks.empty(),
-        "multi-delete did not prepare one empty tank-set transaction");
-    require(erase.publish(std::move(*deleted)), "multi-delete did not publish");
+    require(deleted && deleted->document.tanks.size() == 1 &&
+            deleted->document.tanks.front().id == "tank_alpha",
+        "minus paint changed a neighboring tank instead of only its selected target");
+    require(erase.publish(std::move(*deleted)), "single-target delete did not publish");
     auto undo_delete = erase.prepareUndo();
     require(undo_delete && erase.publish(std::move(*undo_delete)) &&
             erase.committedDesign().tanks.size() == 2 && erase.canRedo(),
-        "undo arrow history could not restore all erased tanks");
+        "undo arrow history could not restore the erased target");
     auto redo_delete = erase.prepareRedo();
     require(redo_delete && erase.publish(std::move(*redo_delete)) &&
-            erase.committedDesign().tanks.empty(),
-        "redo arrow history could not erase all tanks again");
+            erase.committedDesign().tanks.size() == 1 &&
+            erase.committedDesign().tanks.front().id == "tank_alpha",
+        "redo arrow history changed the neighboring tank");
 }
 
 void draftReviewIsNonMutatingAndAdjustmentIsReversible() {
@@ -656,11 +658,14 @@ void authoredObstaclesRemainVisibleAtBuildZoneEdges() {
 }
 
 void constructionVisualBuildsYellowCellsGizmosAndCanonicalHitTargets() {
-    require(construction::aquariumConstructionCellInWorkingView({20, 18}, {10, 10}) &&
-            construction::aquariumConstructionCellInWorkingView({0, 2}, {10, 10}) &&
-            !construction::aquariumConstructionCellInWorkingView({21, 10}, {10, 10}) &&
-            !construction::aquariumConstructionCellInWorkingView({10, 19}, {10, 10}),
-        "construction working view must bound room-grid rendering around the camera");
+    pr::gameplay::world3d::camera::Gen4CameraPreset grid_preset;
+    grid_preset.fov_y_deg=45;grid_preset.near_clip=.1f;grid_preset.far_clip=4000;
+    pr::gameplay::world3d::camera::Gen4FollowCamera grid_camera(grid_preset);
+    grid_camera.setManualPose({808,300,1128},180,-45);
+    require(construction::aquariumConstructionCellInWorkingView({50,50},grid_camera,1280,800,16,8,0),
+        "large-room visible drawing cell was clipped by an obsolete fixed working patch");
+    require(!construction::aquariumConstructionCellInWorkingView({0,0},grid_camera,1280,800,16,8,0),
+        "offscreen room cells should not consume preview geometry");
     construction::AquariumConstructionVisual visual;
     visual.visible = true;
     visual.cells = {{{10, 10}, 0.0f, false}, {{11, 10}, 0.0f, false}};
@@ -744,14 +749,32 @@ void constructionVisualBuildsYellowCellsGizmosAndCanonicalHitTargets() {
     require(hit && hit->column == 10 && hit->row == 10,
         "rendered half-cell-offset surface and pointer hit target disagree");
 
-    require(camera.worldToScreen({185.0f, 3.65f, 192.0f}, 1280, 800,
+    require(camera.worldToScreen({192.0f, 32.0f, 216.0f}, 1280, 800,
+                screen_x, screen_y, depth),
+        "visible tank wall did not project into the construction viewport");
+    const auto tank_hit = construction::hitTestAquariumConstructionTankCell(
+        visual, {selected}, camera,
+        static_cast<int>(screen_x), static_cast<int>(screen_y), 1280, 800);
+    require(tank_hit && construction::playerTankAtCell(
+                construction::AquariumDesignDocument{
+                    "fixture", "aquarium12", 0, {}, {selected}, {}}, *tank_hit),
+        "clicking the visible tank body did not resolve a selectable tank cell");
+
+    require(camera.worldToScreen({192.0f, 3.65f, 192.0f}, 1280, 800,
                 screen_x, screen_y, depth),
         "selected tank move gizmo did not project into the construction viewport");
     const auto move_gizmo = construction::hitTestAquariumConstructionGizmo(
         visual, camera, static_cast<int>(screen_x), static_cast<int>(screen_y), 1280, 800);
     require(move_gizmo && move_gizmo->kind == construction::ConstructionGizmoKind::Move,
         "selected tank centre did not expose a mouse-hit-testable move gizmo");
-    require(camera.worldToScreen({199.0f, 3.77f, 192.0f}, 1280, 800,
+    require(camera.worldToScreen({181.0f, 3.77f, 192.0f}, 1280, 800,
+                screen_x, screen_y, depth),
+        "selected tank height knob did not project into the construction viewport");
+    const auto height_gizmo = construction::hitTestAquariumConstructionGizmo(
+        visual, camera, static_cast<int>(screen_x), static_cast<int>(screen_y), 1280, 800);
+    require(height_gizmo && height_gizmo->kind == construction::ConstructionGizmoKind::Height,
+        "reachable centre knob cluster did not expose a distinct height knob");
+    require(camera.worldToScreen({203.0f, 3.77f, 192.0f}, 1280, 800,
                 screen_x, screen_y, depth),
         "selected tank depth knob did not project into the construction viewport");
     const auto depth_gizmo = construction::hitTestAquariumConstructionGizmo(
@@ -823,6 +846,13 @@ void constructionVisualBuildsYellowCellsGizmosAndCanonicalHitTargets() {
         "minimal construction HUD still exposes the retired roundness stepper");
     const auto browse_hud = construction::aquariumConstructionHudLayout(
         1280, 800, construction::ConstructionState::Browse);
+    require(browse_hud.stock.width > 0 && browse_hud.stock.x < browse_hud.status.x &&
+            construction::hitTestAquariumConstructionHud(
+                browse_hud, browse_hud.stock.x + browse_hud.stock.width / 2,
+                browse_hud.stock.y + browse_hud.stock.height / 2,
+                construction::ConstructionState::Browse) ==
+                construction::ConstructionHudAction::None,
+        "browse HUD does not show a disabled, non-actionable stocking affordance");
     require(construction::hitTestAquariumConstructionHud(
                 browse_hud, browse_hud.exit.x + 2, browse_hud.exit.y + 2,
                 construction::ConstructionState::Browse) ==
@@ -866,14 +896,39 @@ void constructionVisualBuildsYellowCellsGizmosAndCanonicalHitTargets() {
                 construction::ConstructionState::Selected) ==
             construction::ConstructionHudAction::Delete,
         "selected tank delete control is not hit-testable");
+    require(selected_hud.stock.x < selected_hud.status.x &&
+            selected_hud.stock.y == selected_hud.undo.y &&
+            construction::hitTestAquariumConstructionHud(
+                selected_hud, selected_hud.stock.x - 5,
+                selected_hud.stock.y + selected_hud.stock.height / 2,
+                construction::ConstructionState::Selected) ==
+                construction::ConstructionHudAction::Stock,
+        "selected tank stocking control is not a forgiving top-left circular action");
     const auto browse_actions = construction::aquariumConstructionHudActions(
         construction::ConstructionState::Browse);
-    require(browse_actions.size() == 5 &&
+    require(construction::hitTestAquariumConstructionHud(browse_hud,
+        browse_hud.room.x+browse_hud.room.width/2, browse_hud.room.y+browse_hud.room.height/2,
+        construction::ConstructionState::Browse)==construction::ConstructionHudAction::Room,
+        "visible room button must be hit-testable on the same canvas");
+    const auto room_hud=construction::aquariumConstructionHudLayout(
+        960,540,construction::ConstructionState::ResizeRoom);
+    require(room_hud.room_wider.width==0 && room_hud.room_deeper.width==0 &&
+        construction::hitTestAquariumConstructionHud(room_hud,
+        room_hud.cancel.x+5,room_hud.cancel.y+5,construction::ConstructionState::ResizeRoom)==
+            construction::ConstructionHudAction::Cancel && room_hud.place.width==0,
+        "room draft must isolate arrow/cancel hit targets from tank painting");
+    construction::AquariumConstructionVisual room_visual;
+    room_visual.visible=true; room_visual.draft_valid=true;
+    room_visual.room_outline=std::array<float,4>{8,8,376,280};
+    require(!construction::buildAquariumConstructionWorldMesh(room_visual).vertices.empty(),
+        "room outline must render without any tank drawing cells");
+    require(browse_actions.size() == 6 &&
             browse_actions[0] == construction::ConstructionHudAction::Place &&
             browse_actions[1] == construction::ConstructionHudAction::Subtract &&
             browse_actions[2] == construction::ConstructionHudAction::Undo &&
             browse_actions[3] == construction::ConstructionHudAction::Redo &&
-            browse_actions[4] == construction::ConstructionHudAction::Exit,
+            browse_actions[4] == construction::ConstructionHudAction::Room &&
+            browse_actions[5] == construction::ConstructionHudAction::Exit,
         "minimal browse HUD does not expose mode, history, and finish actions");
     require(construction::defaultAquariumConstructionHudAction(
                 construction::ConstructionState::Selected) ==
@@ -888,7 +943,7 @@ void constructionVisualBuildsYellowCellsGizmosAndCanonicalHitTargets() {
     const auto compact_hud = construction::aquariumConstructionHudLayout(
         640, 480, construction::ConstructionState::Selected);
     const construction::ConstructionHudRect compact_rects[]{
-        compact_hud.remove, compact_hud.undo, compact_hud.redo, compact_hud.exit,
+        compact_hud.stock, compact_hud.remove, compact_hud.undo, compact_hud.redo, compact_hud.exit,
     };
     require(std::all_of(std::begin(compact_rects), std::end(compact_rects),
                 [](const auto& rect) {
@@ -1006,6 +1061,27 @@ void constructionCameraTracksTheCursorInAReadableCentreZone() {
     require(tracking.center_x <= left_limit && tracking.center_x >= 0.0f &&
             tracking.center_z >= 0.0f,
         "edge tracking escaped the room framing bounds");
+
+    construction::AquariumConstructionCameraTrackingState zoom_tracking;
+    const auto normal_zoom = construction::trackAquariumConstructionCursor(
+        zoom_tracking, 24, 18, kTile, 0.0f, preset.fov_y_deg,
+        static_cast<float>(kViewportWidth) / static_cast<float>(kViewportHeight),
+        -55.0f, {12, 9}, false, 0.0);
+    construction::adjustAquariumConstructionCameraZoom(zoom_tracking, 1);
+    const auto zoomed_in = construction::trackAquariumConstructionCursor(
+        zoom_tracking, 24, 18, kTile, 0.0f, preset.fov_y_deg,
+        static_cast<float>(kViewportWidth) / static_cast<float>(kViewportHeight),
+        -55.0f, {12, 9}, false, 0.0);
+    require(zoom_tracking.zoom_scale < 1.0f &&
+            zoomed_in.position.y < normal_zoom.position.y,
+        "positive construction mouse-wheel input did not move the camera closer");
+    construction::adjustAquariumConstructionCameraZoom(zoom_tracking, -40);
+    require(std::abs(zoom_tracking.zoom_scale - 1.8f) < 0.001f,
+        "construction zoom-out did not stop at its readable room-view limit");
+    construction::adjustAquariumConstructionCameraZoom(zoom_tracking, 4);
+    construction::resetAquariumConstructionCamera(zoom_tracking);
+    require(!zoom_tracking.initialized && std::abs(zoom_tracking.zoom_scale-1.8f)<.001f,
+        "entering construction must reset to the widest supported zoom");
 }
 
 void loadedPlacementValidationRejectsBoundsAndOverlap() {
@@ -1071,7 +1147,7 @@ void storePreservesNewerDocumentsAndFailedWrites() {
     const std::string old_version = "\"schemaVersion\": 5";
     const auto version_position = newer.find(old_version);
     require(version_position != std::string::npos, "fault fixture schema version missing");
-    newer.replace(version_position, old_version.size(), "\"schemaVersion\": 6");
+    newer.replace(version_position, old_version.size(), "\"schemaVersion\": 8");
     {
         std::ofstream primary(store.primaryPath(), std::ios::trunc);
         primary << newer;
@@ -1118,7 +1194,7 @@ void storeRecoversInterruptedPromotionsAndPreservesNewerArtifacts() {
     const auto version_position = newer.find(old_version);
     require(version_position != std::string::npos,
         "interrupted-save fixture schema version missing");
-    newer.replace(version_position, old_version.size(), "\"schemaVersion\": 6");
+    newer.replace(version_position, old_version.size(), "\"schemaVersion\": 8");
     {
         std::ofstream temporary(store.temporaryPath(), std::ios::trunc);
         temporary << newer;
@@ -1184,6 +1260,9 @@ void populationPolicyIsReplaceableAndNavigationIsDerived() {
     tank.footprint.origin_cell = {10, 10};
     tank.footprint.width_cells = 3;
     tank.footprint.depth_cells = 3;
+    tank.corner_radii.push_back({{0, 0}, 2});
+    tank.exhibit_preset = "depths";
+    tank.brightness_level = 0;
     document.tanks.push_back(tank);
     pr::gameplay::world3d::SceneConfig scene;
     scene.grid.width = 24;
@@ -1198,8 +1277,26 @@ void populationPolicyIsReplaceableAndNavigationIsDerived() {
     require(runtime.tanks.size() == 1 && runtime.simulation_tanks.size() == 1 &&
             runtime.simulation_tanks.front().swimmers.size() == 1,
         "replaceable population policy was not applied once per tank");
+    require(runtime.simulation_tanks.front().swimmers.front().actor.presentation.brightness <
+                map.pokemon_presentation.brightness * 0.2f &&
+            runtime.simulation_tanks.front().swimmers.front().actor.presentation.tint[2] <
+                map.pokemon_presentation.tint[2],
+        "authored Depths brightness did not grade a replaceable policy's resident presentation");
     require(runtime.tanks.front().build.navigation.layers.size() == 1,
         "committed rectangle did not derive a navigation volume");
+    const auto expected_light_boundary = geo::footprintBoundaryLocalWorld(
+        tank.footprint, tank.corner_radius_steps, tank.corner_radii);
+    const auto& light_boundary = runtime.simulation_tanks.front().light_boundary_local_meters;
+    require(light_boundary.size() == expected_light_boundary.size() &&
+            light_boundary.size() > 4U,
+        "player-tank light spill did not retain its asymmetric rounded outline");
+    for (std::size_t index = 0; index < light_boundary.size(); ++index) {
+        require(std::abs(light_boundary[index][0] -
+                    expected_light_boundary[index].x / 16.0f) < 0.0001f &&
+                std::abs(light_boundary[index][1] -
+                    expected_light_boundary[index].y / 16.0f) < 0.0001f,
+            "player-tank light spill outline drifted from the generated wall boundary");
+    }
     const auto& navigation = runtime.simulation_tanks.front().navigation;
     require(navigation.valid && navigation.export_units_per_meter == 16.0f &&
             aq::containsPoint(navigation, navigation.suggested_spawns.front()),
@@ -1212,31 +1309,59 @@ void populationPolicyIsReplaceableAndNavigationIsDerived() {
     require(runtime.collision_cells.size() == 16,
         "half-cell-installed 3x3 tank did not cover its south/east overlap cells");
 
+    aq::AquariumSpeciesCatalog catalog;
+    aq::AquariumSpeciesEntry species;
+    species.id = "0382:00";
+    species.dex = 382;
+    species.species = "kyogre";
+    species.form = "00";
+    species.model_path = "models/kyogre.glbz";
+    species.animation = "slot4_00";
+    species.movement_profile = "large-cruiser";
+    species.capacity_mask = {"111", "111"};
+    species.physical_envelope = {
+        1, "fixture", -4.0f, 4.0f, -2.0f, 2.0f, -4.0f, 4.0f, 12, true};
+    catalog.approved.push_back(species);
+    auto stocked_policy = construction::makeStockedAquariumPopulationPolicy(catalog);
     construction::AquariumPopulationContext context;
-    context.milotic_model_path = "milotic-aquarium.glbz";
-    context.kyogre_model_path = "kyogre-aquarium.glbz";
-    const auto testing_policy = construction::makeTestAquariumPopulationPolicy();
-    const auto population = testing_policy->populationFor(
+    context.project_root = "/project";
+    context.model_scale = 0.17f;
+    require(stocked_policy->populationFor(runtime.tanks.front(), context, nullptr).empty(),
+        "an unstocked player tank must start empty");
+    construction::AquariumTankPopulation selected{
+        "tank_policy", {{"0382:00", 1}}};
+    context.selected_population = &selected;
+    const auto population = stocked_policy->populationFor(
         runtime.tanks.front(), context, nullptr);
-    require(population.size() == 2U &&
-            std::count_if(population.begin(), population.end(), [](const auto& swimmer) {
-                return swimmer.actor.species == "milotic" &&
-                    swimmer.actor.animation == "walk" &&
-                    swimmer.movement.behavior == "wander";
-            }) == 2 && population[0].actor.id != population[1].actor.id,
-        "first player tank must contain two distinct walking Milotic only");
-
-    context.tank_index = 1;
-    const auto second_population = testing_policy->populationFor(
-        runtime.tanks.front(), context, nullptr);
-    require(second_population.size() == 1U &&
-            std::count_if(second_population.begin(), second_population.end(), [](const auto& swimmer) {
-                return swimmer.actor.species == "kyogre" &&
-                    swimmer.actor.animation == "idle_default" &&
-                    swimmer.movement.behavior == "school" &&
-                    swimmer.movement.speed_meters_per_second == 0.42f;
-            }) == 1,
-        "second player tank must contain one continuously roaming idle-swimming Kyogre only");
+    require(population.size() == 1U && population.front().actor.species == "kyogre" &&
+            population.front().actor.model_path == "/project/models/kyogre.glbz" &&
+            population.front().movement.behavior == "wander",
+        "saved player roster did not resolve through the approved catalogue");
+    catalog.approved.front().movement_profile = "hover";
+    require(std::abs(population.front().movement.speed_meters_per_second-.585f)<.00001f,
+        "Kyogre must cruise 30 percent faster than its original 0.45m/s");
+    auto escort=species;
+    escort.id="0223:00";escort.dex=223;escort.species="remoraid";
+    escort.movement_profile="escort";
+    auto with_host=catalog;
+    with_host.approved.front()=species;
+    with_host.approved.push_back(escort);
+    selected.residents.push_back({"0223:00",4});
+    const auto following=construction::makeStockedAquariumPopulationPolicy(with_host)->populationFor(
+        runtime.tanks.front(),context,nullptr);
+    require(following.size()==5,"stocking lost the host or escorts");
+    for(std::size_t i=1;i<following.size();++i)
+        require(following[i].movement.follow_actor_id==following.front().actor.id &&
+            following[i].movement.speed_meters_per_second==following.front().movement.speed_meters_per_second,
+            "stocked Remoraid did not bind to Kyogre and inherit its speed");
+    selected.residents.pop_back();
+    auto hover_policy = construction::makeStockedAquariumPopulationPolicy(catalog);
+    const auto hovering = hover_policy->populationFor(runtime.tanks.front(), context, nullptr);
+    require(hovering.size() == 1U && !hovering.front().movement.forward_only &&
+            hovering.front().movement.swim_pitch_degrees == 0.0f &&
+            hovering.front().actor.animation == species.animation &&
+            hovering.front().actor.model_scale == context.model_scale,
+        "hover profile must decouple upright locomotion without changing curated animation or scale");
 }
 
 void tunnelGestureCommitsCancelsAndClearsRuntimeCollision() {
@@ -1465,8 +1590,11 @@ void resourceGenerationStressRetiresEveryHandleExactlyOnce() {
 
 } // namespace
 
+void runAquariumLargeRoomTests();
+
 int main() {
     try {
+        runAquariumLargeRoomTests();
         const auto run = [](const char* name, auto test) {
             std::cerr << "running " << name << '\n';
             try { test(); }
@@ -1477,7 +1605,7 @@ int main() {
         run("stateMachinePreservesCommittedDataOnCancel", stateMachinePreservesCommittedDataOnCancel);
         run("drawnRectanglesMergeOnlyWhenTheyTouch", drawnRectanglesMergeOnlyWhenTheyTouch);
         run("directPaintGesturesCommitAsSingleUndoableCommands", directPaintGesturesCommitAsSingleUndoableCommands);
-        run("exteriorPaintMergesAndErasesMultipleTanksUndoably", exteriorPaintMergesAndErasesMultipleTanksUndoably);
+        run("exteriorPaintMergesWithoutCrossTankSubtraction", exteriorPaintMergesWithoutCrossTankSubtraction);
         run("draftReviewIsNonMutatingAndAdjustmentIsReversible", draftReviewIsNonMutatingAndAdjustmentIsReversible);
         run("editingHistoryIsTransactionalStableAndStaleSafe", editingHistoryIsTransactionalStableAndStaleSafe);
         run("subtractEditingCommitsUndoablyAndRejectsEnclosedCuts", subtractEditingCommitsUndoablyAndRejectsEnclosedCuts);

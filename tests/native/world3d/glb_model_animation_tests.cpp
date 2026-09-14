@@ -25,7 +25,7 @@ fs::path repositoryRoot() {
     while (!current.empty()) {
         if (fs::exists(current / "CMakeLists.txt") &&
             fs::exists(current / "assets/overworld/models/palm_young/palm_young.glb") &&
-            fs::exists(current / "assets/overworld/models/aquarium/aquarium.glb")) return current;
+            fs::exists(current / "tests/fixtures/legacy_aquarium/aquarium.glb")) return current;
         const fs::path parent = current.parent_path();
         if (parent == current) break;
         current = parent;
@@ -97,7 +97,7 @@ int main() {
 
     error.clear();
     const auto aquarium = pr::gameplay::world3d::data::loadGlbModel(
-        (root / "assets/overworld/models/aquarium/aquarium.glb").string(), &error);
+        (root / "tests/fixtures/legacy_aquarium/aquarium.glb").string(), &error);
     expect(aquarium.valid, "Aquarium Maker GLB should load: " + error);
     bool aquarium_uses_nitro_modulation = false;
     for (const auto& material : aquarium.materials) {

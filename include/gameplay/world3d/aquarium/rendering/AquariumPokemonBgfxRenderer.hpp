@@ -26,10 +26,13 @@ public:
         bgfx::UniformHandle texture_blur_uniform,
         bgfx::UniformHandle uv_offset_uniform,
         bgfx::UniformHandle light_dir_uniform,
-        bgfx::UniformHandle light_params_uniform);
+        bgfx::UniformHandle light_params_uniform,
+        bgfx::ProgramHandle pulse_program);
     void shutdown();
     void setActors(const std::vector<AquariumPokemonActor>& actors);
     void submit(std::uint16_t view_id, bool blended_pass);
+    // After bounded fog, before glass; uses existing opaque depth for occlusion.
+    void submitEmission(std::uint16_t view_id);
     const std::string& lastError() const;
 
 private:

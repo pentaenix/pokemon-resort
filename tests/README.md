@@ -1,5 +1,14 @@
 # Test Layout
 
+`aquarium_visitor_tests` covers visitor config/capacity, four-connected tank detours,
+blocked destinations, dry corridors, dynamic occupancy and large-room route timing.
+It also covers follower exhibit preference, owner returns, occupied viewing spots,
+unreachable goals and shared directional sprite-row selection.
+Visitor dialogue checks cover authored variety, context gating, species substitution,
+recent-template reuse and the two-exchange allowance.
+Use it alongside `interaction_system_tests` and `door_travel_tests` for visitor work;
+live session transitions, crowd yielding and watching-time behavior still need playtesting.
+
 This is the canonical testing map for the repository. Other docs should link here instead of copying partial target lists.
 
 This repository now uses a top-level [`tests`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/tests) folder to separate test intent by level:
@@ -23,6 +32,26 @@ This repository now uses a top-level [`tests`](/Users/vanta/Desktop/title_screen
 - **Native map maker:** lossless OWMAP v1 and project parsing/serialization, no-op byte identity, atomic save/backup recovery, normalized reusable map sources, spatial project moves, deferred map creation with undo/redo, project discovery, whole-document commands, path-local tile/model/door edits, universal deletion, selection and project/door/link/anchor validation, exact terrain picking, lazy RTPKS/model catalogs, autosave snapshots, structured log rotation, frame/input metrics, Play input capture, and semantic canvas-lens colors.
 
 Current native CTest targets:
+
+`aquarium_room_layout_tests` verifies opposite-wall centred receiving doors,
+independent endpoint movement/resizing, current-position travel resolution,
+protected tank/entrance cells, connected circulation, immutable candidates,
+canonical JSON round trips and rejection of malformed/newer formats. This
+contract library is not yet connected to the live editor or save files.
+
+`aquarium_motion_tests` runs deterministic body-clearance, incremental routing,
+motion/progress and baked-Kingdra fixtures without loading authored gallery
+layouts. `build/aquarium_tests --simulation-only` additionally runs the existing
+simulation regressions while leaving the normal authored-layout assertions in
+`aquarium_tests` intact.
+`aquarium_emission_tests` checks actual normal/shiny Chinchou and Lanturn
+materials, self-lit bulb presentation, and isolation from body/eye materials and
+unrelated species. Visual glow strength still needs in-game review.
+`aquarium_school_tests` checks local steering order independence, catch-up speed,
+stocking-order replay, cylinder centroid travel/cohesion/lateral and vertical
+spread, convex-cache parity, and body containment/progress in rectangle, L and
+layered tunnel fixtures. It reports AI-step p95 at 32/64/128 residents; timing
+is measured rather than asserted as a hardware-dependent unit-test threshold.
 
 ```text
 resort_storage_tests

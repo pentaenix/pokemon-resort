@@ -26,6 +26,8 @@ ConstructionHudRect* rectForAction(ConstructionHudLayout& layout, ConstructionHu
         case ConstructionHudAction::Review: return &layout.review;
         case ConstructionHudAction::Build: return &layout.build;
         case ConstructionHudAction::Adjust: return &layout.adjust;
+        case ConstructionHudAction::Stock: return &layout.stock;
+        case ConstructionHudAction::Decorate: return &layout.decorate;
         case ConstructionHudAction::Delete: return &layout.remove;
         case ConstructionHudAction::Undo: return &layout.undo;
         case ConstructionHudAction::Redo: return &layout.redo;
@@ -33,6 +35,11 @@ ConstructionHudRect* rectForAction(ConstructionHudLayout& layout, ConstructionHu
         case ConstructionHudAction::Done: return &layout.done;
         case ConstructionHudAction::Exit: return &layout.exit;
         case ConstructionHudAction::None: return nullptr;
+        case ConstructionHudAction::Room: return &layout.room;
+        case ConstructionHudAction::RoomNarrower: return &layout.room_narrower;
+        case ConstructionHudAction::RoomWider: return &layout.room_wider;
+        case ConstructionHudAction::RoomShallower: return &layout.room_shallower;
+        case ConstructionHudAction::RoomDeeper: return &layout.room_deeper;
     }
     return nullptr;
 }
@@ -140,11 +147,14 @@ std::vector<ConstructionHudAction> aquariumConstructionHudActions(
         case ConstructionState::Browse:
             return {ConstructionHudAction::Place, ConstructionHudAction::Subtract,
                 ConstructionHudAction::Undo, ConstructionHudAction::Redo,
-                ConstructionHudAction::Exit};
+                ConstructionHudAction::Room, ConstructionHudAction::Exit};
         case ConstructionState::Selected:
             return {ConstructionHudAction::Place, ConstructionHudAction::Subtract,
                 ConstructionHudAction::Undo, ConstructionHudAction::Redo,
-                ConstructionHudAction::Delete, ConstructionHudAction::Exit};
+                ConstructionHudAction::Stock, ConstructionHudAction::Decorate, ConstructionHudAction::Delete,
+                ConstructionHudAction::Room, ConstructionHudAction::Exit};
+        case ConstructionState::ResizeRoom:
+            return {ConstructionHudAction::Build, ConstructionHudAction::Cancel};
         case ConstructionState::ResizeFootprint:
         case ConstructionState::MoveTank:
         case ConstructionState::ResizeTank:
@@ -174,11 +184,24 @@ ConstructionHudLayout aquariumConstructionHudLayout(
     const int icon = std::clamp(height / 11, 52, 68);
     const int gap = std::clamp(icon / 6, 8, 12);
     layout.safe_world = {0, 0, width, height};
+    if (state == ConstructionState::ResizeRoom) {
+        const int y=height-margin-icon;
+        (void)y; // Wall handles are projected on the room, not a four-button toolbar.
+        layout.build={width-margin-icon,margin,icon,icon};
+        layout.cancel={layout.build.x-gap-icon,margin,icon,icon};
+        return layout;
+    }
     if (state == ConstructionState::Browse || state == ConstructionState::Selected) {
         layout.redo = {width - margin - icon, margin, icon, icon};
         layout.undo = {layout.redo.x - gap - icon, margin, icon, icon};
-        layout.status = {margin, margin,
-            std::max(180, layout.undo.x - gap - margin), 44};
+        // Keep stocking visible in Browse so its location and selection
+        // requirement are discoverable. It only becomes actionable once a
+        // player tank is selected (see aquariumConstructionHudActions).
+        layout.stock = {margin, margin, icon, icon};
+        layout.decorate = {margin+icon+gap, margin, icon, icon};
+        layout.room = {margin, margin+icon+gap, icon, icon};
+        layout.status = {layout.decorate.x + icon + gap, margin,
+            std::max(180, layout.undo.x - gap - (layout.decorate.x + icon + gap)), 44};
     } else {
         layout.status = {margin, margin, std::max(180, width - margin * 2), 44};
     }
@@ -257,6 +280,12 @@ ConstructionHudAction hitTestAquariumConstructionHud(
         containsWithPadding(layout.redo, screen_x, screen_y, kHistoryHitPadding)) {
         return ConstructionHudAction::Redo;
     }
+    if (std::find(actions.begin(), actions.end(), ConstructionHudAction::Decorate) != actions.end() &&
+        layout.decorate.contains(screen_x,screen_y)) return ConstructionHudAction::Decorate;
+    if (std::find(actions.begin(), actions.end(), ConstructionHudAction::Stock) != actions.end() &&
+        containsWithPadding(layout.stock, screen_x, screen_y, kHistoryHitPadding)) {
+        return ConstructionHudAction::Stock;
+    }
     for (const auto action : actions) {
         const auto* rect = rectForAction(layout, action);
         if (rect && rect->contains(screen_x, screen_y)) return action;
@@ -292,12 +321,19 @@ bool aquariumConstructionHudContainsUi(
     const ConstructionHudLayout& layout,
     int screen_x, int screen_y) {
     return layout.status.contains(screen_x, screen_y) ||
+        layout.room.contains(screen_x, screen_y) ||
+        layout.room_narrower.contains(screen_x, screen_y) ||
+        layout.room_wider.contains(screen_x, screen_y) ||
+        layout.room_shallower.contains(screen_x, screen_y) ||
+        layout.room_deeper.contains(screen_x, screen_y) ||
         layout.place.contains(screen_x, screen_y) ||
         layout.subtract.contains(screen_x, screen_y) ||
         layout.undo.contains(screen_x, screen_y) ||
         layout.redo.contains(screen_x, screen_y) ||
         layout.build.contains(screen_x, screen_y) ||
         layout.cancel.contains(screen_x, screen_y) ||
+        layout.stock.contains(screen_x, screen_y) ||
+        layout.decorate.contains(screen_x, screen_y) ||
         layout.remove.contains(screen_x, screen_y) ||
         layout.exit.contains(screen_x, screen_y);
 }

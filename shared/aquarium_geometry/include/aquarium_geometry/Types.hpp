@@ -6,12 +6,13 @@
 
 namespace pr::aquarium::geometry {
 
-inline constexpr std::uint32_t kKernelAbiVersion = 15;
+inline constexpr std::uint32_t kKernelAbiVersion = 16;
 inline constexpr std::uint32_t kDesignSchemaVersion = 5;
 inline constexpr std::int32_t kWorldUnitsPerCell = 16;
 inline constexpr std::int32_t kVerticalStepWorldUnits = 8;
 inline constexpr std::int32_t kRadiusStepWorldUnits = 4;
 inline constexpr std::int32_t kPlacementOffsetWorldUnits = 8;
+inline constexpr float kFlatSandSurfaceWorldUnits = 3.016F;
 inline constexpr std::int32_t kGlassThicknessMilliWorldUnits = 880;
 inline constexpr std::int32_t kTunnelOuterHalfWidthWorldUnits = 16;
 inline constexpr std::int32_t kTunnelCrownWorldUnits = 36;
@@ -92,6 +93,12 @@ struct TankDesign {
     std::int32_t corner_radius_steps = 0;
     std::vector<CornerRadiusDesign> corner_radii;
     std::vector<TunnelDesign> tunnels;
+    // Presentation metadata is carried by the authoritative tank record but
+    // intentionally ignored by the deterministic geometry kernel.
+    std::string exhibit_preset = "river";
+    std::string substrate_kind = "sand-flat";
+    std::int32_t brightness_level = 4;
+    std::int32_t murkiness_level = 2;
 };
 
 struct AquariumBuildRequest {

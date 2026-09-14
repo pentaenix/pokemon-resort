@@ -7,6 +7,18 @@ namespace pr::gameplay::world3d::aquarium::construction {
 
 void resetAquariumConstructionCamera(AquariumConstructionCameraTrackingState& state) {
     state = {};
+    state.zoom_scale = 1.8f; // Enter at the widest supported view; wheel zoom remains available.
+}
+
+void adjustAquariumConstructionCameraZoom(
+    AquariumConstructionCameraTrackingState& state,
+    int wheel_steps) {
+    if (wheel_steps == 0) return;
+    // Positive SDL wheel motion zooms in. Multiplicative steps feel consistent
+    // at both ends of the range while retaining a readable DS-style view.
+    state.zoom_scale = std::clamp(
+        state.zoom_scale * std::pow(0.88f, static_cast<float>(wheel_steps)),
+        0.55f, 1.8f);
 }
 
 AquariumConstructionCameraOverview trackAquariumConstructionCursor(
@@ -34,8 +46,9 @@ AquariumConstructionCameraOverview trackAquariumConstructionCursor(
     const float aspect = std::max(0.5f, viewport_aspect);
     // Keep roughly ten cells visible vertically. The normal camera's perspective
     // character is preserved while minimum footprints remain readable.
-    const float distance = std::clamp(
+    const float base_distance = std::clamp(
         (tile * 5.0f) / std::max(0.1f, tangent_vertical), tile * 20.0f, tile * 28.0f);
+    const float distance = base_distance * state.zoom_scale;
     const float composition_x = property_panel_visible ? -tile * 0.75f : -tile * 0.35f;
     const float composition_z = property_panel_visible ? tile * 1.75f : 0.0f;
     const float focus_x = (static_cast<float>(focus.column) + 0.5f) * tile +

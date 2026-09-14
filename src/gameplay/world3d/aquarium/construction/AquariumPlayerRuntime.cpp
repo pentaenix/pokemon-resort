@@ -1,9 +1,9 @@
 #include "gameplay/world3d/aquarium/construction/AquariumPlayerRuntime.hpp"
-
-#include "gameplay/attend/PokemonModelCatalog.hpp"
+#include "gameplay/world3d/aquarium/construction/AquariumHabitatValidator.hpp"
+#include "gameplay/world3d/aquarium/AquariumExhibitPreset.hpp"
+#include "gameplay/world3d/aquarium/AquariumSubstratePreset.hpp"
 
 #include <algorithm>
-#include <cctype>
 #include <set>
 
 namespace pr::gameplay::world3d::aquarium::construction {
@@ -11,95 +11,147 @@ namespace geo = pr::aquarium::geometry;
 
 namespace {
 
-std::string normalized(std::string value) {
-    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
-        return c == ' ' || c == '-' ? '_' : static_cast<char>(std::tolower(c));
-    });
-    return value;
-}
+AquariumNavigation navigationFor(const geo::NavigationVolumeSet& source);
 
-class TestAquariumPopulationPolicy final : public AquariumPopulationPolicy {
+class StockedAquariumPopulationPolicy final : public AquariumPopulationPolicy {
 public:
+    explicit StockedAquariumPopulationPolicy(AquariumSpeciesCatalog catalog)
+        : catalog_(std::move(catalog)) {}
+
     std::vector<AquariumSwimmerDefinition> populationFor(
         const PlayerTankRuntime& tank,
         const AquariumPopulationContext& context,
         std::vector<std::string>* diagnostics) const override {
+        if (!context.selected_population) return {};
         std::vector<AquariumSwimmerDefinition> population;
-        if (context.tank_index == 0U) {
-            appendFeatureSwimmer(
-                population, tank, context, diagnostics,
-                "milotic", "milotic:0", context.milotic_model_path,
-                "walk", "wander", 0.30f, 120.0f, 0.20f);
-            appendFeatureSwimmer(
-                population, tank, context, diagnostics,
-                "milotic", "milotic:1", context.milotic_model_path,
-                "walk", "wander", 0.27f, 110.0f, 0.20f);
-        } else if (context.tank_index == 1U) {
-            appendFeatureSwimmer(
-                population, tank, context, diagnostics,
-                "kyogre", "kyogre", context.kyogre_model_path,
-                "idle_default", "school", 0.42f, 90.0f, 0.35f);
+        const AquariumNavigation navigation = navigationFor(tank.build.navigation);
+        for (const AquariumResidentSelection& resident : context.selected_population->residents) {
+            const AquariumSpeciesEntry* species = catalog_.findApproved(resident.species_id);
+            if (!species) {
+                if (diagnostics) diagnostics->push_back(
+                    "Stocked species is not approved: " + resident.species_id);
+                continue;
+            }
+            const AquariumHabitatFit fit = validateAquariumHabitat(
+                *species, navigation, context.model_scale);
+            if (!fit.fits()) {
+                if (diagnostics) diagnostics->push_back(
+                    "Stocked species does not physically fit tank " + tank.design.id +
+                    ": " + species->id);
+                continue;
+            }
+            for (std::uint32_t copy = 0; copy < resident.count; ++copy) {
+                AquariumSwimmerDefinition swimmer;
+                swimmer.actor.id = tank.design.id + ':' + species->id + ':' + std::to_string(copy);
+                swimmer.actor.species = species->species;
+                swimmer.actor.form = species->form;
+                const std::filesystem::path configured_model(species->model_path);
+                swimmer.actor.model_path = configured_model.is_absolute()
+                    ? configured_model.string()
+                    : (context.project_root / configured_model).string();
+                swimmer.actor.animation = species->animation;
+                swimmer.actor.model_scale = context.model_scale * species->scale_multiplier;
+                swimmer.actor.world_pitch_degrees = species->pitch_degrees;
+                swimmer.actor.presentation = context.presentation;
+                swimmer.movement.id = species->id;
+                swimmer.movement.species = species->species;
+                swimmer.movement.form = species->form;
+                swimmer.movement.animation = species->animation;
+                swimmer.movement.pitch_degrees = species->pitch_degrees;
+                configureMovement(swimmer.movement, *species);
+                swimmer.seed = stableSeed(swimmer.actor.id);
+                swimmer.formation_index = static_cast<int>(copy);
+                swimmer.formation_count = static_cast<int>(resident.count);
+                population.push_back(std::move(swimmer));
+            }
+        }
+        const AquariumSwimmerDefinition* host=nullptr;
+        for(const auto& candidate:population) if(candidate.movement.continuous_cruise) {
+            if(!host || (candidate.movement.habitat_tour && !host->movement.habitat_tour) ||
+                (candidate.movement.habitat_tour==host->movement.habitat_tour && candidate.actor.id<host->actor.id))
+                host=&candidate;
+        }
+        if(host) for(auto& follower:population) if(follower.movement.behavior=="escort") {
+            follower.movement.follow_actor_id=host->actor.id;
+            follower.movement.speed_meters_per_second=host->movement.speed_meters_per_second;
         }
         return population;
     }
 
 private:
-    static void appendFeatureSwimmer(
-        std::vector<AquariumSwimmerDefinition>& population,
-        const PlayerTankRuntime& tank,
-        const AquariumPopulationContext& context,
-        std::vector<std::string>* diagnostics,
-        const std::string& species,
-        const std::string& stable_suffix,
-        const std::string& model_path,
-        const std::string& animation,
-        const std::string& behavior,
-        float speed,
-        float turn_speed,
-        float body_radius) {
-        if (model_path.empty()) {
-            if (diagnostics) diagnostics->push_back(
-                "Testing population " + species + " model was not found");
-            return;
-        }
-        AquariumSwimmerDefinition swimmer = makeSwimmer(
-            tank, context, species, "00", model_path, stable_suffix);
-        swimmer.actor.animation = animation;
-        swimmer.movement.animation = animation;
-        swimmer.movement.behavior = behavior;
-        swimmer.movement.speed_meters_per_second = speed;
-        swimmer.movement.turn_degrees_per_second = turn_speed;
-        swimmer.movement.body_radius_meters = body_radius;
-        population.push_back(std::move(swimmer));
-    }
-
-    static AquariumSwimmerDefinition makeSwimmer(
-        const PlayerTankRuntime& tank,
-        const AquariumPopulationContext& context,
-        std::string species,
-        std::string form,
-        const std::string& model_path,
-        const std::string& stable_suffix) {
-        AquariumSwimmerDefinition swimmer;
-        swimmer.actor.id = tank.design.id + ':' + stable_suffix;
-        swimmer.actor.species = std::move(species);
-        swimmer.actor.form = std::move(form);
-        swimmer.actor.model_path = model_path;
-        swimmer.actor.animation = "idle_default";
-        swimmer.actor.model_scale = context.model_scale;
-        swimmer.actor.presentation = context.presentation;
-        swimmer.movement.id = swimmer.actor.id;
-        swimmer.movement.species = swimmer.actor.species;
-        swimmer.movement.form = swimmer.actor.form;
-        swimmer.movement.animation = swimmer.actor.animation;
+    static std::uint32_t stableSeed(const std::string& value) {
         std::uint32_t hash = 2166136261U;
-        for (const unsigned char byte : swimmer.actor.id) {
+        for (const unsigned char byte : value) {
             hash ^= byte;
             hash *= 16777619U;
         }
-        swimmer.seed = hash;
-        return swimmer;
+        return hash;
     }
+
+    static void configureMovement(
+        AquariumPokemonConfig& movement,
+        const AquariumSpeciesEntry& species) {
+        const std::string& profile = species.movement_profile;
+        movement.continuous_cruise = profile == "large-cruiser";
+        movement.habitat_tour = species.dex == 382;
+        movement.behavior = profile == "schooling" ? "school"
+            : profile == "escort" ? "escort"
+            : profile == "timid-reef" ? "timid"
+            : profile == "jelly-drift" ? "jelly"
+            : profile == "anchored" || profile == "bottom-stationary" ? "stationary"
+            : "wander";
+        movement.speed_meters_per_second = movement.behavior == "stationary" ? 0.0f
+            : profile == "timid-reef" ? 0.10f
+            : profile == "jelly-drift" ? 0.11f
+            : profile == "benthic-rest-swimmer" ? 0.38f
+            : profile == "large-cruiser" ? 0.45f : 0.55f;
+        movement.turn_degrees_per_second = profile == "timid-reef" ? 55.0f
+            : profile == "jelly-drift" ? 32.0f
+            : profile == "large-cruiser" ? 64.0f : 110.0f;
+        if(species.dex==382) movement.speed_meters_per_second*=1.3f;
+        movement.body_radius_meters = 0.04f;
+        movement.vertical_movement_scale = species.vertical_zone == "bottom" ? 0.12f
+            : species.vertical_zone == "surface" ? 0.08f : 0.34f;
+        movement.swim_pitch_degrees = profile == "jelly-drift" || profile == "hover" ? 0.0f
+            : profile == "large-cruiser" ? 10.0f : 6.0f;
+        movement.motion_smoothing_seconds = profile == "jelly-drift" ? 0.72f
+            : profile == "large-cruiser" ? 0.38f : 0.16f;
+        movement.forward_only = profile != "jelly-drift" && profile != "hover" &&
+            (profile == "large-cruiser" || species.travel_direction != "sideways");
+        movement.vertical_anchor = species.vertical_zone == "bottom" ||
+            profile == "benthic-rest-swimmer" ? "bottom" : "authored";
+        const bool floor_actor = profile == "bottom-crawler" ||
+            profile == "bottom-stationary" || profile == "bottom-burrower" ||
+            profile == "anchored" || profile == "surface-walker" ||
+            profile == "timid-reef";
+        movement.movement_plane = floor_actor ? "floor" : "volume";
+        movement.random_start = species.random_start;
+        movement.idle_seconds_minimum = species.idle_seconds_minimum;
+        movement.idle_seconds_maximum = species.idle_seconds_maximum;
+        movement.local_move_distance_meters = species.local_move_distance_meters;
+        movement.flee_radius_meters = species.flee_radius_meters;
+        movement.flee_distance_meters = species.flee_distance_meters;
+        movement.flee_speed_multiplier = species.flee_speed_multiplier;
+        movement.threat_species = species.threat_species;
+        movement.idle_animation = species.idle_animation;
+        movement.idle_pitch_degrees = species.idle_pitch_degrees;
+        movement.move_seconds_minimum = species.activity.move_seconds_minimum;
+        movement.move_seconds_maximum = species.activity.move_seconds_maximum;
+        movement.rest_seconds_minimum = species.activity.rest_seconds_minimum;
+        movement.rest_seconds_maximum = species.activity.rest_seconds_maximum;
+        movement.roaming_height_meters = species.activity.roaming_height_meters;
+        movement.crowd_body_scale = species.activity.crowd_body_scale;
+        movement.rest_at_bottom = species.activity.rest_at_bottom;
+        if (species.physical_envelope.valid) {
+            movement.has_baked_physical_envelope = true;
+            movement.baked_physical_envelope = {
+                species.physical_envelope.min_x, species.physical_envelope.max_x,
+                species.physical_envelope.min_y, species.physical_envelope.max_y,
+                species.physical_envelope.min_z, species.physical_envelope.max_z};
+        }
+    }
+
+    AquariumSpeciesCatalog catalog_;
 };
 
 AquariumNavigation navigationFor(const geo::NavigationVolumeSet& source) {
@@ -169,8 +221,9 @@ AquariumInspectionCameraConfig playerTankInspectionCamera() {
 
 } // namespace
 
-std::unique_ptr<AquariumPopulationPolicy> makeTestAquariumPopulationPolicy() {
-    return std::make_unique<TestAquariumPopulationPolicy>();
+std::unique_ptr<AquariumPopulationPolicy> makeStockedAquariumPopulationPolicy(
+    AquariumSpeciesCatalog catalog) {
+    return std::make_unique<StockedAquariumPopulationPolicy>(std::move(catalog));
 }
 
 PlayerAquariumRuntimeSet buildPlayerAquariumRuntime(
@@ -183,16 +236,6 @@ PlayerAquariumRuntimeSet buildPlayerAquariumRuntime(
     PlayerAquariumRuntimeSet out;
     out.revision = document.revision;
     std::set<std::pair<int, int>> collision_cells;
-    const auto models = gameplay::attend::discoverPokemonModels(
-        project_root / "assets/pokemon_attend/pokemon_models");
-    const auto modelPath = [&](const std::string& species) {
-        const auto found = std::find_if(models.begin(), models.end(), [&](const auto& model) {
-            return model.id == normalized(species);
-        });
-        return found == models.end() ? std::string{} : found->path;
-    };
-    const std::string milotic_model_path = modelPath("milotic");
-    const std::string kyogre_model_path = modelPath("kyogre");
     for (std::size_t tank_index = 0; tank_index < document.tanks.size(); ++tank_index) {
         const geo::TankDesign& design = document.tanks[tank_index];
         geo::AquariumBuildRequest request;
@@ -240,11 +283,9 @@ PlayerAquariumRuntimeSet buildPlayerAquariumRuntime(
         }
         AquariumPopulationContext context{
             project_root,
-            tank_index,
             map_config.pokemon_scale,
             map_config.pokemon_presentation,
-            milotic_model_path,
-            kyogre_model_path,
+            aquariumTankPopulation(document, design.id),
         };
         AquariumPlayerTankSimulationInput simulation;
         simulation.tank_id = runtime.design.id;
@@ -254,14 +295,50 @@ PlayerAquariumRuntimeSet buildPlayerAquariumRuntime(
             runtime.world_floor_y,
             runtime.world_center_z};
         simulation.inspection_camera = playerTankInspectionCamera();
+        simulation.exhibit_preset_id = runtime.design.exhibit_preset;
+        simulation.brightness_level = runtime.design.brightness_level;
         int maximum_radius_steps = runtime.design.corner_radius_steps;
         for (const auto& corner : runtime.design.corner_radii) {
             maximum_radius_steps = std::max(maximum_radius_steps, corner.radius_steps);
         }
         simulation.light_corner_radius_world = static_cast<float>(
             maximum_radius_steps * geo::kRadiusStepWorldUnits);
+        for (const geo::Vec2 point : geo::footprintBoundaryLocalWorld(
+                 runtime.design.footprint,
+                 runtime.design.corner_radius_steps,
+                 runtime.design.corner_radii)) {
+            simulation.light_boundary_local_meters.push_back({
+                point.x / static_cast<float>(geo::kWorldUnitsPerCell),
+                point.y / static_cast<float>(geo::kWorldUnitsPerCell)});
+        }
         simulation.swimmers = population_policy.populationFor(
             runtime, context, diagnostics);
+        const AquariumExhibitPreset& exhibit = aquariumExhibitPreset(
+            runtime.design.exhibit_preset);
+        constexpr float kResidentInteriorBalance = 0.78f;
+        const float tank_brightness = aquariumBrightnessMultiplier(
+            runtime.design.brightness_level) * kResidentInteriorBalance;
+        for (AquariumSwimmerDefinition& swimmer : simulation.swimmers) {
+            swimmer.actor.presentation.brightness = std::clamp(
+                swimmer.actor.presentation.brightness *
+                    exhibit.pokemon_brightness_multiplier * tank_brightness,
+                0.0f, 3.0f);
+            for (std::size_t channel = 0; channel < 3U; ++channel) {
+                swimmer.actor.presentation.tint[channel] = std::clamp(
+                    swimmer.actor.presentation.tint[channel] *
+                        exhibit.pokemon_tint[channel],
+                    0.0f, 3.0f);
+            }
+        }
+        if (context.selected_population) {
+            std::size_t expected_population = 0;
+            for (const auto& resident : context.selected_population->residents) {
+                expected_population += resident.count;
+            }
+            if (simulation.swimmers.size() != expected_population) {
+                out.population_valid = false;
+            }
+        }
         out.simulation_tanks.push_back(std::move(simulation));
         out.tanks.push_back(std::move(runtime));
     }

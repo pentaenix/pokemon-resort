@@ -1622,20 +1622,20 @@ void testCurrentMapProjectSourcesLoadInRuntime() {
                     "each aquarium exit cell transfers one row south of the room");
             }
         } else if (scene.id == "aquarium_builder_lab") {
-            expect(scene.map_type == "interior" && scene.grid.width == 54 &&
-                    scene.grid.height == 33 && scene.models.empty() &&
+            expect(scene.map_type == "interior" && scene.grid.width == 24 &&
+                    scene.grid.height == 18 && scene.models.empty() &&
                     scene.interior.floor_cutouts.empty(),
                 "builder lab is a separate empty procedural aquarium room");
-            expect(scene.interior.openings.size() == 2U &&
-                    !pr::gameplay::world3d::interiors::boundaryCellBlocked(scene, 27, 0) &&
-                    !pr::gameplay::world3d::interiors::boundaryCellBlocked(scene, 27, 32) &&
-                    pr::gameplay::world3d::interiors::boundaryCellBlocked(scene, 0, 16) &&
-                    pr::gameplay::world3d::interiors::boundaryCellBlocked(scene, 53, 16),
-                "builder lab keeps north/south circulation open and side walls closed");
+            expect(scene.interior.openings.size() == 1U &&
+                    pr::gameplay::world3d::interiors::boundaryCellBlocked(scene, 12, 0) &&
+                    !pr::gameplay::world3d::interiors::boundaryCellBlocked(scene, 12, 17) &&
+                    pr::gameplay::world3d::interiors::boundaryCellBlocked(scene, 0, 8) &&
+                    pr::gameplay::world3d::interiors::boundaryCellBlocked(scene, 23, 8),
+                "builder lab seals the retired north door and preserves the south exit");
             pr::gameplay::world3d::characters::CharacterController movement(scene);
-            for (int row = 2; row <= 31; ++row) {
+            for (int row = 2; row <= 16; ++row) {
                 expect(movement.teleportToTile(
-                        27, row - 1, pr::gameplay::world3d::FacingDirection::South),
+                        12, row - 1, pr::gameplay::world3d::FacingDirection::South),
                     "builder lab movement test can sample its center aisle");
                 const auto step = movement.moveInput(0, 1, 0.02);
                 expect(step.attempted_step && !step.blocked,
@@ -1649,16 +1649,13 @@ void testCurrentMapProjectSourcesLoadInRuntime() {
                 scene.anchors.begin(), scene.anchors.end(), [](const auto& anchor) {
                     return anchor.id == "from_gallery";
                 });
-            expect(scene.anchors.size() == 2U &&
+            expect(scene.anchors.size() == 1U &&
                     resort_anchor != scene.anchors.end() &&
-                    resort_anchor->tile_x == 27 && resort_anchor->tile_y == 32 &&
+                    resort_anchor->tile_x == 12 && resort_anchor->tile_y == 17 &&
                     resort_anchor->facing ==
                         pr::gameplay::world3d::FacingDirection::North &&
-                    gallery_anchor != scene.anchors.end() &&
-                    gallery_anchor->tile_x == 27 && gallery_anchor->tile_y == 0 &&
-                    gallery_anchor->facing ==
-                        pr::gameplay::world3d::FacingDirection::South,
-                "resort and gallery travel arrive through their matching lab doorways");
+                    gallery_anchor == scene.anchors.end(),
+                "only the resort arrival anchor remains after gallery retirement");
             const auto gallery_door = std::find_if(
                 scene.door_triggers.begin(), scene.door_triggers.end(), [](const auto& door) {
                     return door.id == "builder_lab_gallery";
@@ -1675,27 +1672,24 @@ void testCurrentMapProjectSourcesLoadInRuntime() {
                 scene.links.begin(), scene.links.end(), [](const auto& link) {
                     return link.id == "builder_lab_exit_link";
                 });
-            expect(scene.door_triggers.size() == 6U && scene.links.size() == 2U &&
-                    gallery_door != scene.door_triggers.end() &&
-                    gallery_door->tile_x == 27 && gallery_door->tile_y == 1 &&
-                    gallery_link != scene.links.end() &&
-                    gallery_link->destination_map_id == "aquarium12" &&
-                    gallery_link->destination_anchor_id == "anchor" &&
+            expect(scene.door_triggers.size() == 3U && scene.links.size() == 1U &&
+                    gallery_door == scene.door_triggers.end() &&
+                    gallery_link == scene.links.end() &&
                     exit_door != scene.door_triggers.end() &&
-                    exit_door->tile_x == 27 && exit_door->tile_y == 33 &&
+                    exit_door->tile_x == 12 && exit_door->tile_y == 18 &&
                     exit_link != scene.links.end() &&
                     exit_link->destination_map_id == "0",
-                "builder lab links north to the authored gallery and south to the resort");
-            for (int x = 26; x <= 28; ++x) {
-                expect(pr::gameplay::world3d::doors::findDoorTrigger(
+                "builder lab preserves only the south resort exit");
+            for (int x = 11; x <= 13; ++x) {
+                expect(!pr::gameplay::world3d::doors::findDoorTrigger(
                         std::vector<pr::gameplay::world3d::characters::LoadedWorldChunk>{{
                             scene.id, scene, 0, 0}},
                         x, 2, x, 1, 0, -1).has_value(),
-                    "each builder-lab north-door cell transfers");
+                    "retired north-door cells must not transfer");
                 expect(pr::gameplay::world3d::doors::findDoorTrigger(
                         std::vector<pr::gameplay::world3d::characters::LoadedWorldChunk>{{
                             scene.id, scene, 0, 0}},
-                        x, 32, x, 33, 0, 1).has_value(),
+                        x, 17, x, 18, 0, 1).has_value(),
                     "each builder-lab south-door cell transfers");
             }
         }
@@ -1737,7 +1731,7 @@ void testStitchedHeightBlendsAcrossNorthEdge() {
 void testAquariumMapPlacesTankOverFloorCutout() {
     const fs::path root = repositoryRoot();
     const auto scene = pr::gameplay::world3d::data::loadOwmapScene(
-        root.string(), (root / "assets/overworld/maps/aquarium12.owmap").string());
+        root.string(), (root / "tests/fixtures/legacy_aquarium/aquarium12.owmap").string());
     expect(scene.models.size() == 3U, "aquarium map must place all three tank models");
     expect(scene.models.front().id == "aquarium", "aquarium tank placement id");
     expect(std::abs(scene.models.front().scale - 1.0f) < 0.0001f,

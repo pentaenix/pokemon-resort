@@ -179,10 +179,11 @@ public:
     }
 
     void submitWorld(std::uint16_t view_id) const {
+        if(!visual_.decoration_focus_tank.empty())return;
         const auto mesh = construction::buildAquariumConstructionWorldMesh(visual_);
         submitMesh(view_id, mesh,
             BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A |
-            BGFX_STATE_DEPTH_TEST_LEQUAL | BGFX_STATE_BLEND_ALPHA);
+            (visual_.room_outline ? 0 : BGFX_STATE_DEPTH_TEST_LEQUAL) | BGFX_STATE_BLEND_ALPHA);
         const auto height_preview =
             construction::buildAquariumConstructionHeightPreviewMesh(visual_);
         submitMesh(view_id, height_preview,
@@ -202,10 +203,12 @@ public:
         bool homogeneous_depth) const {
         if (!initialized_ || !visual_.visible || framebuffer_width <= 0 ||
             framebuffer_height <= 0 || logical_width <= 0 || logical_height <= 0) return;
+        if (visual_.stocking_active) return;
         const int width = logical_width;
         const int height = logical_height;
-        const auto layout = construction::aquariumConstructionHudLayout(
-            width, height, visual_.state, visual_.property_draft);
+        const auto layout = visual_.decoration_focus_tank.empty()
+            ? construction::aquariumConstructionHudLayout(width, height, visual_.state, visual_.property_draft)
+            : construction::aquariumDecorationHudLayout(width,height);
         construction::ConstructionVisualMesh mesh;
         constexpr std::uint32_t kCream = colorAbgr(246, 242, 221);
         constexpr std::uint32_t kShadow = colorAbgr(16, 31, 54, 150);
@@ -234,7 +237,21 @@ public:
             appendDisc(mesh, center_x, center_y, radius - 9.0f,
                 enabled ? fill : kDisabled);
             const float arm = radius * 0.38f;
-            if (action == Action::Place || action == Action::Subtract) {
+            if (action == Action::Room) {
+                appendLine2d(mesh,center_x-arm,center_y-arm,center_x+arm,center_y-arm,5,kWhite);
+                appendLine2d(mesh,center_x-arm,center_y-arm,center_x-arm,center_y+arm,5,kWhite);
+                appendLine2d(mesh,center_x+arm,center_y-arm,center_x+arm,center_y+arm,5,kWhite);
+                appendLine2d(mesh,center_x-arm,center_y+arm,center_x+arm*.1f,center_y+arm,5,kWhite);
+            } else if (action==Action::RoomNarrower || action==Action::RoomWider ||
+                       action==Action::RoomShallower || action==Action::RoomDeeper) {
+                const float dx=action==Action::RoomNarrower?-1:action==Action::RoomWider?1:0;
+                const float dy=action==Action::RoomShallower?-1:action==Action::RoomDeeper?1:0;
+                appendLine2d(mesh,center_x-dx*arm,center_y-dy*arm,
+                    center_x+dx*arm,center_y+dy*arm,6,kWhite);
+                appendTriangle2d(mesh,center_x+dx*arm,center_y+dy*arm,
+                    center_x-dy*arm*.65f,center_y+dx*arm*.65f,
+                    center_x+dy*arm*.65f,center_y-dx*arm*.65f,kWhite);
+            } else if (action == Action::Place || action == Action::Subtract) {
                 appendLine2d(mesh, center_x - arm, center_y,
                     center_x + arm, center_y, 6.0f, kWhite);
                 if (action == Action::Place) {
@@ -266,16 +283,61 @@ public:
                     center_x + direction * arm * 0.3f, center_y - arm * 0.62f,
                     center_x + direction * arm * 0.3f, center_y + arm * 0.62f,
                     kWhite);
+            } else if (action == Action::Decorate) {
+                appendLine2d(mesh,center_x,center_y+arm*.7f,center_x,center_y-arm*.8f,7,kWhite);
+                for(float side:{-1.0f,1.0f}) {
+                    appendLine2d(mesh,center_x,center_y+arm*.2f,center_x+side*arm*.65f,center_y-arm*.2f,6,kWhite);
+                    appendLine2d(mesh,center_x+side*arm*.65f,center_y-arm*.2f,center_x+side*arm*.65f,center_y-arm*.7f,5,kWhite);
+                }
+            } else if (action == Action::Stock) {
+                const float body_x = center_x + arm * 0.12f;
+                appendDisc(mesh, body_x, center_y, arm * 0.52f, kWhite);
+                appendTriangle2d(mesh,
+                    center_x - arm * 0.30f, center_y,
+                    center_x - arm * 0.92f, center_y - arm * 0.55f,
+                    center_x - arm * 0.92f, center_y + arm * 0.55f,
+                    kWhite);
+                appendDisc(mesh, body_x + arm * 0.24f,
+                    center_y - arm * 0.12f, 2.0f, kNavy);
             }
         };
         button(layout.place, Action::Place, kBlue, true, !visual_.subtract_mode);
+        button(layout.room, Action::Room, kBlue);
+        button(layout.room_narrower, Action::RoomNarrower, kBlue);
+        button(layout.room_wider, Action::RoomWider, kBlue);
+        button(layout.room_shallower, Action::RoomShallower, kAqua);
+        button(layout.room_deeper, Action::RoomDeeper, kAqua);
         button(layout.subtract, Action::Subtract, kMagenta, true, visual_.subtract_mode);
         button(layout.undo, Action::Undo, kBlue, visual_.undo_available);
         button(layout.redo, Action::Redo, kAqua, visual_.redo_available);
+        button(layout.stock, Action::Stock, kAqua,
+            visual_.state == construction::ConstructionState::Selected);
+        button(layout.decorate, Action::Decorate, kAqua,
+            visual_.state == construction::ConstructionState::Selected);
         button(layout.remove, Action::Delete, kRed);
         button(layout.build, Action::Build, kGreen);
         button(layout.cancel, Action::Cancel, kRed);
         button(layout.exit, Action::Exit, kGreen);
+        for(const auto& handle:visual_.room_handles) {
+            const float x=handle.x,y=handle.y;
+            const float radius=handle.add_door ? 21.0f : 25.0f;
+            appendDisc(mesh,x,y+3,radius,kShadow);
+            appendDisc(mesh,x,y,radius,handle.focused?kYellow:kCream);
+            appendDisc(mesh,x,y,radius-4,kNavy);
+            appendDisc(mesh,x,y,radius-8,handle.add_door?kGreen:kAqua);
+            if(handle.add_door) {
+                appendLine2d(mesh,x-8,y,x+8,y,5,kWhite);
+                appendLine2d(mesh,x,y-8,x,y+8,5,kWhite);
+            } else {
+                const float dx=(handle.wall==1 || handle.wall==3)?1.0f:0.0f;
+                const float dy=1.0f-dx;
+                appendLine2d(mesh,x-dx*9,y-dy*9,x+dx*9,y+dy*9,4,kWhite);
+                for(float sign:{-1.0f,1.0f}) appendTriangle2d(mesh,
+                    x+sign*dx*11,y+sign*dy*11,
+                    x+sign*dx*4-dy*5,y+sign*dy*4+dx*5,
+                    x+sign*dx*4+dy*5,y+sign*dy*4-dx*5,kWhite);
+            }
+        }
         if (mesh.vertices.empty()) return;
         float view[16], projection[16];
         bx::mtxIdentity(view);

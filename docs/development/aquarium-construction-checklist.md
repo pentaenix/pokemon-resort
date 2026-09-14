@@ -1,6 +1,242 @@
 # Aquarium Construction Implementation Checklist
 
-Updated: 2026-09-03
+Updated: 2026-09-12
+
+## Kyogre side-to-side banking correction — 2026-09-12
+
+- [x] Trace reported lean oscillation to instantaneous yaw-rate-driven roll.
+  Add `AquariumCruiseBank` in the motion module: suppress small/brief corrections,
+  require one-second sustained turn, six-degree limit, 2.5s easing and 2deg/s cap.
+  Unwind before opposite banking; preserve forward travel and escort priority.
+- [x] Simulation fits reduced bank to available body clearance near glass,
+  instead of an all-or-nothing reset to zero.
+- [x] Add pure alternating/sustained/reversed steering and return-to-level tests.
+- [x] Build and focused motion regression pass. Full native suite: 73/79,
+  same six known failures (architecture rules, Attend config, config loader,
+  authored aquarium fixture, ramp, ocean tile).
+- [ ] Player review: Kyogre leans only in deliberate long turns, not frequent rocking.
+
+Logs: `/tmp/aquarium-bank-build.log`, `/tmp/aquarium-bank-focused.log`,
+`/tmp/aquarium-bank-suite.log`. Runtime-only; no saves, species size or shader edits.
+
+## Large-room editing and massive-species sizing — 2026-09-12
+
+- [x] Replace per-cell committed footprint regeneration with derived session
+  indices in `AquariumConstructionCellIndex.cpp`; rebuild on configure, room-zone
+  change and publish, including undo/redo. Index placement validation too.
+- [x] Index floor heights once in `AquariumConstructionVisual.cpp` for large
+  selected/draft overlays, preserving first-match and missing-cell behavior.
+- [x] Eight largest baked aquarium models: 0.9 catalogue scale for Gyarados,
+  Suicune, Lugia, Wailord, Milotic, Kyogre, Palkia, Dhelmise. Preserve capacity
+  masks, curated animation, models, other species and player documents.
+- [x] Added 64x64-room/60x60-tank test in `aquarium_large_room_tests.cpp`:
+  occupancy correctness, configure/resize/delete/undo/redo invalidation, preview
+  indices, and catalogue-to-physical-size consistency.
+- [x] Same-machine microbenchmarks (seven samples, worst sample reported as p95):
+  4,096 occupancy probes: 1,156.03ms → 1.66ms; selected world preview:
+  83.92ms → 13.63ms. These isolate CPU operations, not end-to-end frame time.
+- [x] Native envelope baker verified unchanged bounds/pose counts for all eight;
+  refreshed only their scale-dependent source signatures, catalogue revision 182.
+- [x] Final build and focused stocking/runtime/motion tests pass (3/3).
+  Full native suite: 73/79; same six baseline failures (architecture rules,
+  Attend config, config loader, authored aquarium fixture, ramp, ocean tile).
+- [ ] Player review: edit/pan/resize large tanks; re-enter room to see scale changes.
+
+Logs: `/tmp/aquarium-large-baseline.log`, `/tmp/aquarium-preview-baseline.log`,
+`/tmp/aquarium-large-final-build.log`, `/tmp/aquarium-large-focused.log`,
+`/tmp/aquarium-large-suite.log`.
+
+## Kyogre steering stability and escort priority — 2026-09-11
+
+- [x] Runtime-only change: own escorts cannot steer, stop, or push their host.
+  Escort-side avoidance and tank containment remain active; no save/config edits.
+- [x] Ease small cruise yaw corrections using the same law for actual movement
+  and predictive arc validation (`AquariumMotion.cpp`).
+- [x] `AquariumSimulation.cpp`: asymmetric crowd gates and penetration correction.
+- [x] `aquarium_motion_tests.cpp`: three-minute actual-envelope Kyogre fixture
+  asserts identical position/yaw/bank with four Remoraid versus alone; retains
+  depth exploration, forward movement, and no-freeze checks. Small yaw easing test.
+- [x] Build and focused motion/runtime/school tests pass (3/3).
+- [x] Full native suite: 73/79, same six baseline failures (architecture rules,
+  Attend config, config loader, authored aquarium fixture, ramp, ocean tile).
+- [ ] Player review: smooth cruising and escort spacing in the saved tank.
+
+Logs: `/tmp/aquarium-cruise-stability-build.log`,
+`/tmp/aquarium-cruise-stability-focused.log`,
+`/tmp/aquarium-cruise-stability-suite.log`.
+
+## Remoraid host restoration, Kyogre pace and radial glow — 2026-09-11
+
+- [x] Restore curated Remoraid escort profile. Stocked population resolves an
+  explicit same-tank host before simulation, preferring Kyogre; inherit host speed.
+  Hostless escorts retain existing same-species schooling fallback.
+- [x] Kyogre cruise speed 0.45 → 0.585m/s. Narrow-tank/escort test uses new speed.
+- [x] Dedicated Kyogre overlay fragment shader: dark 3s, outward light 1.2s,
+  lit 2s, outward darkness 1.2s. Bounds derive from model-local stripe geometry.
+  Same pulse in normal/post-fog passes; Lanturn emission and world shader unchanged.
+- [x] Program/uniform cleanup follows existing renderer owners; extracted pose/
+  pulse-bound helpers keep aquarium Pokémon renderer below 500 lines.
+- [x] Build/shader compilation and focused host/speed/motion/emission checks pass.
+- [ ] Player review: Remoraid group follows Kyogre, faster cruise still feels
+  smooth, centre-outward pulse is readable at gameplay scale and through fog.
+
+Logs: `/tmp/aquarium-pulse-build.log`, `/tmp/aquarium-pulse-focused.log`,
+`/tmp/aquarium-pulse-suite.log`. No player saves or model assets rewritten.
+Final native suite: 73/79; same six baseline failures, with runtime, motion,
+schooling and emission tests passing. Shader compilation succeeded.
+
+## Faster internal doors and narrow-tank cruiser recovery — 2026-09-11
+
+- [x] Aquarium-only room-transfer script omits invisible tile-animation wait;
+  0.14s close + 0.18s open + 0.12s forward step. Script action durations override
+  only their own transition. Exterior/Attend defaults and doorway links unchanged.
+- [x] Added catalog/order/timing checks alongside all-wall three-cell travel tests.
+- [x] Inspect saved room_1 document read-only: Kyogre + four Remoraid in 24×19 tank.
+  Add narrow-tank, actual-body-envelope population regression; allow slower
+  collision-checked cruise arcs and preserve speed through the steering cache.
+- [x] Cruiser recovery now selects a fresh destination, never a sub-metre target
+  requiring a pivot. Body size, glass containment and forward-only turning remain.
+- [x] Three simulated minutes with four escorts: 50.99m travel, 6.89m vertical
+  range, 12-degree peak bank; no two-second freeze or stationary pivot.
+- [ ] Player review: actual room transition latency and Kyogre's motion after
+  re-entering/restarting. Saved data unchanged; loading cost itself is not reduced.
+
+Logs: `/tmp/aquarium-room-speed-build.log`, `/tmp/aquarium-room-speed-suite.log`,
+`/tmp/aquarium-escort-check.log`. Scripted-delay comparison is not a wall-clock
+room-loading measurement.
+
+## Tunnel navigation continuity and Kyogre habitat tour — 2026-09-11
+
+- [x] Close the thin all-room navigation gap at below-floor tunnel glass level,
+  retaining dry tunnel exclusion. Shared kernel ABI 16 invalidates older derived
+  output; update the version-dependent rectangle hash, not its mesh contract.
+- [x] Test the generated deep-tunnel geometry through runtime body navigation:
+  side-water vertical travel, deep-to-upper routing and dry-corridor exclusion.
+- [x] Kyogre tours low/high/middle water and banks up to 12 degrees when clear.
+  Cruise arrival no longer demands hitting an exact point; goals level off with
+  depth, including during obstacle avoidance. No recovery pivot or teleport.
+- [x] Finer reversing-arc prediction prevents coarse integration from accepting
+  impossibly tight turns. Cache predictions at 0.20–0.26s; validate actual steps.
+- [x] Seeded actual-Kyogre-envelope 180-second fixture: depth range 8.09m,
+  travel 54.32m, maximum bank 12 degrees. These are simulated distances, not live
+  frame-rate measurements. Motion and geometry checks pass.
+- [ ] Player checkpoint: the reported tunnel tank, mixed fish navigation, Kyogre
+  surface/deep excursions, visible banks beside glass, and runtime responsiveness.
+- [ ] Rebuild external maker WASM distribution against ABI 16 before maker use;
+  this pass changes shared source and native game, not sibling tool artifacts.
+
+Logs: `/tmp/aquarium-tunnel-tour-build.log`, `/tmp/aquarium-tunnel-tour-suite.log`.
+Full native build passed; suite 73/79 with the same six documented baseline
+failures. Motion, schooling, emission and shared geometry tests pass.
+
+## Kyogre red-line emission — 2026-09-11
+
+- [x] Inspect actual GLBZ line textures; scope additive self-lit emission to
+  Kyogre's two red overlay materials. Reuse haloBrightness/fogRetention settings.
+- [x] Preserve body/eyes, other species, model assets and shared shaders.
+- [x] Build and focused emission test pass, including actual Kyogre material
+  isolation and unrelated-species guard. Logs: `/tmp/kyogre-emission-*.log`.
+- [ ] Player review: red markings visible in dim/murky water without lighting
+  the whole body. This is emission, not a dynamic light or bloom pass.
+
+## Large-room drawing and continuous cruiser turns — 2026-09-11
+
+- [x] Replace the fixed 21×17 working patch (also used for mouse picking) with
+  padded viewport-projected cell visibility. Preserve room wall/door clearance.
+- [x] Large-cruiser profiles, including Kyogre, maintain forward travel during
+  turns with body-scaled arcs, gentle vertical motion and swept-path look-ahead.
+  Blocked translation cannot publish rotation, including during recovery.
+- [x] Build and focused runtime/room/motion tests passed. Added a distant visible
+  drawing-cell check and rearward-target cruising/blocked-pose checks.
+- [ ] Player review: long Kyogre tank drawing at different zooms and wall edges;
+  observe cruising arcs, wall approaches and ascent/descent in the actual tank.
+  Live performance/visual quality remain unmeasured; no save/model/shader changes.
+
+Logs: `/tmp/aquarium-cruise-build.log`, `/tmp/aquarium-cruise-focused.log`,
+`/tmp/aquarium-cruise-suite.log`.
+Full native suite: 73/79; the same six baseline failures remain (architecture,
+Attend config, config loader, legacy aquarium mask, OWMAP ramp, RTPKS ocean).
+
+## Four wall knobs and connected-room handles — 2026-09-11
+
+- [x] Replace the directional toolbar with four projected wall knobs; support
+  drag/release and click/move/click, plus keyboard/controller focus and gestures.
+- [x] Green plus handles on doorless walls position new linked-room entrances;
+  receiving doors are centred on opposite walls. Check/Y commits the whole draft.
+- [x] Signed north/west resizing preserves stable tank and tunnel coordinates.
+  Tank document envelope v6 records roomFrame on later tank saves; kernel stays v5.
+- [x] Stage generated scenes and save one building document transactionally;
+  maintain per-room stocking documents and preserve the south overworld exit.
+- [x] Cache occupancy during gestures, revalidate at commit, and reject wall/tank
+  conflicts without stuck input. No shader, aquarium AI or shared palette changes.
+- [x] Native build and focused design/runtime/room tests. Added all-wall,
+  three-cell bidirectional door travel and north/west transform coverage.
+- [ ] Player checkpoint: wall knob readability, drag and click-click cancellation,
+  controller-only flow, room creation/travel/restart, tank/tunnel alignment after
+  origin changes. Measure live rebuild latency; no performance claim yet.
+- [ ] Follow-ups: existing-door sliding and building undo/history. Tank history
+  currently resets on origin-changing room commits, but is retained otherwise.
+
+Primary files: AquariumBuildingScene, AquariumRoomRuntime, AquariumDesign,
+Overworld3DTestScreenAquariumRooms/RoomHandles, construction HUD/visual adapters,
+and room/design/runtime tests. Existing unrelated dirty changes remain preserved.
+
+Verification: build passed; full native suite 73/79, retaining the six known
+baseline failures (architecture rules, Attend config, config loader, aquarium
+legacy mask, OWMAP ramp, RTPKS ocean). Design, runtime and room-layout tests pass.
+Logs: `/tmp/aquarium-wall-handles-build.log`, `/tmp/aquarium-wall-handles-tests.log`.
+
+## Room width/depth and wall clearance — 2026-09-11
+
+- [x] Separate room draft, circular room action and four directional resize
+  controls. R/right-stick opens; mouse or navigation adjusts; check/A/Y commits;
+  cancel/B discards. Dotted outline is yellow when valid and red when blocked.
+- [x] Profile-local `.room.json` uses versioned building DTOs, durable atomic
+  promotion, validated backup recovery, and newer-version protection. No source
+  OWMAP, tank document, or current player save was edited during development.
+- [x] Runtime projection preserves tank coordinates and south-door horizontal
+  offset; all three triggers and arrival anchor move with the south wall.
+- [x] Build mask uses full half-cell-shifted footprints and inner wall clearance.
+  Partial wall strips are not drawable; unchanged legacy edge tanks are preserved.
+- [x] Shrink candidates include full tank occupancy and protected doorway lanes.
+  Room commit reuses the map-transition renderer owner and keeps tank history.
+- Changed modules: `AquariumRoomRuntime`, `AquariumRoomStore`, room screen adapter,
+  construction HUD/preview, load/placement seams, and focused room/runtime tests.
+- [ ] Player review: open Room mode; grow/shrink both dimensions; verify invalid
+  red preview near tanks; cancel; confirm; walk the expanded edges; use all three
+  south exit cells; re-enter/restart and verify tank stock and room persistence.
+- [ ] Measure live room-rebuild hitch. CPU commit timing is logged as
+  `[AquariumRoom] event=resized ... cpuUs=...`; GPU upload still follows normal
+  map entry. No frame-budget claim is made for this first resize integration.
+- Scope checkpoint: north-west anchored resizing only. Four-wall dragging,
+  independent door sliding/creation, and room-command undo are not implemented.
+- Verification: shipping build passes. Focused room/runtime tests pass (0.68 s);
+  full native suite **73/79** in 40.94 s, with the same six baseline failing
+  targets recorded below. Logs: `/tmp/aquarium-room-resize-build.log` and
+  `/tmp/aquarium-room-resize-tests.log`. `git diff --check` passes. Live viewport,
+  controller ergonomics and renderer-rebuild performance remain user checks.
+
+## Gallery retirement — 2026-09-10
+
+- [x] Remove `aquarium12` from runtime map and aquarium catalogs; retire its
+  OWMAP and gallery-only GLB/navigation asset directories.
+- [x] Close the Builder Lab's **north** opening and remove only its gallery
+  anchor/link/three triggers. Preserve the south overworld exit, dimensions,
+  terrain, and all player save documents.
+- [x] Preserve legacy GLB/navigation/OWMAP test coverage under
+  `tests/fixtures/legacy_aquarium`; one GLB remains test-only, not a game asset.
+- Recovery copies: `/tmp/pokemon-resort-gallery-retirement.zYXgig` (temporary
+  local backup); tracked originals also remain recoverable through Git.
+- [ ] Player check after restart: north wall closed; all three south exit
+  cells still transfer outside; saved tanks unchanged.
+- This cleanup does not enable live door/room creation; that remains the next
+  room-integration checkpoint below.
+- Verification: full build passes; asset catalog and GLB regression tests pass;
+  runtime map-project checks pass (sealed north boundary, three south triggers,
+  resolvable destinations). Full native suite: **73/79**, matching the six
+  previously recorded failing targets: architecture module rules, Attend config,
+  config loader, aquarium catalog dimensions, OWMAP ramp entry, and ocean tiles.
+  Logs: `/tmp/pokemon-resort-gallery-retirement.zYXgig/tests-final.log`.
 
 ## Working-state guardrails
 
@@ -11,7 +247,130 @@ Updated: 2026-09-03
 - No reset, clean, checkout, destructive operation, or broad reformat was performed.
 - Feature commits stage explicit Milestone 5 paths only.
 
-## Milestone status
+## Independent rooms — foundation checkpoint, 2026-09-10
+
+- [x] Separate `aquarium_room_layout` contract library; no live map/UI/save writes.
+  Files: `rooms/AquariumBuildingLayout.hpp`, `AquariumBuildingLayout.cpp`,
+  `AquariumBuildingLayoutJson.cpp`, CMake registration, and
+  `tests/native/world3d/aquarium_room_layout_tests.cpp`.
+- [x] Independent room-local signed bounds and stable door-ID connections.
+  New receiving doors use opposite walls and exact whole-cell centring;
+  default proposals are 17×13 (13×17 for side entrances). Existing rooms are
+  never resized to those defaults. Door moves cannot change their wall or peer.
+- [x] Pure candidate creation/move/resize, monotonic revisions, JSON round trips,
+  malformed/newer-version rejection, full-cell occupancy checks, three-wide
+  two-deep entrance protection, and door-to-door circulation validation.
+- [x] Focused contract checks and full native build passed. No authored maps,
+  tank saves, stocking, rendering, or external assets changed in this checkpoint.
+  Full CTest: 73/79 passed, retaining the same six baseline failures (module
+  boundary, Attend catalog, window config, aquarium layout, ramp and ocean UV).
+  `git diff --check` passed.
+- [ ] Live adapter: import existing dimensions/doors/anchors without changing
+  links; project signed room coordinates consistently into floor, wall, tank,
+  collision, camera, construction mask and destination-anchor coordinates.
+- [ ] Profile store: transactional save/recovery and staged publication of
+  scene resources; keep unknown/newer documents recoverable. No building file
+  has been written yet; serialization tests are not save-recovery verification.
+- [ ] Room-mode UI: wall/door handles, reliable click-to-start/click-to-finish,
+  controller/keyboard equivalents, preview, cancellation, durable undo/redo.
+- [ ] New-room wall ＋ actions and room-specific tank/save integration.
+- Review checkpoint: foundation ready for review, **not a playable room editor**.
+  Live manual acceptance will require moving each endpoint independently,
+  traveling both ways, shrinking against a tank/entrance, cancel/undo/redo,
+  and restarting without tank or doorway displacement.
+  Documentation: `docs/gameplay/aquarium-rooms.md`.
+
+## Aquarium AI follow-up — 2026-09-09
+
+Approved sequence: A motion reliability → B living schools → C profile audit →
+D replace the old gallery with a second construction room. Each checkpoint
+requires user feedback before the next starts.
+
+- A: implemented; automated checks recorded below; manual saved-tank observation
+  and user approval pending. Not marked fully accepted without that review.
+  New modules: `AquariumMotion`, `AquariumBodyNavigation`,
+  `AquariumSimulationMotion`; runtime-only progress and routing diagnostics.
+  Full-body swept containment, lazy shared clearance graphs, incremental
+  round-robin routing, two-second progress recovery, stable-ID yielding, and
+  upright hover locomotion. Kingdra selects the existing hover profile.
+- B: implemented for visual review (2026-09-10); not fully accepted yet.
+  Removed phase-offset school orbits. Added `AquariumSchoolSimulation`,
+  `AquariumSimulationSchool`, and `AquariumConvexWater`; focused wiring in the
+  simulation/header, native/map-maker source lists and test harness.
+  Group keys use tank/species/form rather than individual stocking IDs.
+  Snapshot-based local alignment/separation/cohesion, comfort zones, shared
+  travel direction, bounded catch-up, independent animation phases, stable
+  stocking order, and lone/orphan-escort fallback preserve curated content.
+  Cached exact convex checks and conservative crowd broad-phase skips reduce
+  repeated geometry work without removing swept-body containment.
+  Focused checks pass: cylinder centroid travel 19.46 m over the sampled run,
+  lateral RMS 1.31 m, vertical RMS 0.52 m, average member radius 1.03 m,
+  heading coherence 0.918. Rectangle/L/tunnel minimum member travel over 20 s:
+  13.04/9.40/11.95 m, with containment and step-size assertions.
+  Debug AI-step p95 (32/64/128 fish): 0.89/2.60/8.40 ms. The 128-resident
+  <=4 ms target remains unmet; optimized-build measurement and further crowd
+  optimization remain open, not silently waived. No GPU/render/save changes.
+  Verification: full native build passed; `--simulation-only` passed, including
+  existing escort/activity regressions; full CTest 72/78 with the same six
+  baseline failures (module boundary, Attend catalog, compact-window config,
+  aquarium room-layout fixture, OWMAP ramp rise, and ocean UV fixtures).
+  Independent `aquarium_school_tests` passed in that suite; final Debug p95
+  was 0.80/2.65/8.46 ms. `git diff --check` passed.
+  Manual checkpoint: restart and observe the saved Wishiwashi cylinder; look
+  for a traveling cloud, side-by-side fish, smooth turns and rejoining after
+  obstacles. Also check a lone fish and explicit Remoraid escorts. Real-model
+  visual acceptance, complex-water regrouping quality and user approval pending.
+- C/D: not started. Other profile tuning, gallery maps and gallery assets
+  remain untouched this checkpoint.
+- Baseline: `codex/aquarium-construction-milestone-5`, pre-existing changes in
+  CMake, aquarium config/catalog, simulation, construction, rendering, UI,
+  documentation, tests, and the builder map. No resets, commits, asset removal,
+  save writes, or unrelated reformatting performed.
+- Touched integration: simulation/header, player population hover mapping,
+  Kingdra catalog profile/revision, native/map-maker source lists, aquarium
+  test harness, architecture documentation and this checklist.
+- Tests: new independent `aquarium_motion_tests` CTest registration;
+  `aquarium_tests --simulation-only` runs the existing behavior fixtures without
+  the stale authored-room layout assertions. Normal `aquarium_tests` still
+  retains those assertions; failures must not be silently suppressed.
+- Known baseline mismatch: existing aquarium scene test expects builder return
+  cell `(12,16)` and the compact room; current untouched room config uses
+  `(27,31)`. Room cleanup remains D, not part of the AI patch.
+- Performance adaptation: cold fixture routing cost about 58 ms synchronously;
+  runtime searches now advance in bounded batches instead. No per-frame full
+  route scan for direct travel; each actual movement still validates swept
+  body containment. Final measurements recorded below after verification.
+
+### A verification and review checkpoint
+
+- Shipping build: passes (`cmake --build build -j 4`).
+- Focused motion and existing simulation fixtures: pass. A seeded baked-Kingdra
+  fixture traverses 4.12 cells vertically in 30 simulated seconds, stays upright,
+  and has at most 0.167 seconds without 0.05 m displacement. Identical seeds
+  replay identical positions. A 90-second forward-cruiser fixture follows a
+  route around a concave obstacle without teleportation or containment failure.
+- Pure fixtures cover middle-band dry holes, swept full-body clearance,
+  over-tunnel layered routing, quarter-cell narrow-passage refinement,
+  disconnected volumes, visual/locomotion pitch separation, and zero-step
+  progress detection. Population contract checks hover mapping without changing
+  curated animation or scale.
+- Cold obstacle fixture: 787 expanded nodes; 24-visit batch p95 about 1.5 ms.
+  Two 30-second Kingdra replay simulations run in about 24–25 ms total after
+  caching direct-path visibility (not an in-game render-frame measurement).
+  Larger 32/64/128-resident AI benchmarks and neighbor indexing remain B/C.
+- Mutation check: temporarily increasing the watchdog from 2 to 20 seconds
+  fails with `valid zero displacement did not trigger the two-second progress
+  watchdog`; restored immediately and rebuilt.
+- Full native suite: 70/76 pass. Five previously documented failures remain:
+  module boundary, Attend scene fixture, app window fixture, OWMAP ramp, RTPKS
+  ocean sampling. The sixth is the untouched builder-room size/return-cell
+  mismatch described above. No unrelated fixes or weakened assertions.
+- Manual review: restart the game, observe Kingdra ascending/descending in its
+  actual saved tank; inspect hoverers and forward swimmers near curves/tunnels,
+  bottom rests and explicit escorts. Existing Wishiwashi orbit remains until B.
+  No saved tanks, old gallery assets, shaders, or rendering configuration changed.
+
+## Original construction milestone status
 
 | Milestone | State | Review |
 |---|---|---|
@@ -174,7 +533,7 @@ The shared gizmo foundation owns semantic handles, focus, hit testing, and visua
 - `AquariumConstructionSession`: committed/draft state separation, rectangle placement, fast validation, player-cell protection, cancellation, and immutable commit candidates.
 - `AquariumDesignStore`: canonical per-profile/map documents, read-back validation, durable temporary writes, validated backups, atomic promotion, and newer/invalid recovery behavior.
 - `AquariumCollisionOverlay`: generated collision composed over static OWMAP terrain queries used by player, follower, and NPC movement.
-- `AquariumPlayerRuntime`: rebuildable kernel geometry/navigation/collision plus replaceable population policy; the current test policy supplies two deterministic Milotic in the first player tank and one Kyogre in the second.
+- `AquariumPlayerRuntime`: rebuildable kernel geometry/navigation/collision plus replaceable population policy; the current test policy supplies two deterministic Dewgong in the first player tank and one Kyogre with four Remoraid escorts in the second.
 - `AquariumConstructionOverlay`: nonnumeric grid, cursor, silhouette, fixed-height ticks, confirm/cancel glyphs, and pattern-plus-color validity feedback.
 - `PlayerAquariumBgfxRenderer`: four semantic material passes, locally scoped glass/water state, stable transparent sorting, and staged candidate upload/publish/discard ownership.
 - `Overworld3DTestScreenAquarium`: aquarium12 document lifecycle, worker generation, render-thread upload, transactional commit publication, diagnostics, and map-scoped construction configuration.
@@ -368,7 +727,7 @@ remain out of scope until that review is accepted.
 - `AquariumTankEditing`: shape-aware occupancy, selection, centres, movement, and eight-direction resizing.
 - `AquariumConstructionVisual` and `AquariumConstructionHudLayout`: spatial move/resize gizmos, safe-view hit testing, contextual property choices, tick/arc feedback, and compact focusable controls without numeric labels.
 - `Overworld3DTestScreenAquariumConstructionUi`: construction-only pointer, HUD, gizmo, and semantic property dispatch.
-- `aquarium_builder_lab.owmap`: empty 54×33 procedural construction room; its config owns the 1,600-cell safe mask and no authored tank catalog entries.
+- `aquarium_builder_lab.owmap`: empty 24×18 procedural construction room; its config owns the 340-cell safe mask and no authored tank catalog entries.
 - Aquarium Maker `resortKernel.ts`: strict whole-cell compatible-subset mapper with advanced-feature fallback.
 
 ### Milestone 3 deterministic and performance evidence
@@ -494,7 +853,7 @@ is never an editable or duplicated numeric field in the authoritative save docum
 - [x] Replace the rejected depth ladder with an x-ray dotted tank wireframe: the actual rounded bottom perimeter and vertical corner guides descend to the authored discrete depth while the compact depth knob remains unobtrusive.
 - [x] Replace the height pip column with the same dotted-volume language: draft height shows the actual rounded top perimeter and vertical guides while retaining the direct height knob.
 - [x] Feed every committed player tank's derived navigation layers and population-policy output into the existing aquarium simulation; generated swimmers now move with rendered-body clearance through deep/layered water while avoiding tunnel dry regions, and player-tank replacement leaves authored swimmers intact.
-- [x] Replace the earlier stress-test population with two walking Milotic in the first player tank and one idle-animated Kyogre on a continuous collision-checked roaming loop in the second; remove Wishiwashi, Clamperl, and Pyukumuku from player tanks without changing authored aquarium populations.
+- [x] Replace the earlier stress-test population with two idle-swimming Dewgong in the first player tank and one idle-animated Kyogre on a continuous collision-checked roaming loop in the second; remove Wishiwashi, Clamperl, and Pyukumuku from player tanks without changing authored aquarium populations.
 - [x] Register player-built tank bounds with the existing two-stage aquarium inspection camera after load and every committed edit, using close-focus tuning without altering authored tank camera presets.
 - [x] Distinguish the move gizmo from height/depth controls with a compact four-direction planar compass while preserving the established click–move–click interaction and hit target.
 - [ ] Route compatible discrete Aquarium Maker passage settings through ABI 10; the maker UI still keeps passages on its advanced legacy geometry path, while the shared JSON golden already proves native/WASM parity.
@@ -547,12 +906,18 @@ checked portal readability, route feel, geometry, and collision in Builder Lab.
 - [x] Separate dim aquarium-room ambience from bright exhibit lighting, apply the exhibit grade to authored tanks, player tanks, and Pokémon, and add configurable soft floor spill around tank footprints without global bloom or shared render-state changes.
 - [x] Keep school and wander navigation moving around concave walls and dry tunnel volumes by abandoning blocked steering targets for deterministic validated detours.
 - [x] Carry player-tank corner radius into the exhibit-light footprint so curved glass corners do not leave unlit floor wedges.
-- [x] Add an aquarium-only runtime-LOD prototype for Milotic and Kyogre, preserving the original skeleton, animations, materials, UVs, and textures without creating duplicate model assets.
+- [x] Add aquarium-only runtime LOD for player-tank Pokémon, preserving the original skeleton, animations, materials, UVs, and textures without creating duplicate model assets.
 - [x] Expand the empty Builder Lab from 24×18 to 54×33 cells, recenter both three-cell doorways, and grow its doorway-safe construction mask from 340 to 1,600 cells without changing the authored gallery.
 - [x] Keep the enlarged room responsive by skipping all construction-mask work while dormant and rendering only a camera-local 21×17-cell working window while editing.
 - [x] Raise maximum player-tank height by five world tiles and maximum below-floor depth by three world tiles through shared ABI-15 limits.
-- [x] Reduce the temporary two-tank population to two walking Milotic in the first tank and one idle-swimming Kyogre in the second.
+- [x] Set the temporary two-tank population to two idle-swimming Dewgong in the first tank and one faster, vertically expressive circling Kyogre in the second.
+- [x] Smooth Kyogre's travel vector and slow its yaw/pitch response, then add four slower collision-checked Remoraid escorts that steer only along their rendered forward axis into stable slots around its measured body and fall back from walk to idle animation through the existing Attend resolver.
 - [x] Give the enlarged Builder Lab a map-local 128-tile camera far plane so long tanks are not clipped, without changing authored aquarium or outdoor cameras.
+- [x] Add a player-water-only absorption shader with JSON-configurable intensity that darkens deep, long, and camera-distant water without extra draw calls, textures, geometry, or shared render-state changes.
+- [x] Polish the aquarium view/editor: apply an aquarium-only 0.5-tile near plane so close swimmers remain visible above tunnels, remove the attenuation intensity ceiling for murky-water experiments, add bounded mouse-wheel construction zoom, and keep paired height/depth knobs at floor level inside tall tanks.
+- [x] Reuse the exterior Black 2 sand tile (RTPKS tile 103/material 8) for player-tank substrate with per-cell repetition and a less-saturated tint, and reshape high-intensity attenuation so the water continues to evolve visibly with depth.
+- [x] Tune the default attenuation to 2.4, expose aquarium-local `sandDarkening` at 0.18, desynchronize escort animation phases/rates, and derive escort cruise speed from the followed actor with bounded recovery acceleration.
+- [x] Replace escort point pursuit with a dedicated fixed-step formation simulation: inherit measured attachment-region velocity through climbs/dives/turns, use attached/recovering interception without counter-swimming, calculate mesh-envelope Reynolds separation from an immutable simultaneous snapshot, retain persistent local obstacle detours, and isolate runtime LOD pose buffers per actor.
 - [ ] Player live gate: controller-only extended Builder Lab session, mouse/keyboard session, repeated aquarium/overworld transitions, restart/recovery walkthrough, and screenshots of Builder Lab plus authored aquarium12/outdoor scenes.
 - [ ] Confirm live commit telemetry meets the 4 ms GPU-upload target and produces no construction-induced frame above 33 ms on the release machine.
 
@@ -592,3 +957,211 @@ changed by Milestone 5.
 The code and automated release gate are ready. Do not declare v1 released or
 begin post-v1 features until the user completes the live visual/controller and
 map-transition soak above. Corrections found there remain Milestone 5 work.
+
+## Post-Milestone 5 — player stocking vertical slice
+
+- [x] Load the curator's versioned catalogue natively and expose approved entries only.
+- [x] Store per-tank stable species IDs and counts in the authoritative aquarium design.
+- [x] Add an undoable population command that uses the existing transactional save/publication path.
+- [x] Add a selected-tank fish action and a sharp presentation-canvas stocking overlay using the shared Pokémon sprite assets.
+- [x] Support keyboard/mouse and controller navigation, add, remove, and close actions.
+- [x] Derive a depth-aware abstract capacity budget from tank footprint and vertical extent.
+- [x] Remove the temporary tank-index population entirely; unstocked and intentionally empty player tanks remain empty.
+- [x] Move the selected-tank Stock action to a circular top-left icon with a forgiving edge hit target.
+- [x] Prefer visible tank-volume picking over floor-grid drawing when clicking an existing tank, preventing a missed selection from latching an accidental create gesture.
+- [x] Keep the top-left fish action visible in both Browse and Selected states, disabled until a tank is selected, so stocking is discoverable and its availability is unambiguous.
+- [x] Move the fish action and complete stocking panel onto the Metal-visible bgfx presentation path; cache the sharp SDL-rasterized panel by content so sprites, text, layout, and hit boxes agree without a per-frame texture rebuild or a hidden SDL duplicate.
+- [x] Present the approved catalogue through the reusable transfer-style 6×5 Pokémon box viewport, with 30 slots per aquarium-only box, mouse/keyboard/controller box navigation, fit-disabled slots, and no dependency on the player's owned Pokémon or save boxes.
+- [x] Add a Pokémon/Exhibit pill using aquarium-blue transfer chrome; Pokémon retains stocking behavior while Exhibit replaces the two boxes with four full-area water-presentation presets.
+- [x] Match the Transfer screen's 1280×800 composition: one 560×577 catalogue box at left, one equally sized tank board at right, the tab toggle above the destination, the exit/basic-tool controls at upper left, and the full-width lower summary banner.
+- [x] Make the basic red tool the default interaction: selecting a catalogue Pokémon picks up its sprite, pointer/controller movement carries it between the box and tank, dropping on the tank stocks it, and cancel returns it without changing the design. Controller focus crosses directly from the last occupied slot of a partial box into the tank target.
+- [x] Expand the tank capacity view to the complete right-hand destination area with readable cells and independent mouse/controller vertical panning instead of shrinking large boards.
+- [x] Persist River, Swamp, Open Ocean, and Depths per tank through the normal undoable transaction; keep those presets responsible for water/interior color while independently authored brightness and murkiness control illumination and absorption without changing authored tanks or global rendering state.
+- [x] Increase visual separation between non-River color presets: Swamp is strongly green, Open Ocean is saturated blue, and Depths uses near-abyssal water with a restrained deep-blue spill. Selecting Depths initializes brightness at its minimum tick, while saved manual brightness remains authoritative when reopening a tank.
+- [x] Grade the complete player-tank interior from its independent color and brightness settings: tint substrate and residents with the chosen environment, compensate resident intensity against the darker floor base, retain neutral River, and keep authored tanks, room lighting, and global rendering unchanged.
+- [x] Replace the oversized Exhibit cards with a compact four-color row, independent discrete brightness and murkiness sliders, and Sand/Gravel/Moss/Dirt substrate cards. Persist every choice on the tank; render repeatable Black 2 floor materials from the RTPKS pack, including a runtime-composited authentic dirt/grass swamp floor; and make the final murkiness tick read as dense fog.
+- [x] Make Exhibit input deterministic: hover is visual-only, hidden Pokémon-box hit targets cannot intercept Exhibit clicks, sliders track discrete ticks while held and commit once on release, and pointer movement does not rebuild the cached overlay unless visible content changes.
+- [x] Replace the ineffective transparent-water approximation with a bounded scene-color/depth composite: rasterize each generated water silhouette, reconstruct the visible opaque surface, and measure only its camera-ray segment inside the tank. Use non-clamping exponential extinction and path absorption so sand near the glass stays light while sand seen through more water darkens progressively before drawing surface/glass. Accumulate premultiplied tank contributions instead of letting a later tank restore the shared pre-fog scene. Keep it at the DS-native world resolution with no ray marching or global fog.
+- [x] Retain nine murkiness controls while resampling them across the useful original 0–5 response, with the final tick exactly matching former level 5; replace the 35% path-transmission floor with a gentler unclamped exponential and retain tank brightness as a floating-point draw multiplier instead of saturating it into 8-bit mesh colors.
+- [x] Give player-built glass a dedicated low-cost material: clear face-on panes and soft silver-blue room reflections. Player review removed the waterline/animated bands and then broadened the angle response so flat panes retain a visible reflection (maximum opacity 18%). Uses the existing glass draw. Build verification completed; revised appearance awaits in-game review.
+- [x] Scope minus-paint commands to the selected target tank. Crossing a neighboring tank no longer subtracts or deletes it; plus-paint retains intentional edge-touch merging.
+- [x] Reuse Black 2 ocean tile 3287's translucent upper material for player-built surfaces only, preserving its 240-sample world-continuous UV track; expose aquarium-local playback speed and cross it with a softer reverse-moving copy after bounded fog without importing the opaque ocean base.
+- [x] Install aquarium residents with deterministic model-envelope separation before their first visible frame; seed school members around an existing group and install configured followers after—and near—their leader regardless of authored roster order. If no separated valid position exists, omit the actor instead of spawning an overlap.
+- [x] Preserve separation after spawn with nearest-neighbour predictive steering, catalogue-sized soft body cores, deep-core rejection, and navigation-safe post-step correction; keep full baked envelopes authoritative for glass/fit/spawn clearance. Add a slow, local, vertically biased `jelly-drift` profile for Tentacool/Tentacruel and Frillish/Jellicent.
+- [x] Prevent collision deadlocks from producing in-place spinning by retaining a stable avoidance direction before selecting one new detour; make physical depth increase water absorption and ensure the Depths preset attenuates toward near-black rather than the brighter shared water hue.
+- [x] Pack each resident's authored capacity mask into the tank-capacity grid and draw its Pokémon sprite over the occupied cells, so capacity is spatially legible instead of being only a numeric budget.
+- [x] Apply data-driven stocking clearance to approved species: one extra column/row for the smallest normal masks and two for larger masks, retaining compact exceptions for Wishiwashi, Pyukumuku, and Barboach plus the already-maximum Wailord footprint. Golisopod consequently requires at least a four-cell-wide packing row rather than fitting in a 3×3 tank.
+- [x] Anchor unpositioned crawler models by their rendered lower extent at the lowest player-tank water floor instead of inheriting the volume midpoint.
+- [x] Use measured rendered horizontal bounds plus a player-tank glass comfort margin for every generated swimmer, including crawlers; authored shallow-pool overhang behavior remains unchanged.
+- [x] Feed the exact generated tank boundary into exhibit-light spill rendering, so independently rounded and flat corners no longer share a maximum-radius light silhouette.
+- [x] Add a catalogue-driven timid reef movement profile: Corsola receives randomized valid floor spawns, long idle intervals, very short local moves, and navigation-validated fleeing from nearby Mareanie or Toxapex.
+- [x] Add catalogue-driven activity cadence: bottom residents alternate movement and idle animations, Shellder/Cloyster make rare short relocation bursts, Pyukumuku rests often, and benthic swimmers can leave the floor for a lower-water excursion before returning to rest.
+- [x] Resolve approved catalogue model paths through the project root before runtime publication.
+- [x] Bake versioned per-form physical envelopes with the native Attend loader across configured movement/rest animations; stale profiles fail closed without stocking-panel model loads.
+- [x] Gate stocking through actual layered navigation, model height, glass clearance, and large-cruiser turning/travel space, then reuse the same envelope while spawning.
+- [x] Keep capacity boards rectangular and automatically packed, preserve readable cells through independent scrolling, and communicate width/height/turning/capacity failures with contextual pictograms instead of text modals.
+- [x] Restore the Builder Lab to its proven compact 24×18 layout and 340-cell doorway-safe mask after live testing showed the 54×33 expansion was too large; preserve the expanded room as the OWMAP recovery backup.
+- [ ] Player review: verify panel layout, sprite readability, capacity feedback, repeated add/remove responsiveness, controller-only flow, save/reload, and undo/redo.
+
+Focused verification: `aquarium_stocking_tests`, `aquarium_design_tests`,
+`aquarium_command_tests`, `aquarium_runtime_tests`, and the shipping
+`title_screen_demo` target pass. The shipped catalogue test confirms every
+approved entry references an existing model. This is intentionally the smallest
+stocking slice; mask packing is visible but direct mask dragging, catalogue filters, habitat
+compatibility feedback, and richer per-profile locomotion remain follow-ups
+after live UX review.
+# Decoration UI simplification — 2026-09-12
+
+2026-09-13 contextual visitor dialogue: 92 authored templates in a dedicated JSON
+catalogue; watched-tank species/decorations/tunnels gate eligible lines. Room runtime
+population supplies species names, not unspawnable stock selections. Shared recent
+template history and least-recent reuse reduce repetition. Exactly two initiated
+exchanges per visitor per building visit; exhausted visitors remain present but
+cannot be targeted for dialogue. Outside-map entry resets allowances. Added catalogue
+variety, context filtering, substitution, repetition and exchange-limit tests. Live
+dialogue, second/third interaction and linked-room/exit reset review pending.
+Verification completed 2026-09-14: shipping build and two focused visitor/dialogue
+tests pass (0.38 s); native suite 76/82 with the same six baseline failures
+(47.33 s). Whitespace check clean. No in-game visual QA claimed.
+
+2026-09-13 viewing-time tuning: shipped visitor/follower viewing stops reduced from
+15–120 seconds to 5–20 seconds through aquarium_visitors.json. No movement speed or
+fish AI changes. Restart the scene to load the new session settings.
+Verification: focused visitor test passes (0.50 s); native suite 76/82 with the
+same six baseline failures (46.88 s). Whitespace check clean.
+
+2026-09-13 snake-follow correction: retained last real movement target rather than
+recomputing behind the owner's facing after a stop. Direction-only input no longer
+cancels an exhibit visit. Normal following prefers the recorded player trail,
+preserving corners; off-trail catch-up remains collision-aware. Companion watching
+stays a separate idle action. Added stationary-target and corner-trail contracts;
+live turn-in-place and companion-to-follow transition review pending.
+Verification: shipping build and focused visitor/follower contracts pass (0.47 s);
+native suite 76/82, unchanged six baseline failures (45.49 s). Whitespace check clean.
+
+2026-09-13 trailing/companion fix: normal aquarium following now targets the owner's
+previous movement cell or the cell behind their stopped facing, never any available
+neighbor. Side-by-side viewing is an explicit idle opportunity requiring a matching
+tank ID/facing and free side spot. Moving overrides it. Inspection passes original
+world-facing to the follower. Tests cover all rear directions, blocked rear cells,
+same-exhibit joining, moving priority and corner/trail following. Live following
+and companion-view timing review pending.
+Verification: shipping build and two focused camera/visitor tests pass (0.50 s);
+native suite 76/82 with the same six baseline failures (46.44 s). Whitespace check clean.
+
+2026-09-13 follower interest: camera-relative walk/idle row selection shared with
+visitors. Aquarium-only follower planner reuses their collision-derived watch spots,
+NPC reservations and wait/speed config, preferring new tanks with occasional owner
+returns. Replaces nature idle/replay in this room only; movement cancellation uses
+room-local walking paths, never idle-exit teleport or doorway travel. Added tests
+for exhibit preference, occupied targets, owner returns, infeasible routes and
+package-specific sprite rows. Live inspection facing, watch timing, owner resume,
+NPC circulation and exterior follower regression checks remain pending.
+Verification: shipping build and focused visitor/follower-planner contracts pass
+(0.40 s); native suite 76/82, same six baseline failures (44.88 s). Whitespace check clean.
+
+2026-09-13 visitor presentation follow-up: shuffled round-robin appearances replace
+independent random draws; adult speed defaults to 0.55× ordinary walking via JSON.
+Walking and idle visitor sprite rows now follow camera orientation without changing
+simulation facing or resetting animation. Added cycle, speed-config and cardinal
+camera-facing contracts. Live four-sided tank inspection and pacing review pending.
+Verification: shipping build and visitor tests pass (0.44 s); full suite 76/82
+with the six baseline failures unchanged (46.91 s). Diff whitespace check clean.
+
+2026-09-13 visitor first slice: session-local room populations using existing human
+NPC appearances, collision/motors/rendering and direct dialogue. Added configurable
+area-based capacity, 15–120-second stops, visit history, route reservations,
+linked-door transfers, exit despawning and entrance arrivals. Off-screen populations
+pause; construction revalidates placement/capacity afterward. No persisted schemas,
+assets, population of aquarium Pokémon, or exterior population rules changed.
+Pure route/config tests added; pathfinding limited to one resident search per frame.
+Measured standalone 128×128 route p95: 4.20 ms on this development build (not total
+visitor frame time). Live first-entry distribution, 2-minute observation, dialogue,
+moving/stationary collision, tunnel circulation, room travel and construction
+revalidation remain manual review checkpoints; no visual QA claimed.
+Verification: shipping build and three focused visitor/interaction/door tests pass
+(0.13 s). Full native suite: 76/82, same six baseline failures (45.25 s).
+Diff whitespace check clean. Await player feedback before further visitor features.
+
+2026-09-13 first-view rear-tank fix: exclude other tanks whose footprint contains
+the camera even when the eye is above their water surface. Projected foreground
+obstructions no longer require their center to be in front of the camera; large
+tanks can straddle that plane. Added elevated first-view coverage preserving
+same-depth peers. Screenshot reproduction still needs in-game confirmation.
+Verification: shipping build and inspection test pass (0.27 s); native suite
+75/81 with the same six baseline failures (46.80 s); diff whitespace check clean.
+
+2026-09-13 close-up correction: supersedes the stationary resident-focus follow-up
+below. Camera travel stops outside the approached glass; optical zoom completes
+small/distant resident framing. Overview/exit restore FOV. Visibility now also
+hides nearer tanks overlapping the selected exhibit's projected bounds, keeping
+same-depth neighbors and non-obstructing side tanks. No save or simulation changes.
+Shipping build and focused inspection contracts pass (0.26 s); full native suite
+75/81, same six baseline failures (45.85 s). Live small/deep resident focus and
+foreground culling review remain pending.
+
+Inspection follow-up: replaced selected-tank-only rendering with a camera-relative
+hidden-ID list shared by meshes/fog/actors/light spill. Preserve same-depth peers
+and tanks partially in front; hide fully rearward and overhead/overlapping tanks.
+Resident focus now holds camera position outside the glass while changing aim.
+Dedicated tests cover peer/rear/overhead visibility and stationary fish-focus camera.
+Verification: shipping build and focused inspection test pass (0.29 s); full
+native suite remains 75/81 with the six baseline failures (47.45 s). Visual review pending.
+
+2026-09-13 inspection revision: forward-facing first view; whole-tank second view
+with player visible; bounded mouse look; resident click-focus and stepwise exit.
+Temporary selected-tank render filtering covers geometry, water/fog, residents,
+decorations and light spill; the camera-side wall uses wall-local plane clipping.
+No save/schema or simulation changes. Dedicated camera state/framing tests added;
+live review of long/deep tanks, all four approaches, picking and restoration pending.
+Verification: shipping build and new inspection contracts pass (including small
+tanks always zooming out on second accept). Full native suite: 75/81, same six
+baseline failures, 47.49 s. Final standoff adjustment rebuilt/focused-tested.
+
+2026-09-13 tray click follow-up: click/release now places at the valid tank center
+and keeps selection; an eight-logical-pixel threshold distinguishes dragging.
+Dragging back to the tray still cancels. Placement validation/history are unchanged.
+Build and focused decoration test pass; full suite retains the six baseline
+failures (74/80, 45.32 s). In-game click/drag review pending.
+
+2026-09-13 Black prop rendering follow-up: decoration instances now use clockwise
+backface culling for the overworld camera basis, rather than copying Attend's
+opposite-basis setting. Single-sided Black GLBs retain their exteriors; double-sided
+Marine Park materials still bypass culling. No asset rebaking, normal inversion,
+Pokemon cull changes or global render-state changes. Tests cover actual Black/MPE
+material flags, projected triangle winding, and resident-policy isolation.
+Live screenshot comparison remains pending player review.
+Verification: shipping build passes; decoration regression passes (0.46 s).
+Full native suite remains 74/80 with the six known baseline failures (46.29 s).
+
+Default tuning follow-up: every general editor entry resets to maximum zoom-out
+(1.8); newly placed decorations start at six scale ticks rather than four, without
+changing existing saved sizes. Category glyphs now use filled, colored silhouettes.
+Shipping build and focused runtime/decoration tests pass (1.58 s); full suite
+remains 74/80 with the six baseline failures (46.64 s). Icon capture inspected.
+
+Follow-up: corrected raw-event interception which consumed mouse callbacks before
+InputRouter could dispatch them (also preserve mapped keyboard/controller actions).
+Added real InputRouter pointer-sequence coverage, selected-tank camera centering,
+four icon-only catalogue categories, and removed dotted capacity/height guides.
+No persisted decoration format or fish behavior changed.
+Follow-up verification: shipping build and focused decoration/input-router tests
+pass (0.47 s); full native suite remains 74/80 with the same six baseline failures
+(46.80 s). SDL category-tray capture inspected; live interaction review pending.
+
+- [x] Keep normal Z-editor camera pose/angle; remove top-down/tool-driven tilting.
+- [x] Reuse construction accept/cancel, trash and undo/redo glyphs and hit layout.
+- [x] Preview-only lower catalogue, without asset-name labels; wheel pages tray.
+- [x] Drag from tray to place; move/height/size/rotation knobs finish on release.
+- [x] Preserve height on lateral moves; invalid drops and focus loss cancel drafts.
+- [x] Keep 25-object limit and transactional arrangement save; no fish AI changes.
+- [x] Focused decoration test protects transforms, history, capacity, icon hit
+  layout, transparent HUD area, and repeated-UV plant previews.
+- [ ] Player checkpoint: test tray drag/drop, all knobs, history and finish/cancel
+  in-game before adding further decoration features.
+
+Verification: shipping build passes; focused `aquarium_decoration_tests` passes
+(0.43 s). Full native suite: 74/80, the same six baseline failures in architecture
+rules, Attend config, config loader, legacy aquarium layout, OWMAP and ocean tile
+tests. Final thumbnail-only adjustment was rebuilt and focused-tested afterward.
+Inspected the SDL tray/knob capture; live bgfx interaction remains player review.

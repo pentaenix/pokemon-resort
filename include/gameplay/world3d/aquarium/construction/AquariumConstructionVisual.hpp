@@ -34,16 +34,31 @@ enum class ConstructionHudAction {
     Review,
     Build,
     Adjust,
+    Stock,
+    Decorate,
     Delete,
     Undo,
     Redo,
     Cancel,
     Done,
     Exit,
+    Room,
+    RoomNarrower,
+    RoomWider,
+    RoomShallower,
+    RoomDeeper,
 };
 
 struct AquariumConstructionVisual {
+    struct RoomHandle {
+        float x=0,y=0;
+        int wall=0;
+        bool add_door=false, focused=false;
+    };
     bool visible = false;
+    bool stocking_active = false;
+    std::string decoration_focus_tank;
+    std::vector<std::string> inspection_hidden_tanks;
     float tile_world_units = 16.0f;
     float placement_offset_world_units = 8.0f;
     std::vector<ConstructionCellSurface> cells;
@@ -69,6 +84,9 @@ struct AquariumConstructionVisual {
     ConstructionHudAction focused_action = ConstructionHudAction::None;
     std::string navigation_hint;
     std::string status_hint;
+    std::optional<std::array<float,4>> room_outline;
+    std::vector<RoomHandle> room_handles;
+    std::vector<std::array<float,4>> room_portals;
 };
 
 struct ConstructionVisualVertex {
@@ -118,12 +136,16 @@ struct ConstructionHudLayout {
     ConstructionHudRect review;
     ConstructionHudRect build;
     ConstructionHudRect adjust;
+    ConstructionHudRect stock;
+    ConstructionHudRect decorate;
     ConstructionHudRect remove;
     ConstructionHudRect undo;
     ConstructionHudRect redo;
     ConstructionHudRect cancel;
     ConstructionHudRect done;
     ConstructionHudRect exit;
+    ConstructionHudRect room;
+    ConstructionHudRect room_narrower, room_wider, room_shallower, room_deeper;
 };
 
 struct ConstructionHudChoice {
@@ -157,18 +179,25 @@ struct ConstructionGizmoHit {
     std::optional<std::string> tunnel_id;
 };
 
-inline constexpr int kConstructionWorkingViewHalfColumns = 10;
-inline constexpr int kConstructionWorkingViewHalfRows = 8;
-
 bool aquariumConstructionCellInWorkingView(
     pr::aquarium::geometry::GridCell cell,
-    pr::aquarium::geometry::GridCell view_center);
+    const camera::Gen4FollowCamera& camera, int width, int height,
+    float tile, float offset, float floor);
 
 ConstructionVisualMesh buildAquariumConstructionWorldMesh(
     const AquariumConstructionVisual& visual);
 
 std::optional<pr::aquarium::geometry::GridCell> hitTestAquariumConstructionCell(
     const AquariumConstructionVisual& visual,
+    const gameplay::world3d::camera::Gen4FollowCamera& camera,
+    int screen_x,
+    int screen_y,
+    int viewport_width,
+    int viewport_height);
+
+std::optional<pr::aquarium::geometry::GridCell> hitTestAquariumConstructionTankCell(
+    const AquariumConstructionVisual& visual,
+    const std::vector<pr::aquarium::geometry::TankDesign>& tanks,
     const gameplay::world3d::camera::Gen4FollowCamera& camera,
     int screen_x,
     int screen_y,
@@ -188,6 +217,16 @@ ConstructionHudLayout aquariumConstructionHudLayout(
     int viewport_height,
     ConstructionState state,
     bool property_draft = false);
+
+// Decoration mode reuses the construction icon renderer and its hit rectangles.
+inline ConstructionHudLayout aquariumDecorationHudLayout(int width,int height) {
+    auto layout=aquariumConstructionHudLayout(width,height,ConstructionState::Selected);
+    auto draft=aquariumConstructionHudLayout(width,height,ConstructionState::DraftReview);
+    layout.stock={};layout.decorate={};layout.room={};layout.place={};layout.subtract={};layout.exit={};layout.status={};
+    layout.build=draft.build;layout.cancel=draft.cancel;
+    layout.remove.x=layout.cancel.x-layout.cancel.width-10;
+    return layout;
+}
 
 ConstructionHudAction hitTestAquariumConstructionHud(
     const ConstructionHudLayout& layout,

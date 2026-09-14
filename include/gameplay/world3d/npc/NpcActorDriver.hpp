@@ -6,6 +6,7 @@
 #include "gameplay/world3d/characters/GridActorMotor.hpp"
 #include "gameplay/world3d/characters/SpriteSheetAnimator.hpp"
 #include "gameplay/world3d/npc/ResortPokemonSpawnConfig.hpp"
+#include "gameplay/world3d/npc/AquariumVisitors.hpp"
 #include "gameplay/world3d/rendering/BillboardPlacement.hpp"
 #include "gameplay/world3d/terrain/ActorTerrainBinding.hpp"
 
@@ -145,6 +146,10 @@ public:
     std::vector<NpcEffectActorSnapshot> effectActorSnapshots() const;
 
     bool empty() const { return actors_.empty(); }
+    const std::string& aquariumVisitorRevision() const { return visitor_plan_.revision; }
+    const VisitorRoomPlan& aquariumVisitorPlan() const { return visitor_plan_; }
+    std::vector<std::pair<int,int>> occupiedActorTiles() const;
+    void configureAquariumVisitors(std::shared_ptr<AquariumVisitorSession>,VisitorRoomPlan);
 
 private:
     struct Actor {
@@ -171,6 +176,8 @@ private:
         double interaction_jump_elapsed_seconds = -1.0;
         int interaction_jump_height_pixels = 0;
         bool moving = false;
+        bool aquarium_visitor = false;
+        bool visitor_watching = false;
         bool running = false;
         bool have_follow_last_target_tile = false;
         FacingDirection facing = FacingDirection::South;
@@ -184,6 +191,17 @@ private:
     };
 
     std::optional<std::size_t> addActorAtRandomValidTile(const NpcActorDefinition& definition);
+    void updateAquariumVisitors(double dt);
+    bool attachAquariumVisitor(AquariumVisitorRecord&);
+    void chooseVisitorDestination(Actor&,AquariumVisitorRecord&);
+    void removeAquariumVisitorActor(const std::string&);
+    bool visitorConversationAvailable(const Actor&) const;
+    bool beginVisitorConversation(Actor&);
+    std::shared_ptr<AquariumVisitorSession> visitor_session_;
+    VisitorRoomPlan visitor_plan_;
+    std::vector<unsigned char> visitor_walkable_;
+    std::vector<VisitorCell> visitor_cells_;
+    double visitor_arrival_seconds_=0;
     std::optional<std::size_t> addActorAtTile(const NpcActorDefinition& definition, int tx, int ty);
     std::optional<std::size_t> addActor(const NpcActorDefinition& definition, int tx, int ty);
     void addPartnerPokemonForActor(const Actor& owner);

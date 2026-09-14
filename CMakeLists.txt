@@ -38,7 +38,7 @@ set(WORLD3D_BGFX_SHADER_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/gameplay/worl
 set(WORLD3D_BGFX_SHADER_OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated/world3d-shaders)
 bgfx_compile_shaders(
     TYPE VERTEX
-    SHADERS ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/vs_world.sc ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/vs_world_camera_sphere.sc ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/vs_world_pica.sc ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/vs_billboard.sc
+    SHADERS ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/vs_world.sc ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/vs_world_camera_sphere.sc ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/vs_world_pica.sc ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/vs_billboard.sc ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/vs_aquarium_fog_volume.sc
     VARYING_DEF ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/varying.def.sc
     OUTPUT_DIR ${WORLD3D_BGFX_SHADER_OUTPUT_DIR}
     INCLUDE_DIRS ${bgfx_cmake_SOURCE_DIR}/bgfx/src
@@ -46,7 +46,7 @@ bgfx_compile_shaders(
 )
 bgfx_compile_shaders(
     TYPE FRAGMENT
-    SHADERS ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/fs_textured_cutout.sc ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/fs_textured_wall_clip.sc ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/fs_pokemon_eye.sc ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/fs_eye_sclera_mask.sc ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/fs_pica_tev.sc
+    SHADERS ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/fs_aquarium_pokemon_pulse.sc ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/fs_textured_cutout.sc ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/fs_textured_wall_clip.sc ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/fs_aquarium_water.sc ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/fs_aquarium_glass.sc ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/fs_aquarium_fog_volume.sc ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/fs_pokemon_eye.sc ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/fs_eye_sclera_mask.sc ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/fs_pica_tev.sc
     VARYING_DEF ${WORLD3D_BGFX_SHADER_SOURCE_DIR}/varying.def.sc
     OUTPUT_DIR ${WORLD3D_BGFX_SHADER_OUTPUT_DIR}
     INCLUDE_DIRS ${bgfx_cmake_SOURCE_DIR}/bgfx/src
@@ -130,6 +130,7 @@ add_library(world3d_bgfx_renderer STATIC
     src/gameplay/world3d/aquarium/construction/AquariumConstructionHudLayout.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionDepthVisual.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionVisual.cpp
+    src/gameplay/world3d/aquarium/construction/AquariumConstructionTankHitTest.cpp
     src/gameplay/world3d/rendering/bgfx/BgfxBackend.cpp
     src/gameplay/world3d/rendering/bgfx/BillboardBgfxDrawer.cpp
     src/gameplay/world3d/rendering/bgfx/OverworldBgfxRenderer.cpp
@@ -194,23 +195,40 @@ add_executable(title_screen_demo
     src/gameplay/world3d/data/GlbModelLoader.cpp
     src/gameplay/world3d/data/GlbModelAnimation.cpp
     src/gameplay/world3d/aquarium/AquariumConfig.cpp
+    src/gameplay/world3d/aquarium/AquariumCrowdSimulation.cpp
+    src/gameplay/world3d/aquarium/AquariumFormationSimulation.cpp
     src/gameplay/world3d/aquarium/AquariumInspectionCamera.cpp
     src/gameplay/world3d/aquarium/AquariumInspectionFacing.cpp
     src/gameplay/world3d/aquarium/AquariumNavigation.cpp
     src/gameplay/world3d/aquarium/AquariumPokemonMetrics.cpp
     src/gameplay/world3d/aquarium/AquariumSimulation.cpp
+    src/gameplay/world3d/aquarium/AquariumSimulationMotion.cpp
+    src/gameplay/world3d/aquarium/AquariumSimulationSchool.cpp
+    src/gameplay/world3d/aquarium/AquariumSchoolSimulation.cpp
+    src/gameplay/world3d/aquarium/AquariumBodyNavigation.cpp
+    src/gameplay/world3d/aquarium/AquariumMotion.cpp
+    src/gameplay/world3d/aquarium/AquariumSpeciesCatalog.cpp
     src/gameplay/world3d/aquarium/construction/AquariumCollisionOverlay.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionCommand.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionCamera.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionOverlay.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionSession.cpp
+    src/gameplay/world3d/aquarium/decorations/AquariumDecorationCommand.cpp
+    src/gameplay/world3d/aquarium/construction/AquariumConstructionCellIndex.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionSessionProperties.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionSessionSubtract.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionSessionPaint.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionSessionTunnel.cpp
     src/gameplay/world3d/aquarium/construction/AquariumDesign.cpp
+    src/gameplay/world3d/aquarium/decorations/AquariumDecoration.cpp
     src/gameplay/world3d/aquarium/construction/AquariumDesignStore.cpp
     src/gameplay/world3d/aquarium/construction/AquariumPlayerRuntime.cpp
+    src/gameplay/world3d/aquarium/construction/AquariumHabitatValidator.cpp
+    src/gameplay/world3d/aquarium/construction/AquariumStockingController.cpp
+    src/gameplay/world3d/aquarium/construction/AquariumStockingOverlay.cpp
+    src/gameplay/world3d/aquarium/construction/AquariumStockingOverlayCapacity.cpp
+    src/gameplay/world3d/aquarium/construction/AquariumStockingOverlayChrome.cpp
+    src/gameplay/world3d/aquarium/construction/AquariumStockingOverlayExhibit.cpp
     src/gameplay/world3d/aquarium/construction/AquariumTankEditing.cpp
     src/gameplay/world3d/characters/CharacterMovementConfig.cpp
     src/gameplay/world3d/rendering/GlbModelRenderer.cpp
@@ -218,11 +236,16 @@ add_executable(title_screen_demo
     src/gameplay/world3d/effects/ProceduralWaterParticleSystem.cpp
     src/gameplay/world3d/followers/FollowerConfig.cpp
     src/gameplay/world3d/followers/FollowerController.cpp
+    src/gameplay/world3d/followers/FollowerAquariumInterest.cpp
+    src/gameplay/world3d/followers/AquariumFollowerPlanner.cpp
     src/gameplay/world3d/followers/FollowerIdleExitTarget.cpp
     src/gameplay/world3d/followers/NatureIdleConfig.cpp
     src/gameplay/world3d/followers/NatureIdlePlanner.cpp
     src/gameplay/world3d/npc/ResortPokemonSpawnConfig.cpp
     src/gameplay/world3d/npc/NpcActorDriver.cpp
+    src/gameplay/world3d/npc/AquariumVisitors.cpp
+    src/gameplay/world3d/npc/AquariumVisitorDialogue.cpp
+    src/gameplay/world3d/npc/NpcAquariumVisitors.cpp
     src/gameplay/world3d/scripts/OverworldScript.cpp
     src/gameplay/world3d/doors/DoorTravel.cpp
     src/gameplay/world3d/dialogue/OverworldTextboxConfig.cpp
@@ -256,6 +279,15 @@ add_executable(title_screen_demo
     src/ui/Overworld3DTestScreen.cpp
     src/ui/Overworld3DTestScreenAquarium.cpp
     src/ui/Overworld3DTestScreenAquariumConstructionUi.cpp
+    src/ui/Overworld3DTestScreenAquariumStocking.cpp
+    src/ui/Overworld3DTestScreenAquariumDecorations.cpp
+    src/ui/Overworld3DTestScreenAquariumInspection.cpp
+    src/ui/Overworld3DTestScreenAquariumVisitors.cpp
+    src/gameplay/world3d/aquarium/decorations/AquariumDecorationCatalog.cpp
+    src/gameplay/world3d/aquarium/decorations/AquariumDecorationEditor.cpp
+    src/gameplay/world3d/aquarium/decorations/AquariumDecorationUi.cpp
+    src/ui/Overworld3DTestScreenAquariumRooms.cpp
+    src/ui/Overworld3DTestScreenAquariumRoomHandles.cpp
     src/ui/Overworld3DTestScreenCamera.cpp
     src/ui/TransferFlowCoordinator.cpp
     src/ui/title_screen/MainMenuController.cpp
@@ -373,12 +405,27 @@ add_executable(aquarium_design_tests
     tests/native/world3d/aquarium_construction/aquarium_design_tests.cpp
     src/core/config/Json.cpp
     src/gameplay/world3d/aquarium/construction/AquariumDesign.cpp
+    src/gameplay/world3d/aquarium/decorations/AquariumDecoration.cpp
 )
 target_include_directories(aquarium_design_tests PRIVATE include)
 target_link_libraries(aquarium_design_tests PRIVATE aquarium_geometry)
 add_test(NAME aquarium_design_tests COMMAND aquarium_design_tests)
 
+add_executable(aquarium_stocking_tests
+    tests/native/world3d/aquarium_construction/aquarium_stocking_tests.cpp
+    src/core/config/Json.cpp
+    src/gameplay/world3d/aquarium/AquariumSpeciesCatalog.cpp
+    src/gameplay/world3d/aquarium/AquariumNavigation.cpp
+    src/gameplay/world3d/aquarium/construction/AquariumHabitatValidator.cpp
+    src/gameplay/world3d/aquarium/construction/AquariumStockingController.cpp
+)
+target_include_directories(aquarium_stocking_tests PRIVATE include)
+target_link_libraries(aquarium_stocking_tests PRIVATE aquarium_geometry)
+add_test(NAME aquarium_stocking_tests COMMAND aquarium_stocking_tests)
+
 add_executable(aquarium_command_tests
+    src/core/config/Json.cpp
+    src/gameplay/world3d/aquarium/decorations/AquariumDecoration.cpp
     tests/native/world3d/aquarium_construction/aquarium_command_tests.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionCommand.cpp
     src/gameplay/world3d/aquarium/construction/AquariumTankEditing.cpp
@@ -389,23 +436,30 @@ add_test(NAME aquarium_command_tests COMMAND aquarium_command_tests)
 
 add_executable(aquarium_runtime_tests
     tests/native/world3d/aquarium_construction/aquarium_runtime_tests.cpp
+    tests/native/world3d/aquarium_construction/aquarium_large_room_tests.cpp
     src/core/config/Json.cpp
     src/gameplay/world3d/camera/Gen4FollowCamera.cpp
     src/gameplay/attend/PokemonModelCatalog.cpp
     src/gameplay/world3d/aquarium/AquariumNavigation.cpp
+    src/gameplay/world3d/aquarium/AquariumSpeciesCatalog.cpp
     src/gameplay/world3d/aquarium/construction/AquariumCollisionOverlay.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionCommand.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionHudLayout.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionDepthVisual.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionCamera.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionSession.cpp
+    src/gameplay/world3d/aquarium/decorations/AquariumDecorationCommand.cpp
+    src/gameplay/world3d/aquarium/construction/AquariumConstructionCellIndex.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionSessionProperties.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionSessionSubtract.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionSessionPaint.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionSessionTunnel.cpp
     src/gameplay/world3d/aquarium/construction/AquariumConstructionVisual.cpp
+    src/gameplay/world3d/aquarium/construction/AquariumConstructionTankHitTest.cpp
     src/gameplay/world3d/aquarium/construction/AquariumDesign.cpp
+    src/gameplay/world3d/aquarium/decorations/AquariumDecoration.cpp
     src/gameplay/world3d/aquarium/construction/AquariumDesignStore.cpp
+    src/gameplay/world3d/aquarium/construction/AquariumHabitatValidator.cpp
     src/gameplay/world3d/aquarium/construction/AquariumPlayerRuntime.cpp
     src/gameplay/world3d/aquarium/construction/AquariumTankEditing.cpp
 )
@@ -420,6 +474,7 @@ add_executable(aquarium_geometry_golden_dump
     tools/aquarium_geometry_wasm/GoldenDump.cpp
     src/core/config/Json.cpp
     src/gameplay/world3d/aquarium/construction/AquariumDesign.cpp
+    src/gameplay/world3d/aquarium/decorations/AquariumDecoration.cpp
 )
 target_include_directories(aquarium_geometry_golden_dump PRIVATE
     include
@@ -733,8 +788,29 @@ add_executable(owmap_overworld_loader_tests
     src/gameplay/world3d/camera/Gen4FollowCamera.cpp
 )
 
+add_library(aquarium_room_layout STATIC
+    src/gameplay/world3d/aquarium/rooms/AquariumBuildingLayout.cpp
+    src/gameplay/world3d/aquarium/rooms/AquariumBuildingLayoutJson.cpp
+    src/gameplay/world3d/aquarium/rooms/AquariumRoomRuntime.cpp
+    src/gameplay/world3d/aquarium/rooms/AquariumBuildingScene.cpp
+    src/gameplay/world3d/aquarium/rooms/AquariumRoomStore.cpp
+)
+target_include_directories(aquarium_room_layout PUBLIC include)
+target_link_libraries(title_screen_demo PRIVATE aquarium_room_layout)
+add_executable(aquarium_room_layout_tests
+    tests/native/world3d/aquarium_room_layout_tests.cpp
+    src/core/config/Json.cpp
+    src/gameplay/world3d/doors/DoorTravel.cpp
+)
+target_link_libraries(aquarium_room_layout_tests PRIVATE aquarium_room_layout)
+target_compile_definitions(aquarium_room_layout_tests PRIVATE PR_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+add_test(NAME aquarium_room_layout_tests COMMAND aquarium_room_layout_tests)
+
 add_executable(aquarium_tests
     tests/native/world3d/aquarium_tests.cpp
+    tests/native/world3d/aquarium_motion_tests.cpp
+    tests/native/world3d/aquarium_school_tests.cpp
+    tests/native/world3d/aquarium_emission_tests.cpp
     src/core/config/Json.cpp
     src/gameplay/attend/PokemonModelCatalog.cpp
     src/core/crypto/Sha256.cpp
@@ -742,18 +818,89 @@ add_executable(aquarium_tests
     src/gameplay/attend/rendering/AttendPokemonMaterialPolicy.cpp
     src/gameplay/attend/rendering/AttendPokemonModel.cpp
     src/gameplay/world3d/aquarium/AquariumConfig.cpp
+    src/gameplay/world3d/aquarium/AquariumCrowdSimulation.cpp
+    src/gameplay/world3d/aquarium/AquariumFormationSimulation.cpp
     src/gameplay/world3d/aquarium/AquariumInspectionCamera.cpp
     src/gameplay/world3d/aquarium/AquariumInspectionFacing.cpp
     src/gameplay/world3d/aquarium/AquariumNavigation.cpp
     src/gameplay/world3d/aquarium/AquariumPokemonMetrics.cpp
     src/gameplay/world3d/aquarium/AquariumSimulation.cpp
+    src/gameplay/world3d/aquarium/AquariumSimulationMotion.cpp
+    src/gameplay/world3d/aquarium/AquariumSimulationSchool.cpp
+    src/gameplay/world3d/aquarium/AquariumSchoolSimulation.cpp
+    src/gameplay/world3d/aquarium/AquariumBodyNavigation.cpp
+    src/gameplay/world3d/aquarium/AquariumMotion.cpp
     src/gameplay/world3d/camera/Gen4FollowCamera.cpp
     src/gameplay/world3d/camera/FreeCameraCapture.cpp
 )
 target_include_directories(aquarium_tests PRIVATE include)
 target_compile_definitions(aquarium_tests PRIVATE PR_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
-target_link_libraries(aquarium_tests PRIVATE aquarium_pokemon_runtime_lod SDL2::SDL2 PkgConfig::ZSTD)
+target_link_libraries(aquarium_tests PRIVATE aquarium_geometry aquarium_pokemon_runtime_lod SDL2::SDL2 PkgConfig::ZSTD)
 add_test(NAME aquarium_tests COMMAND aquarium_tests)
+add_test(NAME aquarium_motion_tests COMMAND aquarium_tests --motion-only)
+add_test(NAME aquarium_school_tests COMMAND aquarium_tests --school-only)
+add_test(NAME aquarium_emission_tests COMMAND aquarium_tests --emission-only)
+
+add_executable(aquarium_species_envelope_dump EXCLUDE_FROM_ALL
+    tools/aquarium_species_curator/EnvelopeDump.cpp
+    src/core/config/Json.cpp
+    src/core/crypto/Sha256.cpp
+    src/gameplay/attend/rendering/AttendPokemonAsset.cpp
+    src/gameplay/attend/rendering/AttendPokemonMaterialPolicy.cpp
+    src/gameplay/attend/rendering/AttendPokemonModel.cpp
+    src/gameplay/world3d/aquarium/AquariumPokemonMetrics.cpp
+    src/gameplay/world3d/aquarium/AquariumSpeciesCatalog.cpp
+)
+target_include_directories(aquarium_species_envelope_dump PRIVATE include)
+target_link_libraries(aquarium_species_envelope_dump PRIVATE
+    aquarium_pokemon_runtime_lod SDL2::SDL2 PkgConfig::ZSTD)
+
+add_executable(aquarium_decoration_tests
+    src/core/input/InputRouter.cpp
+    src/core/input/InputBindings.cpp
+    tests/native/world3d/aquarium_construction/aquarium_decoration_tests.cpp
+    src/gameplay/world3d/aquarium/construction/AquariumConstructionHudLayout.cpp
+    src/core/config/Json.cpp
+    src/core/crypto/Sha256.cpp
+    src/core/assets/Assets.cpp
+    src/core/assets/Font.cpp
+    src/ui/overlay/OverlayCanvas.cpp
+    src/gameplay/attend/rendering/AttendPokemonAsset.cpp
+    src/gameplay/attend/rendering/AttendPokemonMaterialPolicy.cpp
+    src/gameplay/attend/rendering/AttendPokemonModel.cpp
+    src/gameplay/world3d/camera/Gen4FollowCamera.cpp
+    src/gameplay/world3d/aquarium/AquariumPokemonMetrics.cpp
+    src/gameplay/world3d/aquarium/AquariumNavigation.cpp
+    src/gameplay/world3d/aquarium/AquariumBodyNavigation.cpp
+    src/gameplay/world3d/aquarium/construction/AquariumDesign.cpp
+    src/gameplay/world3d/aquarium/construction/AquariumConstructionCommand.cpp
+    src/gameplay/world3d/aquarium/decorations/AquariumDecoration.cpp
+    src/gameplay/world3d/aquarium/decorations/AquariumDecorationCatalog.cpp
+    src/gameplay/world3d/aquarium/decorations/AquariumDecorationEditor.cpp
+    src/gameplay/world3d/aquarium/decorations/AquariumDecorationUi.cpp
+)
+add_executable(aquarium_inspection_tests
+    tests/native/world3d/aquarium_inspection_tests.cpp
+    src/gameplay/world3d/aquarium/AquariumInspectionCamera.cpp
+    src/gameplay/world3d/camera/Gen4FollowCamera.cpp)
+target_include_directories(aquarium_inspection_tests PRIVATE include)
+target_link_libraries(aquarium_inspection_tests PRIVATE aquarium_geometry SDL2::SDL2)
+add_test(NAME aquarium_inspection_tests COMMAND aquarium_inspection_tests)
+add_executable(aquarium_visitor_tests
+    src/gameplay/world3d/npc/AquariumVisitorDialogue.cpp
+    tests/native/world3d/aquarium_visitor_tests.cpp
+    src/gameplay/world3d/followers/AquariumFollowerPlanner.cpp
+    src/gameplay/world3d/npc/AquariumVisitors.cpp
+    src/core/config/Json.cpp)
+target_include_directories(aquarium_visitor_tests PRIVATE include)
+target_compile_definitions(aquarium_visitor_tests PRIVATE PR_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(aquarium_visitor_tests PRIVATE SDL2::SDL2)
+add_test(NAME aquarium_visitor_tests COMMAND aquarium_visitor_tests)
+target_include_directories(aquarium_decoration_tests PRIVATE include)
+target_compile_definitions(aquarium_decoration_tests PRIVATE PR_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(aquarium_decoration_tests PRIVATE aquarium_geometry aquarium_pokemon_runtime_lod
+    SDL2::SDL2 SDL2_image::SDL2_image SDL2_ttf::SDL2_ttf PkgConfig::ZSTD)
+add_test(NAME aquarium_decoration_tests COMMAND aquarium_decoration_tests)
 target_include_directories(owmap_overworld_loader_tests PRIVATE
     include
     ${bgfx_cmake_SOURCE_DIR}/bimg/3rdparty/tinyexr/deps/miniz)

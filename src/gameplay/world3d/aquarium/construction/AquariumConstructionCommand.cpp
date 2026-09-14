@@ -27,6 +27,37 @@ std::vector<geo::TankDesign>::const_iterator findTank(
         [&](const auto& tank) { return tank.id == tank_id; });
 }
 
+bool populationEquivalent(
+    const AquariumTankPopulation& lhs, const AquariumTankPopulation& rhs) {
+    if (lhs.tank_id != rhs.tank_id || lhs.residents.size() != rhs.residents.size()) return false;
+    auto left = lhs.residents;
+    auto right = rhs.residents;
+    const auto less = [](const auto& a, const auto& b) { return a.species_id < b.species_id; };
+    std::sort(left.begin(), left.end(), less);
+    std::sort(right.begin(), right.end(), less);
+    for (std::size_t index = 0; index < left.size(); ++index) {
+        if (left[index].species_id != right[index].species_id ||
+            left[index].count != right[index].count) return false;
+    }
+    return true;
+}
+
+const AquariumTankPopulation* findPopulation(
+    const AquariumDesignDocument& document, const std::string& tank_id) {
+    const auto found = std::find_if(
+        document.tank_populations.begin(), document.tank_populations.end(),
+        [&](const auto& population) { return population.tank_id == tank_id; });
+    return found == document.tank_populations.end() ? nullptr : &*found;
+}
+
+void removeOrphanedPopulations(AquariumDesignDocument& document) {
+    document.tank_populations.erase(std::remove_if(
+        document.tank_populations.begin(), document.tank_populations.end(),
+        [&](const auto& population) {
+            return findTank(document, population.tank_id) == document.tanks.end();
+        }), document.tank_populations.end());
+}
+
 } // namespace
 
 bool tankDesignEquivalent(const geo::TankDesign& lhs, const geo::TankDesign& rhs) {
@@ -42,6 +73,10 @@ bool tankDesignEquivalent(const geo::TankDesign& lhs, const geo::TankDesign& rhs
         a.subtracted_cells.size() != b.subtracted_cells.size() ||
         lhs.height_steps != rhs.height_steps ||
         lhs.depth_steps != rhs.depth_steps ||
+        lhs.exhibit_preset != rhs.exhibit_preset ||
+        lhs.substrate_kind != rhs.substrate_kind ||
+        lhs.brightness_level != rhs.brightness_level ||
+        lhs.murkiness_level != rhs.murkiness_level ||
         lhs.corner_radius_steps != rhs.corner_radius_steps ||
         lhs.corner_radii.size() != rhs.corner_radii.size() ||
         lhs.tunnels.size() != rhs.tunnels.size()) return false;
@@ -71,6 +106,51 @@ std::optional<AquariumDesignDocument> applyAquariumConstructionCommand(
         if (error) *error = std::move(message);
         return std::nullopt;
     };
+    if (command.kind == AquariumCommandKind::EditDecorations) {
+        if (findTank(current,command.tank_id)==current.tanks.end()) return fail("Decoration tank missing");
+        auto result=current;
+        auto found=std::find_if(result.tank_decorations.begin(),result.tank_decorations.end(),
+            [&](const auto& tank){return tank.tank_id==command.tank_id;});
+        const auto& before=direction==AquariumCommandDirection::Forward ? command.decorations_before : command.decorations_after;
+        const auto& after=direction==AquariumCommandDirection::Forward ? command.decorations_after : command.decorations_before;
+        if ((found==result.tank_decorations.end() && !before.empty()) ||
+            (found!=result.tank_decorations.end() && found->objects!=before)) return fail("Decorations changed before publication");
+        if (!decorations::validateDecorations({{command.tank_id,after}}).empty()) return fail("Invalid decorations");
+        if(found==result.tank_decorations.end()) result.tank_decorations.push_back({command.tank_id,after});
+        else found->objects=after;
+        ++result.revision;
+        return result;
+    }
+    if (command.kind == AquariumCommandKind::EditPopulation) {
+        if (findTank(current, command.tank_id) == current.tanks.end()) {
+            return fail("Population target tank is missing: " + command.tank_id);
+        }
+        const auto& expected = direction == AquariumCommandDirection::Forward
+            ? command.population_before : command.population_after;
+        const auto& replacement = direction == AquariumCommandDirection::Forward
+            ? command.population_after : command.population_before;
+        const AquariumTankPopulation* current_population = findPopulation(current, command.tank_id);
+        if (expected && (!current_population || !populationEquivalent(*current_population, *expected))) {
+            return fail("Population changed before publication: " + command.tank_id);
+        }
+        if (!expected && current_population) {
+            return fail("Population unexpectedly exists: " + command.tank_id);
+        }
+        AquariumDesignDocument result = current;
+        result.tank_populations.erase(std::remove_if(
+            result.tank_populations.begin(), result.tank_populations.end(),
+            [&](const auto& population) { return population.tank_id == command.tank_id; }),
+            result.tank_populations.end());
+        if (replacement) {
+            if (replacement->tank_id != command.tank_id) {
+                return fail("Population replacement changed its stable tank ID");
+            }
+            result.tank_populations.push_back(*replacement);
+        }
+        ++result.revision;
+        if (error) error->clear();
+        return result;
+    }
     if (command.kind == AquariumCommandKind::EditTankSet) {
         const auto& expected_tanks = direction == AquariumCommandDirection::Forward
             ? command.tanks_before : command.tanks_after;
@@ -86,6 +166,7 @@ std::optional<AquariumDesignDocument> applyAquariumConstructionCommand(
         }
         AquariumDesignDocument result = current;
         result.tanks = replacement_tanks;
+        removeOrphanedPopulations(result);
         ++result.revision;
         if (error) error->clear();
         return result;
@@ -120,6 +201,7 @@ std::optional<AquariumDesignDocument> applyAquariumConstructionCommand(
         const std::size_t index = std::min(replacement_index, result.tanks.size());
         result.tanks.insert(result.tanks.begin() + static_cast<std::ptrdiff_t>(index), *replacement);
     }
+    removeOrphanedPopulations(result);
     ++result.revision;
     if (error) error->clear();
     return result;

@@ -567,7 +567,8 @@ void FollowerController::update(
     player_facing_ = player_facing;
     player_idle_ = player_idle;
     player_running_ = player_running;
-    const bool replay_mode = session_config_.movement_mode == "replay";
+    aquarium_trailing_cell_.observe(player_segment.active,{player_segment.from_x,player_segment.from_y});
+    const bool replay_mode = session_config_.movement_mode == "replay" && aquarium_interest_.revision.empty();
     const float ts = std::max(1.0f, scene_.grid.tile_size);
     const TilePoint player_tile = replay_mode && player_segment.active
         ? TilePoint{player_segment.to_x, player_segment.to_y}
@@ -666,7 +667,9 @@ void FollowerController::update(
         follower_pos_.y = terrainBinding().simulation_y;
     }
     if (follower_animator_) {
-        const double playback_speed = player_running_ && (follower_moving_ || !path_.empty())
+        const double playback_speed = !aquarium_interest_.revision.empty() && follower_moving_
+            ? current_step_speed_multiplier_
+            : player_running_ && (follower_moving_ || !path_.empty())
             ? static_cast<double>(movement_config_.runSpeed() / std::max(1.0f, movement_config_.walkSpeed()))
             : 1.0;
         bool swimming = false;
@@ -716,6 +719,10 @@ void FollowerController::update(
         return;
     }
 
+    if (!aquarium_interest_.revision.empty()) {
+        updateAquariumInterest(dt,player_activity);
+        return;
+    }
     if (player_activity && idle_behavior_active_) {
         cancelNatureIdle();
     }
@@ -1049,6 +1056,11 @@ void FollowerController::collectBillboardDraws(
     rendering::CharacterBillboardDraw draw{};
     draw.character = &follower_def_;
     draw.source_rect = follower_animator_->sourceRect();
+    if(!aquarium_interest_.revision.empty()&&!follower_animator_->activitySessionActive()) {
+        const auto pose=camera.pose();
+        draw.source_rect.y=npc::aquariumVisitorSpriteRow(follower_def_,follower_facing_,pose.forward.x,pose.forward.z)*
+            std::max(1,follower_def_.frame_height);
+    }
     draw.activity_id = follower_animator_->textureSheetId();
     draw.draw_shadow = !follower_animator_->swimming();
     draw.use_run_texture = follower_animator_->running();

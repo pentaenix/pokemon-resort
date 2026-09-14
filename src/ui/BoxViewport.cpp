@@ -558,7 +558,8 @@ bool BoxViewport::hitTestBoxSpaceScrollArrow(int logical_x, int logical_y) const
 }
 
 bool BoxViewport::getBoxSpaceScrollArrowBounds(SDL_Rect& out) const {
-    if (role_ != BoxViewportRole::ExternalGameSave || header_mode_ != HeaderMode::BoxSpace || !arrow_tex_.texture ||
+    if (footer_mode_ == FooterMode::Hidden ||
+        role_ != BoxViewportRole::ExternalGameSave || header_mode_ != HeaderMode::BoxSpace || !arrow_tex_.texture ||
         !box_space_scroll_arrow_visible_) {
         return false;
     }
@@ -605,6 +606,7 @@ bool BoxViewport::getNamePlateBounds(SDL_Rect& out) const {
 }
 
 bool BoxViewport::getFooterBoxSpaceBounds(SDL_Rect& out) const {
+    if (footer_mode_ == FooterMode::Hidden) return false;
     const int vx = viewport_x_;
     const int vy = viewport_y_;
     const int pill_y = vy + kNameTopPad;
@@ -622,6 +624,7 @@ bool BoxViewport::getFooterBoxSpaceBounds(SDL_Rect& out) const {
 }
 
 bool BoxViewport::getFooterGameIconBounds(SDL_Rect& out) const {
+    if (footer_mode_ == FooterMode::Hidden) return false;
     const int vx = viewport_x_;
     const int vy = viewport_y_;
     const int pill_y = vy + kNameTopPad;
@@ -639,7 +642,8 @@ bool BoxViewport::getFooterGameIconBounds(SDL_Rect& out) const {
 }
 
 bool BoxViewport::getResortScrollArrowBounds(SDL_Rect& out) const {
-    if (role_ != BoxViewportRole::ResortStorage || !arrow_tex_.texture) {
+    if (footer_mode_ == FooterMode::Hidden ||
+        role_ != BoxViewportRole::ResortStorage || !arrow_tex_.texture) {
         return false;
     }
     const int vx = viewport_x_;
@@ -935,15 +939,15 @@ void BoxViewport::renderBelowNamePlate(SDL_Renderer* renderer) const {
         }
     };
 
-    if (role_ == BoxViewportRole::ResortStorage) {
+    if (footer_mode_ == FooterMode::Standard && role_ == BoxViewportRole::ResortStorage) {
         draw_game_icon_at(vx + kFooterEdgePad);
         draw_box_space_button(vx + BoxViewport::kViewportWidth - kFooterEdgePad - kBoxSpaceBtnW);
-    } else {
+    } else if (footer_mode_ == FooterMode::Standard) {
         draw_box_space_button(vx + kFooterEdgePad);
         draw_game_icon_at(vx + BoxViewport::kViewportWidth - kFooterEdgePad - kGameIconSize);
     }
 
-    if (arrow_tex_.texture) {
+    if (footer_mode_ == FooterMode::Standard && arrow_tex_.texture) {
         if (role_ == BoxViewportRole::ResortStorage) {
             const int grid_mid_x = full_grid_x + full_grid_w / 2;
             const int scroll_cy =

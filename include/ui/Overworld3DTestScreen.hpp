@@ -20,11 +20,17 @@
 #include "gameplay/world3d/aquarium/AquariumInspectionCamera.hpp"
 #include "gameplay/world3d/aquarium/AquariumInspectionFacing.hpp"
 #include "gameplay/world3d/aquarium/AquariumSimulation.hpp"
+#include "gameplay/world3d/aquarium/AquariumSpeciesCatalog.hpp"
+#include "gameplay/world3d/aquarium/decorations/AquariumDecorationUi.hpp"
+#include "gameplay/world3d/aquarium/rooms/AquariumRoomRuntime.hpp"
+#include "gameplay/world3d/aquarium/rooms/AquariumRoomStore.hpp"
 #include "gameplay/world3d/aquarium/construction/AquariumCollisionOverlay.hpp"
 #include "gameplay/world3d/aquarium/construction/AquariumConstructionCamera.hpp"
 #include "gameplay/world3d/aquarium/construction/AquariumConstructionOverlay.hpp"
 #include "gameplay/world3d/aquarium/construction/AquariumDesignStore.hpp"
 #include "gameplay/world3d/aquarium/construction/AquariumPlayerRuntime.hpp"
+#include "gameplay/world3d/aquarium/construction/AquariumStockingController.hpp"
+#include "gameplay/world3d/aquarium/construction/AquariumStockingOverlay.hpp"
 #include "gameplay/world3d/aquarium/construction/AquariumConstructionVisual.hpp"
 #include "gameplay/world3d/rendering/BillboardSpriteRenderer.hpp"
 #include "gameplay/world3d/rendering/GlbModelRenderer.hpp"
@@ -98,7 +104,7 @@ private:
     void ensurePlacedModelsLoaded();
     void reloadFollowCameraPresetConfig();
     void captureFreeCameraPose();
-    std::vector<gameplay::world3d::characters::LoadedWorldChunk> buildLoadedWorldChunks() const;
+    std::vector<gameplay::world3d::characters::LoadedWorldChunk> buildLoadedWorldChunks();
     void rebuildActiveWorldChunks();
     bool activateWorldMap(const gameplay::world3d::characters::LoadedWorldChunk& chunk);
     std::vector<gameplay::world3d::rendering::bgfx_backend::OverworldBgfxRenderer::StaticMapChunk>
@@ -108,8 +114,42 @@ private:
     void applyAquariumBuildingPresentation(
         const gameplay::world3d::aquarium::AquariumMapConfig* map_config);
     void configureAquariumConstruction(const gameplay::world3d::aquarium::AquariumMapConfig* map_config);
+    void loadAquariumRooms(std::vector<gameplay::world3d::characters::LoadedWorldChunk>& chunks);
+    bool beginAquariumRoomResize();
+    bool adjustAquariumRoomSize(int width_delta, int depth_delta);
+    bool commitAquariumRoomResize();
+    void cancelAquariumRoomResize();
+    void appendAquariumRoomPreview(gameplay::world3d::aquarium::construction::AquariumConstructionVisual&) const;
+    bool handleAquariumRoomPointer(int x,int y,bool press,bool release=false);
+    void navigateAquariumRoom(int dx,int dy);
+    void advanceAquariumRoom();
+    bool finishAquariumRoomGesture();
+    void updateAquariumRoomGesture(int cells);
+    std::vector<gameplay::world3d::aquarium::rooms::RoomOccupancy> aquariumRoomOccupancy() const;
     void refreshPlayerAquariumRuntime();
     void refreshAquariumRenderActors();
+    bool beginAquariumDecorations();
+    void closeAquariumDecorations();
+    void finishAquariumDecorations();
+    void updateAquariumDecorationCamera(double dt);
+    bool handleAquariumDecorationPointer(int x,int y,bool pressed);
+    bool handleAquariumDecorationEvent(const SDL_Event&);
+    SDL_FPoint aquariumDecorationHandlePosition(bool floor=false) const;
+    void navigateAquariumDecorations(int dx,int dy);
+    void chooseAquariumDecoration(int direction);
+    gameplay::world3d::aquarium::decorations::Catalog decoration_catalog_;
+    gameplay::world3d::aquarium::decorations::Editor decoration_editor_;
+    gameplay::world3d::aquarium::decorations::Ui decoration_ui_;
+    gameplay::world3d::aquarium::decorations::Tool decoration_tool_=gameplay::world3d::aquarium::decorations::Tool::None;
+    std::optional<gameplay::world3d::camera::Gen4FollowCamera> decoration_saved_camera_;
+    int decoration_asset_index_=0,decoration_pointer_step_=0;
+    gameplay::world3d::aquarium::decorations::Category decoration_category_=gameplay::world3d::aquarium::decorations::Category::Rocks;
+    float decoration_zoom_=1,decoration_zoom_axis_=0;
+    bool decoration_catalog_loaded_=false,decoration_commit_pending_=false;
+    bool decoration_pointer_tool_active_=false;
+    std::optional<SDL_Point> decoration_asset_press_;
+    bool decoration_asset_dragged_=false;
+    bool decoration_left_trigger_=false,decoration_right_trigger_=false;
     bool commitAquariumConstruction();
     bool beginAquariumConstructionCommit(
         std::optional<gameplay::world3d::aquarium::construction::ConstructionCommitCandidate>
@@ -123,6 +163,8 @@ private:
     gameplay::world3d::aquarium::construction::AquariumConstructionVisual
         aquariumConstructionVisual() const;
     std::optional<pr::aquarium::geometry::GridCell> aquariumConstructionCellAt(
+        int logical_x, int logical_y) const;
+    std::optional<pr::aquarium::geometry::GridCell> aquariumConstructionTankCellAt(
         int logical_x, int logical_y) const;
     std::optional<gameplay::world3d::aquarium::construction::ConstructionGizmoHit>
         aquariumConstructionGizmoAt(int logical_x, int logical_y) const;
@@ -140,7 +182,16 @@ private:
     bool setAquariumConstructionPropertyValue(
         gameplay::world3d::aquarium::construction::ConstructionHudAction action,
         int value);
+    bool beginAquariumStocking();
+    void closeAquariumStocking();
+    bool applyAquariumStockingChange(bool add);
+    bool applyAquariumExhibitStyleChange();
+    void syncAquariumStockingResidents();
+    bool handleAquariumStockingPointerPressed(int logical_x, int logical_y, bool remove);
+    bool handleAquariumStockingPointerReleased(int logical_x, int logical_y);
     void beginAquariumInspectionExit();
+    void updateAquariumInspectionSubject();
+    bool pickAquariumInspectionPokemon(int x,int y);
     void restoreAquariumInspectionFacing();
     bool beginDoorSequenceForStep(int dx, int dy);
     void updateDoorSequence(double dt);
@@ -209,6 +260,8 @@ private:
     std::future<gameplay::world3d::SceneConfig> scene_preload_{};
     bool scene_initialized_ = false;
     std::unique_ptr<gameplay::world3d::npc::NpcActorDriver> npc_actor_driver_;
+    std::shared_ptr<gameplay::world3d::npc::AquariumVisitorSession> aquarium_visitors_;
+    void configureAquariumVisitors();
     gameplay::world3d::aquarium::AquariumCatalog aquarium_catalog_{};
     float aquarium_base_lighting_brightness_ = 1.0f;
     std::array<float, 3> aquarium_base_lighting_tint_{1.0f, 1.0f, 1.0f};
@@ -230,8 +283,33 @@ private:
         aquarium_construction_overlay_;
     std::unique_ptr<gameplay::world3d::aquarium::construction::AquariumDesignStore>
         aquarium_design_store_;
+    std::optional<gameplay::world3d::aquarium::rooms::RoomBounds> aquarium_room_draft_;
+    std::string aquarium_room_error_;
+    bool aquarium_room_read_only_ = false;
+    std::optional<gameplay::world3d::aquarium::rooms::BuildingLayout> aquarium_building_;
+    std::optional<gameplay::world3d::aquarium::rooms::BuildingLayout> aquarium_room_candidate_;
+    gameplay::world3d::SceneConfig aquarium_room_style_;
+    struct RoomGesture {
+        int wall=0;
+        bool add_door=false, moved=false;
+        int start_x=0,start_y=0,coordinate=0,steps=0;
+        float axis_x=0,axis_y=0;
+        gameplay::world3d::aquarium::rooms::BuildingLayout baseline;
+        std::vector<gameplay::world3d::aquarium::rooms::RoomOccupancy> occupancy;
+    };
+    std::optional<RoomGesture> aquarium_room_gesture_;
+    int aquarium_room_handle_focus_=0;
     std::unique_ptr<gameplay::world3d::aquarium::construction::AquariumPopulationPolicy>
         aquarium_population_policy_;
+    gameplay::world3d::aquarium::AquariumSpeciesCatalog aquarium_species_catalog_;
+    gameplay::world3d::aquarium::construction::AquariumStockingController
+        aquarium_stocking_;
+    gameplay::world3d::aquarium::construction::AquariumStockingOverlay
+        aquarium_stocking_overlay_;
+    gameplay::world3d::aquarium::construction::AquariumStockingOverlay
+        aquarium_stocking_bgfx_overlay_;
+    std::optional<gameplay::world3d::aquarium::construction::
+        AquariumStockingController::ExhibitControl> aquarium_stocking_slider_drag_;
     gameplay::world3d::aquarium::construction::PlayerAquariumRuntimeSet
         player_aquarium_runtime_;
     std::shared_ptr<gameplay::world3d::aquarium::construction::AquariumCollisionOverlay>

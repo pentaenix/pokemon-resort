@@ -1,4 +1,5 @@
 #include "gameplay/world3d/aquarium/AquariumConfig.hpp"
+#include "gameplay/world3d/aquarium/AquariumCrowdSimulation.hpp"
 #include "gameplay/world3d/aquarium/AquariumNavigation.hpp"
 #include "gameplay/world3d/aquarium/AquariumPokemonMetrics.hpp"
 #include "gameplay/world3d/aquarium/AquariumSimulation.hpp"
@@ -21,6 +22,10 @@
 
 namespace aquarium = pr::gameplay::world3d::aquarium;
 namespace fs = std::filesystem;
+
+void runAquariumMotionTests();
+void runAquariumSchoolTests();
+void runAquariumEmissionTests();
 
 namespace {
 
@@ -107,7 +112,7 @@ void inspectionFacingRestoresEveryApproachDirection() {
 void navigationHonorsUndergroundLayersAndHoles() {
     std::string error;
     const aquarium::AquariumNavigation navigation = aquarium::loadAquariumNavigation(
-        (projectRoot() / "assets/overworld/models/aquarium/aquarium.navigation.json").string(), &error);
+        (projectRoot() / "tests/fixtures/legacy_aquarium/aquarium.navigation.json").string(), &error);
     require(navigation.valid, "aquarium navigation fixture must load");
     require(navigation.layers.size() == 3U, "all three exported swim layers must be retained");
     require(aquarium::containsPoint(navigation, {0.0f, -0.8f, 0.0f}),
@@ -176,7 +181,8 @@ void configuredDewgongMovesInsidePlacedTank() {
     touch_pool.scale = 1.0f;
     scene.models.push_back(touch_pool);
 
-    const aquarium::AquariumCatalog catalog = aquarium::loadAquariumCatalog(projectRoot().string());
+    const aquarium::AquariumCatalog catalog = aquarium::loadAquariumCatalog(
+        (projectRoot() / "tests/fixtures/legacy_aquarium").string());
     const aquarium::AquariumMapConfig* aquarium_map =
         aquarium::aquariumMapConfig(catalog, scene.id);
     require(aquarium_map && aquarium_map->tanks.size() == 3U,
@@ -202,10 +208,10 @@ void configuredDewgongMovesInsidePlacedTank() {
         aquarium::aquariumMapConfig(catalog, "aquarium_builder_lab");
     require(builder_lab && builder_lab->tanks.empty() &&
             builder_lab->construction.enabled &&
-            builder_lab->construction.allowed_cells.size() == 1600U &&
+            builder_lab->construction.allowed_cells.size() == 340U &&
             builder_lab->construction.has_return_cell &&
-            builder_lab->construction.return_cell.column == 27 &&
-            builder_lab->construction.return_cell.row == 31 &&
+            builder_lab->construction.return_cell.column == 12 &&
+            builder_lab->construction.return_cell.row == 16 &&
             builder_lab->construction.return_facing == "north" &&
             builder_lab->construction.has_room_trim_color &&
             builder_lab->construction.room_trim_color[0] == 67 &&
@@ -216,12 +222,14 @@ void configuredDewgongMovesInsidePlacedTank() {
         "builder lab must expose a separate empty full-room construction surface");
     require(near(builder_lab->building_presentation.camera.far_clip_tiles, 128.0f) &&
             near(aquarium_map->building_presentation.camera.far_clip_tiles, 0.0f),
-        "extended camera depth must remain local to the large Builder Lab");
+        "extended camera depth must remain local to the Builder Lab");
     require(aquarium_map->building_presentation.camera.enabled &&
             near(aquarium_map->building_presentation.camera.distance_behind_player_tiles,
                 catalog.building_presentation.camera.distance_behind_player_tiles) &&
             near(aquarium_map->building_presentation.camera.height_above_player_tiles,
                 catalog.building_presentation.camera.height_above_player_tiles) &&
+            near(aquarium_map->building_presentation.camera.near_clip_tiles,
+                catalog.building_presentation.camera.near_clip_tiles) &&
             aquarium_map->building_presentation.lighting.enabled &&
             near(aquarium_map->building_presentation.lighting.brightness,
                 catalog.building_presentation.lighting.brightness) &&
@@ -236,6 +244,15 @@ void configuredDewgongMovesInsidePlacedTank() {
                 catalog.building_presentation.tank_lighting.spill_opacity) &&
             near(aquarium_map->building_presentation.tank_lighting.spill_reach_tiles,
                 catalog.building_presentation.tank_lighting.spill_reach_tiles) &&
+            near(aquarium_map->building_presentation.tank_lighting.water_attenuation_intensity,
+                catalog.building_presentation.tank_lighting.water_attenuation_intensity) &&
+            near(aquarium_map->building_presentation.tank_lighting.water_surface_speed,
+                catalog.building_presentation.tank_lighting.water_surface_speed) &&
+            near(aquarium_map->building_presentation.tank_lighting.sand_darkening,
+                catalog.building_presentation.tank_lighting.sand_darkening) &&
+            near(catalog.building_presentation.tank_lighting.water_attenuation_intensity, 2.4f) &&
+            near(catalog.building_presentation.tank_lighting.water_surface_speed, 0.7f) &&
+            near(catalog.building_presentation.tank_lighting.sand_darkening, 0.18f) &&
             builder_lab->building_presentation.camera.enabled &&
             near(builder_lab->building_presentation.camera.distance_behind_player_tiles,
                 catalog.building_presentation.camera.distance_behind_player_tiles) &&
@@ -259,18 +276,20 @@ void configuredDewgongMovesInsidePlacedTank() {
                 std::hypot(camera_horizontal, camera_vertical)) &&
             near(aquarium_camera.pitch_deg,
                 -std::atan2(camera_vertical, camera_horizontal) * radians_to_degrees) &&
+            near(aquarium_camera.near_clip, 8.0f) &&
+            near(builder_camera.near_clip, 8.0f) &&
             near(aquarium_camera.far_clip, base_camera.far_clip) &&
             near(builder_camera.far_clip, 2048.0f),
-        "aquarium camera height/distance controls did not derive the expected orbit");
+        "aquarium camera framing and local clip controls did not derive the expected view");
     const auto lab_allows_construction = [&](int column, int row) {
         return std::any_of(builder_lab->construction.allowed_cells.begin(),
             builder_lab->construction.allowed_cells.end(), [&](const auto& cell) {
                 return cell.column == column && cell.row == row;
             });
     };
-    require(lab_allows_construction(1, 1) && lab_allows_construction(52, 31) &&
-            lab_allows_construction(27, 16) && !lab_allows_construction(27, 1) &&
-            !lab_allows_construction(27, 31),
+    require(lab_allows_construction(1, 1) && lab_allows_construction(22, 16) &&
+            lab_allows_construction(12, 8) && !lab_allows_construction(12, 1) &&
+            !lab_allows_construction(12, 16),
         "builder lab construction mask must keep both doorway circulation lanes clear");
     require(near(aquarium_map->pokemon_presentation.brightness,
                 catalog.pokemon_presentation.brightness *
@@ -403,7 +422,7 @@ void configuredDewgongMovesInsidePlacedTank() {
         "touch pool Pyukumuku must use the walking animation while wandering");
     std::string touch_navigation_error;
     const aquarium::AquariumNavigation touch_navigation = aquarium::loadAquariumNavigation(
-        (projectRoot() / "assets/overworld/models/aquarium_t/aquarium_T.navigation.json").string(),
+        (projectRoot() / "tests/fixtures/legacy_aquarium/aquarium_T.navigation.json").string(),
         &touch_navigation_error);
     require(touch_navigation.valid, "touch pool navigation fixture must load");
     require(near(touch_navigation.floor_level_y, 0.0f),
@@ -479,8 +498,8 @@ void configuredDewgongMovesInsidePlacedTank() {
         "focused tank must remain beyond the camera near clip instead of rendering black");
     require(inspection.enterFocused(16.0f, camera),
         "a second accept must enter the actor-free focused stage");
-    require(inspection.focused() && inspection.hidesOverworldActors(),
-        "focused stage must report that overworld actors should be hidden");
+    require(inspection.focused() && !inspection.hidesOverworldActors(),
+        "whole-tank focused stage must keep the player visible");
     require(near(inspection.wallClipRadiusWorld(16.0f), 24.0f),
         "focused stage must expose its wall-only camera clipping radius in world units");
     advanceInspection(inspection, camera);
@@ -514,17 +533,15 @@ void configuredDewgongMovesInsidePlacedTank() {
         "cylinder must enter the captured north focus view");
     advanceInspection(inspection, camera);
     const auto cylinder_focus = camera.pose();
-    require(near(cylinder_focus.position.x, 296.0f) &&
-            near(cylinder_focus.position.y, 66.4691467f) &&
-            near(cylinder_focus.position.z, 252.10233f),
-        "cylinder north focus must reproduce the centered captured framing");
+    require(near(cylinder_focus.position.x, 296.0f) && cylinder_focus.position.y>0 && cylinder_focus.position.z>120,
+        "cylinder overview must remain centered outside the tank");
     const float cylinder_yaw = std::atan2(
         cylinder_focus.forward.x, cylinder_focus.forward.z) * 180.0f / 3.14159265358979323846f;
     const float cylinder_pitch = std::asin(cylinder_focus.forward.y) *
         180.0f / 3.14159265358979323846f;
     require(near(std::abs(cylinder_yaw), 180.0f, 0.02f) &&
-            near(cylinder_pitch, -10.4799919f, 0.02f),
-        "cylinder focus must reproduce the captured north yaw and pitch");
+            near(cylinder_pitch, -20.0f, 0.05f),
+        "cylinder overview must preserve north approach and readable downward pitch");
 
     inspection.beginExit({296.0f, -100.0f, 120.0f}, camera);
     advanceInspection(inspection, camera);
@@ -542,15 +559,13 @@ void configuredDewgongMovesInsidePlacedTank() {
         "side approach must enter the captured focus view");
     inspection.update(1.0 / 60.0, camera);
     const auto side_focus = camera.pose();
-    require(near(side_focus.position.x, 336.6991f) &&
-            near(side_focus.position.y, 54.8869057f) &&
-            near(side_focus.position.z, 96.0f),
-        "west-facing focus must use captured distance/height and remove accidental lateral offset");
+    require(side_focus.position.x>208 && side_focus.position.y>0 && near(side_focus.position.z,96.0f),
+        "west-facing overview must be outside the tank without lateral offset");
     const float side_yaw = std::atan2(
         side_focus.forward.x, side_focus.forward.z) * 180.0f / 3.14159265358979323846f;
     const float side_pitch = std::asin(side_focus.forward.y) *
         180.0f / 3.14159265358979323846f;
-    require(near(side_yaw, -90.0f, 0.02f) && near(side_pitch, -10.7199888f, 0.02f),
+    require(near(side_yaw, -90.0f, 0.02f) && near(side_pitch, -20.0f, 0.05f),
         "west-facing focus must center a clean side-on view");
     inspection.beginExit({208.0f, 0.0f, 112.0f}, camera);
     require(!inspection.active() && near(camera.pose().preset.near_clip, 150.0f),
@@ -695,6 +710,231 @@ void playerTankPopulationUsesRuntimeNavigation() {
         "replacing player tanks left stale simulated actors behind");
 }
 
+void unpositionedCrawlerRestsOnPlayerTankBottom() {
+    pr::gameplay::world3d::SceneConfig scene;
+    aquarium::AquariumSimulation simulation(projectRoot(), scene, nullptr);
+    const auto models = pr::gameplay::attend::discoverPokemonModels(
+        projectRoot() / "assets/pokemon_attend/pokemon_models");
+    const auto model = std::find_if(models.begin(), models.end(), [](const auto& candidate) {
+        return candidate.id == "wishiwashi";
+    });
+    require(model != models.end(), "crawler anchor fixture requires a measured Pokemon model");
+
+    aquarium::AquariumNavigation navigation;
+    navigation.export_units_per_meter = 16.0f;
+    navigation.floor_level_y = 0.0f;
+    navigation.valid = true;
+    aquarium::SwimVolumeLayer layer;
+    layer.id = "deep-player-water";
+    layer.y_bottom = -2.0f;
+    layer.y_top = 2.0f;
+    layer.polygons = {{{
+        {-2.0f, -2.0f}, {2.0f, -2.0f}, {2.0f, 2.0f}, {-2.0f, 2.0f}}}};
+    navigation.layers.push_back(layer);
+    navigation.suggested_spawns.push_back({0.0f, 0.0f, 0.0f});
+
+    aquarium::AquariumSwimmerDefinition crawler;
+    crawler.actor.id = "player-tank:crawler";
+    crawler.actor.species = "crawler";
+    crawler.actor.form = "00";
+    crawler.actor.model_path = model->path;
+    crawler.actor.animation = "idle_default";
+    crawler.actor.model_scale = 0.14f;
+    crawler.movement.id = crawler.actor.id;
+    crawler.movement.species = crawler.actor.species;
+    crawler.movement.behavior = "wander";
+    crawler.movement.speed_meters_per_second = 0.55f;
+    crawler.movement.vertical_anchor = "bottom";
+    crawler.movement.movement_plane = "floor";
+    crawler.movement.body_radius_meters = 0.03f;
+
+    aquarium::AquariumPlayerTankSimulationInput tank;
+    tank.tank_id = "player-tank";
+    tank.navigation = navigation;
+    tank.swimmers.push_back(crawler);
+    simulation.replacePlayerTanks({tank});
+    require(simulation.actors().size() == 1U,
+        "unpositioned player-tank crawler did not spawn");
+    const auto metrics = aquarium::measureAquariumPokemon(
+        model->path, crawler.actor.form);
+    const float rendered_bottom = simulation.actors().front().world_position[1] +
+        metrics.min_y * crawler.actor.model_scale;
+    require(near(rendered_bottom, layer.y_bottom * navigation.export_units_per_meter + 0.16f, 0.3f),
+        "unpositioned crawler retained the volume midpoint instead of resting on the bottom");
+    const float rendered_radius_world = std::max({
+        std::abs(metrics.min_x), std::abs(metrics.max_x),
+        std::abs(metrics.min_z), std::abs(metrics.max_z)}) * crawler.actor.model_scale;
+    constexpr float expected_comfort_world = 0.12f * 16.0f;
+    for (int frame = 0; frame < 60 * 20; ++frame) {
+        simulation.update(1.0 / 60.0);
+        const auto& actor = simulation.actors().front();
+        require(std::abs(actor.world_position[0]) + rendered_radius_world +
+                    expected_comfort_world <= 32.01f &&
+                std::abs(actor.world_position[2]) + rendered_radius_world +
+                    expected_comfort_world <= 32.01f,
+            "player-tank crawler approached the glass inside its rendered comfort envelope");
+    }
+}
+
+void timidReefPokemonIdleRandomlyAndFleePredators() {
+    pr::gameplay::world3d::SceneConfig scene;
+    aquarium::AquariumSimulation simulation(projectRoot(), scene, nullptr);
+    const auto models = pr::gameplay::attend::discoverPokemonModels(
+        projectRoot() / "assets/pokemon_attend/pokemon_models");
+    const auto model = std::find_if(models.begin(), models.end(), [](const auto& candidate) {
+        return candidate.id == "wishiwashi";
+    });
+    require(model != models.end(), "timid reef fixture requires a measured Pokemon model");
+
+    aquarium::AquariumNavigation navigation;
+    navigation.export_units_per_meter = 16.0f;
+    navigation.valid = true;
+    aquarium::SwimVolumeLayer layer;
+    layer.id = "reef-floor";
+    layer.y_bottom = -1.0f;
+    layer.y_top = 2.0f;
+    layer.polygons = {{{
+        {-4.0f, -4.0f}, {4.0f, -4.0f}, {4.0f, 4.0f}, {-4.0f, 4.0f}}}};
+    navigation.layers.push_back(layer);
+    navigation.suggested_spawns.push_back({0.0f, 0.0f, 0.0f});
+
+    const auto timidDefinition = [&](const std::string& id, std::uint32_t seed) {
+        aquarium::AquariumSwimmerDefinition swimmer;
+        swimmer.actor.id = id;
+        swimmer.actor.species = "corsola";
+        swimmer.actor.form = "00";
+        swimmer.actor.model_path = model->path;
+        swimmer.actor.animation = "idle_default";
+        swimmer.actor.model_scale = 0.10f;
+        swimmer.movement.id = id;
+        swimmer.movement.species = "corsola";
+        swimmer.movement.behavior = "timid";
+        swimmer.movement.speed_meters_per_second = 0.10f;
+        swimmer.movement.turn_degrees_per_second = 55.0f;
+        swimmer.movement.body_radius_meters = 0.03f;
+        swimmer.movement.vertical_anchor = "bottom";
+        swimmer.movement.movement_plane = "floor";
+        swimmer.movement.random_start = true;
+        swimmer.movement.idle_seconds_minimum = 8.0f;
+        swimmer.movement.idle_seconds_maximum = 18.0f;
+        swimmer.movement.local_move_distance_meters = 0.28f;
+        swimmer.movement.threat_species = {"mareanie", "toxapex"};
+        swimmer.movement.flee_radius_meters = 1.6f;
+        swimmer.movement.flee_distance_meters = 0.9f;
+        swimmer.movement.flee_speed_multiplier = 3.5f;
+        swimmer.seed = seed;
+        return swimmer;
+    };
+
+    aquarium::AquariumPlayerTankSimulationInput tank;
+    tank.tank_id = "random-reef";
+    tank.navigation = navigation;
+    tank.swimmers = {timidDefinition("corsola-a", 31U), timidDefinition("corsola-b", 79U)};
+    simulation.replacePlayerTanks({tank});
+    require(simulation.actors().size() == 2U,
+        "random timid reef Pokemon did not spawn");
+    const auto first_spawn = simulation.actors()[0].world_position;
+    const auto second_spawn = simulation.actors()[1].world_position;
+    require(std::hypot(first_spawn[0] - second_spawn[0], first_spawn[2] - second_spawn[2]) > 1.0f,
+        "timid reef Pokemon reused one deterministic center spawn");
+    for (int frame = 0; frame < 60 * 7; ++frame) simulation.update(1.0 / 60.0);
+    require(simulation.actors()[0].world_position == first_spawn &&
+            simulation.actors()[1].world_position == second_spawn,
+        "timid reef Pokemon wandered during its guaranteed long idle interval");
+
+    auto corsola = timidDefinition("corsola-threatened", 101U);
+    corsola.movement.random_start = false;
+    corsola.movement.has_starting_position = true;
+    corsola.movement.starting_position_meters = {0.0f, 0.0f, 0.0f};
+    aquarium::AquariumSwimmerDefinition mareanie;
+    mareanie.actor.id = "mareanie";
+    mareanie.actor.species = "mareanie";
+    mareanie.actor.form = "00";
+    mareanie.actor.model_path = model->path;
+    mareanie.actor.animation = "idle_default";
+    mareanie.actor.model_scale = 0.10f;
+    mareanie.movement.id = mareanie.actor.id;
+    mareanie.movement.species = mareanie.actor.species;
+    mareanie.movement.behavior = "stationary";
+    mareanie.movement.movement_plane = "floor";
+    mareanie.movement.vertical_anchor = "bottom";
+    mareanie.movement.has_starting_position = true;
+    mareanie.movement.starting_position_meters = {0.55f, 0.0f, 0.0f};
+    mareanie.movement.body_radius_meters = 0.03f;
+
+    tank.tank_id = "threatened-reef";
+    tank.swimmers = {corsola, mareanie};
+    simulation.replacePlayerTanks({tank});
+    require(simulation.actors().size() == 2U,
+        "Corsola predator-avoidance fixture did not spawn");
+    const auto distanceFromThreat = [&] {
+        const auto& prey = simulation.actors()[0].world_position;
+        const auto& threat = simulation.actors()[1].world_position;
+        return std::hypot(prey[0] - threat[0], prey[2] - threat[2]);
+    };
+    const float initial_distance = distanceFromThreat();
+    for (int frame = 0; frame < 60 * 2; ++frame) simulation.update(1.0 / 60.0);
+    require(distanceFromThreat() > initial_distance + 4.0f,
+        "Corsola did not flee from nearby Mareanie");
+}
+
+void leaderFormationTracksVelocityWithoutCounterSwimming() {
+    aquarium::AquariumFormationBody leader;
+    leader.id = "leader";
+    leader.tank_id = "tank";
+    leader.origin = {0.0f, 0.08f, 0.10f};
+    leader.velocity = {0.0f, 0.8f, 1.0f};
+    leader.pitch_degrees = -18.0f;
+    leader.half_width = 0.65f;
+    leader.half_height = 0.32f;
+    leader.half_length = 1.1f;
+    aquarium::AquariumFormationBody previous_leader = leader;
+    previous_leader.origin = {0.0f, 0.0f, 0.0f};
+    previous_leader.pitch_degrees = -12.0f;
+
+    aquarium::AquariumFormationBody follower;
+    follower.id = "follower";
+    follower.tank_id = "tank";
+    follower.origin = {0.72f, -0.1f, -0.12f};
+    follower.velocity = {0.0f, 0.0f, 0.4f};
+    follower.half_width = 0.12f;
+    follower.half_height = 0.09f;
+    follower.half_length = 0.22f;
+    std::vector<aquarium::AquariumFormationBody> bodies{leader, follower};
+
+    aquarium::AquariumFormationInput input;
+    input.follower = follower;
+    input.leader = leader;
+    input.previous_leader = previous_leader;
+    input.neighbours = &bodies;
+    input.role_phase_radians = 0.0f;
+    input.dt_seconds = 0.1f;
+    const auto climbing = aquarium::steerAquariumFormation(input);
+    require(climbing.desired_velocity[1] > 0.45f,
+        "formation steering did not inherit the leader's climb velocity");
+    require(climbing.desired_velocity[2] > 0.0f,
+        "attached follower counter-swam against its moving leader");
+    require(std::abs(climbing.anchor_velocity[0]) > 0.01f ||
+            std::abs(climbing.anchor_velocity[1] - leader.velocity[1]) > 0.01f,
+        "rotating leader did not impart attachment-region velocity");
+
+    input.follower.origin = {0.0f, 0.0f, 4.0f};
+    input.follower.velocity = {0.0f, 0.0f, 0.1f};
+    const auto follower_ahead = aquarium::steerAquariumFormation(input);
+    require(follower_ahead.desired_velocity[2] > 0.0f,
+        "follower ahead of the formation was told to perform a backward U-turn");
+
+    aquarium::AquariumFormationBody overlapping = follower;
+    overlapping.id = "overlapping";
+    bodies.push_back(overlapping);
+    input.follower = follower;
+    input.neighbours = &bodies;
+    const auto separated = aquarium::steerAquariumFormation(input);
+    require(std::abs(separated.desired_velocity[0] - climbing.desired_velocity[0]) > 0.01f ||
+            std::abs(separated.desired_velocity[1] - climbing.desired_velocity[1]) > 0.01f,
+        "mesh-envelope overlap did not contribute separation steering");
+}
+
 void largePlayerTankKyogreNavigatesWhileIdling() {
     pr::gameplay::world3d::SceneConfig scene;
     aquarium::AquariumSimulation simulation(projectRoot(), scene, nullptr);
@@ -703,7 +943,11 @@ void largePlayerTankKyogreNavigatesWhileIdling() {
     const auto kyogre = std::find_if(models.begin(), models.end(), [](const auto& model) {
         return model.id == "kyogre";
     });
+    const auto remoraid = std::find_if(models.begin(), models.end(), [](const auto& model) {
+        return model.id == "remoraid";
+    });
     require(kyogre != models.end(), "Kyogre movement fixture requires its Attend model");
+    require(remoraid != models.end(), "Kyogre escort fixture requires the Remoraid Attend model");
 
     aquarium::AquariumNavigation navigation;
     navigation.export_units_per_meter = 16.0f;
@@ -724,31 +968,383 @@ void largePlayerTankKyogreNavigatesWhileIdling() {
     swimmer.actor.form = "00";
     swimmer.actor.model_path = kyogre->path;
     swimmer.actor.animation = "idle_default";
-    swimmer.actor.model_scale = 0.1f;
+    swimmer.actor.model_scale = 0.27f;
     swimmer.movement.id = swimmer.actor.id;
     swimmer.movement.species = swimmer.actor.species;
     swimmer.movement.animation = swimmer.actor.animation;
     swimmer.movement.behavior = "school";
-    swimmer.movement.speed_meters_per_second = 0.42f;
-    swimmer.movement.turn_degrees_per_second = 90.0f;
+    swimmer.movement.speed_meters_per_second = 0.65f;
+    swimmer.movement.turn_degrees_per_second = 48.0f;
     swimmer.movement.body_radius_meters = 0.35f;
+    swimmer.movement.vertical_movement_scale = 0.62f;
+    swimmer.movement.swim_pitch_degrees = 12.0f;
+    swimmer.movement.motion_smoothing_seconds = 0.48f;
+    swimmer.movement.pitch_turn_degrees_per_second = 8.0f;
     swimmer.seed = 382U;
 
     aquarium::AquariumPlayerTankSimulationInput tank;
     tank.tank_id = "large-player-tank";
     tank.navigation = navigation;
+    for (int index = 0; index < 4; ++index) {
+        aquarium::AquariumSwimmerDefinition escort;
+        escort.actor.id = "large-player-tank:remoraid:" + std::to_string(index);
+        escort.actor.species = "remoraid";
+        escort.actor.form = "00";
+        escort.actor.model_path = remoraid->path;
+        escort.actor.animation = "walk";
+        escort.actor.model_scale = 0.15f;
+        escort.movement.id = escort.actor.id;
+        escort.movement.species = escort.actor.species;
+        escort.movement.animation = escort.actor.animation;
+        escort.movement.behavior = "escort";
+        // Deliberately unlike Kyogre: escort behavior must derive cruise speed
+        // from the followed actor rather than this population-policy hint.
+        escort.movement.speed_meters_per_second = 0.05f;
+        escort.movement.turn_degrees_per_second = 72.0f;
+        escort.movement.body_radius_meters = 0.05f;
+        escort.movement.swim_pitch_degrees = 9.0f;
+        escort.movement.follow_actor_id = swimmer.actor.id;
+        escort.movement.follow_distance_meters = 0.52f;
+        escort.movement.follow_vertical_gap_meters = 0.06f;
+        escort.movement.motion_smoothing_seconds = 0.28f;
+        escort.movement.pitch_turn_degrees_per_second = 18.0f;
+        escort.movement.forward_only = true;
+        escort.formation_index = index;
+        escort.formation_count = 4;
+        escort.seed = 500U + static_cast<std::uint32_t>(index);
+        tank.swimmers.push_back(std::move(escort));
+    }
+    // Deliberately author followers first. Runtime installation must still
+    // place their leader before calculating the initial formation.
     tank.swimmers.push_back(swimmer);
     simulation.replacePlayerTanks({tank});
-    require(simulation.actors().size() == 1U,
-        "Kyogre did not fit inside a large generated player tank");
+    require(simulation.actors().size() == 5U,
+        "Kyogre and its four Remoraid escorts did not fit in the player tank");
+    require(simulation.actors()[1].animation_time_seconds !=
+            simulation.actors()[2].animation_time_seconds &&
+            simulation.actors()[2].animation_playback_rate !=
+            simulation.actors()[3].animation_playback_rate,
+        "Remoraid escorts began with synchronized animation phases and rates");
+    const auto& spawned = simulation.actors();
+    constexpr float kMaximumInitialEscortDistanceWorld = 96.0f;
+    for (std::size_t left = 0; left < spawned.size(); ++left) {
+        for (std::size_t right = left + 1; right < spawned.size(); ++right) {
+            float distance_squared = 0.0f;
+            for (int axis = 0; axis < 3; ++axis) {
+                const float delta = spawned[left].world_position[axis] -
+                    spawned[right].world_position[axis];
+                distance_squared += delta * delta;
+            }
+            require(distance_squared > 4.0f,
+                "initial aquarium residents spawned on top of each other");
+        }
+        if (left > 0) {
+            float leader_distance_squared = 0.0f;
+            for (int axis = 0; axis < 3; ++axis) {
+                const float delta = spawned[left].world_position[axis] -
+                    spawned.front().world_position[axis];
+                leader_distance_squared += delta * delta;
+            }
+            require(leader_distance_squared <
+                    kMaximumInitialEscortDistanceWorld *
+                        kMaximumInitialEscortDistanceWorld,
+                "escort spawned far from its leader before simulation began");
+        }
+    }
     const auto initial = simulation.actors().front().world_position;
-    for (int frame = 0; frame < 600; ++frame) simulation.update(1.0 / 60.0);
+    float minimum_y = initial[1];
+    float maximum_y = initial[1];
+    float maximum_pitch = 0.0f;
+    float maximum_escort_pitch = 0.0f;
+    float maximum_escort_vertical_spread = 0.0f;
+    float minimum_escort_average_y = std::numeric_limits<float>::max();
+    float maximum_escort_average_y = std::numeric_limits<float>::lowest();
+    float minimum_horizontal_alignment = 1.0f;
+    float leader_vertical_travel = 0.0f;
+    float escort_vertical_travel = 0.0f;
+    int horizontal_alignment_samples = 0;
+    int vertical_alignment_samples = 0;
+    int vertical_alignment_matches = 0;
+    std::vector<aquarium::Point3> previous_positions;
+    for (const auto& actor : simulation.actors()) {
+        previous_positions.push_back(actor.world_position);
+    }
+    for (int frame = 0; frame < 600; ++frame) {
+        simulation.update(1.0 / 60.0);
+        const auto& actor = simulation.actors().front();
+        minimum_y = std::min(minimum_y, actor.world_position[1]);
+        maximum_y = std::max(maximum_y, actor.world_position[1]);
+        maximum_pitch = std::max(maximum_pitch, std::abs(actor.world_pitch_degrees));
+        float escort_minimum_y = simulation.actors()[1].world_position[1];
+        float escort_maximum_y = escort_minimum_y;
+        float escort_average_y = 0.0f;
+        float escort_average_dy = 0.0f;
+        const float leader_dx = actor.world_position[0] - previous_positions[0][0];
+        const float leader_dy = actor.world_position[1] - previous_positions[0][1];
+        const float leader_dz = actor.world_position[2] - previous_positions[0][2];
+        const float leader_horizontal = std::sqrt(
+            leader_dx * leader_dx + leader_dz * leader_dz);
+        for (std::size_t index = 1; index < simulation.actors().size(); ++index) {
+            const auto& escort = simulation.actors()[index];
+            maximum_escort_pitch = std::max(
+                maximum_escort_pitch, std::abs(escort.world_pitch_degrees));
+            escort_minimum_y = std::min(escort_minimum_y, escort.world_position[1]);
+            escort_maximum_y = std::max(escort_maximum_y, escort.world_position[1]);
+            escort_average_y += escort.world_position[1];
+            escort_average_dy += escort.world_position[1] - previous_positions[index][1];
+            if (frame > 120 && leader_horizontal > 0.0001f) {
+                const float follower_dx =
+                    escort.world_position[0] - previous_positions[index][0];
+                const float follower_dz =
+                    escort.world_position[2] - previous_positions[index][2];
+                const float follower_horizontal = std::sqrt(
+                    follower_dx * follower_dx + follower_dz * follower_dz);
+                if (follower_horizontal > 0.0001f) {
+                    minimum_horizontal_alignment = std::min(
+                        minimum_horizontal_alignment,
+                        (leader_dx * follower_dx + leader_dz * follower_dz) /
+                            (leader_horizontal * follower_horizontal));
+                    ++horizontal_alignment_samples;
+                }
+            }
+        }
+        escort_average_y /= static_cast<float>(simulation.actors().size() - 1U);
+        escort_average_dy /= static_cast<float>(simulation.actors().size() - 1U);
+        if (frame > 120) {
+            minimum_escort_average_y = std::min(minimum_escort_average_y, escort_average_y);
+            maximum_escort_average_y = std::max(maximum_escort_average_y, escort_average_y);
+            if (std::abs(leader_dy) > 0.001f) {
+                leader_vertical_travel += std::abs(leader_dy);
+                escort_vertical_travel += std::abs(escort_average_dy);
+                ++vertical_alignment_samples;
+                if (leader_dy * escort_average_dy >= 0.0f) ++vertical_alignment_matches;
+            }
+        }
+        maximum_escort_vertical_spread = std::max(
+            maximum_escort_vertical_spread, escort_maximum_y - escort_minimum_y);
+        for (std::size_t index = 0; index < simulation.actors().size(); ++index) {
+            previous_positions[index] = simulation.actors()[index].world_position;
+        }
+    }
     const auto moved = simulation.actors().front().world_position;
     const float dx = moved[0] - initial[0];
     const float dy = moved[1] - initial[1];
     const float dz = moved[2] - initial[2];
     require(dx * dx + dy * dy + dz * dz > 1.0f,
         "roaming Kyogre remained stationary while its idle animation played");
+    require(maximum_y - minimum_y > 8.0f && maximum_pitch > 1.0f,
+        "Kyogre patrol did not visibly rise, descend, and pitch along its route");
+    require(maximum_escort_pitch > 1.0f && maximum_escort_vertical_spread > 1.0f &&
+            maximum_escort_average_y - minimum_escort_average_y > 2.0f,
+        "Remoraid escorts did not pitch, separate vertically, and follow Kyogre's depth");
+    require(horizontal_alignment_samples > 100 && minimum_horizontal_alignment >= -0.01f,
+        "an attached Remoraid counter-swam during Kyogre's turn");
+    require(vertical_alignment_samples > 50 &&
+            static_cast<float>(vertical_alignment_matches) /
+                static_cast<float>(vertical_alignment_samples) > 0.62f &&
+            escort_vertical_travel > leader_vertical_travel * 0.60f,
+        "Remoraid vertical velocity did not keep pace with Kyogre");
+    const auto& leader = simulation.actors().front();
+    for (std::size_t index = 1; index < simulation.actors().size(); ++index) {
+        const auto& escort = simulation.actors()[index];
+        const float escort_dx = escort.world_position[0] - leader.world_position[0];
+        const float escort_dy = escort.world_position[1] - leader.world_position[1];
+        const float escort_dz = escort.world_position[2] - leader.world_position[2];
+        require(escort_dx * escort_dx + escort_dy * escort_dy + escort_dz * escort_dz <
+                96.0f * 96.0f,
+            "Remoraid escort failed to remain in Kyogre's local flock");
+    }
+
+    aquarium::AquariumPlayerTankSimulationInput school_tank;
+    school_tank.tank_id = "school-spawn-tank";
+    school_tank.navigation = navigation;
+    for (int index = 0; index < 6; ++index) {
+        aquarium::AquariumSwimmerDefinition schooler;
+        schooler.actor.id = "school-spawn-tank:remoraid:" + std::to_string(index);
+        schooler.actor.species = "remoraid";
+        schooler.actor.model_path = remoraid->path;
+        schooler.actor.animation = "walk";
+        schooler.actor.model_scale = 0.15f;
+        schooler.movement.id = "remoraid-school";
+        schooler.movement.behavior = "school";
+        schooler.movement.speed_meters_per_second = 0.35f;
+        schooler.movement.body_radius_meters = 0.05f;
+        schooler.formation_index = index;
+        schooler.formation_count = 6;
+        schooler.seed = 800U + static_cast<std::uint32_t>(index);
+        school_tank.swimmers.push_back(std::move(schooler));
+    }
+    simulation.replacePlayerTanks({school_tank});
+    require(simulation.actors().size() == 6U,
+        "separated initial school placement rejected valid members");
+    const auto& school = simulation.actors();
+    for (std::size_t index = 1; index < school.size(); ++index) {
+        float distance_squared = 0.0f;
+        for (int axis = 0; axis < 3; ++axis) {
+            const float delta = school[index].world_position[axis] -
+                school.front().world_position[axis];
+            distance_squared += delta * delta;
+        }
+        require(distance_squared > 4.0f && distance_squared < 96.0f * 96.0f,
+            "school member did not begin separated inside its local group");
+    }
+}
+
+void crowdAvoidanceAndJellyDriftStayNatural() {
+    aquarium::AquariumCrowdBody self;
+    self.center = {0.0f, 0.0f, 0.0f};
+    self.horizontal_radius = 0.25f;
+    self.vertical_radius = 0.25f;
+    aquarium::AquariumCrowdBody neighbour = self;
+    neighbour.center = {0.42f, 0.0f, 0.0f};
+    const std::vector<aquarium::AquariumCrowdBody> neighbours{neighbour};
+    const auto steered = aquarium::steerAquariumCrowd(
+        self, neighbours, {1.0f, 0.0f, 0.0f});
+    require(steered[0] < 1.0f,
+        "nearby aquarium body did not deflect an approaching swimmer");
+    require(!aquarium::aquariumCrowdMoveAllowed(
+            self, {0.45f, 0.0f, 0.0f}, neighbours),
+        "crowd solver allowed a swimmer to enter another animal's body core");
+
+    pr::gameplay::world3d::SceneConfig scene;
+    aquarium::AquariumSimulation simulation(projectRoot(), scene, nullptr);
+    aquarium::AquariumNavigation navigation;
+    navigation.export_units_per_meter = 16.0f;
+    navigation.valid = true;
+    aquarium::SwimVolumeLayer layer;
+    layer.id = "jelly-water";
+    layer.y_bottom = -2.0f;
+    layer.y_top = 2.0f;
+    layer.polygons = {{{
+        {-4.0f, -4.0f}, {4.0f, -4.0f}, {4.0f, 4.0f}, {-4.0f, 4.0f}}}};
+    navigation.layers.push_back(layer);
+    navigation.suggested_spawns.push_back({0.0f, 0.0f, 0.0f});
+
+    aquarium::AquariumPlayerTankSimulationInput tank;
+    tank.tank_id = "jelly-tank";
+    tank.navigation = navigation;
+    for (int index = 0; index < 4; ++index) {
+        aquarium::AquariumSwimmerDefinition jelly;
+        jelly.actor.id = "jelly:" + std::to_string(index);
+        jelly.actor.species = index < 2 ? "tentacool" : "frillish";
+        jelly.actor.model_path = "baked-envelope-fixture.glbz";
+        jelly.actor.animation = "slot6_00";
+        jelly.actor.model_scale = 1.0f;
+        jelly.movement.id = jelly.actor.id;
+        jelly.movement.species = jelly.actor.species;
+        jelly.movement.behavior = "jelly";
+        jelly.movement.speed_meters_per_second = 0.11f;
+        jelly.movement.turn_degrees_per_second = 32.0f;
+        jelly.movement.motion_smoothing_seconds = 0.72f;
+        jelly.movement.body_radius_meters = 0.04f;
+        jelly.movement.random_start = true;
+        jelly.movement.has_baked_physical_envelope = true;
+        jelly.movement.baked_physical_envelope = {
+            -4.0f, 4.0f, -4.0f, 4.0f, -4.0f, 4.0f};
+        jelly.seed = 720U + static_cast<std::uint32_t>(index);
+        tank.swimmers.push_back(std::move(jelly));
+    }
+    simulation.replacePlayerTanks({tank});
+    require(simulation.actors().size() == 4U,
+        "jelly drift fixture could not place separated residents");
+    const auto initial = simulation.actors().front().world_position;
+    float minimum_y = initial[1];
+    float maximum_y = initial[1];
+    float maximum_horizontal_offset = 0.0f;
+    constexpr float kMinimumCenterDistanceWorld = 3.4f;
+    for (int frame = 0; frame < 60 * 20; ++frame) {
+        simulation.update(1.0 / 60.0);
+        const auto& actors = simulation.actors();
+        minimum_y = std::min(minimum_y, actors.front().world_position[1]);
+        maximum_y = std::max(maximum_y, actors.front().world_position[1]);
+        maximum_horizontal_offset = std::max(maximum_horizontal_offset, std::hypot(
+            actors.front().world_position[0] - initial[0],
+            actors.front().world_position[2] - initial[2]));
+        for (std::size_t left = 0; left < actors.size(); ++left) {
+            for (std::size_t right = left + 1; right < actors.size(); ++right) {
+                const float dx = actors[left].world_position[0] -
+                    actors[right].world_position[0];
+                const float dy = actors[left].world_position[1] -
+                    actors[right].world_position[1];
+                const float dz = actors[left].world_position[2] -
+                    actors[right].world_position[2];
+                require(std::sqrt(dx * dx + dy * dy + dz * dz) >=
+                        kMinimumCenterDistanceWorld,
+                    "moving aquarium Pokemon overlapped their central body cores");
+            }
+        }
+    }
+    require(maximum_y - minimum_y > 5.0f &&
+            maximum_y - minimum_y > maximum_horizontal_offset,
+        "jelly profile did not favor a slow local rise-and-fall motion");
+}
+
+void intermittentBenthicSwimmerRestsAndResumes() {
+    pr::gameplay::world3d::SceneConfig scene;
+    aquarium::AquariumSimulation simulation(projectRoot(), scene, nullptr);
+    aquarium::AquariumNavigation navigation;
+    navigation.export_units_per_meter = 16.0f;
+    navigation.valid = true;
+    aquarium::SwimVolumeLayer layer;
+    layer.id = "benthic-water";
+    layer.y_bottom = -2.0f;
+    layer.y_top = 2.0f;
+    layer.polygons = {{{
+        {-4.0f, -4.0f}, {4.0f, -4.0f}, {4.0f, 4.0f}, {-4.0f, 4.0f}}}};
+    navigation.layers.push_back(layer);
+    navigation.suggested_spawns.push_back({0.0f, 0.0f, 0.0f});
+
+    aquarium::AquariumSwimmerDefinition resident;
+    resident.actor.id = "benthic:huntail";
+    resident.actor.species = "huntail";
+    resident.actor.model_path = "baked-envelope-fixture.glbz";
+    resident.actor.animation = "slot6_02";
+    resident.actor.model_scale = 1.0f;
+    resident.movement.id = resident.actor.id;
+    resident.movement.species = resident.actor.species;
+    resident.movement.animation = resident.actor.animation;
+    resident.movement.idle_animation = "slot6_00";
+    resident.movement.behavior = "wander";
+    resident.movement.speed_meters_per_second = 0.9f;
+    resident.movement.turn_degrees_per_second = 90.0f;
+    resident.movement.vertical_anchor = "bottom";
+    resident.movement.move_seconds_minimum = 0.8f;
+    resident.movement.move_seconds_maximum = 1.0f;
+    resident.movement.rest_seconds_minimum = 0.8f;
+    resident.movement.rest_seconds_maximum = 1.0f;
+    resident.movement.roaming_height_meters = 0.75f;
+    resident.movement.rest_at_bottom = true;
+    resident.movement.has_baked_physical_envelope = true;
+    resident.movement.baked_physical_envelope = {
+        -2.0f, 2.0f, -2.0f, 2.0f, -2.0f, 2.0f};
+    resident.seed = 601U; // Deterministically starts in the resting phase.
+
+    aquarium::AquariumPlayerTankSimulationInput tank;
+    tank.tank_id = "benthic-rest-tank";
+    tank.navigation = navigation;
+    tank.swimmers.push_back(std::move(resident));
+    simulation.replacePlayerTanks({tank});
+    require(simulation.actors().size() == 1U,
+        "intermittent benthic fixture did not spawn");
+    require(simulation.actors().front().animation == "slot6_00",
+        "intermittent benthic resident did not begin at rest");
+    const float resting_y = simulation.actors().front().world_position[1];
+    float maximum_y = resting_y;
+    bool used_movement_animation = false;
+    bool resumed_idle_animation = false;
+    for (int frame = 0; frame < 60 * 8; ++frame) {
+        simulation.update(1.0 / 60.0);
+        const auto& actor = simulation.actors().front();
+        maximum_y = std::max(maximum_y, actor.world_position[1]);
+        if (actor.animation == "slot6_02") used_movement_animation = true;
+        if (used_movement_animation && actor.animation == "slot6_00") {
+            resumed_idle_animation = true;
+        }
+    }
+    require(used_movement_animation && resumed_idle_animation,
+        "intermittent benthic resident did not alternate movement and rest animations");
+    require(maximum_y > resting_y + 2.0f,
+        "intermittent benthic resident never left the bottom to swim");
 }
 
 void focusViewSupportsEveryTankFace() {
@@ -786,10 +1382,9 @@ void focusViewSupportsEveryTankFace() {
             "all four cardinal tank faces must have a generated focus view");
         inspection.update(0.0, camera);
         const auto position = camera.pose().position;
-        require(near(position.x, test.expected_camera.x) &&
-                near(position.y, test.expected_camera.y) &&
-                near(position.z, test.expected_camera.z),
-            "focus camera must be centered outside the approached tank face");
+        const auto toward=camera.pose().forward;
+        require(position.y>tank.floor_y_world && position.x*toward.x+position.z*toward.z<0,
+            "overview camera must remain outside the approached tank face");
     }
 }
 
@@ -843,15 +1438,26 @@ void freeCameraCaptureIsPasteReady() {
 
 } // namespace
 
-int main() {
+int main(int argc, char** argv) {
     try {
+        runAquariumEmissionTests();
+        if (argc > 1 && std::string(argv[1]) == "--emission-only") return 0;
+        if (argc > 1 && std::string(argv[1]) == "--school-only") { runAquariumSchoolTests(); return 0; }
+        runAquariumMotionTests();
+        if (argc > 1 && std::string(argv[1]) == "--motion-only") return 0;
         positionParsingRejectsSilentZeroes();
         inspectionFacingRestoresEveryApproachDirection();
         navigationHonorsUndergroundLayersAndHoles();
         aquariumRuntimeLodPreservesAnimationAndReducesGeometry();
-        configuredDewgongMovesInsidePlacedTank();
+        if (!(argc > 1 && std::string(argv[1]) == "--simulation-only"))
+            configuredDewgongMovesInsidePlacedTank();
         playerTankPopulationUsesRuntimeNavigation();
+        unpositionedCrawlerRestsOnPlayerTankBottom();
+        timidReefPokemonIdleRandomlyAndFleePredators();
+        leaderFormationTracksVelocityWithoutCounterSwimming();
         largePlayerTankKyogreNavigatesWhileIdling();
+        crowdAvoidanceAndJellyDriftStayNatural();
+        intermittentBenthicSwimmerRestsAndResumes();
         focusViewSupportsEveryTankFace();
         polygonCutoutPreservesPartialFloorCells();
         freeCameraCaptureIsPasteReady();

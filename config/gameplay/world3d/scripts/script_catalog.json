@@ -1,5 +1,6 @@
 {
   "scripts": [
+    { "path": "doors/aquarium_room_transfer.json" },
     { "path": "interactions/pokemon_after_attend_happy.json" },
     {
       "path": "interactions/pokemon_default.json"

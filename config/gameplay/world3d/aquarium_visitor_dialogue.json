@@ -1,0 +1,66 @@
+{
+  "general": [
+    "I love the aquarium!", "It's so peaceful in here.",
+    "I came for a quick look. That was a while ago!", "There's always something worth a second look.",
+    "I keep finding reasons to stay a little longer.", "This is my kind of afternoon.",
+    "Which exhibit caught your eye?", "I'm taking the scenic route today.",
+    "I like to take my time in places like this.", "I wonder what I'll see around the next corner.",
+    "It feels like a little holiday in here.", "One more exhibit, then I'll go. Probably.",
+    "I wish I could bring all my friends here.", "The outside world can wait a moment.",
+    "I don't think I'll pick a favorite today.", "I'm glad I stopped by."
+  ],
+  "tank": [
+    "This exhibit really makes you slow down and look.", "I could spend a whole afternoon at this glass.",
+    "It's like a little world on the other side.", "I'm trying to notice all the little details.",
+    "This looks different from every viewing spot.", "I think this is a good place to stop for a moment.",
+    "Imagine seeing this place from inside the water.", "Someone put a lot of thought into this exhibit.",
+    "I was about to leave, but I wanted one more look.", "I like how this tank has its own atmosphere.",
+    "There must be a lovely view from the other side too.", "I always discover something new when I look again."
+  ],
+  "species": [
+    "That {pokemon} looks happy!", "Oh, there's a {pokemon} in this tank!",
+    "I didn't expect to see {pokemon} today.", "I think {pokemon} might be my favorite here.",
+    "Do you think that {pokemon} notices us?", "That {pokemon} has such a lovely shape.",
+    "I keep coming back to look at {pokemon}.", "I'd love to learn more about {pokemon}.",
+    "Seeing {pokemon} up close is something else.", "I wonder what that {pokemon} is thinking.",
+    "That {pokemon} really suits this exhibit.", "I could watch {pokemon} for ages.",
+    "Have you spotted the {pokemon} yet?", "There's something charming about that {pokemon}.",
+    "I hope that {pokemon} comes a little closer.", "I wonder what a perfect day looks like for {pokemon}.",
+    "{pokemon} looks right at home to me.", "I wish I could ask that {pokemon} about its day.",
+    "I never get tired of seeing {pokemon}.", "I think {pokemon} deserves a second look.",
+    "That {pokemon} has quite a presence.", "I'd bring a friend here just to see {pokemon}.",
+    "I didn't realize how much I liked {pokemon} until today.", "Look at that {pokemon}! Isn't it wonderful?",
+    "I wonder which part of this tank {pokemon} likes best.", "I'm trying to remember every detail of that {pokemon}."
+  ],
+  "decorations": [
+    "The decorations give this tank so much personality.", "I like how the scenery has been arranged here.",
+    "There's a lot to look at besides the water.", "Those decorations make it feel like a tiny landscape.",
+    "I keep noticing another detail in the scenery.", "I'd have trouble deciding where to put all those decorations.",
+    "The scenery really completes this exhibit.", "Whoever arranged this has a good eye."
+  ],
+  "rocks": [
+    "I like the rocks in this tank.", "Those rocks give the underwater scenery some character.",
+    "The rocky parts are my favorite detail here.", "I wonder how they chose those rocks.",
+    "Even the rocks are worth a closer look.", "Those rocks make the tank feel like a landscape."
+  ],
+  "corals": [
+    "The coral decorations are a lovely touch.", "I like the shapes of the corals in here.",
+    "The corals really catch my eye.", "I'd choose coral decorations for my own tank too.",
+    "Those corals add so much character.", "I could spend ages arranging corals like those."
+  ],
+  "plants": [
+    "I like the plants in this exhibit.", "The plants make the scenery feel softer.",
+    "That planting was a nice choice.", "I'd definitely put plants in my own aquarium.",
+    "The plants are a lovely part of the view.", "It's nice to see some greenery in there."
+  ],
+  "tunnel": [
+    "There's a tunnel through this tank!", "I want to see what it looks like from the tunnel.",
+    "Walking through a tank sounds like an adventure.", "That tunnel gives you a whole different viewpoint.",
+    "I think I'll try the tunnel before I go.", "Imagine the view with water all around you."
+  ],
+  "empty": [
+    "I wonder which Pokémon will live here.", "This exhibit has room for a new story.",
+    "I'm curious what they'll add to this tank.", "A quiet tank makes you notice the setting.",
+    "What would you put in this exhibit?", "I'll have to come back and see what changes."
+  ]
+}

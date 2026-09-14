@@ -11,6 +11,8 @@
 #include "gameplay/world3d/followers/FollowerIdleExitTarget.hpp"
 #include "gameplay/world3d/followers/NatureIdleConfig.hpp"
 #include "gameplay/world3d/followers/NatureIdlePlanner.hpp"
+#include "gameplay/world3d/followers/AquariumFollowerPlanner.hpp"
+#include "gameplay/world3d/npc/AquariumVisitors.hpp"
 #include "gameplay/world3d/scripts/OverworldScript.hpp"
 #include "gameplay/world3d/rendering/BillboardPlacement.hpp"
 #include "gameplay/world3d/terrain/ActorTerrainBinding.hpp"
@@ -50,6 +52,8 @@ public:
     bool resourcesReady() const { return resources_ready_; }
     void setTerrainQuery(std::shared_ptr<characters::CharacterTerrainQuery> terrain_query);
     void stowUntilPlayerMoves(int player_tile_x, int player_tile_y);
+    void setAquariumInterest(const npc::VisitorRoomPlan&,const npc::AquariumVisitorConfig&);
+    void setAquariumOccupiedTiles(std::vector<std::pair<int,int>> cells) { aquarium_occupied_=std::move(cells); }
 
     void collectBillboardDraws(
         const camera::Gen4FollowCamera& camera,
@@ -177,6 +181,16 @@ private:
     bool resources_ready_ = false;
     bool interaction_locked_ = false;
     std::mt19937 rng_{};
+    npc::VisitorRoomPlan aquarium_interest_;
+    npc::AquariumVisitorConfig aquarium_interest_config_;
+    std::vector<std::pair<int,int>> aquarium_occupied_;
+    std::optional<npc::VisitorWatchSpot> aquarium_goal_;
+    std::deque<TilePoint> aquarium_route_;
+    std::set<std::string> aquarium_seen_tanks_;
+    double aquarium_idle_seconds_=0,aquarium_watch_seconds_=0,aquarium_retry_seconds_=0;
+    TilePoint aquarium_last_player_{-1,-1};
+    AquariumFollowerTrailTarget aquarium_trailing_cell_;
+    void updateAquariumInterest(double dt,bool player_activity);
 
     terrain::ActorTerrainBinding terrainBinding() const;
     int tileHeightUnits(int tx, int ty) const;

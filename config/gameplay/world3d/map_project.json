@@ -130,14 +130,6 @@
       "name": "Black 2 Interior 842"
     },
     {
-      "file": "aquarium12.owmap",
-      "gridX": 2,
-      "gridY": 0,
-      "id": "aquarium12",
-      "linked": false,
-      "name": "aquarium"
-    },
-    {
       "file": "aquarium_builder_lab.owmap",
       "gridX": 3,
       "gridY": 0,

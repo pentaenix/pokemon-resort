@@ -144,24 +144,27 @@ bool AquariumConstructionSession::paintCursorCell() {
         draft_->candidate_tank = *findTankById(tanks, draft_->original_tank->id);
         draft_->paint_changed = true;
     } else {
-        tanks.clear();
         draft_->paint_affected_ids.clear();
         const int min_column = std::min(draft_->anchor.column, cursor_.column);
         const int max_column = std::max(draft_->anchor.column, cursor_.column);
         const int min_row = std::min(draft_->anchor.row, cursor_.row);
         const int max_row = std::max(draft_->anchor.row, cursor_.row);
-        for (const auto& original : draft_->paint_original_tanks) {
-            auto cells = occupiedCells(original);
+        auto target = findTankById(tanks, draft_->original_tank->id);
+        if (target != tanks.end()) {
+            auto cells = occupiedCells(*target);
             const std::size_t original_size = cells.size();
             for (int row = min_row; row <= max_row; ++row) {
                 for (int column = min_column; column <= max_column; ++column) {
                     cells.erase({column, row});
                 }
             }
-            if (cells.size() != original_size) markAffected(*draft_, original.id);
-            if (!cells.empty()) {
-                tanks.push_back(cells.size() == original_size
-                    ? original : tankFromCells(original, cells));
+            if (cells.size() != original_size) {
+                markAffected(*draft_, target->id);
+                if (cells.empty()) {
+                    tanks.erase(target);
+                } else {
+                    *target = tankFromCells(*target, cells);
+                }
             }
         }
         const auto primary = findTankById(tanks, draft_->original_tank->id);
@@ -171,7 +174,9 @@ bool AquariumConstructionSession::paintCursorCell() {
         draft_->paint_changed = !draft_->paint_affected_ids.empty();
     }
     draft_->cursor = cursor_;
-    draft_->delete_candidate = tanks.empty();
+    draft_->delete_candidate = draft_->operation == ConstructionDraftOperation::Subtract
+        ? !draft_->candidate_tank.has_value()
+        : tanks.empty();
     refreshDraftValidation();
     return true;
 }

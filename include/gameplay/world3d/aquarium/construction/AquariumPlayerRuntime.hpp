@@ -4,6 +4,7 @@
 #include "gameplay/world3d/Overworld3DConfig.hpp"
 #include "gameplay/world3d/aquarium/AquariumConfig.hpp"
 #include "gameplay/world3d/aquarium/AquariumSimulation.hpp"
+#include "gameplay/world3d/aquarium/AquariumSpeciesCatalog.hpp"
 #include "gameplay/world3d/aquarium/construction/AquariumDesign.hpp"
 
 #include <filesystem>
@@ -24,11 +25,9 @@ struct PlayerTankRuntime {
 
 struct AquariumPopulationContext {
     std::filesystem::path project_root;
-    std::size_t tank_index = 0;
     float model_scale = 0.27f;
     AquariumPokemonPresentationConfig presentation;
-    std::string milotic_model_path;
-    std::string kyogre_model_path;
+    const AquariumTankPopulation* selected_population = nullptr;
 };
 
 class AquariumPopulationPolicy {
@@ -40,10 +39,12 @@ public:
         std::vector<std::string>* diagnostics) const = 0;
 };
 
-std::unique_ptr<AquariumPopulationPolicy> makeTestAquariumPopulationPolicy();
+std::unique_ptr<AquariumPopulationPolicy> makeStockedAquariumPopulationPolicy(
+    AquariumSpeciesCatalog catalog);
 
 struct PlayerAquariumRuntimeSet {
     std::uint64_t revision = 0;
+    bool population_valid = true;
     std::vector<PlayerTankRuntime> tanks;
     std::vector<pr::aquarium::geometry::GridCell> collision_cells;
     std::vector<AquariumPlayerTankSimulationInput> simulation_tanks;

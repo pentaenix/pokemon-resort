@@ -120,6 +120,38 @@ void staleCommandIsRejectedWithoutMutation() {
         "stale command changed the current document or failed silently");
 }
 
+void populationCommandRoundTripsAndUsesMonotonicRevisions() {
+    const auto original = documentWithTwoTanks();
+    construction::AquariumConstructionCommand command;
+    command.kind = construction::AquariumCommandKind::EditPopulation;
+    command.tank_id = "tank_alpha";
+    command.population_after = construction::AquariumTankPopulation{
+        "tank_alpha", {{"0087:00", 2}, {"0223:00", 4}}};
+
+    const auto stocked = construction::applyAquariumConstructionCommand(
+        original, command, construction::AquariumCommandDirection::Forward);
+    require(stocked && stocked->revision == 8 && stocked->tank_populations.size() == 1 &&
+            stocked->tank_populations.front().residents.size() == 2,
+        "population command did not create a durable roster");
+    const auto restored = construction::applyAquariumConstructionCommand(
+        *stocked, command, construction::AquariumCommandDirection::Reverse);
+    require(restored && restored->revision == 9 && restored->tank_populations.empty(),
+        "population undo did not remove the roster in a new revision");
+    const auto redone = construction::applyAquariumConstructionCommand(
+        *restored, command, construction::AquariumCommandDirection::Forward);
+    require(redone && redone->revision == 10 && redone->tank_populations.size() == 1,
+        "population redo was not deterministic");
+
+    construction::AquariumConstructionCommand clear = command;
+    clear.population_before = redone->tank_populations.front();
+    clear.population_after = construction::AquariumTankPopulation{"tank_alpha", {}};
+    const auto emptied = construction::applyAquariumConstructionCommand(
+        *redone, clear, construction::AquariumCommandDirection::Forward);
+    require(emptied && emptied->tank_populations.size() == 1 &&
+            emptied->tank_populations.front().residents.empty(),
+        "an intentionally empty roster was mistaken for an absent roster");
+}
+
 void tankSetCommandRoundTripsMergesAndMultiDeletes() {
     const auto original = documentWithTwoTanks();
     auto merged = original.tanks.front();
@@ -193,6 +225,7 @@ int main() {
         deleteCommandIsReversibleAndRedoable();
         historyPublishesOnlyAtCommitBoundariesAndBranches();
         staleCommandIsRejectedWithoutMutation();
+        populationCommandRoundTripsAndUsesMonotonicRevisions();
         tankSetCommandRoundTripsMergesAndMultiDeletes();
         selectionMovementAndEveryResizeHandleStayCellAligned();
         std::cout << "aquarium_command_tests: ok\n";
