@@ -73,8 +73,21 @@ AquariumBuildingPresentationConfig parseBuildingPresentation(
     AquariumBuildingPresentationConfig out = {}) {
     if (!value || !value->isObject()) return out;
     if (const JsonValue* camera = value->get("camera"); camera && camera->isObject()) {
+        // `enabled` is retained as a compatibility alias for existing aquarium configs.
         if (const JsonValue* enabled = camera->get("enabled"); enabled && enabled->isBool()) {
-            out.camera.enabled = enabled->asBool();
+            out.camera.zoomed_in_enabled = enabled->asBool();
+        }
+        if (const JsonValue* zoomed = camera->get("zoomedInEnabled");
+            zoomed && zoomed->isBool()) {
+            out.camera.zoomed_in_enabled = zoomed->asBool();
+        }
+        out.camera.preset = stringOr(camera->get("preset"), out.camera.preset);
+        if (out.camera.preset != "pixel-perfect-close" &&
+            out.camera.preset != "overworld-low" &&
+            out.camera.preset != "overworld") {
+            throw std::runtime_error(
+                "buildingPresentation.camera.preset must be pixel-perfect-close, "
+                "overworld-low, or overworld");
         }
         out.camera.distance_behind_player_tiles = std::clamp(static_cast<float>(numberOr(
             camera->get("distanceBehindPlayerTiles"),
@@ -82,6 +95,9 @@ AquariumBuildingPresentationConfig parseBuildingPresentation(
         out.camera.height_above_player_tiles = std::clamp(static_cast<float>(numberOr(
             camera->get("heightAbovePlayerTiles"),
             out.camera.height_above_player_tiles)), 1.0f, 64.0f);
+        out.camera.overworld_low_pitch_degrees = std::clamp(static_cast<float>(numberOr(
+            camera->get("overworldLowPitchDegrees"),
+            out.camera.overworld_low_pitch_degrees)), -80.0f, -5.0f);
         out.camera.near_clip_tiles = std::clamp(static_cast<float>(numberOr(
             camera->get("nearClipTiles"), out.camera.near_clip_tiles)), 0.0f, 16.0f);
         out.camera.far_clip_tiles = std::clamp(static_cast<float>(numberOr(
@@ -514,14 +530,17 @@ camera::Gen4CameraPreset aquariumBuildingCameraPreset(
     const camera::Gen4CameraPreset& base,
     const AquariumBuildingCameraConfig& config,
     float tile_size) {
-    if (!config.enabled) return base;
     constexpr float kRadiansToDegrees = 57.29577951308232f;
     const float unit = std::max(1.0f, tile_size);
-    const float horizontal = config.distance_behind_player_tiles * unit;
-    const float vertical = config.height_above_player_tiles * unit;
     camera::Gen4CameraPreset result = base;
-    result.distance = std::hypot(horizontal, vertical);
-    result.pitch_deg = -std::atan2(vertical, horizontal) * kRadiansToDegrees;
+    if (config.zoomed_in_enabled && config.preset == "overworld-low") {
+        result.pitch_deg = config.overworld_low_pitch_degrees;
+    } else if (config.zoomed_in_enabled && config.preset == "pixel-perfect-close") {
+        const float horizontal = config.distance_behind_player_tiles * unit;
+        const float vertical = config.height_above_player_tiles * unit;
+        result.pitch_deg = -std::atan2(vertical, horizontal) * kRadiansToDegrees;
+        result.distance = std::hypot(horizontal, vertical);
+    }
     if (config.near_clip_tiles > 0.0f) {
         result.near_clip = std::max(0.01f, config.near_clip_tiles * unit);
     }

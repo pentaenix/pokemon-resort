@@ -34,6 +34,11 @@ int main(){try{
         previous_line=spoken;
     }
     check(config.adult_walk_speed_multiplier==.55,"adult visitors must use the configured leisurely pace");
+    const auto appearances=npc::discoverAquariumVisitorAppearances(PR_SOURCE_DIR,config.excluded_appearance_stems);
+    check(std::any_of(appearances.begin(),appearances.end(),[](const auto& path){return path.find("cynthia.charbin")!=std::string::npos;}),
+        "new NPC charbin packages must enter the aquarium visitor pool automatically");
+    check(std::none_of(appearances.begin(),appearances.end(),[](const auto& path){return path.find("baby.charbin")!=std::string::npos;}),
+        "explicitly excluded NPC packages must stay out of the aquarium visitor pool");
     npc::AquariumVisitorSession session;session.appearances={"a","b","c"};
     for(const auto* expected:{"a","b","c","a","b","c"})
         check(npc::nextAquariumVisitorAppearance(session)==expected,"visitor appearances must cycle before repeating");

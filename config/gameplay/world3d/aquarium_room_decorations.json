@@ -1,0 +1,89 @@
+{
+  "schema": "pokemon-resort-aquarium-room-decorations",
+  "schemaVersion": 1,
+  "assets": [
+    {
+      "assetId": "fountain_01_preview.glb",
+      "category": "structures",
+      "animationPlaybackRate": -1.0,
+      "collision": {
+        "mode": "cell-mask",
+        "blockedCells": [
+          { "column": -1, "row": -1 },
+          { "column": 0, "row": -1 },
+          { "column": 1, "row": -1 },
+          { "column": -1, "row": 0 },
+          { "column": 0, "row": 0 },
+          { "column": 1, "row": 0 },
+          { "column": -1, "row": 1 },
+          { "column": 0, "row": 1 },
+          { "column": 1, "row": 1 }
+        ]
+      }
+    },
+    {
+      "assetId": "c15_fountain_01_preview.glb",
+      "category": "structures",
+      "surfaceEffect": "shallow-water",
+      "collision": { "mode": "none" }
+    },
+    {
+      "assetId": "c15_gate_02_preview.glb",
+      "category": "structures",
+      "collision": {
+        "mode": "cell-mask",
+        "blockedCells": [
+          { "column": -3, "row": 0 },
+          { "column": 3, "row": 0 }
+        ]
+      }
+    },
+    {
+      "assetId": "c1_gateway_03_preview.glb",
+      "category": "structures",
+      "collision": {
+        "mode": "cell-mask",
+        "blockedCells": [
+          { "column": -4, "row": 0 },
+          { "column": -3, "row": 0 },
+          { "column": 3, "row": 0 },
+          { "column": 4, "row": 0 }
+        ]
+      }
+    },
+    {
+      "assetId": "c4_gate_01_preview.glb",
+      "category": "structures",
+      "collision": {
+        "mode": "cell-mask",
+        "blockedCells": [
+          { "column": -4, "row": 0 },
+          { "column": -3, "row": 0 },
+          { "column": -2, "row": 0 },
+          { "column": 3, "row": 0 },
+          { "column": 4, "row": 0 }
+        ]
+      }
+    },
+    {
+      "assetId": "signs/sign01_preview.glb",
+      "category": "equipment",
+      "collision": { "mode": "cell-mask", "blockedCells": [{ "column": 0, "row": 0 }] }
+    },
+    {
+      "assetId": "signs/sign02_preview.glb",
+      "category": "equipment",
+      "collision": { "mode": "cell-mask", "blockedCells": [{ "column": 0, "row": 0 }] }
+    },
+    {
+      "assetId": "signs/sign03_preview.glb",
+      "category": "equipment",
+      "collision": { "mode": "cell-mask", "blockedCells": [{ "column": 0, "row": 0 }] }
+    },
+    {
+      "assetId": "signs/sign04_preview.glb",
+      "category": "equipment",
+      "collision": { "mode": "cell-mask", "blockedCells": [{ "column": 0, "row": 0 }] }
+    }
+  ]
+}

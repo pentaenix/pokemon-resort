@@ -1,6 +1,7 @@
 #pragma once
 
 #include "aquarium_geometry/Types.hpp"
+#include "gameplay/world3d/aquarium/AquariumExhibitPreset.hpp"
 #include "gameplay/world3d/aquarium/AquariumSpeciesCatalog.hpp"
 #include "gameplay/world3d/aquarium/AquariumSubstratePreset.hpp"
 #include "gameplay/world3d/aquarium/construction/AquariumHabitatValidator.hpp"
@@ -37,6 +38,7 @@ public:
     };
     enum class ExhibitControl {
         Color,
+        ColorStrength,
         Brightness,
         Murkiness,
         Substrate,
@@ -59,8 +61,10 @@ public:
     void toggleTab();
     Tab tab() const { return tab_; }
     bool pickUpFocused();
+    bool pickUpResident(const AquariumResidentCapacityPlacement& placement);
     void cancelHeld();
     bool holdingSpecies() const { return held_species_index_.has_value(); }
+    bool holdingResident() const { return held_resident_species_id_.has_value(); }
     const AquariumSpeciesEntry* heldSpecies() const;
     FocusArea focusArea() const { return focus_area_; }
     void focusTank();
@@ -72,6 +76,7 @@ public:
     int pointerY() const { return pointer_y_; }
     bool focusIndex(std::size_t index);
     bool focusExhibitPreset(std::size_t index);
+    bool focusExhibitColorStrength(int level);
     bool focusExhibitBrightness(int level);
     bool focusExhibitMurkiness(int level);
     bool focusExhibitSubstrate(std::size_t index);
@@ -83,6 +88,7 @@ public:
     void setCurrentExhibitPreset(std::string preset_id);
     void setCurrentExhibitStyle(const pr::aquarium::geometry::TankDesign& tank);
     int focusedBrightnessLevel() const { return focused_brightness_level_; }
+    int focusedColorStrengthLevel() const { return focused_color_strength_level_; }
     int focusedMurkinessLevel() const { return focused_murkiness_level_; }
     std::size_t focusedSubstrateIndex() const { return focused_substrate_index_; }
     std::string focusedSubstrateKind() const;
@@ -110,6 +116,7 @@ public:
 
     std::optional<std::vector<AquariumResidentSelection>> residentsWithFocusedAdded() const;
     std::optional<std::vector<AquariumResidentSelection>> residentsWithFocusedRemoved() const;
+    std::optional<std::vector<AquariumResidentSelection>> residentsWithHeldResidentRemoved() const;
 
 private:
     const AquariumSpeciesCatalog* catalog_ = nullptr;
@@ -120,6 +127,7 @@ private:
     Tab tab_ = Tab::Pokemon;
     FocusArea focus_area_ = FocusArea::Catalogue;
     std::optional<int> held_species_index_;
+    std::optional<std::string> held_resident_species_id_;
     bool pointer_active_ = false;
     int pointer_x_ = 0;
     int pointer_y_ = 0;
@@ -129,6 +137,7 @@ private:
     std::size_t focused_exhibit_preset_index_ = 0;
     std::string current_exhibit_preset_id_ = "river";
     ExhibitControl exhibit_control_ = ExhibitControl::Color;
+    int focused_color_strength_level_ = kAquariumDefaultColorStrengthLevel;
     int focused_brightness_level_ = kAquariumDefaultBrightnessLevel;
     int focused_murkiness_level_ = kAquariumDefaultMurkinessLevel;
     std::size_t focused_substrate_index_ = 0;

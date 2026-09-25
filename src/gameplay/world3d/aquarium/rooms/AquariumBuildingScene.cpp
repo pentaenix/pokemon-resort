@@ -22,9 +22,7 @@ SceneConfig projectBuildingRoom(const SceneConfig& style,const BuildingLayout& b
     auto empty=room; empty.doors.clear();
     auto scene=projectRoomLayout(base,empty);
     scene.environment.space="interior:"+room.id;
-    scene.terrain.heights.assign(room.bounds.depth,std::vector<std::uint8_t>(room.bounds.width,0));
-    scene.terrain.specials=scene.terrain.heights;
-    scene.terrain.collision=scene.terrain.heights;
+    scene.terrain.collision.assign(room.bounds.depth,std::vector<std::uint8_t>(room.bounds.width,0));
     for(const auto& door:room.doors) {
         const auto p=doorLandingCell(room,door);
         const int x=p.column-room.bounds.column,y=p.row-room.bounds.row;
@@ -88,6 +86,19 @@ LayoutProposal proposeWallMove(const BuildingLayout& current,const std::string& 
             if(door.wall==Wall::North || door.wall==Wall::South) door.offset+=old.column-b.column;
             else door.offset+=old.row-b.row;
         }
+        auto& floor=room.surfaces.floor_overrides;
+        floor.erase(std::remove_if(floor.begin(),floor.end(),[&](const auto& paint) {
+            return paint.cell.column<0||paint.cell.row<0||paint.cell.column>=b.width||paint.cell.row>=b.depth;
+        }),floor.end());
+        auto& depths=room.surfaces.floor_depth_overrides;
+        depths.erase(std::remove_if(depths.begin(),depths.end(),[&](const auto& item) {
+            return item.cell.column<0||item.cell.row<0||item.cell.column>=b.width||item.cell.row>=b.depth;
+        }),depths.end());
+        auto& walls=room.surfaces.wall_overrides;
+        walls.erase(std::remove_if(walls.begin(),walls.end(),[&](const auto& paint) {
+            const int length=(paint.wall==Wall::North||paint.wall==Wall::South)?b.width:b.depth;
+            return paint.segment<0||paint.segment>=length;
+        }),walls.end());
         auto errors=validateBuildingLayout(candidate,occupancy);
         if(!errors.empty()) return {std::nullopt,std::move(errors)};
         ++candidate.revision;

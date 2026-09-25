@@ -6,6 +6,7 @@
 #include "gameplay/world3d/aquarium/AquariumSpeciesCatalog.hpp"
 #include "gameplay/world3d/aquarium/construction/AquariumStockingController.hpp"
 #include "ui/BoxViewport.hpp"
+#include "ui/transfer_system/GameTransferConfig.hpp"
 
 #include <SDL.h>
 
@@ -44,6 +45,12 @@ public:
         const AquariumStockingController& controller) const;
     bool closeAt(int width, int height, int point_x, int point_y) const;
     bool capacityAt(int width, int height, int point_x, int point_y) const;
+    bool capacityGridAt(
+        int width, int height, int point_x, int point_y,
+        const AquariumStockingController& controller) const;
+    std::optional<AquariumResidentCapacityPlacement> capacityPlacementAt(
+        int width, int height, int point_x, int point_y,
+        const AquariumStockingController& controller) const;
     bool previousBoxAt(int width, int height, int point_x, int point_y) const;
     bool nextBoxAt(int width, int height, int point_x, int point_y) const;
     std::optional<AquariumStockingController::Tab> tabAt(
@@ -52,6 +59,9 @@ public:
         int width, int height, int point_x, int point_y) const;
     std::optional<int> exhibitBrightnessAt(
         int width, int height, int point_x, int point_y) const;
+    std::optional<int> exhibitColorStrengthAt(
+        int width, int height, int point_x, int point_y) const;
+    int exhibitColorStrengthLevelAtX(int width, int point_x) const;
     std::optional<int> exhibitMurkinessAt(
         int width, int height, int point_x, int point_y) const;
     int exhibitBrightnessLevelAtX(int width, int point_x) const;
@@ -111,6 +121,8 @@ private:
     GameTransferPillToggleStyle pill_style_{};
     GameTransferToolCarouselStyle carousel_style_{};
     GameTransferInfoBannerStyle info_style_{};
+    transfer_system::BackgroundAnimLoaded background_animation_{};
+    GameTransferSelectionCursorStyle selection_cursor_style_{};
     mutable std::shared_ptr<PokeSpriteAssets> sprite_assets_;
     mutable SDL_Renderer* ui_renderer_ = nullptr;
     mutable std::unique_ptr<pr::BoxViewport> catalogue_viewport_;
@@ -129,6 +141,7 @@ private:
     mutable SDL_Renderer* raster_renderer_ = nullptr;
     mutable AquariumStockingOverlayPixels raster_pixels_;
     mutable std::unordered_map<std::string, SDL_Rect> sprite_source_rects_;
+    mutable double animation_seconds_ = 0.0;
 };
 
 } // namespace pr::gameplay::world3d::aquarium::construction

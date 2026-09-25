@@ -33,13 +33,53 @@ SDL_Rect capacityArea(int width, int height) {
         BoxViewport::kViewportWidth, BoxViewport::kViewportHeight};
 }
 
-Color residentColor(const std::string& species_id) {
+struct CapacityGridLayout {
+    SDL_Rect area{};
+    int columns = 1;
+    int first_row = 0;
+    int visible_rows = 1;
+    int cell = 18;
+    int grid_x = 0;
+    int grid_y = 0;
+};
+
+CapacityGridLayout capacityGridLayout(
+    int width, int height, const AquariumStockingController& controller) {
+    const SDL_Rect panel = capacityArea(width, height);
+    CapacityGridLayout layout;
+    layout.area = {panel.x + 12, panel.y + 98, panel.w - 24, panel.h - 110};
+    layout.columns = std::max(1, controller.capacityColumns());
+    const int total_rows = std::max(1, controller.capacityRows());
+    layout.visible_rows = std::min(
+        total_rows, AquariumStockingController::kCapacityVisibleRows);
+    layout.first_row = controller.capacityFirstVisibleRow();
+    layout.cell = std::clamp(std::min(
+        layout.area.w / layout.columns - 3,
+        layout.area.h / layout.visible_rows - 3), 18, 62);
+    layout.grid_x = layout.area.x + std::max(0,
+        (layout.area.w - layout.columns * (layout.cell + 3) + 3) / 2);
+    layout.grid_y = layout.area.y + std::max(0,
+        (layout.area.h - layout.visible_rows * (layout.cell + 3) + 3) / 2);
+    return layout;
+}
+
+Color residentColor(const std::string& species_id, std::size_t placement_index) {
     std::uint32_t hash = 2166136261U;
     for (const unsigned char byte : species_id) hash = (hash ^ byte) * 16777619U;
+    hash = (hash ^ static_cast<std::uint32_t>(placement_index + 1U)) * 16777619U;
     return Color{
         static_cast<Uint8>(70U + hash % 90U),
         static_cast<Uint8>(125U + (hash >> 8U) % 90U),
         static_cast<Uint8>(145U + (hash >> 16U) % 85U), 255};
+}
+
+Color lightened(Color color) {
+    constexpr int kWhiteWeight = 72;
+    color.r = static_cast<Uint8>((color.r * (255 - kWhiteWeight) + 255 * kWhiteWeight) / 255);
+    color.g = static_cast<Uint8>((color.g * (255 - kWhiteWeight) + 255 * kWhiteWeight) / 255);
+    color.b = static_cast<Uint8>((color.b * (255 - kWhiteWeight) + 255 * kWhiteWeight) / 255);
+    color.a = 245;
+    return color;
 }
 
 } // namespace
@@ -117,19 +157,15 @@ void AquariumStockingOverlay::renderCapacity(
     // Treat the complete destination panel below its title as a scrollable
     // viewport. Large cells make each resident footprint readable; deep
     // stocking boards pan vertically instead of shrinking into a thumbnail.
-    const SDL_Rect grid_area{area.x + 12, area.y + 98,
-        area.w - 24, area.h - 110};
-    const int columns = std::max(1, controller.capacityColumns());
+    const CapacityGridLayout layout = capacityGridLayout(width, height, controller);
+    const SDL_Rect grid_area = layout.area;
+    const int columns = layout.columns;
     const int total_rows = std::max(1, controller.capacityRows());
-    const int visible_rows = std::min(total_rows, AquariumStockingController::kCapacityVisibleRows);
-    const int first_row = controller.capacityFirstVisibleRow();
-    const int cell = std::clamp(std::min(
-        grid_area.w / columns - 3,
-        grid_area.h / visible_rows - 3), 18, 62);
-    const int grid_x = grid_area.x + std::max(0,
-        (grid_area.w - columns * (cell + 3) + 3) / 2);
-    const int grid_y = grid_area.y + std::max(0,
-        (grid_area.h - visible_rows * (cell + 3) + 3) / 2);
+    const int visible_rows = layout.visible_rows;
+    const int first_row = layout.first_row;
+    const int cell = layout.cell;
+    const int grid_x = layout.grid_x;
+    const int grid_y = layout.grid_y;
     const int first_cell = first_row * columns;
     const int final_cell = std::min(
         controller.capacityCells(), first_cell + columns * visible_rows);
@@ -146,11 +182,13 @@ void AquariumStockingOverlay::renderCapacity(
         const SDL_Rect rect{grid_x + (index % columns) * (cell + 3),
             grid_y + (index / columns - first_row) * (cell + 3), cell, cell};
         const int owner = owners[static_cast<std::size_t>(index)];
-        fillRound(renderer, rect, 5,
-            owner >= 0 ? residentColor(placements[static_cast<std::size_t>(owner)].species_id)
-                       : Color{189, 226, 237, 255});
+        const Color owner_color = owner >= 0
+            ? residentColor(placements[static_cast<std::size_t>(owner)].species_id,
+                static_cast<std::size_t>(owner))
+            : Color{189, 226, 237, 255};
+        fillRound(renderer, rect, 5, owner_color);
         fillRound(renderer, {rect.x + 3, rect.y + 3, rect.w - 6, rect.h - 6}, 3,
-            owner >= 0 ? Color{226, 244, 241, 210} : Color{229, 248, 253, 255});
+            owner >= 0 ? lightened(owner_color) : Color{229, 248, 253, 255});
     }
 
     for (const auto& placement : placements) {
@@ -181,9 +219,12 @@ void AquariumStockingOverlay::renderCapacity(
             grid_y + min_row * (cell + 3),
             (max_column - min_column + 1) * (cell + 3) - 3,
             (max_row - min_row + 1) * (cell + 3) - 3};
-        const float scale = 0.92f * std::min(
-            static_cast<float>(std::max(1, bounds.w - 4)) / std::max(1, source.w),
-            static_cast<float>(std::max(1, bounds.h - 4)) / std::max(1, source.h));
+        // Capacity belongs to the colored footprint, not the icon. A Kyogre
+        // therefore occupies more cells without turning its menu sprite into
+        // a giant image that obscures the stocking board.
+        const float scale = 0.88f * std::min(
+            static_cast<float>(std::max(1, cell - 4)) / std::max(1, source.w),
+            static_cast<float>(std::max(1, cell - 4)) / std::max(1, source.h));
         SDL_Rect destination{0, 0, std::max(1, static_cast<int>(source.w * scale)),
             std::max(1, static_cast<int>(source.h * scale))};
         destination.x = bounds.x + (bounds.w - destination.w) / 2;
@@ -215,14 +256,41 @@ void AquariumStockingOverlay::renderCapacity(
         fillRound(renderer, {track.x - 1, thumb_y, 8, thumb_height}, 4,
             {33, 133, 190, 255});
     }
-    if (controller.focusArea() == AquariumStockingController::FocusArea::Tank) {
-        SDL_SetRenderDrawColor(renderer, 218, 54, 54, 255);
-        for (int inset = 0; inset < 4; ++inset) {
-            const SDL_Rect ring{grid_area.x - inset, grid_area.y - inset,
-                grid_area.w + inset * 2, grid_area.h + inset * 2};
-            SDL_RenderDrawRect(renderer, &ring);
-        }
+}
+
+std::optional<AquariumResidentCapacityPlacement>
+AquariumStockingOverlay::capacityPlacementAt(
+    int width, int height, int point_x, int point_y,
+    const AquariumStockingController& controller) const {
+    const CapacityGridLayout layout = capacityGridLayout(width, height, controller);
+    const int stride = layout.cell + 3;
+    const int local_x = point_x - layout.grid_x;
+    const int local_y = point_y - layout.grid_y;
+    if (local_x < 0 || local_y < 0) return std::nullopt;
+    const int column = local_x / stride;
+    const int visible_row = local_y / stride;
+    if (column < 0 || column >= layout.columns || visible_row < 0 ||
+        visible_row >= layout.visible_rows || local_x % stride >= layout.cell ||
+        local_y % stride >= layout.cell) return std::nullopt;
+    const int cell_index = (layout.first_row + visible_row) * layout.columns + column;
+    if (cell_index < 0 || cell_index >= controller.capacityCells()) return std::nullopt;
+    for (const auto& placement : controller.capacityPlacements()) {
+        if (std::find(placement.cell_indices.begin(), placement.cell_indices.end(),
+                cell_index) != placement.cell_indices.end()) return placement;
     }
+    return std::nullopt;
+}
+
+bool AquariumStockingOverlay::capacityGridAt(
+    int width, int height, int point_x, int point_y,
+    const AquariumStockingController& controller) const {
+    const CapacityGridLayout layout = capacityGridLayout(width, height, controller);
+    const int stride = layout.cell + 3;
+    const int local_x = point_x - layout.grid_x;
+    const int local_y = point_y - layout.grid_y;
+    return local_x >= 0 && local_y >= 0 &&
+        local_x < layout.columns * stride - 3 &&
+        local_y < layout.visible_rows * stride - 3;
 }
 
 } // namespace pr::gameplay::world3d::aquarium::construction

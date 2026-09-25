@@ -1088,37 +1088,41 @@ void readEnvironmentScene(const JsonValue& root, AttendPokemonModel& out) {
     const JsonValue* rae = raeExtras(root);
     if (!rae) return;
     const JsonValue* scene = rae->get("environmentScene");
-    if (!scene || !scene->isObject()) return;
+    const JsonValue* motion = rae->get("mapMaterialMotion");
+    const bool has_scene=scene&&scene->isObject();
+    const bool has_motion=motion&&motion->isObject();
+    if(!has_scene&&!has_motion)return;
     AttendEnvironmentScene& parsed = out.environment_scene;
     parsed.enabled = true;
-    parsed.schema_version = intMember(scene, "schemaVersion", 0);
-    parsed.id = stringMember(scene, "id");
-    parsed.label = stringMember(scene, "label", parsed.id);
-    parsed.default_time = stringMember(scene, "defaultTime", "day");
-    parsed.default_weather = stringMember(scene, "defaultWeather", "clear");
-    if (const JsonValue* source = scene->get("source"); source && source->isObject()) {
-        parsed.composition_id = stringMember(source, "compositionId");
-        if (const JsonValue* slots = source->get("slots"); slots && slots->isArray()) {
-            for (const JsonValue& slot : slots->asArray()) {
-                if (slot.isNumber()) parsed.source_slots.push_back(static_cast<int>(slot.asNumber()));
+    if(has_scene) {
+        parsed.schema_version = intMember(scene, "schemaVersion", 0);
+        parsed.id = stringMember(scene, "id");
+        parsed.label = stringMember(scene, "label", parsed.id);
+        parsed.default_time = stringMember(scene, "defaultTime", "day");
+        parsed.default_weather = stringMember(scene, "defaultWeather", "clear");
+        if (const JsonValue* source = scene->get("source"); source && source->isObject()) {
+            parsed.composition_id = stringMember(source, "compositionId");
+            if (const JsonValue* slots = source->get("slots"); slots && slots->isArray()) {
+                for (const JsonValue& slot : slots->asArray()) {
+                    if (slot.isNumber()) parsed.source_slots.push_back(static_cast<int>(slot.asNumber()));
+                }
             }
         }
-    }
-    if (const JsonValue* anchor = scene->get("surfaceAnchor"); anchor && anchor->isObject()) {
-        if (const JsonValue* x = anchor->get("x"); x && x->isNumber()) parsed.surface_anchor[0] = static_cast<float>(x->asNumber());
-        if (const JsonValue* y = anchor->get("y"); y && y->isNumber()) parsed.surface_anchor[1] = static_cast<float>(y->asNumber());
-        if (const JsonValue* z = anchor->get("z"); z && z->isNumber()) parsed.surface_anchor[2] = static_cast<float>(z->asNumber());
-    }
-    if (const JsonValue* states = scene->get("states"); states && states->isObject()) {
-        if (const JsonValue* rate = states->get("sourceFrameRate"); rate && rate->isNumber()) {
-            parsed.source_frame_rate = std::max(1.0f, static_cast<float>(rate->asNumber()));
+        if (const JsonValue* anchor = scene->get("surfaceAnchor"); anchor && anchor->isObject()) {
+            if (const JsonValue* x = anchor->get("x"); x && x->isNumber()) parsed.surface_anchor[0] = static_cast<float>(x->asNumber());
+            if (const JsonValue* y = anchor->get("y"); y && y->isNumber()) parsed.surface_anchor[1] = static_cast<float>(y->asNumber());
+            if (const JsonValue* z = anchor->get("z"); z && z->isNumber()) parsed.surface_anchor[2] = static_cast<float>(z->asNumber());
         }
-        parsed.ambient_clips = stringArrayMember(states, "ambientClips");
-        parsed.time_states = readEnvironmentStates(states, "timeStates");
-        parsed.weather_states = readEnvironmentStates(states, "weatherStates");
+        if (const JsonValue* states = scene->get("states"); states && states->isObject()) {
+            if (const JsonValue* rate = states->get("sourceFrameRate"); rate && rate->isNumber()) {
+                parsed.source_frame_rate = std::max(1.0f, static_cast<float>(rate->asNumber()));
+            }
+            parsed.ambient_clips = stringArrayMember(states, "ambientClips");
+            parsed.time_states = readEnvironmentStates(states, "timeStates");
+            parsed.weather_states = readEnvironmentStates(states, "weatherStates");
+        }
     }
-    const JsonValue* motion = rae->get("mapMaterialMotion");
-    if (!motion || !motion->isObject()) return;
+    if(!has_motion)return;
     if (const JsonValue* rate = motion->get("frameRate"); rate && rate->isNumber()) {
         parsed.source_frame_rate = std::max(1.0f, static_cast<float>(rate->asNumber()));
     }

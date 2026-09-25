@@ -20,11 +20,45 @@ struct RoomDoor {
     Wall wall=Wall::South;
     int offset=0; // Centre cell measured along its own wall from the NW end.
 };
+inline constexpr int kRoomSurfacePaletteCount = 6;
+inline constexpr int kMaximumRoomFloorDepth = 5;
+struct RoomSurfaceStyle {
+    struct FloorOverride { Cell cell; int palette=0; };
+    struct FloorDepthOverride { Cell cell; int depth=0; };
+    struct WallOverride { Wall wall=Wall::North; int segment=0; int palette=0; };
+    int floor_palette = 0;
+    int wall_palette = 0;
+    std::vector<FloorOverride> floor_overrides;
+    // Integer room-cell depressions. Zero is implicit; persisted values are 1..5.
+    std::vector<FloorDepthOverride> floor_depth_overrides;
+    std::vector<WallOverride> wall_overrides;
+};
+inline constexpr std::size_t kRoomDecorationLimit = 50;
+struct RoomDecoration {
+    std::string id;
+    std::string asset_id;
+    Cell cell;
+    int yaw_quarter_turns=0;
+};
+enum class RoomTransitionKind { Ramp, Stairs };
+struct RoomTransition {
+    std::string id;
+    RoomTransitionKind kind=RoomTransitionKind::Ramp;
+    // Both cells are room-local. The lower cell owns the runtime ramp special.
+    Cell lower_cell;
+    Cell upper_cell;
+};
 struct RoomLayout {
     std::string id;
     RoomBounds bounds;
     std::vector<RoomDoor> doors;
+    RoomSurfaceStyle surfaces;
+    std::vector<RoomDecoration> decorations;
+    std::vector<RoomTransition> transitions;
 };
+int roomFloorDepth(const RoomLayout& room,Cell cell);
+const char* roomTransitionKindName(RoomTransitionKind kind);
+std::vector<Cell> roomTransitionUpperCandidates(const RoomLayout& room,Cell lower_cell);
 struct DoorEndpoint { std::string room_id, door_id; };
 struct DoorConnection { std::string id; DoorEndpoint first, second; };
 // Existing overworld links are preserved rather than invented as editable rooms.
@@ -53,6 +87,7 @@ struct DoorLanding {
 };
 
 const RoomLayout* findRoom(const BuildingLayout&, const std::string& id);
+RoomLayout* findRoom(BuildingLayout&, const std::string& id);
 const RoomDoor* findDoor(const RoomLayout&, const std::string& id);
 Cell doorLandingCell(const RoomLayout&, const RoomDoor&);
 std::vector<Cell> protectedDoorCells(const RoomLayout&, const RoomDoor&);
@@ -74,6 +109,18 @@ LayoutProposal proposeConnectedRoom(const BuildingLayout&, const std::string& so
     Wall source_wall, int source_offset, const std::string& source_door_id,
     const std::string& new_room_id, const std::string& receiving_door_id,
     const std::string& connection_id, const std::vector<RoomOccupancy>& occupancy={});
+LayoutProposal proposeRoomTransition(const BuildingLayout&,const std::string& room_id,
+    Cell lower_cell,RoomTransitionKind kind,const std::vector<RoomOccupancy>& occupancy={});
+// Creates a straight, cardinal stair flight between existing endpoint levels.
+// Intermediate cells are assigned the required one-level depth bands.
+LayoutProposal proposeRoomStairFlight(const BuildingLayout&,const std::string& room_id,
+    Cell start,Cell finish,const std::vector<RoomOccupancy>& occupancy={});
+// Fills a rectangular stair footprint beside a different floor level. The
+// attachment side and rise direction are inferred from the surrounding floor.
+LayoutProposal proposeRoomStairArea(const BuildingLayout&,const std::string& room_id,
+    Cell first,Cell last,const std::vector<RoomOccupancy>& occupancy={});
+LayoutProposal proposeRoomStairRemovalArea(const BuildingLayout&,const std::string& room_id,
+    Cell first,Cell last,const std::vector<RoomOccupancy>& occupancy={});
 
 enum class LayoutLoadStatus { Loaded, Invalid, NewerVersion };
 struct LayoutLoadResult {

@@ -27,6 +27,7 @@ bool AquariumStockingController::open(
     tab_ = Tab::Pokemon;
     focus_area_ = FocusArea::Catalogue;
     held_species_index_.reset();
+    held_resident_species_id_.reset();
     pointer_active_ = false;
     capacity_first_visible_row_ = 0;
     setCurrentExhibitStyle(tank);
@@ -64,12 +65,14 @@ void AquariumStockingController::close() {
     tab_ = Tab::Pokemon;
     focus_area_ = FocusArea::Catalogue;
     held_species_index_.reset();
+    held_resident_species_id_.reset();
     pointer_active_ = false;
     capacity_cells_ = 0;
     capacity_first_visible_row_ = 0;
     focused_exhibit_preset_index_ = 0;
     current_exhibit_preset_id_ = "river";
     exhibit_control_ = ExhibitControl::Color;
+    focused_color_strength_level_ = kAquariumDefaultColorStrengthLevel;
     focused_brightness_level_ = kAquariumDefaultBrightnessLevel;
     focused_murkiness_level_ = kAquariumDefaultMurkinessLevel;
     focused_substrate_index_ = 0;
@@ -88,7 +91,7 @@ void AquariumStockingController::navigate(int dx, int dy) {
     if (tab_ == Tab::Exhibit) {
         int control = static_cast<int>(exhibit_control_);
         if (dy != 0) {
-            control = std::clamp(control + (dy > 0 ? 1 : -1), 0, 3);
+            control = std::clamp(control + (dy > 0 ? 1 : -1), 0, 4);
             exhibit_control_ = static_cast<ExhibitControl>(control);
         }
         if (dx == 0) return;
@@ -100,6 +103,11 @@ void AquariumStockingController::navigate(int dx, int dy) {
                 0, static_cast<int>(kAquariumExhibitPresets.size()) - 1));
             focused_brightness_level_ = aquariumExhibitDefaultBrightnessLevel(
                 kAquariumExhibitPresets[focused_exhibit_preset_index_].id);
+            break;
+        case ExhibitControl::ColorStrength:
+            focused_color_strength_level_ = std::clamp(
+                focused_color_strength_level_ + direction, 0,
+                kAquariumColorStrengthLevelCount - 1);
             break;
         case ExhibitControl::Brightness:
             focused_brightness_level_ = std::clamp(
@@ -161,6 +169,7 @@ void AquariumStockingController::setTab(Tab tab) {
     tab_ = tab;
     focus_area_ = FocusArea::Catalogue;
     held_species_index_.reset();
+    held_resident_species_id_.reset();
 }
 
 void AquariumStockingController::toggleTab() {
@@ -171,17 +180,31 @@ bool AquariumStockingController::pickUpFocused() {
     if (!focusedSpecies() || focused_index_ < 0 ||
         !speciesCanBeAdded(static_cast<std::size_t>(focused_index_))) return false;
     held_species_index_ = focused_index_;
+    held_resident_species_id_.reset();
     focus_area_ = FocusArea::Catalogue;
+    return true;
+}
+
+bool AquariumStockingController::pickUpResident(
+    const AquariumResidentCapacityPlacement& placement) {
+    if (!active_ || tab_ != Tab::Pokemon || placement.species_id.empty() ||
+        residentCount(placement.species_id) <= 0) return false;
+    held_species_index_.reset();
+    held_resident_species_id_ = placement.species_id;
+    focus_area_ = FocusArea::Tank;
     return true;
 }
 
 void AquariumStockingController::cancelHeld() {
     held_species_index_.reset();
+    held_resident_species_id_.reset();
     focus_area_ = FocusArea::Catalogue;
 }
 
 const AquariumSpeciesEntry* AquariumStockingController::heldSpecies() const {
-    if (!active_ || !catalog_ || !held_species_index_ || *held_species_index_ < 0 ||
+    if (!active_ || !catalog_) return nullptr;
+    if (held_resident_species_id_) return catalog_->findApproved(*held_resident_species_id_);
+    if (!held_species_index_ || *held_species_index_ < 0 ||
         *held_species_index_ >= static_cast<int>(catalog_->approved.size())) return nullptr;
     return &catalog_->approved[static_cast<std::size_t>(*held_species_index_)];
 }
@@ -231,6 +254,14 @@ bool AquariumStockingController::focusExhibitBrightness(int level) {
     return true;
 }
 
+bool AquariumStockingController::focusExhibitColorStrength(int level) {
+    if (!active_ || tab_ != Tab::Exhibit || level < 0 ||
+        level >= kAquariumColorStrengthLevelCount) return false;
+    focused_color_strength_level_ = level;
+    exhibit_control_ = ExhibitControl::ColorStrength;
+    return true;
+}
+
 bool AquariumStockingController::focusExhibitMurkiness(int level) {
     if (!active_ || tab_ != Tab::Exhibit || level < 0 ||
         level >= kAquariumMurkinessControlLevelCount) return false;
@@ -267,6 +298,8 @@ void AquariumStockingController::setCurrentExhibitPreset(std::string preset_id) 
 void AquariumStockingController::setCurrentExhibitStyle(
     const pr::aquarium::geometry::TankDesign& tank) {
     setCurrentExhibitPreset(tank.exhibit_preset);
+    focused_color_strength_level_ = std::clamp(
+        tank.color_strength_level, 0, kAquariumColorStrengthLevelCount - 1);
     focused_brightness_level_ = std::clamp(
         tank.brightness_level, 0, kAquariumBrightnessLevelCount - 1);
     focused_murkiness_level_ = std::clamp(
@@ -388,6 +421,7 @@ AquariumStockingController::previewCapacityPlacements() const {
 
 std::optional<AquariumResidentCapacityPlacement>
 AquariumStockingController::focusedPreviewPlacement() const {
+    if (holdingResident()) return std::nullopt;
     const AquariumSpeciesEntry* species = heldSpecies();
     if (!species) species = focusedSpecies();
     if (!species) return std::nullopt;
@@ -465,6 +499,20 @@ AquariumStockingController::residentsWithFocusedRemoved() const {
     auto result = residents_;
     const auto found = std::find_if(result.begin(), result.end(),
         [&](const auto& resident) { return resident.species_id == species->id; });
+    if (found == result.end()) return std::nullopt;
+    if (found->count > 1) --found->count;
+    else result.erase(found);
+    return result;
+}
+
+std::optional<std::vector<AquariumResidentSelection>>
+AquariumStockingController::residentsWithHeldResidentRemoved() const {
+    if (!held_resident_species_id_) return std::nullopt;
+    auto result = residents_;
+    const auto found = std::find_if(result.begin(), result.end(),
+        [&](const auto& resident) {
+            return resident.species_id == *held_resident_species_id_;
+        });
     if (found == result.end()) return std::nullopt;
     if (found->count > 1) --found->count;
     else result.erase(found);

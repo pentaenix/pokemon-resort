@@ -201,6 +201,7 @@ add_executable(title_screen_demo
     src/gameplay/world3d/aquarium/AquariumInspectionFacing.cpp
     src/gameplay/world3d/aquarium/AquariumNavigation.cpp
     src/gameplay/world3d/aquarium/AquariumPokemonMetrics.cpp
+    src/gameplay/world3d/aquarium/rooms/AquariumRoomDecorationCatalogRuntime.cpp
     src/gameplay/world3d/aquarium/AquariumSimulation.cpp
     src/gameplay/world3d/aquarium/AquariumSimulationMotion.cpp
     src/gameplay/world3d/aquarium/AquariumSimulationSchool.cpp
@@ -462,6 +463,7 @@ add_executable(aquarium_runtime_tests
     src/gameplay/world3d/aquarium/construction/AquariumHabitatValidator.cpp
     src/gameplay/world3d/aquarium/construction/AquariumPlayerRuntime.cpp
     src/gameplay/world3d/aquarium/construction/AquariumTankEditing.cpp
+    src/gameplay/world3d/terrain/TerrainSurface.cpp
 )
 target_include_directories(aquarium_runtime_tests PRIVATE include)
 target_link_libraries(aquarium_runtime_tests PRIVATE aquarium_geometry)
@@ -794,6 +796,7 @@ add_library(aquarium_room_layout STATIC
     src/gameplay/world3d/aquarium/rooms/AquariumRoomRuntime.cpp
     src/gameplay/world3d/aquarium/rooms/AquariumBuildingScene.cpp
     src/gameplay/world3d/aquarium/rooms/AquariumRoomStore.cpp
+    src/gameplay/world3d/aquarium/rooms/AquariumRoomDecorationCatalog.cpp
 )
 target_include_directories(aquarium_room_layout PUBLIC include)
 target_link_libraries(title_screen_demo PRIVATE aquarium_room_layout)
@@ -878,6 +881,7 @@ add_executable(aquarium_decoration_tests
     src/gameplay/world3d/aquarium/decorations/AquariumDecorationCatalog.cpp
     src/gameplay/world3d/aquarium/decorations/AquariumDecorationEditor.cpp
     src/gameplay/world3d/aquarium/decorations/AquariumDecorationUi.cpp
+    src/gameplay/world3d/aquarium/rooms/AquariumRoomDecorationCatalog.cpp
 )
 add_executable(aquarium_inspection_tests
     tests/native/world3d/aquarium_inspection_tests.cpp

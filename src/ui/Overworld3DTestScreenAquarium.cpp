@@ -4,6 +4,7 @@
 #include "core/config/ConfigLoader.hpp"
 #include "gameplay/world3d/aquarium/construction/AquariumConstructionCamera.hpp"
 #include "gameplay/world3d/rendering/PixelScale.hpp"
+#include "gameplay/world3d/terrain/TerrainSurface.hpp"
 
 #include <chrono>
 #include <algorithm>
@@ -100,6 +101,27 @@ bool aquariumUsesComplexGeometry(
             tank.footprint.shape != pr::aquarium::geometry::FootprintShape::Rectangle ||
             !tank.footprint.subtracted_cells.empty();
     });
+}
+
+std::vector<std::string> aquariumFloorLevelDiagnostics(
+    const gameplay::world3d::aquarium::construction::AquariumDesignDocument& document,
+    const gameplay::world3d::SceneConfig& scene) {
+    namespace aqc=gameplay::world3d::aquarium::construction;
+    std::vector<std::string> diagnostics;
+    for(const auto& tank:document.tanks) {
+        std::optional<float> floor;
+        bool mixed=false;
+        for(const auto source:aqc::tankFootprintCells(tank))
+            for(int row=0;row<2;++row)for(int column=0;column<2;++column) {
+                const int x=source.column+column,y=source.row+row;
+                if(x<0||y<0||x>=scene.grid.width||y>=scene.grid.height)continue;
+                const float candidate=gameplay::world3d::terrain::heightAtTileCenter(scene,x,y);
+                if(!floor)floor=candidate;
+                else if(std::abs(candidate-*floor)>.01f)mixed=true;
+            }
+        if(mixed)diagnostics.push_back("Tank "+tank.id+" spans multiple room floor levels");
+    }
+    return diagnostics;
 }
 
 } // namespace
@@ -373,8 +395,7 @@ void Overworld3DTestScreen::refreshPlayerAquariumRuntime() {
                   << diagnostic << '\n';
     }
     if (aquarium_collision_overlay_) {
-        aquarium_collision_overlay_->setBlockedCells(
-            player_aquarium_runtime_.collision_cells);
+        aquarium_collision_overlay_->setBlockedCells(aquariumCombinedCollisionCells());
     }
     if (bgfx_renderer_) {
         std::string upload_error;
@@ -446,6 +467,42 @@ void Overworld3DTestScreen::refreshAquariumRenderActors() {
             });
         }),actors.end());
     }
+    const auto* building=aquarium_room_candidate_?&*aquarium_room_candidate_:
+        (aquarium_building_?&*aquarium_building_:nullptr);
+    // Isolate the tank being dressed. Room props otherwise float through the
+    // focused tank view and make depth/overlap judgments unnecessarily noisy.
+    if(building && !decoration_editor_.active()) if(const auto* room=gameplay::world3d::aquarium::rooms::findRoom(*building,scene_.id)) {
+        if(!room_decoration_catalog_loaded_) {
+            room_decoration_catalog_.scan(project_root_);room_decoration_catalog_loaded_=true;
+        }
+        const float tile=scene_.grid.tile_size;
+        const auto append_room_decoration=[&](const auto& object) {
+            const auto* asset=room_decoration_catalog_.resolve(object.asset_id);if(!asset)return;
+            gameplay::world3d::aquarium::AquariumPokemonActor actor;
+            actor.id="room_decoration:"+room->id+":"+object.id;
+            actor.model_path=asset->path.string();actor.model_scale=asset->base_scale;
+            actor.presentation.brightness=scene_.lighting_brightness;
+            actor.presentation.pokemon_brightness=1.0f;
+            actor.presentation.tint={scene_.lighting_tint_r,scene_.lighting_tint_g,scene_.lighting_tint_b};
+            actor.animation_time_seconds=room_decoration_animation_time_seconds_;
+            actor.animation_playback_rate=asset->animation_playback_rate;
+            actor.world_yaw_degrees=object.yaw_quarter_turns*90.0f;
+            const float angle=actor.world_yaw_degrees*3.14159265f/180.0f;
+            const float cx=(asset->bounds.min_x+asset->bounds.max_x)*.5f*actor.model_scale;
+            const float cz=(asset->bounds.min_z+asset->bounds.max_z)*.5f*actor.model_scale;
+            actor.world_position={
+                (object.cell.column+.5f)*tile-cx*std::cos(angle)-cz*std::sin(angle),
+                gameplay::world3d::terrain::heightAtTileCenter(
+                    scene_,object.cell.column,object.cell.row)-asset->bounds.min_y*actor.model_scale,
+                (object.cell.row+.5f)*tile+cx*std::sin(angle)-cz*std::cos(angle)};
+            actors.push_back(std::move(actor));
+        };
+        for(const auto& object:room->decorations) {
+            if(room_decoration_draft_&&room_decoration_draft_->id==object.id)continue;
+            append_room_decoration(object);
+        }
+        if(room_decoration_draft_)append_room_decoration(*room_decoration_draft_);
+    }
     bgfx_renderer_->setAquariumPokemonActors(std::move(actors));
 }
 
@@ -506,9 +563,13 @@ bool Overworld3DTestScreen::beginAquariumConstructionCommit(
             const auto placement_diagnostics = aqc::validateAquariumPlacement(
                 generated.candidate.document, config.construction,
                 authoredObstacleCells(scene), &previous_document);
-            generated.validation_valid = placement_diagnostics.empty();
+            const auto floor_diagnostics=aquariumFloorLevelDiagnostics(
+                generated.candidate.document,scene);
+            generated.validation_valid = placement_diagnostics.empty()&&floor_diagnostics.empty();
             generated.diagnostics.insert(generated.diagnostics.end(),
                 placement_diagnostics.begin(), placement_diagnostics.end());
+            generated.diagnostics.insert(generated.diagnostics.end(),
+                floor_diagnostics.begin(),floor_diagnostics.end());
             if (!generated.validation_valid) {
                 generated.generation_microseconds =
                     std::chrono::duration_cast<std::chrono::microseconds>(
@@ -609,7 +670,7 @@ void Overworld3DTestScreen::updateAquariumConstructionCommit() {
                 aquarium_simulation_->tanks());
     }
     if (aquarium_collision_overlay_) {
-        aquarium_collision_overlay_->setBlockedCells(player_aquarium_runtime_.collision_cells);
+        aquarium_collision_overlay_->setBlockedCells(aquariumCombinedCollisionCells());
     }
     const std::uint64_t revision = generated.candidate.document.revision;
     const std::uint64_t operation_token = generated.candidate.operation_token;
@@ -809,18 +870,30 @@ Overworld3DTestScreen::aquariumConstructionVisual() const {
                 footprint.origin_cell.row + cell.row});
         }
     }
-    const float height_step = scene_.terrain.height_per_floor > 0.0f
-        ? scene_.terrain.height_per_floor : scene_.grid.tile_size;
     const auto route_cells = visual.state == aqc::ConstructionState::TunnelRoute
         ? aquarium_construction_.tunnelRoutingCells()
         : std::vector<pr::aquarium::geometry::GridCell>{};
     const auto& construction_cells = visual.state == aqc::ConstructionState::TunnelRoute
         ? route_cells : aquarium_construction_.allowedCells();
+    const auto frame=aquarium_construction_.committedDesign().room_frame.value_or(
+        pr::aquarium::geometry::GridCell{});
+    const auto* active_room=aquarium_building_?
+        gameplay::world3d::aquarium::rooms::findRoom(*aquarium_building_,scene_.id):nullptr;
     const int projection_w=scene_.world_viewport.enabled
         ? gameplay::world3d::rendering::worldViewportBaseWidth(scene_) : app_config_.window.virtual_width;
     const int projection_h=scene_.world_viewport.enabled
         ? gameplay::world3d::rendering::worldViewportBaseHeight(scene_) : app_config_.window.virtual_height;
     for (const auto cell : construction_cells) {
+        if(visual.state!=aqc::ConstructionState::TunnelRoute&&active_room&&
+            std::any_of(active_room->transitions.begin(),active_room->transitions.end(),
+                [&](const auto& transition) {
+                    const int local_column=cell.column+frame.column;
+                    const int local_row=cell.row+frame.row;
+                    return transition.lower_cell.column>=local_column&&
+                        transition.lower_cell.column<=local_column+1&&
+                        transition.lower_cell.row>=local_row&&
+                        transition.lower_cell.row<=local_row+1;
+                })) continue;
         if (visual.state != aqc::ConstructionState::TunnelRoute &&
             !aqc::aquariumConstructionCellInWorkingView(cell, camera_, projection_w, projection_h,
                 visual.tile_world_units, visual.placement_offset_world_units, scene_.interior.floor_datum)) continue;
@@ -831,12 +904,8 @@ Overworld3DTestScreen::aquariumConstructionVisual() const {
                 })) {
             continue;
         }
-        float floor_y = 0.0f;
-        if (cell.row >= 0 && cell.column >= 0 &&
-            cell.row < static_cast<int>(scene_.terrain.heights.size()) &&
-            cell.column < static_cast<int>(scene_.terrain.heights[cell.row].size())) {
-            floor_y = static_cast<float>(scene_.terrain.heights[cell.row][cell.column]) * height_step;
-        }
+        const float floor_y=gameplay::world3d::terrain::heightAtTileCenter(
+            scene_,cell.column,cell.row);
         visual.cells.push_back({
             cell,
             floor_y,

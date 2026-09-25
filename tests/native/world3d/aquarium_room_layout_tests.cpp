@@ -2,8 +2,10 @@
 #include "core/config/Json.hpp"
 #include "gameplay/world3d/aquarium/rooms/AquariumRoomRuntime.hpp"
 #include "gameplay/world3d/aquarium/rooms/AquariumRoomStore.hpp"
+#include "gameplay/world3d/aquarium/rooms/AquariumRoomDecorationCatalog.hpp"
 #include "gameplay/world3d/interiors/DefaultRoom.hpp"
 #include "gameplay/world3d/doors/DoorTravel.hpp"
+#include <algorithm>
 #include <fstream>
 #include <unistd.h>
 
@@ -87,7 +89,7 @@ void serializationAndFutureVersions() {
     require(parsed.status==room::LayoutLoadStatus::Loaded && parsed.document &&
         room::serializeBuildingLayout(*parsed.document)==text,"canonical room JSON did not round-trip");
     auto future=pr::parseJsonText(text);
-    future["schemaVersion"]=pr::JsonValue(2.0);
+    future["schemaVersion"]=pr::JsonValue(6.0);
     const auto newer=room::parseBuildingLayout(pr::serializeJsonValue(future));
     require(newer.status==room::LayoutLoadStatus::NewerVersion && !newer.document,
         "newer room format was treated as editable");
@@ -96,6 +98,185 @@ void serializationAndFutureVersions() {
     require(room::parseBuildingLayout(pr::serializeJsonValue(invalid)).status==room::LayoutLoadStatus::Invalid,
         "fractional room dimensions were silently truncated");
     require(room::parseBuildingLayout("{}").status==room::LayoutLoadStatus::Invalid,"missing room schema accepted");
+    auto styled=connect(room::Wall::West);
+    styled.rooms.front().surfaces.floor_palette=4;
+    styled.rooms.front().surfaces.wall_palette=2;
+    styled.rooms.front().surfaces.floor_overrides.push_back({{3,4},1});
+    styled.rooms.front().surfaces.floor_depth_overrides.push_back({{4,5},2});
+    styled.rooms.front().surfaces.wall_overrides.push_back({room::Wall::West,5,3});
+    const auto styled_round_trip=room::parseBuildingLayout(room::serializeBuildingLayout(styled));
+    require(styled_round_trip.document && styled_round_trip.document->rooms.front().surfaces.floor_palette==4 &&
+        styled_round_trip.document->rooms.front().surfaces.wall_palette==2,
+        "room surface palettes did not round-trip");
+    require(styled_round_trip.document->rooms.front().surfaces.floor_overrides.size()==1 &&
+        styled_round_trip.document->rooms.front().surfaces.floor_depth_overrides.size()==1 &&
+        styled_round_trip.document->rooms.front().surfaces.floor_depth_overrides.front().depth==2 &&
+        styled_round_trip.document->rooms.front().surfaces.wall_overrides.size()==1,
+        "sparse room surface/height painting did not round-trip");
+}
+
+void inferredRoomTransitions() {
+    auto layout=existing();
+    auto& room_a=layout.rooms.front();
+    room_a.surfaces.floor_depth_overrides={{{5,5},1}};
+    auto ramp=room::proposeRoomTransition(layout,"A",{5,5},room::RoomTransitionKind::Ramp);
+    require(ramp.document.has_value(),"valid inferred room ramp was rejected");
+    const auto* edited=room::findRoom(*ramp.document,"A");
+    require(edited&&edited->transitions.size()==1&&edited->transitions.front().upper_cell.row==4,
+        "transition did not infer its deterministic north attachment");
+
+    pr::gameplay::world3d::SceneConfig scene;
+    scene.id="A";scene.map_type="interior";scene.grid.width=31;scene.grid.height=21;
+    scene.grid.tile_size=16;scene.terrain.height_per_floor=16;
+    const auto projected=room::projectBuildingRoom(scene,*ramp.document,*edited);
+    require(projected.terrain.specials[5][5]==2,
+        "north room ramp did not project onto the lower cell");
+    require(projected.terrain.transition_edges.size()==1 &&
+        projected.terrain.transition_edges.front().lower_x==5 &&
+        projected.terrain.transition_edges.front().lower_y==5 &&
+        projected.terrain.transition_edges.front().upper_x==5 &&
+        projected.terrain.transition_edges.front().upper_y==4 &&
+        projected.terrain.transition_edges.front().stairs,
+        "legacy room ramp was not presented as a stair transition");
+    const auto layer=std::find_if(projected.tile_layers.layers.begin(),projected.tile_layers.layers.end(),
+        [](const auto& value){return value.id=="aquarium_room_transitions";});
+    require(layer!=projected.tile_layers.layers.end()&&layer->cells[5][5]==-1,
+        "plain ramp unexpectedly gained a stair overlay");
+
+    auto stairs=room::proposeRoomTransition(*ramp.document,"A",{5,5},room::RoomTransitionKind::Stairs);
+    require(stairs.document.has_value(),"valid inferred room stairs were rejected");
+    const auto* stair_room=room::findRoom(*stairs.document,"A");
+    const auto stair_scene=room::projectBuildingRoom(scene,*stairs.document,*stair_room);
+    require(stair_scene.terrain.specials[5][5]==2,
+        "changing transition kind unexpectedly changed its direction");
+    require(stair_scene.terrain.transition_edges.size()==1 &&
+        stair_scene.terrain.transition_edges.front().stairs,
+        "stairs were not projected as stepped render geometry");
+    const auto stair_layer=std::find_if(stair_scene.tile_layers.layers.begin(),stair_scene.tile_layers.layers.end(),
+        [](const auto& value){return value.id=="aquarium_room_transitions";});
+    require(stair_layer!=stair_scene.tile_layers.layers.end()&&stair_layer->cells[5][5]==-1,
+        "procedural stairs unexpectedly retained a coplanar RTPKS slope overlay");
+    const auto round_trip=room::parseBuildingLayout(room::serializeBuildingLayout(*stairs.document));
+    require(round_trip.document&&room::findRoom(*round_trip.document,"A")->transitions.size()==1,
+        "room transition did not survive schema round trip");
+
+    auto ambiguous=*stairs.document;
+    // North and east are both implicit depth-zero landings around this lower cell.
+    const auto cycled=room::proposeRoomTransition(ambiguous,"A",{5,5},room::RoomTransitionKind::Stairs);
+    require(cycled.document&&room::findRoom(*cycled.document,"A")->transitions.front().upper_cell.column==6,
+        "clicking an ambiguous transition did not cycle to its next valid edge");
+    const auto south=room::proposeRoomTransition(*cycled.document,"A",{5,5},room::RoomTransitionKind::Stairs);
+    require(south.document.has_value(),"south transition cycle was rejected");
+    const auto west=room::proposeRoomTransition(*south.document,"A",{5,5},room::RoomTransitionKind::Stairs);
+    require(west.document.has_value(),"west transition cycle was rejected");
+    const auto removed=room::proposeRoomTransition(*west.document,"A",{5,5},room::RoomTransitionKind::Stairs);
+    require(removed.document&&room::findRoom(*removed.document,"A")->transitions.empty(),
+        "cycling past the final valid transition edge did not remove it");
+    auto invalid=ambiguous;
+    room::findRoom(invalid,"A")->transitions.front().upper_cell={7,5};
+    require(!room::validateBuildingLayout(invalid).empty(),"non-cardinal room transition was accepted");
+    auto too_tall=ambiguous;
+    room::findRoom(too_tall,"A")->surfaces.floor_depth_overrides={{{5,5},2}};
+    require(!room::validateBuildingLayout(too_tall).empty(),
+        "aquarium stair spanning more than one floor was accepted");
+
+    auto flight_layout=existing();
+    room::findRoom(flight_layout,"A")->surfaces.floor_depth_overrides={{{8,11},3}};
+    const auto flight=room::proposeRoomStairFlight(flight_layout,"A",{8,8},{8,11});
+    require(flight.document.has_value(),"valid three-level stair flight was rejected");
+    const auto* flight_room=room::findRoom(*flight.document,"A");
+    require(flight_room&&flight_room->transitions.size()==3&&
+        room::roomFloorDepth(*flight_room,{8,8})==0&&
+        room::roomFloorDepth(*flight_room,{8,9})==1&&
+        room::roomFloorDepth(*flight_room,{8,10})==2&&
+        room::roomFloorDepth(*flight_room,{8,11})==3,
+        "stair flight did not create deterministic one-level intermediate bands");
+    require(!room::proposeRoomStairFlight(flight_layout,"A",{8,9},{8,11}).document,
+        "stair flight accepted fewer cells than its level change requires");
+
+    auto wide_layout=existing();
+    auto* wide_room=room::findRoom(wide_layout,"A");
+    for(int row=9;row<=11;++row)for(int column=8;column<=9;++column)
+        wide_room->surfaces.floor_depth_overrides.push_back({{column,row},3});
+    const auto wide=room::proposeRoomStairArea(wide_layout,"A",{8,9},{9,11});
+    require(wide.document.has_value(),"three-by-two stair area beside level zero was rejected");
+    const auto* built=room::findRoom(*wide.document,"A");
+    require(built&&built->transitions.size()==6&&
+        room::roomFloorDepth(*built,{8,9})==1&&room::roomFloorDepth(*built,{9,9})==1&&
+        room::roomFloorDepth(*built,{8,10})==2&&room::roomFloorDepth(*built,{9,10})==2&&
+        room::roomFloorDepth(*built,{8,11})==3&&room::roomFloorDepth(*built,{9,11})==3,
+        "wide stair area did not derive parallel intermediate depth bands");
+    const auto removed_wide=room::proposeRoomStairRemovalArea(*wide.document,"A",{9,10},{9,10});
+    const auto* restored=removed_wide.document?room::findRoom(*removed_wide.document,"A"):nullptr;
+    require(restored&&restored->transitions.empty(),
+        "marking one stair block did not remove its complete generated flight");
+    for(int row=9;row<=11;++row)for(int column=8;column<=9;++column)
+        require(room::roomFloorDepth(*restored,{column,row})==3,
+            "removing a generated stair flight did not restore its lower platform");
+    require(!room::proposeRoomStairArea(wide_layout,"A",{8,10},{9,11}).document,
+        "short stair area accepted a three-level rise");
+    auto cut_layout=wide_layout;
+    auto& cut_depths=room::findRoom(cut_layout,"A")->surfaces.floor_depth_overrides;
+    std::find_if(cut_depths.begin(),cut_depths.end(),[](const auto& item) {
+        return item.cell.column==8&&item.cell.row==9;
+    })->depth=1;
+    require(!room::proposeRoomStairArea(cut_layout,"A",{8,9},{9,11}).document,
+        "stair drawing cut through a non-uniform terrain selection");
+    auto oversized_layout=existing();
+    auto* oversized_room=room::findRoom(oversized_layout,"A");
+    for(int row=7;row<=11;++row)for(int column=8;column<=9;++column)
+        oversized_room->surfaces.floor_depth_overrides.push_back({{column,row},3});
+    const auto oversized=room::proposeRoomStairArea(oversized_layout,"A",{8,7},{9,11});
+    const auto* fitted=oversized.document?room::findRoom(*oversized.document,"A"):nullptr;
+    require(fitted&&fitted->transitions.size()==6&&
+        std::all_of(fitted->transitions.begin(),fitted->transitions.end(),[](const auto& item) {
+            return item.lower_cell.row<=9;
+        }),"oversized selection made a three-level stair flight longer than three cells");
+}
+
+void floorDepthProjectionAndSafety() {
+    pr::gameplay::world3d::SceneConfig scene;
+    scene.id="aquarium_builder_lab";scene.map_type="interior";
+    scene.grid.width=12;scene.grid.height=10;scene.grid.tile_size=16;
+    scene.terrain.height_per_floor=8;
+    auto layout=room::roomLayoutFromScene(scene);
+    auto& target=layout.rooms.front();
+    target.surfaces.floor_depth_overrides={{{4,4},1},{{5,4},3},{{6,4},5}};
+    const auto projected=room::projectRoomLayout(scene,target);
+    require(projected.terrain.base_height_world==-40.0f,
+        "procedural room floor baseline did not reserve five depression levels");
+    require(projected.terrain.heights[3][3]==5&&projected.terrain.heights[4][4]==4&&
+        projected.terrain.heights[4][5]==2&&projected.terrain.heights[4][6]==0,
+        "room floor depths did not project to deterministic terrain heights");
+    require(projected.terrain.base_height_world+
+        projected.terrain.heights[3][3]*projected.terrain.height_per_floor==0.0f &&
+        projected.terrain.base_height_world+
+        projected.terrain.heights[4][5]*projected.terrain.height_per_floor==-24.0f,
+        "default and three-step floor world heights are incorrect");
+    require(projected.terrain.base_height_world+
+        projected.terrain.heights[4][6]*projected.terrain.height_per_floor==-40.0f,
+        "fifth room depth did not project five complete floor steps below datum");
+    require(room::validateBuildingLayout(layout).empty(),
+        "valid fifth room depression level was rejected");
+    auto too_deep=layout;
+    room::findRoom(too_deep,"aquarium_builder_lab")->surfaces.floor_depth_overrides.push_back(
+        {{7,4},6});
+    require(!room::validateBuildingLayout(too_deep).empty(),
+        "room depression deeper than five levels was accepted");
+
+    auto doorway=existing();
+    const auto protected_cell=room::protectedDoorCells(
+        doorway.rooms.front(),doorway.rooms.front().doors.front()).front();
+    doorway.rooms.front().surfaces.floor_depth_overrides.push_back({{
+        protected_cell.column-doorway.rooms.front().bounds.column,
+        protected_cell.row-doorway.rooms.front().bounds.row},1});
+    require(room::validateBuildingLayout(doorway).empty(),
+        "lowered doorway lane was rejected by permissive height editing");
+    auto wall_edge=existing();
+    wall_edge.rooms.front().surfaces.floor_depth_overrides.push_back({{0,8},1});
+    require(room::validateBuildingLayout(wall_edge).empty(),
+        "lowered outer wall edge was rejected");
+
 }
 
 void runtimeProjectionAndClearance() {
@@ -194,6 +375,75 @@ void fastRoomScriptIsRegistered() {
     require(found,"fast room travel script missing from runtime catalog");
 }
 
+void roomDecorationLibrary() {
+    room::RoomDecorationCatalog catalog;
+    catalog.scan(PR_SOURCE_DIR);
+    require(catalog.error().empty(),"room decoration library could not be scanned");
+    require(catalog.entries().size()>=4,"moved aquarium signs are missing from room decorations");
+    const auto find=[&](const char* id)->const room::RoomDecorationAsset* {
+        const auto found=std::find_if(catalog.entries().begin(),catalog.entries().end(),
+            [&](const auto& asset){return asset.id==id;});
+        return found==catalog.entries().end()?nullptr:&*found;
+    };
+    const auto* sign=find("signs/sign01_preview.glb");
+    require(sign&&sign->category=="equipment","sign category inference changed unexpectedly");
+    const auto sign_cells=room::roomDecorationCollisionCells(*sign,{4,6},0,16);
+    require(sign_cells.size()==1&&sign_cells.front().column==4&&sign_cells.front().row==6,
+        "room signs must occupy exactly their placement cell");
+    const auto* gate=find("c15_gate_02_preview.glb");
+    require(gate&&gate->category=="structures"&&
+        gate->collision.mode==room::RoomDecorationCollisionMode::CellMask,
+        "gate collision profile was not applied from the asset catalog");
+    require(!catalog.indices("structures").empty()&&!catalog.indices("furniture").empty()&&
+        !catalog.indices("nature").empty()&&!catalog.indices("equipment").empty(),
+        "room-decoration tabs did not receive best-estimate asset categories");
+    const auto horizontal=room::roomDecorationCollisionCells(*gate,{10,8},0,16);
+    require(horizontal.size()==2&&horizontal[0].column==7&&horizontal[0].row==8&&
+        horizontal[1].column==13&&horizontal[1].row==8,
+        "gate mask must block only its two pillar cells");
+    const auto vertical=room::roomDecorationCollisionCells(*gate,{10,8},1,16);
+    require(vertical.size()==2&&vertical[0].column==10&&vertical[0].row==11&&
+        vertical[1].column==10&&vertical[1].row==5,
+        "gate collision mask did not rotate with the decoration");
+    const auto* asymmetric=find("c4_gate_01_preview.glb");
+    require(asymmetric,"asymmetric gate is missing from the room decoration library");
+    const auto asymmetric_vertical=room::roomDecorationCollisionCells(*asymmetric,{10,8},1,16);
+    require(asymmetric_vertical.size()==5&&asymmetric_vertical.front().row==12&&
+        asymmetric_vertical.back().row==4,
+        "asymmetric gate collision mask rotates opposite to its visual model");
+    room::RoomDecorationAsset measured;
+    measured.bounds.valid=true;measured.bounds.min_x=-28;measured.bounds.max_x=28;
+    measured.bounds.min_z=-24;measured.bounds.max_z=24;
+    const auto measured_cells=room::roomDecorationCollisionCells(measured,{8,8},0,16);
+    require(measured_cells.size()==12,
+        "measured decoration footprint gained a partial-edge border cell");
+    room::RoomDecorationAsset beveled_bench;
+    beveled_bench.bounds.valid=true;
+    beveled_bench.bounds.min_x=-8.15f;beveled_bench.bounds.max_x=8.14f;
+    beveled_bench.bounds.min_z=-24.08f;beveled_bench.bounds.max_z=24.07f;
+    const auto bench_cells=room::roomDecorationCollisionCells(beveled_bench,{12,8},0,16);
+    require(bench_cells.size()==3&&bench_cells.front().column==12&&
+        bench_cells.front().row==7&&bench_cells.back().row==9,
+        "near-cell bevels must not add a phantom north or west collision cell");
+    const auto* fountain=find("c15_fountain_01_preview.glb");
+    require(fountain&&fountain->collision.mode==room::RoomDecorationCollisionMode::None&&
+        fountain->surface_effect==room::RoomDecorationSurfaceEffect::ShallowWater,
+        "floor fountain must be walkable shallow water");
+    require(room::roomDecorationCollisionCells(*fountain,{8,8},0,16).empty(),
+        "floor fountain unexpectedly blocks player movement");
+    require(!room::roomDecorationPlacementCells(*fountain,{8,8},0,16).empty(),
+        "walkable floor fountain lost its editor placement footprint");
+    const auto* small_fountain=find("fountain_01_preview.glb");
+    require(small_fountain&&small_fountain->animation_playback_rate<0.0f,
+        "small fountain lost its corrected animation direction");
+    const auto small_fountain_cells=room::roomDecorationCollisionCells(
+        *small_fountain,{8,8},0,16);
+    require(small_fountain_cells.size()==9&&
+        std::none_of(small_fountain_cells.begin(),small_fountain_cells.end(),[](const auto cell) {
+            return cell.column<7||cell.column>9||cell.row<7||cell.row>9;
+        }),"small fountain must use its authored three-by-three collision mask");
+}
+
 void durableRoomStore() {
     char pattern[]="/tmp/aquarium-room-test-XXXXXX";
     const auto* directory=::mkdtemp(pattern);
@@ -216,7 +466,9 @@ void durableRoomStore() {
 }
 int main() {
     try { independentDoorsAndDefaultSize(); invalidEditsProtectTanksAndLinks(); serializationAndFutureVersions();
-        runtimeProjectionAndClearance(); wallHandlesAndProjectedLinks(); fastRoomScriptIsRegistered(); durableRoomStore(); }
+        floorDepthProjectionAndSafety(); inferredRoomTransitions();
+        runtimeProjectionAndClearance(); wallHandlesAndProjectedLinks(); fastRoomScriptIsRegistered();
+        roomDecorationLibrary(); durableRoomStore(); }
     catch (const std::exception& error) { std::cerr<<"aquarium_room_layout_tests: "<<error.what()<<'\n'; return 1; }
     std::cout<<"aquarium_room_layout_tests: independent doors, safe resizing and JSON passed\n";
 }

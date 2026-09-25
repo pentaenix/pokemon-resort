@@ -138,6 +138,23 @@ void testAppConfigCanOverrideEveryInputBindingVector() {
         "aquarium_construction_keys should be fully data-driven");
 }
 
+void testAppConfigCanAuthorAquariumMusic() {
+    const fs::path path = writeTempJson("aquarium_music", R"json({
+        "audio": {
+            "aquarium_music": "assets/music/custom_aquarium.mp3",
+            "music_volume": 4
+        }
+    })json");
+
+    const pr::AppConfig config = pr::loadAppConfigFromJson(path.string());
+    fs::remove(path);
+
+    expect(config.audio.aquarium_music == "assets/music/custom_aquarium.mp3",
+           "aquarium music path should be authored through app audio config");
+    expect(config.audio.music_volume == 4,
+           "aquarium music must share the normal music-volume setting");
+}
+
 void testInvalidInputVectorsFailWithActionName() {
     const fs::path path = writeTempJson("bad_input_contract", R"json({
         "input": {
@@ -164,6 +181,7 @@ int main() {
         {"committed app config keeps input contract", testCommittedAppConfigKeepsInputContract},
         {"committed title config parses with expected menu contract", testCommittedTitleConfigParsesWithExpectedMenuContract},
         {"app config can override every input binding vector", testAppConfigCanOverrideEveryInputBindingVector},
+        {"app config can author aquarium music", testAppConfigCanAuthorAquariumMusic},
         {"invalid input vectors fail with action name", testInvalidInputVectorsFailWithActionName},
         {"persistence resort_profile_file_name overrides", testPersistenceResortProfileFileNameOverrides},
     };

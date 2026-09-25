@@ -77,7 +77,12 @@ frequently than either shellfish.
 
 `benthic-rest-swimmer` alternates a lower-water swimming excursion with a
 navigation-validated return to the floor and a curated idle pose. Whiscash,
-Huntail, Gorebyss, Relicanth, and Clawitzer currently use this profile. Its
+Huntail, Gorebyss, and Clawitzer currently use this profile. Huntail and
+Gorebyss override it with long lurking pauses and a bottom-biased travel band.
+`lower-third-cruiser` keeps Relicanth continuously roaming above the substrate
+without letting it drift into the upper exhibit. The optional
+`behavior.verticalRangeMinimum` and `behavior.verticalRangeMaximum` values are
+normalized body-origin bands within usable water height. Shared profile
 timings, roaming height, and soft crowd-body scale live under
 `movementProfiles`; individual entries may override them with
 `behavior.activity`.

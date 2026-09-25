@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <algorithm>
 #include <string_view>
 
 namespace pr::gameplay::world3d::aquarium {
@@ -37,6 +38,37 @@ inline constexpr std::array<AquariumExhibitPreset, 4> kAquariumExhibitPresets{{
         {0.008f, 0.028f, 0.075f, 0.43f}, {0.006f, 0.028f, 0.11f}, 1.0f, 0.28f,
         {0.50f, 0.62f, 0.85f}, 1.0f, {0.55f, 0.68f, 0.90f}, 1.0f},
 }};
+
+inline constexpr int kAquariumColorStrengthLevelCount = 9;
+inline constexpr int kAquariumDefaultColorStrengthLevel = 8;
+
+inline AquariumExhibitPreset aquariumExhibitPresetWithColorStrength(
+    const AquariumExhibitPreset& source, int level) {
+    AquariumExhibitPreset result = source;
+    const float amount = static_cast<float>(std::clamp(
+        level, 0, kAquariumColorStrengthLevelCount - 1)) /
+        static_cast<float>(kAquariumColorStrengthLevelCount - 1);
+    const auto desaturate4 = [amount](std::array<float, 4>& color) {
+        const float neutral = color[0] * 0.2126f + color[1] * 0.7152f +
+            color[2] * 0.0722f;
+        for (std::size_t channel = 0; channel < 3; ++channel) {
+            color[channel] = neutral + (color[channel] - neutral) * amount;
+        }
+    };
+    const auto desaturate3 = [amount](std::array<float, 3>& color) {
+        const float neutral = color[0] * 0.2126f + color[1] * 0.7152f +
+            color[2] * 0.0722f;
+        for (float& channel : color) channel = neutral + (channel - neutral) * amount;
+    };
+    desaturate4(result.water_volume);
+    desaturate4(result.water_surface);
+    desaturate3(result.spill_color);
+    for (std::size_t channel = 0; channel < 3; ++channel) {
+        result.sand_tint[channel] = 1.0f + (source.sand_tint[channel] - 1.0f) * amount;
+        result.pokemon_tint[channel] = 1.0f + (source.pokemon_tint[channel] - 1.0f) * amount;
+    }
+    return result;
+}
 
 inline const AquariumExhibitPreset& aquariumExhibitPreset(std::string_view id) {
     for (const auto& preset : kAquariumExhibitPresets) {

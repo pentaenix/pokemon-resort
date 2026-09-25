@@ -1,4 +1,5 @@
 #include "gameplay/world3d/aquarium/rendering/AquariumConstructionBgfxRenderer.hpp"
+#include "gameplay/world3d/aquarium/rooms/AquariumRoomRuntime.hpp"
 
 #include <bx/math.h>
 
@@ -8,6 +9,7 @@
 #include <vector>
 
 namespace pr::gameplay::world3d::aquarium::rendering {
+namespace rooms = pr::gameplay::world3d::aquarium::rooms;
 
 namespace {
 
@@ -241,7 +243,92 @@ public:
                 appendLine2d(mesh,center_x-arm,center_y-arm,center_x+arm,center_y-arm,5,kWhite);
                 appendLine2d(mesh,center_x-arm,center_y-arm,center_x-arm,center_y+arm,5,kWhite);
                 appendLine2d(mesh,center_x+arm,center_y-arm,center_x+arm,center_y+arm,5,kWhite);
-                appendLine2d(mesh,center_x-arm,center_y+arm,center_x+arm*.1f,center_y+arm,5,kWhite);
+                appendLine2d(mesh,center_x-arm,center_y+arm,center_x-arm*.3f,center_y+arm,5,kWhite);
+                appendLine2d(mesh,center_x+arm*.3f,center_y+arm,center_x+arm,center_y+arm,5,kWhite);
+                appendQuad(mesh,center_x-arm*.2f,center_y+arm*.45f,
+                    center_x+arm*.2f,center_y+arm,kWhite);
+            } else if (action == Action::RoomLayout) {
+                const float box=arm*.58f;
+                appendLine2d(mesh,center_x-box,center_y-box,center_x+box,center_y-box,4,kWhite);
+                appendLine2d(mesh,center_x-box,center_y+box,center_x+box,center_y+box,4,kWhite);
+                appendLine2d(mesh,center_x-box,center_y-box,center_x-box,center_y+box,4,kWhite);
+                appendLine2d(mesh,center_x+box,center_y-box,center_x+box,center_y+box,4,kWhite);
+                for(const auto [dx,dy]:std::array<std::pair<float,float>,4>{ {
+                    {1,0},{-1,0},{0,1},{0,-1}} }) {
+                    appendLine2d(mesh,center_x+dx*box,center_y+dy*box,
+                        center_x+dx*arm,center_y+dy*arm,4,kWhite);
+                    appendTriangle2d(mesh,center_x+dx*arm,center_y+dy*arm,
+                        center_x+dx*arm*.72f-dy*arm*.18f,center_y+dy*arm*.72f+dx*arm*.18f,
+                        center_x+dx*arm*.72f+dy*arm*.18f,center_y+dy*arm*.72f-dx*arm*.18f,kWhite);
+                }
+            } else if (action == Action::RoomFloor) {
+                appendQuad(mesh,center_x-arm*.85f,center_y-arm*.72f,
+                    center_x+arm*.55f,center_y-arm*.30f,kWhite);
+                appendLine2d(mesh,center_x+arm*.55f,center_y-arm*.5f,
+                    center_x+arm*.55f,center_y,5,kWhite);
+                appendLine2d(mesh,center_x+arm*.55f,center_y,
+                    center_x,center_y,5,kWhite);
+                appendLine2d(mesh,center_x,center_y,
+                    center_x,center_y+arm*.82f,6,kWhite);
+            } else if (action == Action::RoomLevels) {
+                for(int layer=0;layer<3;++layer)
+                    appendLine2d(mesh,center_x-arm*.85f+layer*arm*.18f,
+                        center_y-arm*.55f+layer*arm*.5f,
+                        center_x+arm*.55f,center_y-arm*.55f+layer*arm*.5f,6,kWhite);
+                appendLine2d(mesh,center_x+arm*.78f,center_y-arm*.75f,
+                    center_x+arm*.78f,center_y+arm*.65f,5,kWhite);
+                appendTriangle2d(mesh,center_x+arm*.78f,center_y+arm*.9f,
+                    center_x+arm*.48f,center_y+arm*.48f,
+                    center_x+arm*1.08f,center_y+arm*.48f,kWhite);
+            } else if(action==Action::RoomRamp) {
+                appendLine2d(mesh,center_x-arm,center_y+arm*.72f,
+                    center_x+arm,center_y-arm*.72f,6,kWhite);
+                appendTriangle2d(mesh,center_x+arm,center_y-arm*.72f,
+                    center_x+arm*.28f,center_y-arm*.62f,
+                    center_x+arm*.82f,center_y+arm*.02f,kWhite);
+            } else if(action==Action::RoomTransitions||action==Action::RoomStairs) {
+                for(int step=0;step<4;++step) {
+                    const float x0=center_x-arm+step*arm*.5f;
+                    const float y0=center_y+arm-step*arm*.5f;
+                    appendLine2d(mesh,x0,y0,x0+arm*.5f,y0,4,kWhite);
+                    appendLine2d(mesh,x0+arm*.5f,y0,x0+arm*.5f,y0-arm*.5f,4,kWhite);
+                }
+            } else if (action == Action::RoomWalls) {
+                appendQuad(mesh,center_x-arm*.82f,center_y-arm*.72f,
+                    center_x+arm*.82f,center_y+arm*.72f,kWhite);
+                appendLine2d(mesh,center_x-arm*.55f,center_y-arm*.35f,
+                    center_x+arm*.55f,center_y-arm*.35f,4,kNavy);
+                appendLine2d(mesh,center_x-arm*.55f,center_y+arm*.16f,
+                    center_x+arm*.3f,center_y+arm*.16f,4,kNavy);
+            } else if (action == Action::RoomDecorations) {
+                appendQuad(mesh,center_x-arm*.58f,center_y+arm*.25f,
+                    center_x+arm*.58f,center_y+arm*.78f,kWhite);
+                appendLine2d(mesh,center_x,center_y+arm*.25f,
+                    center_x,center_y-arm*.48f,5,kWhite);
+                appendLine2d(mesh,center_x,center_y-arm*.25f,
+                    center_x-arm*.68f,center_y-arm*.72f,6,kWhite);
+                appendLine2d(mesh,center_x,center_y-arm*.2f,
+                    center_x+arm*.7f,center_y-arm*.68f,6,kWhite);
+                appendDisc(mesh,center_x-arm*.68f,center_y-arm*.72f,arm*.25f,kWhite);
+                appendDisc(mesh,center_x+arm*.7f,center_y-arm*.68f,arm*.25f,kWhite);
+            } else if(action==Action::RoomCameraTopDown) {
+                appendQuad(mesh,center_x-arm*.78f,center_y-arm*.58f,
+                    center_x+arm*.78f,center_y+arm*.58f,kWhite);
+                appendQuad(mesh,center_x-arm*.42f,center_y-arm*.25f,
+                    center_x+arm*.42f,center_y+arm*.25f,kNavy);
+            } else if(action==Action::RoomCameraPan) {
+                for(const auto [dx,dy]:std::array<std::pair<float,float>,4>{{
+                    {1,0},{-1,0},{0,1},{0,-1}}}) {
+                    appendLine2d(mesh,center_x,center_y,center_x+dx*arm,center_y+dy*arm,4,kWhite);
+                    appendTriangle2d(mesh,center_x+dx*arm,center_y+dy*arm,
+                        center_x+dx*arm*.45f-dy*arm*.35f,center_y+dy*arm*.45f+dx*arm*.35f,
+                        center_x+dx*arm*.45f+dy*arm*.35f,center_y+dy*arm*.45f-dx*arm*.35f,kWhite);
+                }
+            } else if(action==Action::RoomZoomOut||action==Action::RoomZoomIn) {
+                const float direction=action==Action::RoomZoomOut?-1.0f:1.0f;
+                appendTriangle2d(mesh,center_x,center_y+direction*arm,
+                    center_x-arm*.7f,center_y-direction*arm*.35f,
+                    center_x+arm*.7f,center_y-direction*arm*.35f,kWhite);
             } else if (action==Action::RoomNarrower || action==Action::RoomWider ||
                        action==Action::RoomShallower || action==Action::RoomDeeper) {
                 const float dx=action==Action::RoomNarrower?-1:action==Action::RoomWider?1:0;
@@ -273,6 +360,12 @@ public:
                     center_x + arm * 0.68f, center_y + arm * 0.86f, kWhite);
                 appendLine2d(mesh, center_x - arm, center_y - arm * 0.34f,
                     center_x + arm, center_y - arm * 0.34f, 8.0f, kWhite);
+            } else if(action>=Action::RoomDepth0&&action<=Action::RoomDepth3) {
+                const int depth=int(action)-int(Action::RoomDepth0);
+                appendLine2d(mesh,center_x-arm,center_y-arm*.55f,
+                    center_x+arm,center_y-arm*.55f,4,kWhite);
+                if(depth>0)appendLine2d(mesh,center_x-arm*.65f,center_y-arm*.55f,
+                    center_x-arm*.65f,center_y-arm*.55f+depth*arm*.38f,4,kWhite);
             } else if (action == Action::Undo || action == Action::Redo) {
                 const bool redo = action == Action::Redo;
                 const float direction = redo ? 1.0f : -1.0f;
@@ -303,6 +396,44 @@ public:
         };
         button(layout.place, Action::Place, kBlue, true, !visual_.subtract_mode);
         button(layout.room, Action::Room, kBlue);
+        button(layout.room_layout, Action::RoomLayout, kBlue, true,
+            visual_.room_edit_mode==construction::ConstructionRoomEditMode::Layout);
+        button(layout.room_floor, Action::RoomFloor, kAqua, true,
+            visual_.room_edit_mode==construction::ConstructionRoomEditMode::Floor ||
+            visual_.room_edit_mode==construction::ConstructionRoomEditMode::Walls);
+        button(layout.room_levels, Action::RoomLevels, kBlue, true,
+            visual_.room_edit_mode==construction::ConstructionRoomEditMode::Levels ||
+            visual_.room_edit_mode==construction::ConstructionRoomEditMode::Transitions);
+        button(layout.room_decorations, Action::RoomDecorations, kGreen, true,
+            visual_.room_edit_mode==construction::ConstructionRoomEditMode::Decorations);
+        if(visual_.room_edit_mode==construction::ConstructionRoomEditMode::Floor ||
+            visual_.room_edit_mode==construction::ConstructionRoomEditMode::Walls) {
+            button(layout.room_walls,Action::RoomWalls,kMagenta,true,
+                visual_.room_edit_mode==construction::ConstructionRoomEditMode::Walls);
+            constexpr Action palette_actions[]{Action::RoomPalette0,Action::RoomPalette1,
+                Action::RoomPalette2,Action::RoomPalette3,Action::RoomPalette4,Action::RoomPalette5};
+            for(int index=0;index<6;++index) {
+                const auto& palette=rooms::roomSurfacePalette(index);
+                const auto color=visual_.room_edit_mode==construction::ConstructionRoomEditMode::Floor
+                    ? palette.floor_a : palette.wall_ns;
+                button(layout.room_palettes[static_cast<std::size_t>(index)],palette_actions[index],
+                    colorAbgr(color.r,color.g,color.b,color.a),true,
+                    visual_.room_palette_index==index);
+            }
+        }
+        if(visual_.room_edit_mode==construction::ConstructionRoomEditMode::Levels||
+            visual_.room_edit_mode==construction::ConstructionRoomEditMode::Transitions) {
+            button(layout.room_transitions,Action::RoomTransitions,kYellow,true,
+                visual_.room_edit_mode==construction::ConstructionRoomEditMode::Transitions);
+            button(layout.room_camera_top_down,Action::RoomCameraTopDown,kAqua,true,
+                visual_.room_top_down);
+        }
+        // Navigation remains available in every room-editing tool. Long rooms
+        // should not become harder to decorate just because the active tool is
+        // paint or props.
+        button(layout.room_camera_pan,Action::RoomCameraPan,kAqua);
+        button(layout.room_zoom_out,Action::RoomZoomOut,kBlue);
+        button(layout.room_zoom_in,Action::RoomZoomIn,kBlue);
         button(layout.room_narrower, Action::RoomNarrower, kBlue);
         button(layout.room_wider, Action::RoomWider, kBlue);
         button(layout.room_shallower, Action::RoomShallower, kAqua);
@@ -315,7 +446,7 @@ public:
         button(layout.decorate, Action::Decorate, kAqua,
             visual_.state == construction::ConstructionState::Selected);
         button(layout.remove, Action::Delete, kRed);
-        button(layout.build, Action::Build, kGreen);
+        button(layout.build, Action::Build, kGreen, visual_.draft_valid);
         button(layout.cancel, Action::Cancel, kRed);
         button(layout.exit, Action::Exit, kGreen);
         for(const auto& handle:visual_.room_handles) {
@@ -324,8 +455,24 @@ public:
             appendDisc(mesh,x,y+3,radius,kShadow);
             appendDisc(mesh,x,y,radius,handle.focused?kYellow:kCream);
             appendDisc(mesh,x,y,radius-4,kNavy);
-            appendDisc(mesh,x,y,radius-8,handle.add_door?kGreen:kAqua);
-            if(handle.add_door) {
+            appendDisc(mesh,x,y,radius-8,handle.decoration_action==3?kRed:
+                handle.decoration_action==2?kYellow:handle.add_door?kGreen:kAqua);
+            if(handle.decoration_action==1) {
+                for(auto [dx,dy]:{std::pair<float,float>{1,0},{-1,0},{0,1},{0,-1}}) {
+                    appendLine2d(mesh,x,y,x+dx*11,y+dy*11,4,kWhite);
+                    appendTriangle2d(mesh,x+dx*13,y+dy*13,x+dx*6-dy*4,y+dy*6+dx*4,
+                        x+dx*6+dy*4,y+dy*6-dx*4,kWhite);
+                }
+            } else if(handle.decoration_action==2) {
+                for(int i=0;i<16;++i) {
+                    const float a=i*.31f,b=(i+1)*.31f;
+                    appendLine2d(mesh,x+std::cos(a)*9,y+std::sin(a)*9,
+                        x+std::cos(b)*9,y+std::sin(b)*9,3,kWhite);
+                }
+            } else if(handle.decoration_action==3) {
+                appendLine2d(mesh,x-7,y-7,x+7,y+7,5,kWhite);
+                appendLine2d(mesh,x+7,y-7,x-7,y+7,5,kWhite);
+            } else if(handle.add_door) {
                 appendLine2d(mesh,x-8,y,x+8,y,5,kWhite);
                 appendLine2d(mesh,x,y-8,x,y+8,5,kWhite);
             } else {
@@ -337,6 +484,21 @@ public:
                     x+sign*dx*4-dy*5,y+sign*dy*4+dx*5,
                     x+sign*dx*4+dy*5,y+sign*dy*4-dx*5,kWhite);
             }
+        }
+        if(visual_.room_level_control) {
+            const auto& control=*visual_.room_level_control;
+            appendLine2d(mesh,control.x,control.y0,control.x,control.y1,5,kNavy);
+            for(int depth=0;depth<=rooms::kMaximumRoomFloorDepth;++depth) {
+                const float t=float(depth)/float(rooms::kMaximumRoomFloorDepth);
+                const float y=control.y0+(control.y1-control.y0)*t;
+                appendDisc(mesh,control.x,y,7,kCream);
+                appendDisc(mesh,control.x,y,3,kBlue);
+            }
+            appendDisc(mesh,control.x+2,control.knob_y+3,18,kShadow);
+            appendDisc(mesh,control.x,control.knob_y,18,kYellow);
+            appendDisc(mesh,control.x,control.knob_y,12,kNavy);
+            appendLine2d(mesh,control.x-7,control.knob_y,
+                control.x+7,control.knob_y,4,kWhite);
         }
         if (mesh.vertices.empty()) return;
         float view[16], projection[16];

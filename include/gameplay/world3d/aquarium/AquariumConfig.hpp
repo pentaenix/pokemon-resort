@@ -10,7 +10,14 @@
 namespace pr::gameplay::world3d::aquarium {
 
 struct AquariumBuildingCameraConfig {
-    bool enabled = false;
+    // When false, retain the ordinary exterior follow-camera distance and pitch.
+    // Local clip overrides remain available for large aquarium rooms.
+    bool zoomed_in_enabled = false;
+    // pixel-perfect-close: configured Cartesian distance/height.
+    // overworld-low: exterior distance with its own configured shallower pitch.
+    // overworld: exterior distance and angle.
+    std::string preset = "pixel-perfect-close";
+    float overworld_low_pitch_degrees = -30.0f;
     // Intuitive Cartesian controls relative to the followed player. The
     // runtime derives the orbit distance and pitch from these tile values.
     float distance_behind_player_tiles = 24.0f;
@@ -149,8 +156,14 @@ struct AquariumPokemonConfig {
     std::array<float, 3> starting_position_meters{};
     bool has_starting_position = false;
     // authored: use Y above; bottom: rest on the swim volume; floor: rest on
-    // the Aquarium Maker coordinateSystem.floorLevelY (for shallow pools).
+    // the Aquarium Maker coordinateSystem.floorLevelY (for shallow pools);
+    // surface: lock to the waterline using the measured model envelope.
     std::string vertical_anchor = "authored";
+    // Defines which part of a surface-bound model meets the waterline.
+    // top-protrudes/touches-surface align the measured top; stands-on-surface
+    // aligns the measured bottom. Positive offsets lift by body heights.
+    std::string surface_behavior = "submerged";
+    float waterline_offset_body_heights = 0.0f;
     // volume: full 3D swimming; floor: horizontal navigation on a shallow
     // authored surface while the visible model may extend above the water slab.
     std::string movement_plane = "volume";
@@ -162,6 +175,11 @@ struct AquariumPokemonConfig {
     float idle_seconds_minimum = 0.0f;
     float idle_seconds_maximum = 0.0f;
     float local_move_distance_meters = 0.0f;
+    // Preferred body-origin band within usable water height. Zero is the
+    // bottom clearance plane and one is the top clearance plane.
+    float vertical_range_minimum = 0.0f;
+    float vertical_range_maximum = 1.0f;
+    bool prefer_shelter = false;
     float flee_radius_meters = 0.0f;
     float flee_distance_meters = 0.0f;
     float flee_speed_multiplier = 1.0f;

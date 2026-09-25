@@ -192,6 +192,14 @@ AquariumSpeciesEntry parseApprovedEntry(
     entry.pitch_degrees = static_cast<float>(numberValue(presentation, "pitchDegrees", 0.0));
     entry.yaw_degrees = static_cast<float>(numberValue(presentation, "yawDegrees", 0.0));
     entry.scale_multiplier = static_cast<float>(numberValue(presentation, "scaleMultiplier", 1.0));
+    entry.waterline_offset_body_heights = static_cast<float>(numberValue(
+        presentation, "waterlineOffsetBodyHeights", 0.0));
+    if (!std::isfinite(entry.waterline_offset_body_heights) ||
+        entry.waterline_offset_body_heights < -1.0f ||
+        entry.waterline_offset_body_heights > 1.0f) {
+        throw std::runtime_error(
+            "presentation.waterlineOffsetBodyHeights must be between -1 and 1");
+    }
     entry.vertical_zone = stringValue(habitat, "verticalZone");
     entry.surface_behavior = stringValue(habitat, "surfaceBehavior");
     entry.water_kinds = stringArray(habitat, "waterKinds");
@@ -217,6 +225,11 @@ AquariumSpeciesEntry parseApprovedEntry(
         numberValue(behavior, "idleSecondsMaximum", entry.idle_seconds_minimum));
     entry.local_move_distance_meters = static_cast<float>(
         numberValue(behavior, "localMoveDistanceMeters", 0.0));
+    entry.vertical_range_minimum = static_cast<float>(
+        numberValue(behavior, "verticalRangeMinimum", 0.0));
+    entry.vertical_range_maximum = static_cast<float>(
+        numberValue(behavior, "verticalRangeMaximum", 1.0));
+    entry.prefer_shelter = boolValue(behavior, "preferShelter", false);
     entry.flee_radius_meters = static_cast<float>(
         numberValue(behavior, "fleeRadiusMeters", 0.0));
     entry.flee_distance_meters = static_cast<float>(
@@ -335,6 +348,9 @@ AquariumSpeciesCatalogLoadResult loadAquariumSpeciesCatalog(
                 entry.idle_seconds_minimum < 0.0f ||
                 entry.idle_seconds_maximum < entry.idle_seconds_minimum ||
                 entry.local_move_distance_meters < 0.0f ||
+                entry.vertical_range_minimum < 0.0f ||
+                entry.vertical_range_maximum > 1.0f ||
+                entry.vertical_range_maximum < entry.vertical_range_minimum ||
                 entry.flee_radius_meters < 0.0f ||
                 entry.flee_distance_meters < 0.0f ||
                 entry.flee_speed_multiplier < 1.0f ||

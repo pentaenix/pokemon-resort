@@ -163,6 +163,7 @@ public:
     std::optional<ConstructionCommitCandidate> prepareExhibitStyleChange(
         const std::string& tank_id,
         std::string preset_id,
+        int color_strength_level,
         int brightness_level,
         int murkiness_level,
         std::string substrate_kind);

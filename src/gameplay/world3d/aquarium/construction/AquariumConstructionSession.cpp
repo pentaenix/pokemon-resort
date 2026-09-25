@@ -709,13 +709,15 @@ AquariumConstructionSession::prepareExhibitPresetChange(
     const geo::TankDesign* tank = selectedTank();
     if (!tank) return std::nullopt;
     return prepareExhibitStyleChange(tank_id, std::move(preset_id),
-        tank->brightness_level, tank->murkiness_level, tank->substrate_kind);
+        tank->color_strength_level, tank->brightness_level,
+        tank->murkiness_level, tank->substrate_kind);
 }
 
 std::optional<ConstructionCommitCandidate>
 AquariumConstructionSession::prepareExhibitStyleChange(
     const std::string& tank_id,
     std::string preset_id,
+    int color_strength_level,
     int brightness_level,
     int murkiness_level,
     std::string substrate_kind) {
@@ -723,11 +725,14 @@ AquariumConstructionSession::prepareExhibitStyleChange(
     if (state_ != ConstructionState::Selected || !tank || tank->id != tank_id ||
         !aquarium::isAquariumExhibitPreset(preset_id) ||
         !aquarium::isAquariumSubstratePreset(substrate_kind) ||
+        color_strength_level < 0 ||
+        color_strength_level >= aquarium::kAquariumColorStrengthLevelCount ||
         brightness_level < 0 ||
         brightness_level >= aquarium::kAquariumBrightnessLevelCount ||
         murkiness_level < 0 ||
         murkiness_level >= aquarium::kAquariumMurkinessLevelCount ||
         (tank->exhibit_preset == preset_id &&
+         tank->color_strength_level == color_strength_level &&
          tank->brightness_level == brightness_level &&
          tank->murkiness_level == murkiness_level &&
          tank->substrate_kind == substrate_kind)) return std::nullopt;
@@ -737,6 +742,7 @@ AquariumConstructionSession::prepareExhibitStyleChange(
     command.before = *tank;
     command.after = *tank;
     command.after->exhibit_preset = std::move(preset_id);
+    command.after->color_strength_level = color_strength_level;
     command.after->brightness_level = brightness_level;
     command.after->murkiness_level = murkiness_level;
     command.after->substrate_kind = std::move(substrate_kind);

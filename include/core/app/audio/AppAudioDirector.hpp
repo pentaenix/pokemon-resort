@@ -15,6 +15,8 @@ struct AppMusicRequest {
     std::string transfer_music_path;
     double transfer_silence_seconds = 0.0;
     double transfer_fade_in_seconds = 0.0;
+    bool aquarium_requested = false;
+    std::string aquarium_music_path;
     float volume = 1.0f;
 };
 
@@ -41,11 +43,13 @@ private:
     enum class ActiveMusicTrack {
         None,
         Menu,
-        Transfer
+        Transfer,
+        Aquarium
     };
 
     bool loadMenuMusic();
     bool loadTransferMusic(const std::string& relative_path);
+    bool loadAquariumMusic(const std::string& relative_path);
 
     AudioController audio_;
     std::filesystem::path project_root_;

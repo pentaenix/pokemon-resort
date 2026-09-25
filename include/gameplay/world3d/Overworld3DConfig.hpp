@@ -155,6 +155,17 @@ enum class NpcMovementProfile {
     RotateInPlace
 };
 
+// Runtime-derived opening between two adjacent terrain cells. It is deliberately
+// separate from terrain specials: specials shape the lower tile, while this edge
+// tells renderers which otherwise-required retaining-wall segment must stay open.
+struct TerrainTransitionEdge {
+    int lower_x = 0;
+    int lower_y = 0;
+    int upper_x = 0;
+    int upper_y = 0;
+    bool stairs = false;
+};
+
 struct TerrainConfig {
     // Tile special IDs:
     // 0 = flat
@@ -166,9 +177,13 @@ struct TerrainConfig {
     std::vector<std::vector<std::uint8_t>> heights;
     std::vector<std::vector<std::uint8_t>> specials;
     std::vector<std::vector<std::uint8_t>> collision;
+    std::vector<TerrainTransitionEdge> transition_edges;
     // Renderer-facing terrain presentation. height_per_floor controls vertical world
     // units per encoded height level; <= 0 keeps the historical tile_size behavior.
     float height_per_floor = 0.0f;
+    // Additive vertical origin for encoded terrain levels. Authored overworlds
+    // default to zero; procedural aquarium rooms use it for negative floors.
+    float base_height_world = 0.0f;
     // Runtime feet-height sampling inset for cardinal ramps. 0 preserves a full-tile
     // linear ramp; positive values keep the low side flat for this many world pixels
     // before the incline begins.
@@ -342,6 +357,15 @@ struct InteriorFloorCutoutConfig {
 };
 
 struct InteriorDefaultRoomConfig {
+    struct FloorColorOverride {
+        int column=0,row=0;
+        TerrainColor color_a{},color_b{};
+    };
+    struct WallColorOverride {
+        std::string edge;
+        int segment=0;
+        TerrainColor body{},trim{},baseboard{};
+    };
     // Shell-less interiors receive a procedural floor and cutaway wall envelope.
     // Authored RTPKS tiles render over this foundation and can replace it gradually.
     bool enabled = true;
@@ -370,6 +394,8 @@ struct InteriorDefaultRoomConfig {
     TerrainColor baseboard_color{42, 47, 58, 255};
     TerrainColor top_cap_color{0, 0, 0, 255};
     TerrainColor lower_facade_color{0, 0, 0, 255};
+    std::vector<FloorColorOverride> floor_color_overrides;
+    std::vector<WallColorOverride> wall_color_overrides;
 };
 
 struct InteriorMapConfig {

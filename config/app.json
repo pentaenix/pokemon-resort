@@ -27,6 +27,7 @@
   },
   "audio": {
     "menu_music": "assets/music/ui_menu_music.mp3",
+    "aquarium_music": "assets/music/aquarium_fish_exhibit_loop.m4a",
     "button_sfx": "assets/sfx/btn.mp3",
     "rip_sfx": "assets/sfx/rip.mp3",
     "ui_move_sfx": "assets/sfx/ui_move.mp3",

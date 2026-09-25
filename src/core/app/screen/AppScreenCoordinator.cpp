@@ -70,14 +70,22 @@ AppMusicRequest AppScreenCoordinator::musicRequest() const {
     const bool transition_returns_to_transfer =
         transition_controller_.active() &&
         loading_return_target_ == LoadingReturnTarget::TransferTickets;
-    return AppMusicRequest{
-        active_screen_ == ActiveScreen::Title && title_screen_.wantsMenuMusic(),
+    const bool aquarium_context = active_screen_ == ActiveScreen::Overworld3DTest ||
+        (active_screen_ == ActiveScreen::TestAttend &&
+         attend_return_target_ == AttendReturnTarget::Overworld3D);
+    AppMusicRequest request;
+    request.menu_requested =
+        active_screen_ == ActiveScreen::Title && title_screen_.wantsMenuMusic();
+    request.transfer_requested =
         (active_screen_ == ActiveScreen::TransferFlow || transition_returns_to_transfer) &&
-            transfer_flow_.hasTransferMusic(),
-        transfer_flow_.musicPath(),
-        transfer_flow_.musicSilenceSeconds(),
-        transfer_flow_.musicFadeInSeconds(),
-        title_screen_.musicVolume()};
+        transfer_flow_.hasTransferMusic();
+    request.transfer_music_path = transfer_flow_.musicPath();
+    request.transfer_silence_seconds = transfer_flow_.musicSilenceSeconds();
+    request.transfer_fade_in_seconds = transfer_flow_.musicFadeInSeconds();
+    request.aquarium_requested = aquarium_context && overworld3d_test_.wantsAquariumMusic();
+    request.aquarium_music_path = overworld3d_test_.aquariumMusicPath();
+    request.volume = title_screen_.musicVolume();
+    return request;
 }
 
 AppSfxRequests AppScreenCoordinator::consumeSfxRequests() {

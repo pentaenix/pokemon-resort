@@ -47,7 +47,9 @@ bool Overworld3DTestScreen::applyAquariumStockingChange(bool add) {
     if (!aquarium_stocking_.active() || aquarium_commit_future_.valid()) return false;
     const auto residents = add
         ? aquarium_stocking_.residentsWithFocusedAdded()
-        : aquarium_stocking_.residentsWithFocusedRemoved();
+        : (aquarium_stocking_.holdingResident()
+            ? aquarium_stocking_.residentsWithHeldResidentRemoved()
+            : aquarium_stocking_.residentsWithFocusedRemoved());
     if (!residents) return false;
     const auto* species = add && aquarium_stocking_.heldSpecies()
         ? aquarium_stocking_.heldSpecies() : aquarium_stocking_.focusedSpecies();
@@ -66,18 +68,22 @@ bool Overworld3DTestScreen::applyAquariumExhibitStyleChange() {
     const auto* tank = aquarium_construction_.selectedTank();
     if (!tank) return false;
     const std::string preset_id = aquarium_stocking_.focusedExhibitPresetId();
+    const int color_strength = aquarium_stocking_.focusedColorStrengthLevel();
     const int brightness = aquarium_stocking_.focusedBrightnessLevel();
     const int murkiness = aquarium_stocking_.focusedMurkinessLevel();
     const std::string substrate = aquarium_stocking_.focusedSubstrateKind();
     if (tank->exhibit_preset == preset_id &&
+        tank->color_strength_level == color_strength &&
         tank->brightness_level == brightness &&
         tank->murkiness_level == murkiness &&
         tank->substrate_kind == substrate) return true;
     auto candidate = aquarium_construction_.prepareExhibitStyleChange(
-        aquarium_stocking_.tankId(), preset_id, brightness, murkiness, substrate);
+        aquarium_stocking_.tankId(), preset_id, color_strength,
+        brightness, murkiness, substrate);
     if (!candidate || !beginAquariumConstructionCommit(std::move(candidate))) return false;
     std::cerr << "[AquariumStocking] event=exhibit_started tank="
               << aquarium_stocking_.tankId() << " preset=" << preset_id
+              << " color_strength=" << color_strength
               << " brightness=" << brightness << " murkiness=" << murkiness
               << " substrate=" << substrate << '\n';
     return true;
@@ -139,6 +145,13 @@ bool Overworld3DTestScreen::handleAquariumStockingPointerPressed(
         if (const auto preset = aquarium_stocking_overlay_.exhibitPresetAt(
                 width, height, logical_x, logical_y)) {
             changed = aquarium_stocking_.focusExhibitPreset(*preset);
+        } else if (const auto color_strength =
+                aquarium_stocking_overlay_.exhibitColorStrengthAt(
+                    width, height, logical_x, logical_y)) {
+            changed = aquarium_stocking_.focusExhibitColorStrength(*color_strength);
+            aquarium_stocking_slider_drag_ = gameplay::world3d::aquarium::construction::
+                AquariumStockingController::ExhibitControl::ColorStrength;
+            return true;
         } else if (const auto brightness =
                 aquarium_stocking_overlay_.exhibitBrightnessAt(
                     width, height, logical_x, logical_y)) {
@@ -168,10 +181,21 @@ bool Overworld3DTestScreen::handleAquariumStockingPointerPressed(
         return true;
     }
     if (aquarium_stocking_.holdingSpecies() &&
-        aquarium_stocking_overlay_.capacityAt(
-            width, height, logical_x, logical_y)) {
+        aquarium_stocking_overlay_.capacityGridAt(
+            width, height, logical_x, logical_y, aquarium_stocking_)) {
         if (applyAquariumStockingChange(true)) aquarium_stocking_.cancelHeld();
         else requestAquariumConstructionErrorFeedback();
+        return true;
+    }
+    if (const auto placement = aquarium_stocking_overlay_.capacityPlacementAt(
+            width, height, logical_x, logical_y, aquarium_stocking_)) {
+        if (remove) {
+            aquarium_stocking_.pickUpResident(*placement);
+            if (applyAquariumStockingChange(false)) aquarium_stocking_.cancelHeld();
+            else requestAquariumConstructionErrorFeedback();
+        } else {
+            aquarium_stocking_.pickUpResident(*placement);
+        }
         return true;
     }
     const auto index = aquarium_stocking_overlay_.speciesAt(
@@ -196,6 +220,10 @@ bool Overworld3DTestScreen::handleAquariumStockingPointerReleased(
             AquariumStockingController::Tab::Exhibit) {
         if (!aquarium_stocking_slider_drag_) return true;
         if (*aquarium_stocking_slider_drag_ == gameplay::world3d::aquarium::construction::
+                AquariumStockingController::ExhibitControl::ColorStrength) {
+            aquarium_stocking_.focusExhibitColorStrength(
+                aquarium_stocking_overlay_.exhibitColorStrengthLevelAtX(width, logical_x));
+        } else if (*aquarium_stocking_slider_drag_ == gameplay::world3d::aquarium::construction::
                 AquariumStockingController::ExhibitControl::Brightness) {
             aquarium_stocking_.focusExhibitBrightness(
                 aquarium_stocking_overlay_.exhibitBrightnessLevelAtX(width, logical_x));
@@ -208,9 +236,18 @@ bool Overworld3DTestScreen::handleAquariumStockingPointerReleased(
             requestAquariumConstructionErrorFeedback();
         return true;
     }
+    if (aquarium_stocking_.holdingResident()) {
+        if (!aquarium_stocking_overlay_.capacityGridAt(
+                width, height, logical_x, logical_y, aquarium_stocking_)) {
+            if (!applyAquariumStockingChange(false))
+                requestAquariumConstructionErrorFeedback();
+        }
+        aquarium_stocking_.cancelHeld();
+        return true;
+    }
     if (aquarium_stocking_.holdingSpecies() &&
-        aquarium_stocking_overlay_.capacityAt(
-            width, height, logical_x, logical_y)) {
+        aquarium_stocking_overlay_.capacityGridAt(
+            width, height, logical_x, logical_y, aquarium_stocking_)) {
         if (applyAquariumStockingChange(true)) aquarium_stocking_.cancelHeld();
         else requestAquariumConstructionErrorFeedback();
     }

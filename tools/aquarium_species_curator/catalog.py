@@ -48,6 +48,10 @@ MOVEMENT_PROFILE_DEFAULTS = {
         "restAtBottom": True,
         "crowdBodyScale": 0.64,
     },
+    "lower-third-cruiser": {
+        "locomotionMode": "continuous-cruise",
+        "crowdBodyScale": 0.64,
+    },
     "surface-walker": {
         "locomotionMode": "move-rest",
         "idleAnimation": "slot4_00",

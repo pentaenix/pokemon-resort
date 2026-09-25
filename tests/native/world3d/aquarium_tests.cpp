@@ -223,7 +223,7 @@ void configuredDewgongMovesInsidePlacedTank() {
     require(near(builder_lab->building_presentation.camera.far_clip_tiles, 128.0f) &&
             near(aquarium_map->building_presentation.camera.far_clip_tiles, 0.0f),
         "extended camera depth must remain local to the Builder Lab");
-    require(aquarium_map->building_presentation.camera.enabled &&
+    require(aquarium_map->building_presentation.camera.zoomed_in_enabled &&
             near(aquarium_map->building_presentation.camera.distance_behind_player_tiles,
                 catalog.building_presentation.camera.distance_behind_player_tiles) &&
             near(aquarium_map->building_presentation.camera.height_above_player_tiles,
@@ -253,7 +253,7 @@ void configuredDewgongMovesInsidePlacedTank() {
             near(catalog.building_presentation.tank_lighting.water_attenuation_intensity, 2.4f) &&
             near(catalog.building_presentation.tank_lighting.water_surface_speed, 0.7f) &&
             near(catalog.building_presentation.tank_lighting.sand_darkening, 0.18f) &&
-            builder_lab->building_presentation.camera.enabled &&
+            builder_lab->building_presentation.camera.zoomed_in_enabled &&
             near(builder_lab->building_presentation.camera.distance_behind_player_tiles,
                 catalog.building_presentation.camera.distance_behind_player_tiles) &&
             near(builder_lab->building_presentation.camera.height_above_player_tiles,
@@ -267,19 +267,39 @@ void configuredDewgongMovesInsidePlacedTank() {
         base_camera, aquarium_map->building_presentation.camera, 16.0f);
     const auto builder_camera = aquarium::aquariumBuildingCameraPreset(
         base_camera, builder_lab->building_presentation.camera, 16.0f);
+    auto close_camera_config = aquarium_map->building_presentation.camera;
+    close_camera_config.preset = "pixel-perfect-close";
+    const auto close_camera = aquarium::aquariumBuildingCameraPreset(
+        base_camera, close_camera_config, 16.0f);
+    auto normal_camera_config = aquarium_map->building_presentation.camera;
+    normal_camera_config.preset = "overworld";
+    const auto normal_camera = aquarium::aquariumBuildingCameraPreset(
+        base_camera, normal_camera_config, 16.0f);
+    auto exterior_camera_config = aquarium_map->building_presentation.camera;
+    exterior_camera_config.zoomed_in_enabled = false;
+    const auto exterior_camera = aquarium::aquariumBuildingCameraPreset(
+        base_camera, exterior_camera_config, 16.0f);
     const float camera_horizontal =
         aquarium_map->building_presentation.camera.distance_behind_player_tiles * 16.0f;
     const float camera_vertical =
         aquarium_map->building_presentation.camera.height_above_player_tiles * 16.0f;
     constexpr float radians_to_degrees = 57.29577951308232f;
-    require(near(aquarium_camera.distance,
+    require(near(close_camera.distance,
                 std::hypot(camera_horizontal, camera_vertical)) &&
-            near(aquarium_camera.pitch_deg,
+            near(close_camera.pitch_deg,
                 -std::atan2(camera_vertical, camera_horizontal) * radians_to_degrees) &&
+            near(aquarium_camera.distance, base_camera.distance) &&
+            near(aquarium_camera.pitch_deg,
+                aquarium_map->building_presentation.camera.overworld_low_pitch_degrees) &&
+            near(normal_camera.distance, base_camera.distance) &&
+            near(normal_camera.pitch_deg, base_camera.pitch_deg) &&
             near(aquarium_camera.near_clip, 8.0f) &&
             near(builder_camera.near_clip, 8.0f) &&
             near(aquarium_camera.far_clip, base_camera.far_clip) &&
-            near(builder_camera.far_clip, 2048.0f),
+            near(builder_camera.far_clip, 2048.0f) &&
+            near(exterior_camera.distance, base_camera.distance) &&
+            near(exterior_camera.pitch_deg, base_camera.pitch_deg) &&
+            near(exterior_camera.near_clip, 8.0f),
         "aquarium camera framing and local clip controls did not derive the expected view");
     const auto lab_allows_construction = [&](int column, int row) {
         return std::any_of(builder_lab->construction.allowed_cells.begin(),
@@ -773,6 +793,60 @@ void unpositionedCrawlerRestsOnPlayerTankBottom() {
                 std::abs(actor.world_position[2]) + rendered_radius_world +
                     expected_comfort_world <= 32.01f,
             "player-tank crawler approached the glass inside its rendered comfort envelope");
+    }
+}
+
+void surfaceFloaterKeepsItsMeasuredTopAtTheWaterline() {
+    pr::gameplay::world3d::SceneConfig scene;
+    aquarium::AquariumSimulation simulation(projectRoot(), scene, nullptr);
+
+    aquarium::AquariumNavigation navigation;
+    navigation.export_units_per_meter = 16.0f;
+    navigation.valid = true;
+    aquarium::SwimVolumeLayer layer;
+    layer.id = "surface-water";
+    layer.y_bottom = -2.0f;
+    layer.y_top = 2.0f;
+    layer.polygons = {{{
+        {-4.0f, -4.0f}, {4.0f, -4.0f}, {4.0f, 4.0f}, {-4.0f, 4.0f}}}};
+    navigation.layers.push_back(layer);
+    navigation.suggested_spawns.push_back({0.0f, 0.0f, 0.0f});
+
+    aquarium::AquariumSwimmerDefinition lotad;
+    lotad.actor.id = "surface-tank:lotad";
+    lotad.actor.species = "lotad";
+    lotad.actor.form = "00";
+    lotad.actor.model_path = "baked-fixture.glbz";
+    lotad.actor.animation = "slot4_00";
+    lotad.actor.model_scale = 0.16f;
+    lotad.movement.id = lotad.actor.id;
+    lotad.movement.species = lotad.actor.species;
+    lotad.movement.behavior = "wander";
+    lotad.movement.speed_meters_per_second = 0.4f;
+    lotad.movement.body_radius_meters = 0.03f;
+    lotad.movement.vertical_anchor = "surface";
+    lotad.movement.movement_plane = "surface";
+    lotad.movement.surface_behavior = "top-protrudes";
+    lotad.movement.has_baked_physical_envelope = true;
+    lotad.movement.baked_physical_envelope = {
+        -10.0f, 10.0f, -10.0f, 20.0f, -10.0f, 10.0f};
+
+    aquarium::AquariumPlayerTankSimulationInput tank;
+    tank.tank_id = "surface-tank";
+    tank.navigation = navigation;
+    tank.swimmers.push_back(lotad);
+    simulation.replacePlayerTanks({tank});
+    require(simulation.actors().size() == 1U,
+        "surface-bound Lotad fixture did not spawn");
+
+    const float expected_surface_world =
+        layer.y_top * navigation.export_units_per_meter;
+    for (int frame = 0; frame < 60 * 5; ++frame) {
+        simulation.update(1.0 / 60.0);
+        const float rendered_top = simulation.actors().front().world_position[1] +
+            lotad.movement.baked_physical_envelope[3] * lotad.actor.model_scale;
+        require(near(rendered_top, expected_surface_world, 0.01f),
+            "surface-bound Lotad's measured top drifted below the waterline");
     }
 }
 
@@ -1332,19 +1406,81 @@ void intermittentBenthicSwimmerRestsAndResumes() {
     float maximum_y = resting_y;
     bool used_movement_animation = false;
     bool resumed_idle_animation = false;
+    bool blended_into_movement = false;
+    bool blended_back_to_idle = false;
     for (int frame = 0; frame < 60 * 8; ++frame) {
         simulation.update(1.0 / 60.0);
         const auto& actor = simulation.actors().front();
         maximum_y = std::max(maximum_y, actor.world_position[1]);
-        if (actor.animation == "slot6_02") used_movement_animation = true;
+        if (actor.animation == "slot6_02") {
+            used_movement_animation = true;
+            if (actor.animation_blend_from == "slot6_00" &&
+                actor.animation_blend_duration_seconds > 0.0f) {
+                blended_into_movement = true;
+            }
+        }
         if (used_movement_animation && actor.animation == "slot6_00") {
             resumed_idle_animation = true;
+            if (actor.animation_blend_from == "slot6_02" &&
+                actor.animation_blend_duration_seconds > 0.0f) {
+                blended_back_to_idle = true;
+            }
         }
     }
     require(used_movement_animation && resumed_idle_animation,
         "intermittent benthic resident did not alternate movement and rest animations");
+    require(blended_into_movement && blended_back_to_idle,
+        "idle and movement animation changes did not retain a cross-fade source pose");
     require(maximum_y > resting_y + 2.0f,
         "intermittent benthic resident never left the bottom to swim");
+}
+
+void preferredVerticalBandConstrainsCrowdedFallbackSpawns() {
+    pr::gameplay::world3d::SceneConfig scene;
+    aquarium::AquariumSimulation simulation(projectRoot(), scene, nullptr);
+    aquarium::AquariumNavigation navigation;
+    navigation.export_units_per_meter = 16.0f;
+    navigation.valid = true;
+    aquarium::SwimVolumeLayer layer;
+    layer.id = "vertical-band-water";
+    layer.y_bottom = -2.0f;
+    layer.y_top = 2.0f;
+    layer.polygons = {{{
+        {-4.0f, -4.0f}, {4.0f, -4.0f}, {4.0f, 4.0f}, {-4.0f, 4.0f}}}};
+    navigation.layers.push_back(layer);
+    navigation.suggested_spawns.push_back({0.0f, -1.875f, 0.0f});
+
+    aquarium::AquariumPlayerTankSimulationInput tank;
+    tank.tank_id = "crowded-low-band-tank";
+    tank.navigation = navigation;
+    for (int index = 0; index < 4; ++index) {
+        aquarium::AquariumSwimmerDefinition resident;
+        resident.actor.id = "low-band:" + std::to_string(index);
+        resident.actor.species = "relicanth";
+        resident.actor.model_path = "baked-envelope-fixture.glbz";
+        resident.actor.animation = "slot4_00";
+        resident.actor.model_scale = 1.0f;
+        resident.movement.id = resident.actor.id;
+        resident.movement.species = resident.actor.species;
+        resident.movement.animation = resident.actor.animation;
+        resident.movement.behavior = "wander";
+        resident.movement.speed_meters_per_second = 0.3f;
+        resident.movement.vertical_range_minimum = 0.04f;
+        resident.movement.vertical_range_maximum = 0.30f;
+        resident.movement.has_baked_physical_envelope = true;
+        resident.movement.baked_physical_envelope = {
+            -2.0f, 2.0f, -2.0f, 2.0f, -2.0f, 2.0f};
+        resident.seed = 700U + static_cast<std::uint32_t>(index);
+        tank.swimmers.push_back(std::move(resident));
+    }
+    simulation.replacePlayerTanks({tank});
+    require(simulation.actors().size() == 4U,
+        "crowded low-band fixture could not separate its residents");
+    constexpr float kExpectedMaximumOriginWorldY = -12.0f;
+    for (const auto& actor : simulation.actors()) {
+        require(actor.world_position[1] <= kExpectedMaximumOriginWorldY + 0.001f,
+            "crowded fallback spawn escaped the authored lower-water band");
+    }
 }
 
 void focusViewSupportsEveryTankFace() {
@@ -1442,6 +1578,11 @@ int main(int argc, char** argv) {
     try {
         runAquariumEmissionTests();
         if (argc > 1 && std::string(argv[1]) == "--emission-only") return 0;
+        if (argc > 1 && std::string(argv[1]) == "--activity-only") {
+            intermittentBenthicSwimmerRestsAndResumes();
+            preferredVerticalBandConstrainsCrowdedFallbackSpawns();
+            return 0;
+        }
         if (argc > 1 && std::string(argv[1]) == "--school-only") { runAquariumSchoolTests(); return 0; }
         runAquariumMotionTests();
         if (argc > 1 && std::string(argv[1]) == "--motion-only") return 0;
@@ -1453,6 +1594,7 @@ int main(int argc, char** argv) {
             configuredDewgongMovesInsidePlacedTank();
         playerTankPopulationUsesRuntimeNavigation();
         unpositionedCrawlerRestsOnPlayerTankBottom();
+        surfaceFloaterKeepsItsMeasuredTopAtTheWaterline();
         timidReefPokemonIdleRandomlyAndFleePredators();
         leaderFormationTracksVelocityWithoutCounterSwimming();
         largePlayerTankKyogreNavigatesWhileIdling();

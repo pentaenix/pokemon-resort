@@ -37,7 +37,7 @@ std::filesystem::path writeCatalogue() {
       "id": "0090:00", "dex": 90, "species": "shellder", "displayName": "Shellder", "form": "00",
       "review": {"status": "approved"},
       "model": {"path": "shellder.glbz"},
-      "presentation": {"animation": "slot6_02", "pitchDegrees": 0, "yawDegrees": 0, "scaleMultiplier": 1},
+      "presentation": {"animation": "slot6_02", "pitchDegrees": 0, "yawDegrees": 0, "scaleMultiplier": 1, "waterlineOffsetBodyHeights": 0.125},
       "habitat": {"verticalZone": "bottom", "surfaceBehavior": "submerged", "waterKinds": ["saltwater"]},
       "behavior": {"movementProfile": "bottom-swimmer", "travelDirection": "backward", "idleAnimation": "slot6_00", "minimumGroup": 1, "preferredGroup": 1},
       "capacity": {"mask": ["1"]}
@@ -65,6 +65,9 @@ void catalogueExposesOnlyApprovedEntries() {
     require(loaded.catalog.approved.size() == 2, "non-approved entry leaked into runtime catalogue");
     require(loaded.catalog.findApproved("0090:00") != nullptr, "approved species lookup failed");
     require(loaded.catalog.findApproved("0087:00") == nullptr, "unapproved species lookup succeeded");
+    require(std::abs(loaded.catalog.findApproved("0090:00")
+                ->waterline_offset_body_heights - 0.125f) < 0.0001f,
+        "catalogue discarded the authored waterline body-height offset");
 }
 
 void exhibitPresetsGradeTheWholeTankInterior() {
@@ -194,6 +197,19 @@ void shippedCatalogueLoadsAndReferencesExistingModels() {
     const auto* gorebyss = loaded.catalog.findApproved("0368:00");
     const auto* relicanth = loaded.catalog.findApproved("0369:00");
     const auto* clawitzer = loaded.catalog.findApproved("0693:00");
+    const auto* surskit = loaded.catalog.findApproved("0283:00");
+    const auto* lileep = loaded.catalog.findApproved("0345:00");
+    const auto* cradily = loaded.catalog.findApproved("0346:00");
+    require(surskit && surskit->surface_behavior == "stands-on-surface" &&
+            surskit->waterline_offset_body_heights >= 0.45f,
+        "Surskit lost the authored lift that places its feet on the water surface");
+    require(lileep && cradily &&
+            lileep->movement_profile == "anchored-drift" &&
+            cradily->movement_profile == "anchored-drift" &&
+            lileep->activity.intermittent() && cradily->activity.intermittent() &&
+            lileep->local_move_distance_meters <= 0.3f &&
+            cradily->local_move_distance_meters <= 0.3f,
+        "Lileep and Cradily lost their rare local reposition behavior");
     require(kyogre && kyogre->capacity_mask ==
             std::vector<std::string>({"11111", "11111", "11111", "11111"}),
         "Kyogre capacity footprint did not receive large-species comfort clearance");
@@ -233,11 +249,18 @@ void shippedCatalogueLoadsAndReferencesExistingModels() {
     require(huntail && gorebyss && relicanth && clawitzer &&
             huntail->movement_profile == "benthic-rest-swimmer" &&
             gorebyss->movement_profile == "benthic-rest-swimmer" &&
-            relicanth->movement_profile == "benthic-rest-swimmer" &&
             clawitzer->movement_profile == "benthic-rest-swimmer" &&
-            huntail->activity.roaming_height_meters == 0.9f &&
-            huntail->activity.rest_at_bottom,
-        "benthic swimmers lost their bottom-rest excursion profile");
+            huntail->vertical_zone == "bottom" && gorebyss->vertical_zone == "bottom" &&
+            huntail->vertical_range_maximum == 0.28f &&
+            gorebyss->vertical_range_maximum == 0.28f &&
+            huntail->prefer_shelter && gorebyss->prefer_shelter &&
+            huntail->activity.roaming_height_meters == 0.65f &&
+            huntail->activity.rest_seconds_minimum == 14.0f &&
+            huntail->activity.rest_at_bottom &&
+            relicanth->movement_profile == "lower-third-cruiser" &&
+            relicanth->vertical_range_minimum == 0.04f &&
+            relicanth->vertical_range_maximum == 0.30f,
+        "lower-water species lost their authored bottom and lower-third bands");
 }
 
 aquarium::AquariumNavigation squareNavigation(float width, float depth, float height) {
@@ -318,6 +341,13 @@ void controllerAddsAndRemovesWithinTankCapacity() {
     const auto placements = controller.capacityPlacements();
     require(placements.size() == 1 && placements.front().cell_indices.size() == 6,
         "stocked Pokemon did not retain its authored capacity-mask shape");
+    require(controller.pickUpResident(placements.front()) && controller.holdingResident() &&
+            controller.heldSpecies() && controller.heldSpecies()->id == "0382:00",
+        "occupied tank cells could not pick up their resident");
+    const auto dragged_out = controller.residentsWithHeldResidentRemoved();
+    require(dragged_out && dragged_out->empty(),
+        "dragging a tank resident outward did not produce a removal");
+    controller.cancelHeld();
     require(!controller.residentsWithFocusedAdded(), "over-capacity resident was accepted");
     const auto removed = controller.residentsWithFocusedRemoved();
     require(removed && removed->empty(), "resident removal did not empty the roster");
@@ -352,6 +382,13 @@ void controllerAddsAndRemovesWithinTankCapacity() {
     controller.navigate(-1, 0);
     require(controller.focusedExhibitPresetId() == "open-ocean",
         "controller could not navigate the compact exhibit color row");
+    controller.navigate(0, 1);
+    controller.navigate(-1, 0);
+    require(controller.focusedExhibitControl() ==
+                construction::AquariumStockingController::ExhibitControl::ColorStrength &&
+            controller.focusedColorStrengthLevel() ==
+                aquarium::kAquariumDefaultColorStrengthLevel - 1,
+        "controller could not reduce exhibit color strength");
     controller.navigate(0, 1);
     controller.navigate(-1, 0);
     require(controller.focusedExhibitControl() ==

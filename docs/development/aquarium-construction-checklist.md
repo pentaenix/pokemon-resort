@@ -1165,3 +1165,117 @@ Verification: shipping build passes; focused `aquarium_decoration_tests` passes
 rules, Attend config, config loader, legacy aquarium layout, OWMAP and ocean tile
 tests. Final thumbnail-only adjustment was rebuilt and focused-tested afterward.
 Inspected the SDL tray/knob capture; live bgfx interaction remains player review.
+
+## Room floor-height slice — 2026-09-20
+
+- [x] Add authoritative sparse room-cell depths (normal plus three whole-tile
+  depression levels) to building schema 4 with old-schema loading and newer-schema
+  read-only protection.
+- [x] Project room depths through a negative terrain origin so the established
+  floor remains world Y=0; reuse terrain top, retaining-face, collision, actor,
+  room-prop, and tank-height queries rather than introducing room-only geometry.
+- [x] Add an icon-only Levels room tool, later evolved to six snapped levels,
+  rectangle click/click and drag selection, stepped previews, and dotted drops.
+- [x] Keep door lanes level and extend perimeter wall segments down to lowered
+  edge cells. Tank edits require explicit selection of the complete support
+  footprint; room props expand to their full support footprint. New tank commits
+  recheck terrain height independently of the room editor.
+- [x] Preserve hard-blocked unequal-height edges until explicit stairs/ramps exist.
+- [x] Focused build and `aquarium_room_layout_tests` pass; `git diff --check` passes.
+- [ ] Player checkpoint: paint all three depths, cancel a draft, commit/re-enter,
+  inspect retaining walls, verify blocked ledges, and test tank/prop rejection.
+- [ ] Next checkpoint: define authored stair/ramp placement and traversal; do not
+  silently make arbitrary height edges walkable.
+
+## Room ramps/stairs first slice — 2026-09-20
+
+- [x] Add schema-5 room transitions with stable IDs, kind, and explicit adjacent
+  lower/upper cells; preserve schema 1–4 loading and newer-version protection.
+- [x] Infer valid one-level cardinal attachments from floor depths. Repeated
+  clicks cycle only among valid attachments in north/east/south/west order.
+- [x] Reuse terrain specials 2–5 on the lower cell for collision and movement.
+- [x] Add Ramp/Stairs icon controls. Ramps keep the procedural floor; Stairs use
+  five explicit palette-matched treads because Black 2 tile 140 is only a
+  two-quad textured slope and remains visually indistinguishable from a ramp.
+- [x] Keep the authored floor palette on transitions and omit only the connected
+  retaining-wall segment without opening other ledges.
+- [x] Simplify the player-facing transition editor to stairs only. Preserve
+  legacy `ramp` records for compatibility but project them as visible stairs.
+- [x] Make floor-height painting clip out-of-room selections, remove touched or
+  invalid stairs, and reject only actual partial tank-platform height changes.
+  Aquarium stairs remain one level; shared overworld ramps are unchanged.
+- [x] Make the black south lower facade follow depressed boundary-floor heights,
+  preserving its below-floor masking while exposing authored cutaway sections.
+- [x] Rebuild terrain and transition tile layers during room preview, not only
+  after leaving the editor.
+- [x] Validate bounds, one-level rise, stable IDs, tank occupancy, door lanes,
+  and room-decoration anchors. Focused room-layout tests and shipping build pass.
+- [x] Replace height-dependent picking with a fixed planning plane; distinguish
+  room cells by depth and key the active band independently of color alone.
+- [x] Replace individual stair-edge placement with a rectangular stair-footprint
+  gesture. Drawing a three-by-N area beside a three-level edge derives three
+  parallel intermediate bands; too-short, unattached, obstructed, and split-tank
+  areas remain invalid.
+- [x] Keep wheel zoom in the terrain planning camera, add a draggable pan knob
+  with explicit zoom-out/in arrows, and reduce the depth overlay to separated
+  color chips so the authored floor remains visible.
+- [x] Fit oversized stair selections to the exact rise (three cells for three
+  levels, two for two) while retaining the selected width; contract the draft
+  preview to that effective footprint and color stair risers/side faces with
+  the same directional retaining-wall palette as adjacent height changes.
+- [x] Restrict stair drawing to additive flights authored from one uniform lower
+  platform toward an adjacent higher ledge; mixed or higher selections cannot
+  cut through terrain. Replace direction arrows with clear stair blocks, and
+  make marking any existing block remove the entire generated flight while
+  restoring its original lower platform.
+- [x] Expand room depressions to five whole-tile levels. Replace the four depth
+  buttons with a selection-first six-position knob (ground plus depths 1–5),
+  rebuild the candidate terrain continuously while it moves, and restore the
+  pre-selection candidate on Cancel. Keep the angled construction camera as the
+  Levels default and expose top-down framing as an optional toggle with panning.
+- [x] Focused shipping build, room-layout tests, construction-runtime tests, and
+  whitespace validation pass after the five-level selection/knob change.
+- [x] Clip procedural stair treads to the inset south wall face and render any
+  exposed stair side on that cutaway with the room's black lower-facade color;
+  interior stair sides retain their directional retaining-wall palette.
+- [ ] Player checkpoint: paint all four depth colors, place single- and
+  multi-level flights in all four orientations, walk both directions, remove a
+  flight with a same-cell gesture, cancel, save, and re-enter.
+- [ ] Follow-up after review: full multi-cell decoration-footprint checks and
+  controller cursor placement.
+
+## Aquarium stocking, surface, and decoration polish — 2026-09-24
+
+- [x] Lift Surskit from its measured lower extent so its feet, rather than its
+  body, meet the authored water surface.
+- [x] Give Lileep and Cradily an anchored-drift profile: long rests, slow turns,
+  and rare short bottom relocations.
+- [x] Permit tank decorations to emerge up to five percent of water depth above
+  the surface, while still validating their submerged footprint and tunnels.
+  Replace diagonal-box clearance with a closer visible-body approximation.
+- [x] Hide room decorations while the tank-decoration editor owns the view and
+  color-code its move/height/scale/rotate knobs to match room-editor handles.
+- [x] Reuse the Transfer screen's moving background and rounded pulse selector,
+  remove the full-panel red focus frame, and color every resident footprint
+  distinctly while keeping the Pokémon icon at a fixed readable size.
+- [x] Shipping build, stocking tests, and decoration tests pass. Decoration tests
+  include a real Waterlily fixture emerging above the surface.
+- [ ] Player checkpoint: verify Surskit feet, lily-pad surface placement, knob
+  readability, animated stocking background, and resident-grid legibility.
+- [ ] Form checkpoint: add selectable alternate forms only when their matching
+  aquarium 3D model/material variant is present. The current assets contain
+  Shellos West only; do not silently render an East icon with a West model.
+- [x] Cross-fade intermittent idle/movement changes for 0.28 seconds by keeping
+  both animation clocks alive and blending their skinned positions and normals.
+  The activity-only deterministic simulation fixture verifies both directions.
+- [x] Add data-driven normalized vertical habitat bands. Huntail and Gorebyss
+  now remain in the bottom 28 percent, rest for long intervals, make brief low
+  excursions, and prefer valid decoration-adjacent shelter anchors in player
+  tanks. Relicanth continuously cruises within the lower 4–30 percent.
+- [x] Preserve the new movement fields through the species curator. The shipping
+  build, stocking catalogue test, activity-only simulation fixture, and curator
+  unit tests pass.
+- [x] Constrain collision-separated fallback spawns to the same authored
+  vertical habitat band; crowded tanks can no longer push bottom residents into
+  arbitrary upper water. Lower Relicanth's cruising band to 4–30 percent and
+  cover the crowded fallback path with a deterministic activity fixture.

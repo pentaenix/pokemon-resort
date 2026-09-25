@@ -2,9 +2,11 @@
   "schemaVersion": 5,
   "buildingPresentation": {
     "camera": {
-      "enabled": true,
-      "distanceBehindPlayerTiles": 16,
-      "heightAbovePlayerTiles": 13,
+      "zoomedInEnabled": true,
+      "preset": "overworld-low",
+      "overworldLowPitchDegrees": -30,
+      "distanceBehindPlayerTiles": 16.17524,
+      "heightAbovePlayerTiles": 13.14238,
       "nearClipTiles": 0.5
     },
     "lighting": {

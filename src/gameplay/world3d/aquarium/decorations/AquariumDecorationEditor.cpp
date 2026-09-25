@@ -86,13 +86,32 @@ bool Editor::valid(const Decoration& o) const {
     const auto* asset=catalog_->resolve(o.asset_id); if(!asset) return false;
     const float scale=asset->base_scale*o.scale_steps*.25f/16;
     const auto& b=asset->bounds;
-    const float radius=std::hypot(b.max_x-b.min_x,b.max_z-b.min_z)*scale*.5f;
+    // Use the visible horizontal body rather than the box diagonal. The old
+    // diagonal treated empty corners of a rotated asset as solid and made
+    // rocks snap invalid while they were still visibly clear of the glass.
+    const float radius=std::max(b.max_x-b.min_x,b.max_z-b.min_z)*scale*.52f;
     const float floor=(substrateWorldY(tank_)-tank_.world_floor_y)/16;
     const float base=floor+o.height_steps*.125f;
     const float top=std::max(floor+.02f,base+(b.max_y-b.min_y)*scale);
-    // Buried parts are decorative and do not need water; all exposed parts do.
-    const float clipped_base=std::max(floor+.01f,base);
-    return containsAquariumBody(navigation_,{radius,0,std::max(.01f,top-clipped_base)},
+    if(navigation_.layers.empty()) return false;
+    float water_bottom=navigation_.layers.front().y_bottom;
+    float water_top=navigation_.layers.front().y_top;
+    for(const auto& layer:navigation_.layers){
+        water_bottom=std::min(water_bottom,layer.y_bottom);
+        water_top=std::max(water_top,layer.y_top);
+    }
+    const float above_water_allowance=std::max(.01f,(water_top-water_bottom)*.05f);
+    if(top>water_top+above_water_allowance) return false;
+    // Buried and slightly emergent portions are decorative. Validate the
+    // portion that intersects the water, with a thin surface probe for an
+    // object (such as a lily pad) whose base is just above the waterline.
+    float clipped_base=std::clamp(std::max(floor+.01f,base),water_bottom+.005f,water_top-.015f);
+    float clipped_top=std::min(top,water_top-.005f);
+    if(clipped_top<=clipped_base){
+        clipped_base=water_top-.015f;
+        clipped_top=water_top-.005f;
+    }
+    return containsAquariumBody(navigation_,{radius,0,std::max(.01f,clipped_top-clipped_base)},
         {o.x_steps*.125f,clipped_base,o.z_steps*.125f});
 }
 bool Editor::valid() const {return !draft_ || valid(*draft_);}

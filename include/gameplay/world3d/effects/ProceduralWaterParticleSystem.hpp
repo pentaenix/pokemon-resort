@@ -68,6 +68,9 @@ struct WaterParticleAgentObservation {
     camera::Vec3 world_pos{};
     bool actual_water = false;
     bool moving = false;
+    // Reuses the beach walking-splash emitter on authored shallow-water
+    // surfaces which are not part of the terrain water map.
+    bool forced_walk_splash = false;
 };
 
 class ProceduralWaterParticleSystem {
@@ -107,6 +110,7 @@ private:
         bool actual_water = false;
         bool inside_wave = false;
         bool shoreline = false;
+        bool forced_walk_splash = false;
         float shoreline_progress = -1.0f;
         camera::Vec3 world_pos{};
         double cooldown_water_enter = 0.0;

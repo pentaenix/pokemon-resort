@@ -20,9 +20,9 @@ int main(){try{
     check(!inspection.hidesOverworldActors(),"player hidden in first view");
     check(inspection.enterFocused(16,camera,1.6f),"whole-tank stage did not enter");inspection.update(0,camera);
     check(!inspection.hidesOverworldActors(),"player hidden in overview");
-    for(float x:{-160.0f,160.0f})for(float y:{-32.0f,144.0f})for(float z:{-64.0f,64.0f}){
+    for(float x:{-160.0f,160.0f})for(float y:{0.0f,144.0f})for(float z:{-64.0f,64.0f}){
         float sx,sy,depth;check(camera.worldToScreen({x,y,z},1280,800,sx,sy,depth)&&sx>0&&sx<1280&&sy>0&&sy<800,
-            "overview must frame the complete tank bounds");
+            "overview must frame the complete above-floor tank bounds");
     }
     const auto position=camera.pose().position;const auto heading=camera.pose().forward;
     inspection.setPointerLook(1,-1);inspection.update(.2,camera);

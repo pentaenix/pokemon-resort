@@ -259,6 +259,15 @@ void ProceduralWaterParticleSystem::update(
         state.cooldown_enter_wave = std::max(0.0, state.cooldown_enter_wave - dt);
         state.cooldown_wave_crash = std::max(0.0, state.cooldown_wave_crash - dt);
         state.cooldown_wave_sustain = std::max(0.0, state.cooldown_wave_sustain - dt);
+        if(agent.forced_walk_splash && !state.forced_walk_splash && agent.moving &&
+            state.cooldown_enter_wave<=0.0) {
+            emit(config_.enter_wave,agent.world_pos);
+            state.cooldown_enter_wave=config_.enter_wave.cooldown_seconds;
+        }
+        if(agent.forced_walk_splash && agent.moving && state.cooldown_wave_sustain<=0.0) {
+            emit(config_.wave_moving,agent.world_pos);
+            state.cooldown_wave_sustain=config_.wave_moving.cooldown_seconds;
+        }
         const int tx = static_cast<int>(std::floor(agent.world_pos.x / tile_size));
         const int ty = static_cast<int>(std::floor(agent.world_pos.z / tile_size));
         const float shore_progress = terrain::shorelineProgressAtWorldPosition(
@@ -304,6 +313,7 @@ void ProceduralWaterParticleSystem::update(
         state.actual_water = agent.actual_water;
         state.inside_wave = inside_wave;
         state.shoreline = shoreline;
+        state.forced_walk_splash=agent.forced_walk_splash;
         state.shoreline_progress = shore_progress;
         state.world_pos = agent.world_pos;
     }

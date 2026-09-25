@@ -44,6 +44,39 @@ std::string animationSlot(std::string semantic) {
     return semantic;
 }
 
+std::array<float,2> roomDecorationUvOffset(
+    const attend::AttendPokemonModel& model,
+    const attend::AttendPokemonMaterial* material,
+    double time_seconds) {
+    if(!material||!model.environment_scene.enabled) return {0,0};
+    const auto& scene=model.environment_scene;
+    const attend::AttendEnvironmentMotionClip* clip=nullptr;
+    for(const auto& candidate:scene.motion_clips)
+        if(candidate.id==scene.default_clip){clip=&candidate;break;}
+    if(!clip&&!scene.motion_clips.empty())clip=&scene.motion_clips.front();
+    if(!clip)return {0,0};
+    const bool reverse_exported_timeline=time_seconds>=0.0;
+    const double frame=std::abs(time_seconds)*std::max(1.0f,scene.source_frame_rate);
+    for(const auto& track:clip->tracks) {
+        if(track.material!=material->name||track.texture_unit!=0||track.frame_offsets.empty())continue;
+        const double count=double(track.frame_offsets.size());
+        // Reverse the exported Nitro timeline, while preserving its positive
+        // atlas offsets. Negating the UV offset samples unrelated atlas cells.
+        const double directed=reverse_exported_timeline?(count-1.0)-frame:frame;
+        double sampled=clip->loop?std::fmod(directed,count):
+            std::clamp(directed,0.0,count-1.0);
+        if(sampled<0.0)sampled+=count;
+        const auto first=std::size_t(std::floor(sampled));
+        const auto second=clip->loop?(first+1)%track.frame_offsets.size():
+            std::min(first+1,track.frame_offsets.size()-1);
+        const float blend=float(sampled-std::floor(sampled));
+        return {
+            track.frame_offsets[first][0]+(track.frame_offsets[second][0]-track.frame_offsets[first][0])*blend,
+            track.frame_offsets[first][1]+(track.frame_offsets[second][1]-track.frame_offsets[first][1])*blend};
+    }
+    return {0,0};
+}
+
 std::uint64_t samplerFlags(int wrap_s, int wrap_t, bool gf_wrap = false) {
     if (gf_wrap) {
         const auto convert = [](int wrap) {
@@ -104,8 +137,10 @@ public:
     struct ActorPose {
         std::vector<PrimitivePose> primitives;
         std::string animation;
+        std::string blend_from_animation;
         std::string form;
         std::int64_t tick = -1;
+        std::int64_t blend_tick = -1;
         void destroy() {
             for (PrimitivePose& primitive : primitives) primitive.destroy();
             primitives.clear();
@@ -285,35 +320,74 @@ public:
         // allocation at the host display's 60/120 Hz refresh rate.
         constexpr double kPoseFramesPerSecond = 24.0;
         const std::string slot = animationSlot(actor.animation);
-        const double playback_time = std::max(0.0, actor.animation_time_seconds) *
-            std::max(0.01f, actor.animation_playback_rate);
-        const std::int64_t tick = static_cast<std::int64_t>(
-            std::floor(playback_time * kPoseFramesPerSecond));
-        ActorPose& actor_pose = model.actor_poses[actor.id];
-        if (actor_pose.tick == tick && actor_pose.animation == slot &&
-            actor_pose.form == actor.form) return &actor_pose;
-
         if (!model.source) return nullptr;
         const attend::AttendPokemonModel& source_model = *model.source;
         const attend::AttendPokemonAnimation* animation =
             attend::findAttendPokemonAnimation(source_model, slot);
-        const double sample_time = static_cast<double>(tick) / kPoseFramesPerSecond;
+        const bool blend_active=!actor.animation_blend_from.empty()&&
+            actor.animation_blend_duration_seconds>0.0f&&
+            actor.animation_blend_elapsed_seconds<actor.animation_blend_duration_seconds;
+        const std::string blend_from_slot=blend_active
+            ? animationSlot(actor.animation_blend_from):std::string{};
+        const attend::AttendPokemonAnimation* blend_from_animation=blend_active
+            ? attend::findAttendPokemonAnimation(source_model,blend_from_slot):nullptr;
+        const float rate=std::abs(actor.animation_playback_rate)<0.01f?
+            1.0f:actor.animation_playback_rate;
+        const double elapsed=std::max(0.0,actor.animation_time_seconds)*std::abs(rate);
+        const double playback_time=rate<0.0f?-elapsed:elapsed;
+        double sample_time=elapsed;
+        if(rate<0.0f&&animation&&animation->duration_seconds>0.0f) {
+            const double duration=animation->duration_seconds;
+            sample_time=duration-std::fmod(elapsed,duration);
+            if(sample_time>=duration)sample_time=0.0;
+        }
+        const std::int64_t tick = static_cast<std::int64_t>(
+            std::floor(sample_time * kPoseFramesPerSecond));
+        const std::int64_t blend_tick=blend_active?static_cast<std::int64_t>(std::floor(
+            actor.animation_blend_elapsed_seconds*kPoseFramesPerSecond)):-1;
+        ActorPose& actor_pose = model.actor_poses[actor.id];
+        if (actor_pose.tick == tick && actor_pose.animation == slot &&
+            actor_pose.blend_tick==blend_tick&&
+            actor_pose.blend_from_animation==blend_from_slot&&
+            actor_pose.form == actor.form) return &actor_pose;
+        sample_time=static_cast<double>(tick)/kPoseFramesPerSecond;
         const auto globals = attend::buildAttendPokemonGlobals(
             source_model, animation, sample_time);
         const auto skin_matrices = attend::buildAttendPokemonSkinMatrices(source_model, globals);
+        std::vector<std::array<float,16>> blend_from_globals;
+        std::vector<std::vector<std::array<float,16>>> blend_from_skin_matrices;
+        float blend_weight=1.0f;
+        if(blend_active&&blend_from_animation){
+            double from_time=std::max(0.0,actor.animation_blend_from_time_seconds)*std::abs(rate);
+            if(rate<0.0f&&blend_from_animation->duration_seconds>0.0f){
+                const double duration=blend_from_animation->duration_seconds;
+                from_time=duration-std::fmod(from_time,duration);
+                if(from_time>=duration)from_time=0.0;
+            }
+            from_time=std::floor(from_time*kPoseFramesPerSecond)/kPoseFramesPerSecond;
+            blend_from_globals=attend::buildAttendPokemonGlobals(
+                source_model,blend_from_animation,from_time);
+            blend_from_skin_matrices=attend::buildAttendPokemonSkinMatrices(
+                source_model,blend_from_globals);
+            const float linear=std::clamp(actor.animation_blend_elapsed_seconds/
+                actor.animation_blend_duration_seconds,0.0f,1.0f);
+            blend_weight=linear*linear*(3.0f-2.0f*linear);
+        }
         if (actor_pose.primitives.size() != source_model.primitives.size()) {
             actor_pose.destroy();
             actor_pose.primitives.resize(source_model.primitives.size());
         }
 
         std::vector<attend::AttendPokemonVertex> skinned;
+        std::vector<attend::AttendPokemonVertex> blend_from_skinned;
         std::vector<Vertex> upload_vertices;
         for (std::size_t primitive_index = 0;
              primitive_index < source_model.primitives.size(); ++primitive_index) {
             const attend::AttendPokemonPrimitive& original =
                 source_model.primitives[primitive_index];
+            const bool preserve_prop_mesh=actor.id.rfind("room_decoration:",0)==0;
             const attend::AttendPokemonPrimitive& source =
-                primitive_index < model.runtime_lod.replacements.size() &&
+                !preserve_prop_mesh && primitive_index < model.runtime_lod.replacements.size() &&
                     model.runtime_lod.replacements[primitive_index]
                     ? *model.runtime_lod.replacements[primitive_index]
                     : original;
@@ -330,12 +404,36 @@ public:
                     : nullptr;
             attend::skinAttendPokemonPrimitiveWithPose(
                 source_model, source, globals, skin_matrices, skinned);
+            if(blend_weight<1.0f){
+                attend::skinAttendPokemonPrimitiveWithPose(source_model,source,
+                    blend_from_globals,blend_from_skin_matrices,blend_from_skinned);
+                if(blend_from_skinned.size()==skinned.size()){
+                    for(std::size_t vertex_index=0;vertex_index<skinned.size();++vertex_index){
+                        auto& current=skinned[vertex_index];
+                        const auto& previous=blend_from_skinned[vertex_index];
+                        current.x=previous.x+(current.x-previous.x)*blend_weight;
+                        current.y=previous.y+(current.y-previous.y)*blend_weight;
+                        current.z=previous.z+(current.z-previous.z)*blend_weight;
+                        current.nx=previous.nx+(current.nx-previous.nx)*blend_weight;
+                        current.ny=previous.ny+(current.ny-previous.ny)*blend_weight;
+                        current.nz=previous.nz+(current.nz-previous.nz)*blend_weight;
+                        const float normal_length=std::sqrt(current.nx*current.nx+
+                            current.ny*current.ny+current.nz*current.nz);
+                        if(normal_length>0.00001f){
+                            current.nx/=normal_length;current.ny/=normal_length;current.nz/=normal_length;
+                        }
+                    }
+                }
+            }
             if (skinned.empty() || skinned.size() > UINT16_MAX ||
                 source.indices.size() > UINT16_MAX) {
                 pose.visible = false;
                 continue;
             }
             upload_vertices.resize(skinned.size());
+            const auto environment_uv=actor.id.rfind("room_decoration:",0)==0
+                ? roomDecorationUvOffset(source_model,source_material,playback_time)
+                : std::array<float,2>{0,0};
             for (std::size_t vertex_index = 0; vertex_index < skinned.size(); ++vertex_index) {
                 const auto& vertex = skinned[vertex_index];
                 const auto uv = attend::attendPokemonUvForDefaultExpression(
@@ -343,7 +441,7 @@ public:
                 upload_vertices[vertex_index] = Vertex{
                     vertex.x, vertex.y, vertex.z,
                     packAbgr(vertex.r, vertex.g, vertex.b, vertex.a),
-                    uv.first, uv.second, vertex.nx, vertex.ny, vertex.nz};
+                    uv.first+environment_uv[0], uv.second+environment_uv[1], vertex.nx, vertex.ny, vertex.nz};
             }
             if (!bgfx::isValid(pose.vertices)) {
                 pose.vertices = bgfx::createDynamicVertexBuffer(
@@ -368,14 +466,20 @@ public:
             pose.visible = pose.visible && bgfx::isValid(pose.indices);
         }
         actor_pose.tick = tick;
+        actor_pose.blend_tick=blend_tick;
         actor_pose.animation = slot;
+        actor_pose.blend_from_animation=blend_from_slot;
         actor_pose.form = actor.form;
         return &actor_pose;
     }
 
-    void submit(std::uint16_t view_id, bool blended_pass, bool emission_pass = false) {
+    void submit(std::uint16_t view_id, bool blended_pass, bool emission_pass = false,
+        bool room_decorations_only = false, bool exclude_room_decorations = false) {
         if (!initialized_ || !bgfx::isValid(program_)) return;
         for (const AquariumPokemonActor& actor : actors_) {
+            const bool room_decoration=actor.id.rfind("room_decoration:",0)==0;
+            if((room_decorations_only&&!room_decoration)||
+                (exclude_room_decorations&&room_decoration))continue;
             Model* model = ensureModel(actor.model_path);
             ActorPose* pose = model ? updatePose(*model, actor) : nullptr;
             if (!pose) continue;
@@ -440,7 +544,8 @@ public:
                     (material && material->additive
                         ? BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_SRC_ALPHA, BGFX_STATE_BLEND_ONE)
                         : (blended ? BGFX_STATE_BLEND_ALPHA : BGFX_STATE_WRITE_Z))) |
-                    (material && material->cull_backface
+                    (material && material->cull_backface &&
+                        actor.id.rfind("room_decoration:",0)!=0
                         ? (aquariumUsesClockwiseBackfaceCull(actor) ? BGFX_STATE_CULL_CW : BGFX_STATE_CULL_CCW)
                         : 0);
                 const float retention = actor.presentation.emission.fog_retention;
@@ -488,6 +593,12 @@ void AquariumPokemonBgfxRenderer::initialize(
 void AquariumPokemonBgfxRenderer::shutdown() { impl_->shutdown(); }
 void AquariumPokemonBgfxRenderer::setActors(const std::vector<AquariumPokemonActor>& actors) { impl_->setActors(actors); }
 void AquariumPokemonBgfxRenderer::submit(std::uint16_t view_id, bool blended_pass) { impl_->submit(view_id, blended_pass); }
+void AquariumPokemonBgfxRenderer::submitWorldBlend(std::uint16_t view_id) {
+    impl_->submit(view_id,true,false,false,true);
+}
+void AquariumPokemonBgfxRenderer::submitRoomDecorationBlend(std::uint16_t view_id) {
+    impl_->submit(view_id,true,false,true,false);
+}
 void AquariumPokemonBgfxRenderer::submitEmission(std::uint16_t view_id) { impl_->submit(view_id, false, true); }
 const std::string& AquariumPokemonBgfxRenderer::lastError() const { return impl_->last_error_; }
 

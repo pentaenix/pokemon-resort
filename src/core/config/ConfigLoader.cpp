@@ -78,6 +78,7 @@ void applyInputConfig(InputConfig& out, const JsonValue& obj) {
 
 void applyAudioConfig(AudioConfig& out, const JsonValue& obj) {
     if (auto v = child(obj, "menu_music")) out.menu_music = asString(*v);
+    if (auto v = child(obj, "aquarium_music")) out.aquarium_music = asString(*v);
     if (auto v = child(obj, "button_sfx")) out.button_sfx = asString(*v);
     if (auto v = child(obj, "rip_sfx")) out.rip_sfx = asString(*v);
     if (auto v = child(obj, "ui_move_sfx")) out.ui_move_sfx = asString(*v);

@@ -53,6 +53,12 @@ int main(){try{
             "Black rock no longer exercises single-sided rendering");
         require(std::none_of(marine->materials.begin(),marine->materials.end(),attend::shouldCullAttendPokemonMaterial),
             "Marine Park double-sided materials must continue to bypass culling");
+        const auto fountain=attend::loadAttendPokemonModelShared(
+            (root/"assets/aquarium_room/decorations/fountain_01_preview.glb").string());
+        require(fountain&&fountain->valid&&fountain->environment_scene.enabled&&
+            !fountain->environment_scene.default_clip.empty()&&
+            !fountain->environment_scene.motion_clips.empty(),
+            "room fountain lost its exported looping material-motion metadata");
         // A glTF front-facing +Z triangle, viewed from +Z, projects CCW in
         // overworld screen coordinates. Culling CCW would remove its exterior.
         pr::gameplay::world3d::camera::Gen4FollowCamera camera({});
@@ -100,6 +106,25 @@ int main(){try{
     require(!editor.valid()&&!editor.confirm()&&editor.cancel(),"outside-glass object was committed");
     require(editor.objects()[0].id==id,"edit/cancel replaced stable decoration ID");
     editor.adjustHeight(-10);require(editor.confirm(),"partial burial was rejected");
+    const auto* waterlily=catalog.resolve("Waterlily_preview_3DS_simplified.glb");
+    require(waterlily&&waterlily->bounds.valid,"waterlily fixture could not be measured");
+    decor::Editor surface_editor;
+    require(surface_editor.open(tank,nav,{},catalog)&&surface_editor.chooseAsset(waterlily->id),
+        "surface decoration fixture did not open");
+    int last_valid_height=0;
+    for(int step=0;step<128&&surface_editor.valid();++step){
+        last_valid_height=surface_editor.draft()->height_steps;
+        surface_editor.adjustHeight(1);
+    }
+    require(last_valid_height>0,"surface decoration never reached the waterline");
+    surface_editor.adjustHeight(last_valid_height-surface_editor.draft()->height_steps);
+    require(surface_editor.valid()&&surface_editor.confirm(),
+        "decoration just above the water surface was rejected");
+    const auto surface_actor=surface_editor.actors(false).front();
+    const float actor_top=surface_actor.world_position[1]+
+        waterlily->bounds.max_y*surface_actor.model_scale;
+    require(actor_top>tank.world_floor_y+nav.layers.front().y_top*16.0f,
+        "surface decoration allowance does not let lily pads emerge above the water");
     while(editor.objects().size()<decor::kTankDecorationLimit){
         require(editor.chooseAsset(asset->id)&&editor.confirm(),"overlapping floor placement was rejected");
     }

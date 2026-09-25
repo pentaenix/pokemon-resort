@@ -61,17 +61,6 @@ camera::Vec3 mul(const camera::Vec3& v, float s) {
     return camera::Vec3{v.x * s, v.y * s, v.z * s};
 }
 
-float worldUnitsPerScreenPixel(
-    const camera::Gen4FollowCamera::Pose& pose,
-    float depth,
-    int viewport_h) {
-    constexpr float kPi = 3.1415926535f;
-    const float fov_y = pose.preset.fov_y_deg * (kPi / 180.0f);
-    const float f = 1.0f / std::tan(std::max(0.001f, fov_y * 0.5f));
-    return std::max(pose.preset.near_clip, depth) /
-        (f * static_cast<float>(std::max(1, viewport_h)) * 0.5f);
-}
-
 camera::Vec3 screenToWorldOnCameraPlane(
     const camera::Gen4FollowCamera::Pose& pose,
     float screen_x,
@@ -289,6 +278,9 @@ void BillboardBgfxDrawer::submitDepthCharacterQuad(
     const float depth_bias_world =
         authoredPixelsWorldUnits(*deps_.scene, std::max(0.0f, depth_priority_bias_px), 1.0f);
     bottom_center = add(bottom_center, mul(pose.forward, -depth_bias_world));
+    if (!camera.worldToScreen(bottom_center, base_w, base_h, bottom_x, bottom_y, bottom_depth)) {
+        return;
+    }
     const rendering::QuantizedBillboardRect target = rendering::projectWorldBillboardRect(
         *deps_.scene,
         camera,
@@ -301,13 +293,20 @@ void BillboardBgfxDrawer::submitDepthCharacterQuad(
     if (!target.visible) {
         return;
     }
-    const float world_per_px = worldUnitsPerScreenPixel(pose, bottom_depth, base_h);
-    const float half_w = static_cast<float>(std::max(1, target.base_w)) * world_per_px * 0.5f;
-    const float world_h = static_cast<float>(std::max(1, target.base_h)) * world_per_px;
-    const camera::Vec3 right = mul(pose.right, half_w);
-    const camera::Vec3 up = mul(pose.up, world_h);
-    (void)bottom_x;
-    (void)bottom_y;
+
+    // Build the depth-tested world quad from an exact integer screen rectangle. Deriving a
+    // world-space size and projecting it back introduced sub-pixel error, which made nominal
+    // 2x character pixels alternate in width even with point sampling enabled.
+    const float snapped_bottom_x = std::round(bottom_x);
+    const float snapped_bottom_y = std::round(bottom_y);
+    const float left = snapped_bottom_x - static_cast<float>(target.base_w / 2);
+    const float right = left + static_cast<float>(std::max(1, target.base_w));
+    const float bottom = snapped_bottom_y;
+    const float top = bottom - static_cast<float>(std::max(1, target.base_h));
+    const camera::Vec3 p0 = screenToWorldOnCameraPlane(pose, left, top, bottom_depth, base_w, base_h);
+    const camera::Vec3 p1 = screenToWorldOnCameraPlane(pose, right, top, bottom_depth, base_w, base_h);
+    const camera::Vec3 p2 = screenToWorldOnCameraPlane(pose, right, bottom, bottom_depth, base_w, base_h);
+    const camera::Vec3 p3 = screenToWorldOnCameraPlane(pose, left, bottom, bottom_depth, base_w, base_h);
 
     const float u0 = static_cast<float>(source_rect.x) / static_cast<float>(texture.width);
     const float v0 = static_cast<float>(source_rect.y) / static_cast<float>(texture.height);
@@ -324,10 +323,6 @@ void BillboardBgfxDrawer::submitDepthCharacterQuad(
         return;
     }
     auto* verts = reinterpret_cast<Vertex*>(tvb.data);
-    const camera::Vec3 p0 = add(add(bottom_center, mul(right, -1.0f)), up);
-    const camera::Vec3 p1 = add(add(bottom_center, right), up);
-    const camera::Vec3 p2 = add(bottom_center, right);
-    const camera::Vec3 p3 = add(bottom_center, mul(right, -1.0f));
     verts[0] = Vertex{p0.x, p0.y, p0.z, color, u0, v0};
     verts[1] = Vertex{p1.x, p1.y, p1.z, color, u1, v0};
     verts[2] = Vertex{p2.x, p2.y, p2.z, color, u1, v1};

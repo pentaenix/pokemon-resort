@@ -156,7 +156,7 @@ std::string hintFor(const AquariumConstructionSession& session) {
     case ConstructionState::DeleteConfirm:
     case ConstructionState::Building: return "Building tank…";
     case ConstructionState::Dormant: return {};
-    case ConstructionState::ResizeRoom: return "Arrows resize  •  A confirms  •  B cancels";
+    case ConstructionState::ResizeRoom: return "Left/right changes room tool  •  A uses  •  B cancels";
     }
     return {};
 }
@@ -222,6 +222,48 @@ void AquariumConstructionOverlay::render(
         SDL_Rect stem{x-3,y-18,6,36};SDL_RenderFillRect(renderer,&stem);
         SDL_RenderDrawLine(renderer,x,y+5,x-16,y-7);SDL_RenderDrawLine(renderer,x,y+5,x+16,y-7);
     }
+    const auto room_mode_button=[&](const ConstructionHudRect& rect,
+                                    ConstructionHudAction action,
+                                    Rgba color) {
+        if(rect.width<=0) return;
+        drawButtonBase(renderer,rect,true,focused_action==action,color);
+        const int cx=rect.x+rect.width/2,cy=rect.y+rect.height/2;
+        SDL_SetRenderDrawColor(renderer,245,252,255,255);
+        if(action==ConstructionHudAction::RoomLayout) {
+            SDL_Rect outline{cx-15,cy-13,30,26}; SDL_RenderDrawRect(renderer,&outline);
+            SDL_Rect door{cx-5,cy+8,10,7}; SDL_RenderFillRect(renderer,&door);
+            SDL_RenderDrawLine(renderer,cx-20,cy,cx-13,cy);
+            SDL_RenderDrawLine(renderer,cx+13,cy,cx+20,cy);
+        } else if(action==ConstructionHudAction::RoomFloor) {
+            SDL_Rect roller{cx-14,cy-13,22,7};SDL_RenderFillRect(renderer,&roller);
+            SDL_RenderDrawLine(renderer,cx+8,cy-10,cx+8,cy+2);
+            SDL_RenderDrawLine(renderer,cx+8,cy+2,cx-4,cy+14);
+            SDL_RenderDrawLine(renderer,cx-15,cy+15,cx+15,cy+15);
+        } else if(action==ConstructionHudAction::RoomLevels) {
+            SDL_Rect blocks[]{ {cx-15,cy+4,10,11},{cx-5,cy-5,10,20},{cx+5,cy-14,10,29} };
+            for(auto& block:blocks)SDL_RenderFillRect(renderer,&block);
+        } else if(action==ConstructionHudAction::RoomTransitions) {
+            for(int step=0;step<4;++step) {
+                const int x0=cx-14+step*7;
+                const int y0=cy+14-step*7;
+                SDL_RenderDrawLine(renderer,x0,y0,x0+7,y0);
+                SDL_RenderDrawLine(renderer,x0+7,y0,x0+7,y0-7);
+            }
+        } else if(action==ConstructionHudAction::RoomWalls) {
+            SDL_Rect wall{cx-15,cy-12,30,24};SDL_RenderDrawRect(renderer,&wall);
+            SDL_RenderDrawLine(renderer,cx-11,cy-4,cx+11,cy-4);
+            SDL_RenderDrawLine(renderer,cx-11,cy+4,cx+5,cy+4);
+        } else {
+            SDL_Rect sign{cx-14,cy-13,28,17};SDL_RenderDrawRect(renderer,&sign);
+            SDL_RenderDrawLine(renderer,cx,cy+4,cx,cy+15);
+        }
+    };
+    room_mode_button(layout.room_layout,ConstructionHudAction::RoomLayout,{54,132,224,255});
+    room_mode_button(layout.room_floor,ConstructionHudAction::RoomFloor,{39,177,188,255});
+    room_mode_button(layout.room_levels,ConstructionHudAction::RoomLevels,{54,132,224,255});
+    room_mode_button(layout.room_transitions,ConstructionHudAction::RoomTransitions,{225,151,58,255});
+    room_mode_button(layout.room_walls,ConstructionHudAction::RoomWalls,{196,89,142,255});
+    room_mode_button(layout.room_decorations,ConstructionHudAction::RoomDecorations,{66,183,126,255});
     if (finish.width > 0) {
         const ConstructionHudAction finish_action = layout.build.width > 0
             ? ConstructionHudAction::Build : ConstructionHudAction::Exit;

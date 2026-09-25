@@ -2,6 +2,7 @@
 #include "gameplay/world3d/aquarium/construction/AquariumHabitatValidator.hpp"
 #include "gameplay/world3d/aquarium/AquariumExhibitPreset.hpp"
 #include "gameplay/world3d/aquarium/AquariumSubstratePreset.hpp"
+#include "gameplay/world3d/terrain/TerrainSurface.hpp"
 
 #include <algorithm>
 #include <set>
@@ -101,11 +102,15 @@ private:
             : profile == "anchored" || profile == "bottom-stationary" ? "stationary"
             : "wander";
         movement.speed_meters_per_second = movement.behavior == "stationary" ? 0.0f
+            : profile == "anchored-drift" ? 0.055f
+            : profile == "lower-third-cruiser" ? 0.30f
             : profile == "timid-reef" ? 0.10f
             : profile == "jelly-drift" ? 0.11f
             : profile == "benthic-rest-swimmer" ? 0.38f
             : profile == "large-cruiser" ? 0.45f : 0.55f;
         movement.turn_degrees_per_second = profile == "timid-reef" ? 55.0f
+            : profile == "anchored-drift" ? 22.0f
+            : profile == "lower-third-cruiser" ? 62.0f
             : profile == "jelly-drift" ? 32.0f
             : profile == "large-cruiser" ? 64.0f : 110.0f;
         if(species.dex==382) movement.speed_meters_per_second*=1.3f;
@@ -118,17 +123,24 @@ private:
             : profile == "large-cruiser" ? 0.38f : 0.16f;
         movement.forward_only = profile != "jelly-drift" && profile != "hover" &&
             (profile == "large-cruiser" || species.travel_direction != "sideways");
-        movement.vertical_anchor = species.vertical_zone == "bottom" ||
-            profile == "benthic-rest-swimmer" ? "bottom" : "authored";
+        movement.vertical_anchor = species.vertical_zone == "surface" ? "surface"
+            : species.vertical_zone == "bottom" ||
+                profile == "benthic-rest-swimmer" ? "bottom" : "authored";
+        movement.surface_behavior = species.surface_behavior;
+        movement.waterline_offset_body_heights =
+            species.waterline_offset_body_heights;
         const bool floor_actor = profile == "bottom-crawler" ||
             profile == "bottom-stationary" || profile == "bottom-burrower" ||
-            profile == "anchored" || profile == "surface-walker" ||
-            profile == "timid-reef";
-        movement.movement_plane = floor_actor ? "floor" : "volume";
+            profile == "anchored" || profile == "anchored-drift" || profile == "timid-reef";
+        movement.movement_plane = species.vertical_zone == "surface" ? "surface"
+            : floor_actor ? "floor" : "volume";
         movement.random_start = species.random_start;
         movement.idle_seconds_minimum = species.idle_seconds_minimum;
         movement.idle_seconds_maximum = species.idle_seconds_maximum;
         movement.local_move_distance_meters = species.local_move_distance_meters;
+        movement.vertical_range_minimum = species.vertical_range_minimum;
+        movement.vertical_range_maximum = species.vertical_range_maximum;
+        movement.prefer_shelter = species.prefer_shelter;
         movement.flee_radius_meters = species.flee_radius_meters;
         movement.flee_distance_meters = species.flee_distance_meters;
         movement.flee_speed_multiplier = species.flee_speed_multiplier;
@@ -257,12 +269,8 @@ PlayerAquariumRuntimeSet buildPlayerAquariumRuntime(
             design.footprint.origin_cell.row, 0, std::max(0, scene.grid.height - 1));
         const int sample_column = std::clamp(
             design.footprint.origin_cell.column, 0, std::max(0, scene.grid.width - 1));
-        if (sample_row < static_cast<int>(scene.terrain.heights.size()) &&
-            sample_column < static_cast<int>(scene.terrain.heights[sample_row].size())) {
-            runtime.world_floor_y = static_cast<float>(scene.terrain.heights[sample_row][sample_column]) *
-                (scene.terrain.height_per_floor > 0.0f
-                    ? scene.terrain.height_per_floor : scene.grid.tile_size);
-        }
+        runtime.world_floor_y=gameplay::world3d::terrain::heightAtTileCenter(
+            scene,sample_column,sample_row);
         runtime.water_volume_litres = build.statistics.water_volume_litres;
         runtime.build = std::move(build);
         // Installed geometry is shifted by the canonical half-cell transform.
@@ -296,7 +304,17 @@ PlayerAquariumRuntimeSet buildPlayerAquariumRuntime(
             runtime.world_center_z};
         simulation.inspection_camera = playerTankInspectionCamera();
         simulation.exhibit_preset_id = runtime.design.exhibit_preset;
+        simulation.color_strength_level = runtime.design.color_strength_level;
         simulation.brightness_level = runtime.design.brightness_level;
+        if(const auto arrangement=std::find_if(document.tank_decorations.begin(),
+            document.tank_decorations.end(),[&](const auto& candidate){
+                return candidate.tank_id==runtime.design.id;
+            });arrangement!=document.tank_decorations.end()){
+            for(const auto& decoration:arrangement->objects){
+                simulation.shelter_points.push_back({
+                    decoration.x_steps*.125f,0.0f,decoration.z_steps*.125f});
+            }
+        }
         int maximum_radius_steps = runtime.design.corner_radius_steps;
         for (const auto& corner : runtime.design.corner_radii) {
             maximum_radius_steps = std::max(maximum_radius_steps, corner.radius_steps);
@@ -313,8 +331,9 @@ PlayerAquariumRuntimeSet buildPlayerAquariumRuntime(
         }
         simulation.swimmers = population_policy.populationFor(
             runtime, context, diagnostics);
-        const AquariumExhibitPreset& exhibit = aquariumExhibitPreset(
-            runtime.design.exhibit_preset);
+        const AquariumExhibitPreset exhibit = aquariumExhibitPresetWithColorStrength(
+            aquariumExhibitPreset(runtime.design.exhibit_preset),
+            runtime.design.color_strength_level);
         constexpr float kResidentInteriorBalance = 0.78f;
         const float tank_brightness = aquariumBrightnessMultiplier(
             runtime.design.brightness_level) * kResidentInteriorBalance;

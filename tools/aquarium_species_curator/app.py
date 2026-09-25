@@ -25,7 +25,7 @@ VERTICAL_ZONES = ("surface", "upper-water", "open-water", "lower-water", "bottom
 SURFACE_BEHAVIORS = ("submerged", "touches-surface", "top-protrudes", "stands-on-surface")
 MOVEMENT_PROFILES = (
     "free-swimmer", "schooling", "escort", "hover", "jelly-drift", "surface-floater", "surface-walker",
-    "large-cruiser", "benthic-rest-swimmer", "bottom-crawler", "bottom-swimmer", "bottom-stationary",
+    "large-cruiser", "lower-third-cruiser", "benthic-rest-swimmer", "bottom-crawler", "bottom-swimmer", "bottom-stationary",
     "bottom-burrower", "timid-reef", "anchored",
 )
 REJECTION_REASONS = (

@@ -50,6 +50,23 @@ void renderFallbackTerrain(
     const auto in_bounds = [grid_w, grid_h](int tx, int ty) -> bool {
         return tx >= 0 && tx < grid_w && ty >= 0 && ty < grid_h;
     };
+    const auto is_authored_transition_cell = [&scene](int x, int y) {
+        return std::any_of(
+            scene.terrain.transition_edges.begin(), scene.terrain.transition_edges.end(),
+            [=](const TerrainTransitionEdge& edge) {
+                return edge.lower_x == x && edge.lower_y == y;
+            });
+    };
+    const auto is_open_transition_edge = [&scene](int ax, int ay, int bx, int by) {
+        return std::any_of(
+            scene.terrain.transition_edges.begin(), scene.terrain.transition_edges.end(),
+            [=](const TerrainTransitionEdge& edge) {
+                return (edge.lower_x == ax && edge.lower_y == ay &&
+                        edge.upper_x == bx && edge.upper_y == by) ||
+                       (edge.lower_x == bx && edge.lower_y == by &&
+                        edge.upper_x == ax && edge.upper_y == ay);
+            });
+    };
     const auto ramp_direction = [&](int tx, int ty) -> int {
         const int special = tile_special(tx, ty);
         if (special >= 2 && special <= 5) {
@@ -238,12 +255,22 @@ void renderFallbackTerrain(
             SDL_Color color = checker
                 ? toSdlColor(default_interior_room ? room.floor_color_a : scene.terrain.floor_color_a)
                 : toSdlColor(default_interior_room ? room.floor_color_b : scene.terrain.floor_color_b);
-            if (scene.terrain.floor_height_recolor_enabled && tile_h(x, z) == 1) {
+            if (default_interior_room) {
+                const auto override = std::find_if(
+                    room.floor_color_overrides.begin(), room.floor_color_overrides.end(),
+                    [=](const InteriorDefaultRoomConfig::FloorColorOverride& value) {
+                        return value.column == x && value.row == z;
+                    });
+                if (override != room.floor_color_overrides.end())
+                    color = toSdlColor(checker ? override->color_a : override->color_b);
+            }
+            const bool authored_transition = is_authored_transition_cell(x, z);
+            if (!authored_transition && scene.terrain.floor_height_recolor_enabled && tile_h(x, z) == 1) {
                 color = checker
                     ? toSdlColor(scene.terrain.first_non_base_floor_color_a)
                     : toSdlColor(scene.terrain.first_non_base_floor_color_b);
             }
-            if (slope && scene.terrain.ramp_recolor_enabled) {
+            if (!authored_transition && slope && scene.terrain.ramp_recolor_enabled) {
                 color = checker ? toSdlColor(scene.terrain.ramp_color_a) : toSdlColor(scene.terrain.ramp_color_b);
             }
             if (default_interior_room && !scene.interior.floor_cutouts.empty() &&
@@ -296,7 +323,9 @@ void renderFallbackTerrain(
 
             if (in_bounds(x + 1, z)) {
                 corner_heights(x + 1, z, n);
-                if (c[1] > n[0] || c[2] > n[3]) {
+                if (is_open_transition_edge(x, z, x + 1, z)) {
+                    // The authored ramp/stair occupies this height-change edge.
+                } else if (c[1] > n[0] || c[2] > n[3]) {
                     push_quad_face(x1w, n[0], z0w, x1w, c[1], z0w, x1w, c[2], z1w, x1w, n[3], z1w, wall_color_ew, false);
                 } else if (n[0] > c[1] || n[3] > c[2]) {
                     push_quad_face(x1w, c[1], z0w, x1w, n[0], z0w, x1w, n[3], z1w, x1w, c[2], z1w, wall_color_ew, false);
@@ -305,7 +334,9 @@ void renderFallbackTerrain(
 
             if (in_bounds(x, z + 1)) {
                 corner_heights(x, z + 1, n);
-                if (c[3] > n[0] || c[2] > n[1]) {
+                if (is_open_transition_edge(x, z, x, z + 1)) {
+                    // The authored ramp/stair occupies this height-change edge.
+                } else if (c[3] > n[0] || c[2] > n[1]) {
                     push_quad_face(x0w, n[0], z1w, x1w, n[1], z1w, x1w, c[2], z1w, x0w, c[3], z1w, wall_color_ns, false);
                 } else if (n[0] > c[3] || n[1] > c[2]) {
                     push_quad_face(x0w, c[3], z1w, x1w, c[2], z1w, x1w, n[1], z1w, x0w, n[0], z1w, wall_color_ns, false);
@@ -370,6 +401,19 @@ void renderFallbackTerrain(
                                                 float bx, float bz, float by,
                                                 float height_tiles,
                                                 SDL_Color body_color) {
+            // Match bgfx: boundary walls extend down to lowered floors while
+            // retaining the established room-top height. The south cutaway
+            // uses its black lower facade instead of a colored extension.
+            if(edge=="south") {
+                ay=scene.interior.floor_datum;
+                by=scene.interior.floor_datum;
+            } else {
+                const float lowered_base=std::min(ay,by);
+                height_tiles+=std::max(0.0f,
+                    (scene.interior.floor_datum-lowered_base)/tile_size);
+                ay=lowered_base;
+                by=lowered_base;
+            }
             if (!opening) {
                 push_wall_segment(
                     edge, ax, az, ay, bx, bz, by, height_tiles, body_color);
@@ -396,11 +440,14 @@ void renderFallbackTerrain(
                     scene, "south", tile_size,
                     (x + 1) * tile_size, grid_h * tile_size,
                     x * tile_size, grid_h * tile_size);
+                const float datum=scene.interior.floor_datum;
+                const float top_a=std::min(datum,south[2]);
+                const float top_b=std::min(datum,south[3]);
                 push_quad_face(
-                    line.ax, south[2] - lower_facade_depth, line.az,
-                    line.bx, south[3] - lower_facade_depth, line.bz,
-                    line.bx, south[3], line.bz,
-                    line.ax, south[2], line.az,
+                    line.ax, top_a-lower_facade_depth, line.az,
+                    line.bx, top_b-lower_facade_depth, line.bz,
+                    line.bx, top_b, line.bz,
+                    line.ax, top_a, line.az,
                     lower_facade_color, false);
             }
         }
@@ -414,11 +461,16 @@ void renderFallbackTerrain(
                 defaultInteriorWallHeightTiles(scene, "north"), wall_color_ns);
             float south[4]{};
             corner_heights(x, grid_h - 1, south);
-            push_boundary_segment("south",
-                defaultInteriorOpeningCovers(scene, "south", x),
-                (x + 1) * tile_size, grid_h * tile_size, south[2],
-                x * tile_size, grid_h * tile_size, south[3],
-                defaultInteriorWallHeightTiles(scene, "south"), wall_color_ns);
+            const bool lowered_cutaway =
+                south[2] < scene.interior.floor_datum - 0.001f ||
+                south[3] < scene.interior.floor_datum - 0.001f;
+            if (!lowered_cutaway) {
+                push_boundary_segment("south",
+                    defaultInteriorOpeningCovers(scene, "south", x),
+                    (x + 1) * tile_size, grid_h * tile_size, south[2],
+                    x * tile_size, grid_h * tile_size, south[3],
+                    defaultInteriorWallHeightTiles(scene, "south"), wall_color_ns);
+            }
         }
         for (int z = 0; z < grid_h; ++z) {
             float west[4]{};

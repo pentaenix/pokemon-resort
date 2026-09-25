@@ -140,6 +140,7 @@ struct InputConfig {
 struct AudioConfig {
     /// Paths are relative to the project root (joined at runtime).
     std::string menu_music = "assets/music/ui_menu_music.mp3";
+    std::string aquarium_music = "assets/music/aquarium_fish_exhibit.mp3";
     std::string button_sfx = "assets/sfx/btn.mp3";
     std::string rip_sfx = "assets/sfx/rip.mp3";
     std::string ui_move_sfx = "assets/sfx/ui_move.mp3";

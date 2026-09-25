@@ -3597,7 +3597,7 @@
       "review": {
         "status": "approved",
         "rejectionReason": "",
-        "notes": "Automated first-pass habitat proposal; requires curator approval."
+        "notes": "Surface walker; authored waterline lift keeps its feet on the visible water surface."
       },
       "model": {
         "path": "assets/pokemon_attend/pokemon_models/pm0283_00_Surskit.glbz"
@@ -3607,7 +3607,7 @@
         "pitchDegrees": 0.0,
         "yawDegrees": 0.0,
         "scaleMultiplier": 1.0,
-        "waterlineOffsetBodyHeights": 0.0
+        "waterlineOffsetBodyHeights": 0.48
       },
       "habitat": {
         "verticalZone": "surface",
@@ -4146,11 +4146,24 @@
         ]
       },
       "behavior": {
-        "movementProfile": "anchored",
+        "movementProfile": "anchored-drift",
         "travelDirection": "forward",
         "idleAnimation": "slot4_00",
         "minimumGroup": 1,
-        "preferredGroup": 1
+        "preferredGroup": 1,
+        "randomStart": true,
+        "localMoveDistanceMeters": 0.28,
+        "activity": {
+          "moveSeconds": {
+            "minimum": 1.5,
+            "maximum": 3.0
+          },
+          "restSeconds": {
+            "minimum": 38.0,
+            "maximum": 85.0
+          },
+          "restAtBottom": true
+        }
       },
       "capacity": {
         "mask": [
@@ -4203,11 +4216,24 @@
         ]
       },
       "behavior": {
-        "movementProfile": "anchored",
+        "movementProfile": "anchored-drift",
         "travelDirection": "forward",
         "idleAnimation": "slot4_00",
         "minimumGroup": 1,
-        "preferredGroup": 1
+        "preferredGroup": 1,
+        "randomStart": true,
+        "localMoveDistanceMeters": 0.22,
+        "activity": {
+          "moveSeconds": {
+            "minimum": 1.5,
+            "maximum": 2.5
+          },
+          "restSeconds": {
+            "minimum": 45.0,
+            "maximum": 95.0
+          },
+          "restAtBottom": true
+        }
       },
       "capacity": {
         "mask": [
@@ -4715,7 +4741,7 @@
         "waterlineOffsetBodyHeights": 0.0
       },
       "habitat": {
-        "verticalZone": "open-water",
+        "verticalZone": "bottom",
         "surfaceBehavior": "submerged",
         "waterKinds": [
           "saltwater"
@@ -4727,7 +4753,22 @@
         "idleAnimation": "slot6_00",
         "minimumGroup": 1,
         "preferredGroup": 1,
-        "idlePitchDegrees": 0.0
+        "idlePitchDegrees": 0.0,
+        "verticalRangeMinimum": 0.0,
+        "verticalRangeMaximum": 0.28,
+        "preferShelter": true,
+        "activity": {
+          "moveSeconds": {
+            "minimum": 4.0,
+            "maximum": 8.0
+          },
+          "restSeconds": {
+            "minimum": 14.0,
+            "maximum": 32.0
+          },
+          "roamingHeightMeters": 0.65,
+          "restAtBottom": true
+        }
       },
       "capacity": {
         "mask": [
@@ -4773,7 +4814,7 @@
         "waterlineOffsetBodyHeights": 0.0
       },
       "habitat": {
-        "verticalZone": "open-water",
+        "verticalZone": "bottom",
         "surfaceBehavior": "submerged",
         "waterKinds": [
           "saltwater"
@@ -4785,7 +4826,22 @@
         "idleAnimation": "slot6_00",
         "minimumGroup": 1,
         "preferredGroup": 1,
-        "idlePitchDegrees": 0.0
+        "idlePitchDegrees": 0.0,
+        "verticalRangeMinimum": 0.0,
+        "verticalRangeMaximum": 0.28,
+        "preferShelter": true,
+        "activity": {
+          "moveSeconds": {
+            "minimum": 4.0,
+            "maximum": 8.0
+          },
+          "restSeconds": {
+            "minimum": 14.0,
+            "maximum": 32.0
+          },
+          "roamingHeightMeters": 0.65,
+          "restAtBottom": true
+        }
       },
       "capacity": {
         "mask": [
@@ -4838,12 +4894,14 @@
         ]
       },
       "behavior": {
-        "movementProfile": "benthic-rest-swimmer",
+        "movementProfile": "lower-third-cruiser",
         "travelDirection": "forward",
         "idleAnimation": "slot6_00",
         "minimumGroup": 1,
         "preferredGroup": 1,
-        "idlePitchDegrees": 0.0
+        "idlePitchDegrees": 0.0,
+        "verticalRangeMinimum": 0.04,
+        "verticalRangeMaximum": 0.3
       },
       "capacity": {
         "mask": [
@@ -8539,12 +8597,30 @@
     }
   ],
   "movementProfiles": {
+    "anchored-drift": {
+      "locomotionMode": "move-rest",
+      "idleAnimation": "slot4_00",
+      "moveSeconds": {
+        "minimum": 1.5,
+        "maximum": 3.0
+      },
+      "restSeconds": {
+        "minimum": 40.0,
+        "maximum": 90.0
+      },
+      "restAtBottom": true,
+      "crowdBodyScale": 0.72
+    },
     "jelly-drift": {
       "locomotionMode": "vertical-drift",
       "horizontalSpeedMetersPerSecond": 0.11,
       "verticalTravelMeters": 0.38,
       "horizontalTravelMeters": 0.2,
       "crowdBodyScale": 0.52
+    },
+    "lower-third-cruiser": {
+      "locomotionMode": "continuous-cruise",
+      "crowdBodyScale": 0.64
     },
     "bottom-crawler": {
       "locomotionMode": "move-rest",

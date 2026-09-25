@@ -330,6 +330,22 @@ public:
         }
         refreshBillboardDrawer();
     }
+    bool setDefaultRoomPreview(
+        const InteriorDefaultRoomConfig& room,
+        const TerrainConfig& terrain,
+        const TileLayersConfig& tile_layers) {
+        scene_.interior.default_room.floor_color_a=room.floor_color_a;
+        scene_.interior.default_room.floor_color_b=room.floor_color_b;
+        scene_.interior.default_room.wall_color_ns=room.wall_color_ns;
+        scene_.interior.default_room.wall_color_ew=room.wall_color_ew;
+        scene_.interior.default_room.trim_color=room.trim_color;
+        scene_.interior.default_room.baseboard_color=room.baseboard_color;
+        scene_.interior.default_room.floor_color_overrides=room.floor_color_overrides;
+        scene_.interior.default_room.wall_color_overrides=room.wall_color_overrides;
+        scene_.terrain=terrain;
+        scene_.tile_layers=tile_layers;
+        return !initialized_ || (loadTilePackage()&&buildTerrain()&&buildTileLayers());
+    }
     void setPlayerVisible(bool visible) { player_visible_ = visible; }
     void setInteriorWallCameraClip(camera::Vec3 center, float radius_world) {
         interior_wall_clip_[0] = center.x;
@@ -872,6 +888,12 @@ std::size_t OverworldBgfxRenderer::playerAquariumResourceCount() const {
 void OverworldBgfxRenderer::setSceneLighting(
     float brightness, const std::array<float, 3>& tint) {
     if (impl_) impl_->setSceneLighting(brightness, tint);
+}
+bool OverworldBgfxRenderer::setDefaultRoomPreview(
+    const InteriorDefaultRoomConfig& room,
+    const TerrainConfig& terrain,
+    const TileLayersConfig& tile_layers) {
+    return impl_ && impl_->setDefaultRoomPreview(room,terrain,tile_layers);
 }
 
 void OverworldBgfxRenderer::setPlayerVisible(bool visible) {
@@ -2212,6 +2234,20 @@ bool OverworldBgfxRenderer::Impl::buildTileLayers() {
         const std::size_t ui = vertex_index * 2U;
         float local_x = read_float(positions, pi + 0U, 0.0f) + mesh.x_offset;
         float local_y = read_float(positions, pi + 1U, 0.0f) + mesh.y_offset;
+        // RTPKS tile 140 is Black 2's clean one-cell stair flight, authored
+        // facing north. Cardinal terrain specials are authoritative, so reuse
+        // the one asset for all directions instead of storing four copies.
+        if(mesh.resort_tile_id==140&&mesh.width==1&&mesh.height==1) {
+            const int special=tile_special_at(tile_x,tile_y);
+            float cx=local_x-.5f;
+            float cz=(1.0f-local_y)-.5f;
+            const float ox=cx,oz=cz;
+            if(special==kSpecialRampEast){cx=-oz;cz=ox;}
+            else if(special==kSpecialRampSouth){cx=-ox;cz=-oz;}
+            else if(special==kSpecialRampWest){cx=oz;cz=-ox;}
+            local_x=cx+.5f;
+            local_y=1.0f-(cz+.5f);
+        }
         if (seam_overlap_tiles > 0.0f) {
             constexpr float kCenterEpsilon = 0.00001f;
             if (local_x < seam_center_x - kCenterEpsilon) local_x -= seam_overlap_tiles;
@@ -2541,6 +2577,9 @@ bool OverworldBgfxRenderer::Impl::buildTerrain() {
                     const int tw = tile ? std::max(1, tile->width) : 1;
                     const int th = tile ? std::max(1, tile->height) : 1;
                     if (tx >= ax && tx < ax + tw && ty >= ay && ty < ay + th) {
+                        // A placed stair flight owns this surface. Drawing the
+                        // procedural ramp beneath its nearly coplanar tread mesh
+                        // causes the smooth floor to win the depth test.
                         return true;
                     }
                 }
@@ -2550,6 +2589,30 @@ bool OverworldBgfxRenderer::Impl::buildTerrain() {
     };
     const auto is_slope_special = [](int special) {
         return special >= kSpecialRampNorth && special <= kSpecialConcaveNW;
+    };
+    const auto is_authored_transition_cell = [this](int x, int y) {
+        return std::any_of(
+            scene_.terrain.transition_edges.begin(), scene_.terrain.transition_edges.end(),
+            [=](const TerrainTransitionEdge& edge) {
+                return edge.lower_x == x && edge.lower_y == y;
+            });
+    };
+    const auto is_authored_stair_cell = [this](int x, int y) {
+        return std::any_of(
+            scene_.terrain.transition_edges.begin(), scene_.terrain.transition_edges.end(),
+            [=](const TerrainTransitionEdge& edge) {
+                return edge.stairs && edge.lower_x == x && edge.lower_y == y;
+            });
+    };
+    const auto is_open_transition_edge = [this](int ax, int ay, int bx, int by) {
+        return std::any_of(
+            scene_.terrain.transition_edges.begin(), scene_.terrain.transition_edges.end(),
+            [=](const TerrainTransitionEdge& edge) {
+                return (edge.lower_x == ax && edge.lower_y == ay &&
+                        edge.upper_x == bx && edge.upper_y == by) ||
+                       (edge.lower_x == bx && edge.lower_y == by &&
+                        edge.upper_x == ax && edge.upper_y == ay);
+            });
     };
     const auto fill_corners = [&](int x, int y, float (&c)[4]) {
         terrain::fillTileCornerHeights(scene_, x, y, c);
@@ -2594,12 +2657,86 @@ bool OverworldBgfxRenderer::Impl::buildTerrain() {
             triangle[2].x, y2, triangle[2].z, color, triangle[2].u, triangle[2].v});
         indices.insert(indices.end(), {base, base + 1, base + 2});
     };
+    const auto push_stair_surface = [&](int x, int y, int special, std::uint32_t color) {
+        float corners[4]{};
+        fill_corners(x, y, corners);
+        const float low = *std::min_element(corners, corners + 4);
+        const float high = *std::max_element(corners, corners + 4);
+        if (high - low <= 0.001f) return;
+        constexpr int kSteps = 5;
+        const float origin_x = static_cast<float>(x) * tile_size;
+        const float origin_z = static_cast<float>(y) * tile_size;
+        const bool default_room=shouldRenderDefaultInteriorRoom(scene_);
+        const auto& room_config=scene_.interior.default_room;
+        const bool touches_south_cutaway=default_room&&y==grid_h-1&&
+            room_config.lower_facade_depth_tiles>0.001f;
+        const float south_face_z=float(grid_h)*tile_size-
+            std::max(0.0f,room_config.wall_face_offset_tiles)*tile_size;
+        const auto point = [&](float progress, float lateral) {
+            float u = lateral;
+            float v = progress;
+            if (special == kSpecialRampNorth) { u = lateral; v = 1.0f - progress; }
+            else if (special == kSpecialRampEast) { u = progress; v = lateral; }
+            else if (special == kSpecialRampSouth) { u = 1.0f - lateral; v = progress; }
+            else if (special == kSpecialRampWest) { u = 1.0f - progress; v = 1.0f - lateral; }
+            float world_z=origin_z+v*tile_size;
+            if(touches_south_cutaway)world_z=std::min(world_z,south_face_z);
+            return std::array<float,2>{origin_x + u * tile_size,world_z};
+        };
+        const std::uint32_t retaining_ns=ramp_terrain_render::packTerrainColor(
+            default_room?room_config.wall_color_ns:scene_.terrain.wall_color_ns);
+        const std::uint32_t retaining_ew=ramp_terrain_render::packTerrainColor(
+            default_room?room_config.wall_color_ew:scene_.terrain.wall_color_ew);
+        const bool runs_north_south=special==kSpecialRampNorth||special==kSpecialRampSouth;
+        const std::uint32_t riser_color=runs_north_south?retaining_ns:retaining_ew;
+        const std::uint32_t side_color=runs_north_south?retaining_ew:retaining_ns;
+        const std::uint32_t south_facade_color=ramp_terrain_render::packTerrainColor(
+            room_config.lower_facade_color);
+        const auto vertical_color=[&](const std::array<float,2>& first,
+            const std::array<float,2>& second,std::uint32_t fallback) {
+            return touches_south_cutaway&&std::abs(first[1]-south_face_z)<.001f&&
+                std::abs(second[1]-south_face_z)<.001f?south_facade_color:fallback;
+        };
+        float previous_height = low;
+        for (int step = 0; step < kSteps; ++step) {
+            const float p0 = static_cast<float>(step) / static_cast<float>(kSteps);
+            const float p1 = static_cast<float>(step + 1) / static_cast<float>(kSteps);
+            const float height = low + (high - low) *
+                static_cast<float>(step) / static_cast<float>(kSteps - 1);
+            const auto a = point(p0, 0.0f);
+            const auto b = point(p0, 1.0f);
+            const auto c = point(p1, 1.0f);
+            const auto d = point(p1, 0.0f);
+            if (step > 0) {
+                push_quad(slope_top_vertices, slope_top_indices,
+                    a[0], previous_height, a[1], b[0], previous_height, b[1],
+                    b[0], height, b[1], a[0], height, a[1], riser_color);
+            }
+            if(height>low+.001f) {
+                push_quad(slope_top_vertices,slope_top_indices,
+                    a[0],low,a[1],d[0],low,d[1],d[0],height,d[1],a[0],height,a[1],
+                    vertical_color(a,d,side_color));
+                push_quad(slope_top_vertices,slope_top_indices,
+                    b[0],low,b[1],b[0],height,b[1],c[0],height,c[1],c[0],low,c[1],
+                    vertical_color(b,c,side_color));
+            }
+            push_quad(slope_top_vertices, slope_top_indices,
+                a[0], height, a[1], b[0], height, b[1],
+                c[0], height, c[1], d[0], height, d[1], color);
+            previous_height = height;
+        }
+    };
     const bool default_interior_room = shouldRenderDefaultInteriorRoom(scene_);
     const auto& room = scene_.interior.default_room;
     const std::uint32_t floor_a = ramp_terrain_render::packTerrainColor(
         default_interior_room ? room.floor_color_a : scene_.terrain.floor_color_a);
     const std::uint32_t floor_b = ramp_terrain_render::packTerrainColor(
         default_interior_room ? room.floor_color_b : scene_.terrain.floor_color_b);
+    std::vector<const InteriorDefaultRoomConfig::FloorColorOverride*> floor_overrides(
+        static_cast<std::size_t>(grid_w*grid_h),nullptr);
+    if(default_interior_room) for(const auto& override:room.floor_color_overrides)
+        if(override.column>=0&&override.row>=0&&override.column<grid_w&&override.row<grid_h)
+            floor_overrides[static_cast<std::size_t>(override.row*grid_w+override.column)]=&override;
     const std::uint32_t first_non_base_a = ramp_terrain_render::packTerrainColor(scene_.terrain.first_non_base_floor_color_a);
     const std::uint32_t first_non_base_b = ramp_terrain_render::packTerrainColor(scene_.terrain.first_non_base_floor_color_b);
     const std::uint32_t ramp_a = ramp_terrain_render::packTerrainColor(scene_.terrain.ramp_color_a);
@@ -2613,13 +2750,19 @@ bool OverworldBgfxRenderer::Impl::buildTerrain() {
             std::vector<std::uint32_t>& top_indices = slope ? slope_top_indices : flat_top_indices;
             const bool checker = ((x + y) & 1) != 0;
             std::uint32_t color = checker ? floor_b : floor_a;
-            if (scene_.terrain.floor_height_recolor_enabled && tile_height(x, y) == 1) {
+            if(const auto* override=floor_overrides[static_cast<std::size_t>(y*grid_w+x)])
+                color=ramp_terrain_render::packTerrainColor(
+                    checker?override->color_b:override->color_a);
+            const bool authored_transition = is_authored_transition_cell(x, y);
+            if (!authored_transition && scene_.terrain.floor_height_recolor_enabled && tile_height(x, y) == 1) {
                 color = checker ? first_non_base_b : first_non_base_a;
             }
-            if (slope && scene_.terrain.ramp_recolor_enabled) {
+            if (!authored_transition && slope && scene_.terrain.ramp_recolor_enabled) {
                 color = checker ? ramp_b : ramp_a;
             }
-            if (!tile_covers_cell(x, y)) {
+            if (is_authored_stair_cell(x, y)) {
+                push_stair_surface(x, y, special, color);
+            } else if (!tile_covers_cell(x, y)) {
                 if (default_interior_room && !scene_.interior.floor_cutouts.empty()) {
                     for (const auto& triangle :
                          interiors::clipFloorCellAgainstCutouts(scene_, x, y, tile_size)) {
@@ -2682,14 +2825,18 @@ bool OverworldBgfxRenderer::Impl::buildTerrain() {
             if (x + 1 < grid_w) {
                 float n[4]{};
                 fill_corners(x + 1, y, n);
-                add_wall_if_drop(x1, z0, c[1], c[2], x1, z1, n[0], n[3], wall_ew);
-                add_wall_if_drop(x1, z0, n[0], n[3], x1, z1, c[1], c[2], wall_ew);
+                if (!is_open_transition_edge(x, y, x + 1, y)) {
+                    add_wall_if_drop(x1, z0, c[1], c[2], x1, z1, n[0], n[3], wall_ew);
+                    add_wall_if_drop(x1, z0, n[0], n[3], x1, z1, c[1], c[2], wall_ew);
+                }
             }
             if (y + 1 < grid_h) {
                 float n[4]{};
                 fill_corners(x, y + 1, n);
-                add_wall_if_drop(x0, z1, c[3], c[2], x1, z1, n[0], n[1], wall_ns);
-                add_wall_if_drop(x0, z1, n[0], n[1], x1, z1, c[3], c[2], wall_ns);
+                if (!is_open_transition_edge(x, y, x, y + 1)) {
+                    add_wall_if_drop(x0, z1, c[3], c[2], x1, z1, n[0], n[1], wall_ns);
+                    add_wall_if_drop(x0, z1, n[0], n[1], x1, z1, c[3], c[2], wall_ns);
+                }
             }
         }
     }
@@ -2700,11 +2847,19 @@ bool OverworldBgfxRenderer::Impl::buildTerrain() {
             ramp_terrain_render::packTerrainColor(room.baseboard_color);
         const std::uint32_t top_cap =
             ramp_terrain_render::packTerrainColor(room.top_cap_color);
+        const auto wall_override=[&](std::string_view edge,int segment) ->
+                const InteriorDefaultRoomConfig::WallColorOverride* {
+            const auto found=std::find_if(room.wall_color_overrides.begin(),room.wall_color_overrides.end(),
+                [&](const auto& value){return value.edge==edge&&value.segment==segment;});
+            return found==room.wall_color_overrides.end()?nullptr:&*found;
+        };
         const auto push_wall_segment = [&](std::string_view edge,
                                            float ax, float az, float ay,
                                            float bx, float bz, float by,
                                            float height_tiles,
-                                           std::uint32_t body_color) {
+                                           std::uint32_t body_color,
+                                           std::uint32_t segment_trim,
+                                           std::uint32_t segment_baseboard) {
             const float height = std::max(0.0f, height_tiles) * tile_size;
             if (height <= 0.001f) return;
             const auto [normal_x, normal_z] =
@@ -2725,7 +2880,7 @@ bool OverworldBgfxRenderer::Impl::buildTerrain() {
             if (band > 0.001f) {
                 push_quad(wall_vertices, wall_indices,
                     ax, ay, az, bx, by, bz, bx, body_bottom_b, bz, ax, body_bottom_a, az,
-                    baseboard);
+                    segment_baseboard);
             }
             if (body_top_a > body_bottom_a + 0.001f ||
                 body_top_b > body_bottom_b + 0.001f) {
@@ -2736,7 +2891,7 @@ bool OverworldBgfxRenderer::Impl::buildTerrain() {
             if (band > 0.001f) {
                 push_quad(wall_vertices, wall_indices,
                     ax, body_top_a, az, bx, body_top_b, bz,
-                    bx, by + height, bz, ax, ay + height, az, trim);
+                    bx, by + height, bz, ax, ay + height, az, segment_trim);
             }
             const float cap_depth =
                 std::max(0.0f, room.top_cap_depth_tiles) * tile_size;
@@ -2750,14 +2905,38 @@ bool OverworldBgfxRenderer::Impl::buildTerrain() {
             }
         };
         const auto push_boundary_segment = [&](std::string_view edge,
+                                                int segment,
                                                 bool opening,
                                                 float ax, float az, float ay,
                                                 float bx, float bz, float by,
                                                 float height_tiles,
                                                 std::uint32_t body_color) {
+            // Keep the room's wall top fixed while a boundary floor cell is
+            // lowered: side/back walls grow downward instead of sinking. The
+            // camera-facing south edge remains a clean cutaway; its black
+            // lower facade covers the depression without colored baseboard.
+            if(edge=="south") {
+                ay=scene_.interior.floor_datum;
+                by=scene_.interior.floor_datum;
+            } else {
+                const float lowered_base=std::min(ay,by);
+                height_tiles+=std::max(0.0f,
+                    (scene_.interior.floor_datum-lowered_base)/tile_size);
+                // A stair can give the two corners different terrain heights.
+                // Boundary walls still need a level bottom and top; otherwise
+                // their trim is triangulated into the visible yellow spike.
+                ay=lowered_base;
+                by=lowered_base;
+            }
+            std::uint32_t use_body=body_color,use_trim=trim,use_baseboard=baseboard;
+            if(const auto* override=wall_override(edge,segment)) {
+                use_body=ramp_terrain_render::packTerrainColor(override->body);
+                use_trim=ramp_terrain_render::packTerrainColor(override->trim);
+                use_baseboard=ramp_terrain_render::packTerrainColor(override->baseboard);
+            }
             if (!opening) {
                 push_wall_segment(
-                    edge, ax, az, ay, bx, bz, by, height_tiles, body_color);
+                    edge, ax, az, ay, bx, bz, by, height_tiles,use_body,use_trim,use_baseboard);
                 return;
             }
             const float clearance_tiles =
@@ -2768,7 +2947,7 @@ bool OverworldBgfxRenderer::Impl::buildTerrain() {
             const float clearance = clearance_tiles * tile_size;
             push_wall_segment(
                 edge, ax, az, ay + clearance, bx, bz, by + clearance,
-                lintel_height_tiles, body_color);
+                lintel_height_tiles,use_body,use_trim,use_baseboard);
         };
         const float lower_facade_depth =
             std::max(0.0f, room.lower_facade_depth_tiles) * tile_size;
@@ -2782,41 +2961,49 @@ bool OverworldBgfxRenderer::Impl::buildTerrain() {
                     scene_, "south", tile_size,
                     (x + 1) * tile_size, grid_h * tile_size,
                     x * tile_size, grid_h * tile_size);
+                const float datum=scene_.interior.floor_datum;
+                const float top_a=std::min(datum,south[2]);
+                const float top_b=std::min(datum,south[3]);
                 push_quad(wall_vertices, wall_indices,
-                    line.ax, south[2] - lower_facade_depth, line.az,
-                    line.bx, south[3] - lower_facade_depth, line.bz,
-                    line.bx, south[3], line.bz,
-                    line.ax, south[2], line.az,
+                    line.ax, top_a-lower_facade_depth, line.az,
+                    line.bx, top_b-lower_facade_depth, line.bz,
+                    line.bx, top_b, line.bz,
+                    line.ax, top_a, line.az,
                     lower_facade);
             }
         }
         for (int x = 0; x < grid_w; ++x) {
             float north[4]{};
             fill_corners(x, 0, north);
-            push_boundary_segment("north",
+            push_boundary_segment("north",x,
                 defaultInteriorOpeningCovers(scene_, "north", x),
                 x * tile_size, 0.0f, north[0],
                 (x + 1) * tile_size, 0.0f, north[1],
                 defaultInteriorWallHeightTiles(scene_, "north"), wall_ns);
             float south[4]{};
             fill_corners(x, grid_h - 1, south);
-            push_boundary_segment("south",
-                defaultInteriorOpeningCovers(scene_, "south", x),
-                (x + 1) * tile_size, grid_h * tile_size, south[2],
-                x * tile_size, grid_h * tile_size, south[3],
-                defaultInteriorWallHeightTiles(scene_, "south"), wall_ns);
+            const bool lowered_cutaway =
+                south[2] < scene_.interior.floor_datum - 0.001f ||
+                south[3] < scene_.interior.floor_datum - 0.001f;
+            if (!lowered_cutaway) {
+                push_boundary_segment("south",x,
+                    defaultInteriorOpeningCovers(scene_, "south", x),
+                    (x + 1) * tile_size, grid_h * tile_size, south[2],
+                    x * tile_size, grid_h * tile_size, south[3],
+                    defaultInteriorWallHeightTiles(scene_, "south"), wall_ns);
+            }
         }
         for (int y = 0; y < grid_h; ++y) {
             float west[4]{};
             fill_corners(0, y, west);
-            push_boundary_segment("west",
+            push_boundary_segment("west",y,
                 defaultInteriorOpeningCovers(scene_, "west", y),
                 0.0f, (y + 1) * tile_size, west[3],
                 0.0f, y * tile_size, west[0],
                 defaultInteriorWallHeightTiles(scene_, "west"), wall_ew);
             float east[4]{};
             fill_corners(grid_w - 1, y, east);
-            push_boundary_segment("east",
+            push_boundary_segment("east",y,
                 defaultInteriorOpeningCovers(scene_, "east", y),
                 grid_w * tile_size, y * tile_size, east[1],
                 grid_w * tile_size, (y + 1) * tile_size, east[2],
@@ -3312,7 +3499,13 @@ void OverworldBgfxRenderer::Impl::submitMesh(
         const float adjust[4] = {1.0f, 1.0f, 1.0f, 0.0f};
         const float texture_blur[4] = {0.0f, 0.0f, 0.0f, 0.0f};
         const float light_dir[4] = {0.0f, 1.0f, 0.0f, 0.0f};
-        const float light_params[4] = {1.0f, 0.0f, 0.0f, 0.0f};
+        const float light_params[4] = {
+            1.0f,
+            0.0f,
+            0.0f,
+            camera_clip && camera_clip[3] < -0.5f
+                ? scene_.interior.floor_datum
+                : 0.0f};
         bgfx::setTransform(model_matrix);
         if (bgfx::isValid(mesh.dynamic_vbh)) bgfx::setVertexBuffer(0, mesh.dynamic_vbh);
         else bgfx::setVertexBuffer(0, mesh.vbh);
@@ -3509,15 +3702,16 @@ void OverworldBgfxRenderer::Impl::submitAquariumTankLightSpills(
     std::uint32_t vertex_cursor = 0;
     std::uint32_t index_cursor = 0;
     for (const auto& tank : aquarium_tank_lights_) {
-        const auto* exhibit = tank.exhibit_preset_id.empty()
-            ? nullptr
-            : &aquarium::aquariumExhibitPreset(tank.exhibit_preset_id);
-        const std::array<float, 3>& spill = exhibit
-            ? exhibit->spill_color : aquarium_tank_lighting_.spill_color;
+        const bool has_exhibit = !tank.exhibit_preset_id.empty();
+        const auto exhibit = aquarium::aquariumExhibitPresetWithColorStrength(
+            aquarium::aquariumExhibitPreset(tank.exhibit_preset_id),
+            tank.color_strength_level);
+        const std::array<float, 3>& spill = has_exhibit
+            ? exhibit.spill_color : aquarium_tank_lighting_.spill_color;
         const float tank_brightness = aquarium::aquariumBrightnessMultiplier(
             tank.brightness_level);
         const float spill_opacity = aquarium_tank_lighting_.spill_opacity *
-            (exhibit ? exhibit->spill_opacity_multiplier : 1.0f) *
+            (has_exhibit ? exhibit.spill_opacity_multiplier : 1.0f) *
             std::sqrt(tank_brightness);
         const std::uint32_t inner_color = packAbgr(
             spill[0] * tank_brightness, spill[1] * tank_brightness,
@@ -4502,7 +4696,7 @@ OverworldBgfxRenderer::EmbeddedViewportTexture OverworldBgfxRenderer::Impl::rend
     // Aquarium actors are real skinned Attend models. Player-built glass/water
     // is submitted with the other late transparent geometry below.
     aquarium_pokemon_renderer_.submit(1, false);
-    aquarium_pokemon_renderer_.submit(1, true);
+    aquarium_pokemon_renderer_.submitWorldBlend(1);
 
     if(!aquarium_decoration_editing_) {
     // RAE material-motion tiles may carry a source display-list order that
@@ -4579,6 +4773,7 @@ OverworldBgfxRenderer::EmbeddedViewportTexture OverworldBgfxRenderer::Impl::rend
         for (const rendering::CharacterBillboardDraw& character_draw : characters) {
             billboard_drawer_->submitCharacterDraw(camera, character_draw);
         }
+        aquarium_pokemon_renderer_.submitRoomDecorationBlend(1);
 
         if(!aquarium_decoration_editing_) {
         for (const ModelGpuResource& model : models_) {

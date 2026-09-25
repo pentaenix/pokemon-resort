@@ -5,6 +5,12 @@
 #include "gameplay/world3d/aquarium/rooms/AquariumBuildingLayout.hpp"
 
 namespace pr::gameplay::world3d::aquarium::rooms {
+struct RoomSurfacePalette {
+    TerrainColor floor_a, floor_b;
+    TerrainColor wall_ns, wall_ew, trim, baseboard;
+};
+const RoomSurfacePalette& roomSurfacePalette(int index);
+void applyRoomSurfaceStyle(SceneConfig&, const RoomSurfaceStyle&);
 // Initial adapter is deliberately limited to empty, procedural aquarium rooms.
 BuildingLayout roomLayoutFromScene(const SceneConfig& scene);
 SceneConfig projectRoomLayout(const SceneConfig& source, const RoomLayout& room);

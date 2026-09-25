@@ -39,7 +39,11 @@ void AppAudioDirector::updateMusic(double dt, const AppMusicRequest& request) {
     const ActiveMusicTrack desired_music_track =
         request.menu_requested
             ? ActiveMusicTrack::Menu
-            : (request.transfer_requested ? ActiveMusicTrack::Transfer : ActiveMusicTrack::None);
+            : (request.transfer_requested
+                ? ActiveMusicTrack::Transfer
+                : (request.aquarium_requested
+                    ? ActiveMusicTrack::Aquarium
+                    : ActiveMusicTrack::None));
 
     if (desired_music_track == ActiveMusicTrack::Menu) {
         if (loaded_music_track_ != ActiveMusicTrack::Menu) {
@@ -49,6 +53,23 @@ void AppAudioDirector::updateMusic(double dt, const AppMusicRequest& request) {
         }
         transfer_music_elapsed_seconds_ = 0.0;
         if (loaded_music_track_ == ActiveMusicTrack::Menu && audio_.isMusicLoaded()) {
+            audio_.setMusicVolume(request.volume);
+            if (!music_playing_) {
+                audio_.playMusicLoop();
+                music_playing_ = true;
+            }
+        }
+        return;
+    }
+
+    if (desired_music_track == ActiveMusicTrack::Aquarium) {
+        if (loaded_music_track_ != ActiveMusicTrack::Aquarium) {
+            audio_.stopMusic();
+            music_playing_ = false;
+            transfer_music_elapsed_seconds_ = 0.0;
+            loadAquariumMusic(request.aquarium_music_path);
+        }
+        if (loaded_music_track_ == ActiveMusicTrack::Aquarium && audio_.isMusicLoaded()) {
             audio_.setMusicVolume(request.volume);
             if (!music_playing_) {
                 audio_.playMusicLoop();
@@ -145,6 +166,18 @@ bool AppAudioDirector::loadTransferMusic(const std::string& relative_path) {
 
     loaded_music_track_ = ActiveMusicTrack::None;
     std::cerr << "Warning: could not load transfer music at " << transfer_music_path << '\n';
+    return false;
+}
+
+bool AppAudioDirector::loadAquariumMusic(const std::string& relative_path) {
+    const std::filesystem::path music_path = project_root_ / relative_path;
+    if (audio_.loadMusic(music_path.string())) {
+        loaded_music_track_ = ActiveMusicTrack::Aquarium;
+        return true;
+    }
+
+    loaded_music_track_ = ActiveMusicTrack::None;
+    std::cerr << "Warning: could not load aquarium music at " << music_path << '\n';
     return false;
 }
 

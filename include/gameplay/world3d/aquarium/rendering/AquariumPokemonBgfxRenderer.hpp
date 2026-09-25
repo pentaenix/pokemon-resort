@@ -31,6 +31,8 @@ public:
     void shutdown();
     void setActors(const std::vector<AquariumPokemonActor>& actors);
     void submit(std::uint16_t view_id, bool blended_pass);
+    void submitWorldBlend(std::uint16_t view_id);
+    void submitRoomDecorationBlend(std::uint16_t view_id);
     // After bounded fog, before glass; uses existing opaque depth for occlusion.
     void submitEmission(std::uint16_t view_id);
     const std::string& lastError() const;

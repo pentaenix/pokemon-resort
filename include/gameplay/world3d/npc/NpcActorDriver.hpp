@@ -202,6 +202,7 @@ private:
     std::vector<unsigned char> visitor_walkable_;
     std::vector<VisitorCell> visitor_cells_;
     double visitor_arrival_seconds_=0;
+    double visitor_attach_retry_seconds_=0;
     std::optional<std::size_t> addActorAtTile(const NpcActorDefinition& definition, int tx, int ty);
     std::optional<std::size_t> addActor(const NpcActorDefinition& definition, int tx, int ty);
     void addPartnerPokemonForActor(const Actor& owner);

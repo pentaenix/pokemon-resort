@@ -36,6 +36,28 @@ ConstructionHudRect* rectForAction(ConstructionHudLayout& layout, ConstructionHu
         case ConstructionHudAction::Exit: return &layout.exit;
         case ConstructionHudAction::None: return nullptr;
         case ConstructionHudAction::Room: return &layout.room;
+        case ConstructionHudAction::RoomLayout: return &layout.room_layout;
+        case ConstructionHudAction::RoomFloor: return &layout.room_floor;
+        case ConstructionHudAction::RoomLevels: return &layout.room_levels;
+        case ConstructionHudAction::RoomTransitions: return &layout.room_transitions;
+        case ConstructionHudAction::RoomWalls: return &layout.room_walls;
+        case ConstructionHudAction::RoomDecorations: return &layout.room_decorations;
+        case ConstructionHudAction::RoomRamp: return &layout.room_ramp;
+        case ConstructionHudAction::RoomStairs: return &layout.room_stairs;
+        case ConstructionHudAction::RoomPalette0: return &layout.room_palettes[0];
+        case ConstructionHudAction::RoomPalette1: return &layout.room_palettes[1];
+        case ConstructionHudAction::RoomPalette2: return &layout.room_palettes[2];
+        case ConstructionHudAction::RoomPalette3: return &layout.room_palettes[3];
+        case ConstructionHudAction::RoomPalette4: return &layout.room_palettes[4];
+        case ConstructionHudAction::RoomPalette5: return &layout.room_palettes[5];
+        case ConstructionHudAction::RoomDepth0: return &layout.room_depths[0];
+        case ConstructionHudAction::RoomDepth1: return &layout.room_depths[1];
+        case ConstructionHudAction::RoomDepth2: return &layout.room_depths[2];
+        case ConstructionHudAction::RoomDepth3: return &layout.room_depths[3];
+        case ConstructionHudAction::RoomCameraTopDown: return &layout.room_camera_top_down;
+        case ConstructionHudAction::RoomCameraPan: return &layout.room_camera_pan;
+        case ConstructionHudAction::RoomZoomOut: return &layout.room_zoom_out;
+        case ConstructionHudAction::RoomZoomIn: return &layout.room_zoom_in;
         case ConstructionHudAction::RoomNarrower: return &layout.room_narrower;
         case ConstructionHudAction::RoomWider: return &layout.room_wider;
         case ConstructionHudAction::RoomShallower: return &layout.room_shallower;
@@ -154,7 +176,17 @@ std::vector<ConstructionHudAction> aquariumConstructionHudActions(
                 ConstructionHudAction::Stock, ConstructionHudAction::Decorate, ConstructionHudAction::Delete,
                 ConstructionHudAction::Room, ConstructionHudAction::Exit};
         case ConstructionState::ResizeRoom:
-            return {ConstructionHudAction::Build, ConstructionHudAction::Cancel};
+            return {ConstructionHudAction::RoomLayout, ConstructionHudAction::RoomFloor,
+                ConstructionHudAction::RoomLevels, ConstructionHudAction::RoomTransitions,
+                ConstructionHudAction::RoomWalls,
+                ConstructionHudAction::RoomDecorations,
+                ConstructionHudAction::RoomPalette0, ConstructionHudAction::RoomPalette1,
+                ConstructionHudAction::RoomPalette2, ConstructionHudAction::RoomPalette3,
+                ConstructionHudAction::RoomPalette4, ConstructionHudAction::RoomPalette5,
+                ConstructionHudAction::RoomCameraTopDown,
+                ConstructionHudAction::RoomCameraPan, ConstructionHudAction::RoomZoomOut,
+                ConstructionHudAction::RoomZoomIn,
+                ConstructionHudAction::Build, ConstructionHudAction::Cancel};
         case ConstructionState::ResizeFootprint:
         case ConstructionState::MoveTank:
         case ConstructionState::ResizeTank:
@@ -185,8 +217,32 @@ ConstructionHudLayout aquariumConstructionHudLayout(
     const int gap = std::clamp(icon / 6, 8, 12);
     layout.safe_world = {0, 0, width, height};
     if (state == ConstructionState::ResizeRoom) {
-        const int y=height-margin-icon;
-        (void)y; // Wall handles are projected on the room, not a four-button toolbar.
+        layout.room_layout={margin,margin,icon,icon};
+        layout.room_floor={margin+icon+gap,margin,icon,icon};
+        layout.room_levels={margin+(icon+gap)*2,margin,icon,icon};
+        layout.room_decorations={margin+(icon+gap)*3,margin,icon,icon};
+        const int palette_icon=std::clamp(icon*2/3,36,46);
+        const int palette_gap=std::max(6,gap/2);
+        const int palette_y=margin+icon+gap;
+        // Contextual child tools keep the top bar concise while making the
+        // paired operations discoverable. The parent always returns to paint
+        // or depth; these child buttons explicitly enter walls or stairs.
+        layout.room_walls={margin,palette_y,palette_icon,palette_icon};
+        layout.room_transitions={margin+(icon+gap)*2,palette_y,palette_icon,palette_icon};
+        for(int i=0;i<6;++i)
+            layout.room_palettes[static_cast<std::size_t>(i)]={
+                margin+palette_icon+palette_gap+i*(palette_icon+palette_gap),
+                palette_y,palette_icon,palette_icon};
+        // Depth is controlled exclusively by the six-tick world knob. The old
+        // four invisible depth hit targets made level 3 appear to be the max.
+        for(auto& depth:layout.room_depths)depth={};
+        const int camera_icon=std::clamp(icon*3/4,42,52);
+        const int camera_x=width-margin-camera_icon;
+        const int camera_y=height/2-camera_icon/2;
+        layout.room_camera_pan={camera_x,camera_y,camera_icon,camera_icon};
+        layout.room_zoom_out={camera_x,camera_y-camera_icon-6,camera_icon,camera_icon};
+        layout.room_zoom_in={camera_x,camera_y+camera_icon+6,camera_icon,camera_icon};
+        layout.room_camera_top_down={camera_x,camera_y-camera_icon*2-12,camera_icon,camera_icon};
         layout.build={width-margin-icon,margin,icon,icon};
         layout.cancel={layout.build.x-gap-icon,margin,icon,icon};
         return layout;
@@ -308,6 +364,35 @@ ConstructionHudHit hitTestAquariumConstructionHud(
     }
     const auto action = hitTestAquariumConstructionHud(layout, screen_x, screen_y,
         visual.state, visual.property_draft);
+    if(visual.state==ConstructionState::ResizeRoom&&
+        visual.room_edit_mode!=ConstructionRoomEditMode::Floor&&
+        visual.room_edit_mode!=ConstructionRoomEditMode::Walls&&
+        action==ConstructionHudAction::RoomWalls)return {};
+    if(visual.state==ConstructionState::ResizeRoom&&
+        visual.room_edit_mode!=ConstructionRoomEditMode::Levels&&
+        visual.room_edit_mode!=ConstructionRoomEditMode::Transitions&&
+        action==ConstructionHudAction::RoomTransitions)return {};
+    if(visual.state==ConstructionState::ResizeRoom&&
+        visual.room_edit_mode!=ConstructionRoomEditMode::Transitions&&
+        (action==ConstructionHudAction::RoomRamp||action==ConstructionHudAction::RoomStairs))return {};
+    // ResizeRoom reserves palette rectangles for the paint modes, but those
+    // rectangles are intentionally not drawn in Layout/Decorations. Do not
+    // let an invisible swatch steal pointer input from a nearby world gizmo.
+    if (visual.state == ConstructionState::ResizeRoom &&
+        visual.room_edit_mode != ConstructionRoomEditMode::Floor &&
+        visual.room_edit_mode != ConstructionRoomEditMode::Walls &&
+        action >= ConstructionHudAction::RoomPalette0 &&
+        action <= ConstructionHudAction::RoomPalette5) {
+        return {};
+    }
+    if (visual.state == ConstructionState::ResizeRoom &&
+        visual.room_edit_mode != ConstructionRoomEditMode::Levels &&
+        action >= ConstructionHudAction::RoomDepth0 &&
+        action <= ConstructionHudAction::RoomDepth3) return {};
+    if(visual.state==ConstructionState::ResizeRoom&&
+        visual.room_edit_mode!=ConstructionRoomEditMode::Levels&&
+        visual.room_edit_mode!=ConstructionRoomEditMode::Transitions&&
+        action==ConstructionHudAction::RoomCameraTopDown)return {};
     const auto tank = visual.preview_tank ? visual.preview_tank : visual.selected_tank;
     if (tank && tank->footprint.shape == geo::FootprintShape::Rectangle &&
         (action == ConstructionHudAction::NotchWidth ||
@@ -322,6 +407,18 @@ bool aquariumConstructionHudContainsUi(
     int screen_x, int screen_y) {
     return layout.status.contains(screen_x, screen_y) ||
         layout.room.contains(screen_x, screen_y) ||
+        layout.room_layout.contains(screen_x,screen_y) ||
+        layout.room_floor.contains(screen_x,screen_y) ||
+        layout.room_levels.contains(screen_x,screen_y) ||
+        layout.room_transitions.contains(screen_x,screen_y) ||
+        layout.room_walls.contains(screen_x,screen_y) ||
+        layout.room_decorations.contains(screen_x,screen_y) ||
+        layout.room_camera_top_down.contains(screen_x,screen_y) ||
+        layout.room_camera_pan.contains(screen_x,screen_y) ||
+        layout.room_zoom_out.contains(screen_x,screen_y) ||
+        layout.room_zoom_in.contains(screen_x,screen_y) ||
+        layout.room_ramp.contains(screen_x,screen_y) ||
+        layout.room_stairs.contains(screen_x,screen_y) ||
         layout.room_narrower.contains(screen_x, screen_y) ||
         layout.room_wider.contains(screen_x, screen_y) ||
         layout.room_shallower.contains(screen_x, screen_y) ||

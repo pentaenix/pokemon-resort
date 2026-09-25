@@ -27,6 +27,7 @@ construction::AquariumDesignDocument documentFixture() {
     tank.height_steps = 8;
     tank.exhibit_preset = "swamp";
     tank.substrate_kind = "moss-flat";
+    tank.color_strength_level = 3;
     tank.brightness_level = 6;
     tank.murkiness_level = 7;
     tank.footprint.subtracted_cells = {{3, 0}};
@@ -69,6 +70,7 @@ void testCanonicalRoundTrip() {
     require(parsed.document->tanks.front().exhibit_preset == "swamp",
         "per-tank exhibit preset did not survive serialization");
     require(parsed.document->tanks.front().substrate_kind == "moss-flat" &&
+            parsed.document->tanks.front().color_strength_level == 3 &&
             parsed.document->tanks.front().brightness_level == 6 &&
             parsed.document->tanks.front().murkiness_level == 7,
         "per-tank substrate or water controls did not survive serialization");
@@ -156,11 +158,14 @@ void testUnknownExhibitPresetIsRejected() {
 void testInvalidExhibitStyleIsRejected() {
     construction::AquariumDesignDocument document = documentFixture();
     document.tanks.front().substrate_kind = "plastic-grass";
+    document.tanks.front().color_strength_level = 99;
     document.tanks.front().brightness_level = 99;
     document.tanks.front().murkiness_level = -1;
     const auto diagnostics = construction::validateAquariumDesign(document);
     require(std::find(diagnostics.begin(), diagnostics.end(),
                 "unsupported_substrate:tank_golden_rectangle_even") != diagnostics.end() &&
+            std::find(diagnostics.begin(), diagnostics.end(),
+                "invalid_color_strength_level:tank_golden_rectangle_even") != diagnostics.end() &&
             std::find(diagnostics.begin(), diagnostics.end(),
                 "invalid_brightness_level:tank_golden_rectangle_even") != diagnostics.end() &&
             std::find(diagnostics.begin(), diagnostics.end(),

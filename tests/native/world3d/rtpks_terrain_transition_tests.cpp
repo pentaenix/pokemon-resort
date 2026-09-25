@@ -27,6 +27,13 @@ int main() {
     const auto package = pr::gameplay::world3d::data::loadRtpksTilePackage(pack_path.string(), &error);
     expect(error.empty(), "committed RTPKS loads: " + error);
 
+    const auto* stairs = package.tileById(140);
+    expect(stairs != nullptr, "Black 2 stair flight keeps stable tile id 140");
+    if (stairs) {
+        expect(stairs->quads.size() / 12U == 2U,
+            "tile 140 remains the original two-quad textured slope reference");
+    }
+
     const auto* isolated = package.tileById(3367);
     expect(isolated != nullptr, "isolated sand/grass transition keeps its stable tile id");
     if (isolated) {

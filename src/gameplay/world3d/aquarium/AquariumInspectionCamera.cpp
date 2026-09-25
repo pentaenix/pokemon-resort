@@ -215,7 +215,12 @@ bool AquariumInspectionCamera::enterFocused(
     const AquariumTankRuntime& tank = tanks_[active_tank_index_];
     const AquariumInspectionCameraConfig& tuning = tank.inspection_camera;
     const camera::Vec3 forward = facingVector(approach_facing_);
-    const float bottom=tank.water_bottom_world,top=tank.water_top_world;
+    // Frame only the exhibit visible above the room floor. Underground water
+    // remains available to simulation and Pokemon focus without making this
+    // whole-tank overview unnecessarily low or distant.
+    const float bottom=std::min(tank.water_top_world,
+        std::max(tank.water_bottom_world,tank.floor_y_world));
+    const float top=tank.water_top_world;
     desired_look_at_={tank.world_center[0],(bottom+top)*.5f,tank.world_center[2]};
     const camera::Vec3 view_forward{forward.x*.94f,-.342f,forward.z*.94f};
     const auto right=facingRight(forward);

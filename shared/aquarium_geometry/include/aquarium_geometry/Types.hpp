@@ -97,6 +97,7 @@ struct TankDesign {
     // intentionally ignored by the deterministic geometry kernel.
     std::string exhibit_preset = "river";
     std::string substrate_kind = "sand-flat";
+    std::int32_t color_strength_level = 8;
     std::int32_t brightness_level = 4;
     std::int32_t murkiness_level = 2;
 };

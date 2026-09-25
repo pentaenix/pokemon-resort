@@ -16,6 +16,8 @@ struct ConstructionCellSurface {
     pr::aquarium::geometry::GridCell cell;
     float floor_y = 0.0f;
     bool blocked = false;
+    // Room-editor depth band. Runtime tank construction leaves this at zero.
+    int room_floor_depth = 0;
 };
 
 enum class ConstructionHudAction {
@@ -43,10 +45,41 @@ enum class ConstructionHudAction {
     Done,
     Exit,
     Room,
+    RoomLayout,
+    RoomFloor,
+    RoomLevels,
+    RoomTransitions,
+    RoomWalls,
+    RoomDecorations,
+    RoomRamp,
+    RoomStairs,
+    RoomPalette0,
+    RoomPalette1,
+    RoomPalette2,
+    RoomPalette3,
+    RoomPalette4,
+    RoomPalette5,
+    RoomDepth0,
+    RoomDepth1,
+    RoomDepth2,
+    RoomDepth3,
+    RoomCameraTopDown,
+    RoomCameraPan,
+    RoomZoomOut,
+    RoomZoomIn,
     RoomNarrower,
     RoomWider,
     RoomShallower,
     RoomDeeper,
+};
+
+enum class ConstructionRoomEditMode {
+    Layout,
+    Floor,
+    Levels,
+    Transitions,
+    Walls,
+    Decorations,
 };
 
 struct AquariumConstructionVisual {
@@ -54,6 +87,15 @@ struct AquariumConstructionVisual {
         float x=0,y=0;
         int wall=0;
         bool add_door=false, focused=false;
+        int decoration_action=0; // 1 move, 2 rotate, 3 delete
+    };
+    struct RoomWallStrip {
+        float x0=0,z0=0,x1=0,z1=0,y0=0,y1=0;
+        bool active=false;
+    };
+    struct RoomLevelControl {
+        float x=0,y0=0,y1=0,knob_y=0;
+        int depth=0;
     };
     bool visible = false;
     bool stocking_active = false;
@@ -81,12 +123,21 @@ struct AquariumConstructionVisual {
     bool redo_available = false;
     bool property_draft = false;
     bool subtract_mode = false;
+    bool room_decoration_collision_preview = false;
     ConstructionHudAction focused_action = ConstructionHudAction::None;
+    ConstructionRoomEditMode room_edit_mode = ConstructionRoomEditMode::Layout;
+    int room_palette_index = 0;
+    int room_transition_kind = 0;
     std::string navigation_hint;
     std::string status_hint;
     std::optional<std::array<float,4>> room_outline;
     std::vector<RoomHandle> room_handles;
+    std::vector<RoomWallStrip> room_wall_strips;
     std::vector<std::array<float,4>> room_portals;
+    std::vector<std::array<float,4>> room_transition_arrows;
+    std::vector<pr::aquarium::geometry::GridCell> room_transition_cells;
+    std::optional<RoomLevelControl> room_level_control;
+    bool room_top_down=false;
 };
 
 struct ConstructionVisualVertex {
@@ -145,6 +196,11 @@ struct ConstructionHudLayout {
     ConstructionHudRect done;
     ConstructionHudRect exit;
     ConstructionHudRect room;
+    ConstructionHudRect room_layout, room_floor, room_levels, room_transitions, room_walls, room_decorations;
+    ConstructionHudRect room_ramp,room_stairs;
+    std::array<ConstructionHudRect, 6> room_palettes{};
+    std::array<ConstructionHudRect, 4> room_depths{};
+    ConstructionHudRect room_camera_top_down,room_camera_pan,room_zoom_out,room_zoom_in;
     ConstructionHudRect room_narrower, room_wider, room_shallower, room_deeper;
 };
 

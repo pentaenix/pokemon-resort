@@ -1,20 +1,64 @@
 #include "gameplay/world3d/aquarium/rooms/AquariumRoomRuntime.hpp"
 #include "gameplay/world3d/interiors/DefaultRoom.hpp"
 #include <algorithm>
+#include <array>
 #include <stdexcept>
 
 namespace pr::gameplay::world3d::aquarium::rooms {
 namespace {
+const std::array<RoomSurfacePalette,kRoomSurfacePaletteCount> palettes{{
+    RoomSurfacePalette{{42,48,58,255},{48,56,68,255},{28,38,52,255},{33,44,60,255},{58,76,98,255},{18,24,34,255}},
+    RoomSurfacePalette{{38,56,72,255},{44,65,82,255},{32,67,87,255},{27,58,78,255},{105,202,218,255},{19,35,48,255}},
+    RoomSurfacePalette{{170,174,166,255},{188,191,180,255},{104,116,116,255},{92,105,108,255},{224,230,211,255},{66,75,78,255}},
+    RoomSurfacePalette{{52,74,69,255},{60,86,78,255},{46,78,68,255},{39,68,61,255},{174,202,149,255},{27,46,42,255}},
+    RoomSurfacePalette{{172,145,103,255},{190,163,119,255},{109,82,66,255},{96,72,61,255},{239,211,151,255},{69,51,45,255}},
+    RoomSurfacePalette{{26,28,38,255},{34,37,49,255},{23,27,42,255},{19,23,37,255},{112,124,163,255},{11,14,24,255}},
+}};
 Wall wallFor(const std::string& edge) {
     if (edge=="north") return Wall::North;
     if (edge=="east") return Wall::East;
     if (edge=="west") return Wall::West;
     return Wall::South;
 }
+
+const RoomSurfacePalette& paletteFor(int index) {
+    return palettes[static_cast<std::size_t>(std::clamp(index,0,kRoomSurfacePaletteCount-1))];
+}
 template<class T> void resizePlane(std::vector<std::vector<T>>& plane,int w,int h,T empty={}) {
     plane.resize(h);
     for (auto& row:plane) row.resize(w,empty);
 }
+std::uint8_t rampSpecial(Cell lower,Cell upper) {
+    const int dx=upper.column-lower.column,dy=upper.row-lower.row;
+    if(dy==-1)return 2; // north
+    if(dx==1)return 3;  // east
+    if(dy==1)return 4;  // south
+    return 5;           // west
+}
+}
+
+const RoomSurfacePalette& roomSurfacePalette(int index) { return paletteFor(index); }
+
+void applyRoomSurfaceStyle(SceneConfig& scene,const RoomSurfaceStyle& style) {
+    const auto& floor=paletteFor(style.floor_palette);
+    const auto& wall=paletteFor(style.wall_palette);
+    auto& room=scene.interior.default_room;
+    room.floor_color_a=floor.floor_a; room.floor_color_b=floor.floor_b;
+    room.wall_color_ns=wall.wall_ns; room.wall_color_ew=wall.wall_ew;
+    room.trim_color=wall.trim; room.baseboard_color=wall.baseboard;
+    room.floor_color_overrides.clear();
+    for(const auto& override:style.floor_overrides) {
+        const auto& palette=paletteFor(override.palette);
+        room.floor_color_overrides.push_back({override.cell.column,override.cell.row,
+            palette.floor_a,palette.floor_b});
+    }
+    room.wall_color_overrides.clear();
+    for(const auto& override:style.wall_overrides) {
+        const auto& palette=paletteFor(override.palette);
+        room.wall_color_overrides.push_back({wallName(override.wall),override.segment,
+            override.wall==Wall::North||override.wall==Wall::South?palette.wall_ns:palette.wall_ew,
+            palette.trim,palette.baseboard});
+    }
 }
 
 BuildingLayout roomLayoutFromScene(const SceneConfig& scene) {
@@ -55,15 +99,43 @@ SceneConfig projectRoomLayout(const SceneConfig& source,const RoomLayout& room) 
         !source.models.empty() || !source.characters.empty() || !source.interior.shell_model_id.empty())
         throw std::runtime_error("Room cannot be resized by the procedural adapter");
     auto scene=source;
+    applyRoomSurfaceStyle(scene,room.surfaces);
     const auto old=roomLayoutFromScene(source).rooms.front();
     scene.grid.width=room.bounds.width;
     scene.grid.height=room.bounds.depth;
     scene.interior.grid_origin_x=room.bounds.column;
     scene.interior.grid_origin_y=room.bounds.row;
-    resizePlane(scene.terrain.heights,scene.grid.width,scene.grid.height,std::uint8_t{0});
+    constexpr int kRoomFloorLevels=kMaximumRoomFloorDepth;
+    const float floor_step=scene.terrain.height_per_floor>0.0f?
+        scene.terrain.height_per_floor:scene.grid.tile_size;
+    scene.terrain.base_height_world=-float(kRoomFloorLevels)*floor_step;
+    scene.terrain.heights.assign(scene.grid.height,
+        std::vector<std::uint8_t>(scene.grid.width,std::uint8_t(kRoomFloorLevels)));
+    for(const auto& item:room.surfaces.floor_depth_overrides)
+        if(item.cell.column>=0&&item.cell.row>=0&&item.cell.column<scene.grid.width&&item.cell.row<scene.grid.height)
+            scene.terrain.heights[std::size_t(item.cell.row)][std::size_t(item.cell.column)]=
+                std::uint8_t(kRoomFloorLevels-std::clamp(item.depth,0,kRoomFloorLevels));
     resizePlane(scene.terrain.specials,scene.grid.width,scene.grid.height,std::uint8_t{0});
     resizePlane(scene.terrain.collision,scene.grid.width,scene.grid.height,std::uint8_t{0});
+    scene.terrain.transition_edges.clear();
     resizePlane(scene.tile_surfaces.cells,scene.grid.width,scene.grid.height,TileSurfaceInfo{});
+    constexpr const char* kTransitionLayer="aquarium_room_transitions";
+    auto transition_layer=std::find_if(scene.tile_layers.layers.begin(),scene.tile_layers.layers.end(),
+        [](const auto& layer){return layer.id==kTransitionLayer;});
+    if(transition_layer==scene.tile_layers.layers.end()) {
+        scene.tile_layers.layers.push_back({kTransitionLayer,true,{}});
+        transition_layer=std::prev(scene.tile_layers.layers.end());
+    }
+    resizePlane(transition_layer->cells,scene.grid.width,scene.grid.height,-1);
+    for(const auto& transition:room.transitions) {
+        const auto lower=transition.lower_cell;
+        if(lower.column<0||lower.row<0||lower.column>=scene.grid.width||lower.row>=scene.grid.height)continue;
+        scene.terrain.specials[std::size_t(lower.row)][std::size_t(lower.column)]=
+            rampSpecial(lower,transition.upper_cell);
+        scene.terrain.transition_edges.push_back({
+            lower.column,lower.row,transition.upper_cell.column,transition.upper_cell.row,
+            true}); // Legacy saved ramps are presented as stairs.
+    }
     scene.interior.openings.clear();
     for (const auto& door:room.doors) {
         const auto* previous=findDoor(old,door.id);

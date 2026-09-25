@@ -14,6 +14,29 @@ namespace {
 
 constexpr float kPi = 3.14159265358979323846f;
 constexpr float kPlayerTankGlassComfortMeters = 0.12f;
+constexpr float kLocomotionAnimationBlendSeconds = 0.28f;
+
+void beginAnimationTransition(AquariumPokemonActor& actor,const std::string& animation) {
+    if(animation.empty()||actor.animation==animation)return;
+    actor.animation_blend_from=actor.animation;
+    actor.animation_blend_from_time_seconds=actor.animation_time_seconds;
+    actor.animation_blend_elapsed_seconds=0.0f;
+    actor.animation_blend_duration_seconds=kLocomotionAnimationBlendSeconds;
+    actor.animation=animation;
+}
+
+void advanceAnimation(AquariumPokemonActor& actor,float dt) {
+    actor.animation_time_seconds+=dt;
+    if(actor.animation_blend_from.empty())return;
+    actor.animation_blend_from_time_seconds+=dt;
+    actor.animation_blend_elapsed_seconds+=dt;
+    if(actor.animation_blend_elapsed_seconds>=actor.animation_blend_duration_seconds){
+        actor.animation_blend_from.clear();
+        actor.animation_blend_from_time_seconds=0.0;
+        actor.animation_blend_elapsed_seconds=0.0f;
+        actor.animation_blend_duration_seconds=0.0f;
+    }
+}
 
 std::string normalize(std::string value) {
     std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
@@ -218,7 +241,7 @@ void AquariumSimulation::replacePlayerTanks(
             input.yaw_degrees, 1.0f};
         const TankSimulationContext tank_context{
             input.tank_id, input.navigation, tank, bounds, vertical,
-            world_units_per_meter};
+            world_units_per_meter,input.shelter_points};
         tanks_.push_back(AquariumTankRuntime{
             input.tank_id,
             toWorld(tank, input.navigation.export_units_per_meter, Point3{}),
@@ -233,6 +256,7 @@ void AquariumSimulation::replacePlayerTanks(
             input.light_corner_radius_world,
             input.light_boundary_local_meters,
             input.exhibit_preset_id,
+            input.color_strength_level,
             input.brightness_level});
 
         std::vector<const AquariumSwimmerDefinition*> ordered;
@@ -282,13 +306,24 @@ bool AquariumSimulation::appendSwimmer(
     swimmer.follow_actor_id = movement.follow_actor_id;
     swimmer.follow_distance = movement.follow_distance_meters;
     swimmer.follow_vertical_gap = movement.follow_vertical_gap_meters;
-    swimmer.floor_navigation = normalize(movement.movement_plane) == "floor";
+    const std::string movement_plane = normalize(movement.movement_plane);
+    swimmer.surface_navigation = movement_plane == "surface" ||
+        normalize(movement.vertical_anchor) == "surface";
+    // Surface residents use planar navigation too. This lets walkers stand
+    // above the water slab while retaining the same horizontal containment
+    // guarantees as floor residents.
+    swimmer.floor_navigation = movement_plane == "floor" ||
+        swimmer.surface_navigation;
     if (!swimmer.floor_navigation) swimmer.convex_water = AquariumConvexWater::compile(tank.navigation);
     swimmer.player_built = player_built;
     swimmer.random_start = movement.random_start;
     swimmer.idle_seconds_minimum = movement.idle_seconds_minimum;
     swimmer.idle_seconds_maximum = movement.idle_seconds_maximum;
     swimmer.local_move_distance = movement.local_move_distance_meters;
+    swimmer.vertical_range_minimum=movement.vertical_range_minimum;
+    swimmer.vertical_range_maximum=movement.vertical_range_maximum;
+    swimmer.prefer_shelter=movement.prefer_shelter;
+    swimmer.shelter_points=tank.shelter_points;
     swimmer.flee_radius = movement.flee_radius_meters;
     swimmer.flee_distance = movement.flee_distance_meters;
     swimmer.flee_speed_multiplier = movement.flee_speed_multiplier;
@@ -417,6 +452,18 @@ bool AquariumSimulation::appendSwimmer(
             });
         swimmer.floor_navigation_y =
             (lowest_layer->y_bottom + lowest_layer->y_top) * 0.5f;
+    }
+    if (swimmer.surface_navigation) {
+        const auto water = verticalBounds(swimmer.navigation);
+        const float body_height = std::max(
+            0.01f, swimmer.upper_extent - swimmer.lower_extent);
+        const float authored_offset =
+            movement.waterline_offset_body_heights * body_height;
+        swimmer.surface_navigation_y = water[1] -
+            (normalize(movement.surface_behavior) == "stands-on-surface"
+                ? swimmer.lower_extent : swimmer.upper_extent) +
+            authored_offset;
+        swimmer.floor_navigation_y = swimmer.surface_navigation_y;
     }
     swimmer.rng.seed(seed);
     const std::optional<Point3> starting_position =
@@ -601,6 +648,15 @@ std::optional<Point3> AquariumSimulation::resolveStartingPosition(
     } else if (vertical_anchor == "bottom") {
         const float authored_offset = config.has_starting_position ? candidate[1] : 0.0f;
         candidate[1] = authored_offset + vertical[0] - swimmer.lower_extent + 0.01f;
+    } else if (vertical_anchor == "surface" || swimmer.surface_navigation) {
+        candidate[1] = swimmer.surface_navigation_y;
+    } else if (!config.has_starting_position &&
+        (swimmer.vertical_range_minimum>0.0f||swimmer.vertical_range_maximum<1.0f)) {
+        const float bottom=vertical[0]-std::min(0.0f,swimmer.lower_extent);
+        const float top=vertical[1]-std::max(0.0f,swimmer.upper_extent);
+        const float middle=(swimmer.vertical_range_minimum+
+            swimmer.vertical_range_maximum)*0.5f;
+        candidate[1]=bottom+(top-bottom)*middle;
     }
 
     const auto available = [&](Point3 point) {
@@ -716,10 +772,20 @@ std::optional<Point3> AquariumSimulation::resolveStartingPosition(
     std::uniform_real_distribution<float> x_pick(
         swimmer.volume_center[0] - swimmer.volume_half_extent[0],
         swimmer.volume_center[0] + swimmer.volume_half_extent[0]);
-    const float minimum_y = vertical[0] - swimmer.lower_extent;
+    const float body_minimum_y =
+        vertical[0] - std::min(0.0f, swimmer.lower_extent);
+    const float body_maximum_y =
+        vertical[1] - std::max(0.0f, swimmer.upper_extent);
+    const float preferred_minimum_y = body_minimum_y +
+        (body_maximum_y - body_minimum_y) * swimmer.vertical_range_minimum;
+    const float preferred_maximum_y = body_minimum_y +
+        (body_maximum_y - body_minimum_y) * swimmer.vertical_range_maximum;
+    const float minimum_y = swimmer.surface_navigation
+        ? swimmer.surface_navigation_y
+        : preferred_minimum_y;
     const float maximum_y = swimmer.floor_navigation
         ? minimum_y
-        : vertical[1] - swimmer.upper_extent;
+        : preferred_maximum_y;
     if (maximum_y < minimum_y) return std::nullopt;
     std::uniform_real_distribution<float> y_pick(minimum_y, maximum_y);
     std::uniform_real_distribution<float> z_pick(
@@ -754,6 +820,8 @@ bool AquariumSimulation::chooseTarget(Swimmer& swimmer) {
     const float bottom = bounds[0] - std::min(0.0f, swimmer.lower_extent);
     const float top = bounds[1] - std::max(0.0f, swimmer.upper_extent);
     if (!swimmer.floor_navigation && top < bottom) return false;
+    const float preferred_bottom=bottom+(top-bottom)*swimmer.vertical_range_minimum;
+    const float preferred_top=bottom+(top-bottom)*swimmer.vertical_range_maximum;
     std::uniform_int_distribution<std::size_t> layer_pick(0, swimmer.navigation.layers.size()-1);
     for (int attempt=0; attempt<48; ++attempt) {
         const auto& layer = swimmer.navigation.layers[layer_pick(swimmer.rng)];
@@ -768,7 +836,7 @@ bool AquariumSimulation::chooseTarget(Swimmer& swimmer) {
         }
         if (min_x>=max_x || min_z>=max_z) continue;
         float y=swimmer.floor_navigation ? swimmer.local_position[1] :
-            std::uniform_real_distribution<float>(bottom,top)(swimmer.rng);
+            std::uniform_real_distribution<float>(preferred_bottom,preferred_top)(swimmer.rng);
         if(swimmer.habitat_tour && !swimmer.floor_navigation && attempt<36) {
             constexpr float bands[]{0.16f,0.82f,0.45f};
             const float fraction=std::clamp(bands[swimmer.tour_destination%3]+
@@ -972,12 +1040,13 @@ bool AquariumSimulation::chooseActivityTarget(Swimmer& swimmer) {
     const float bottom = vertical[0] - swimmer.lower_extent + 0.01f;
     const float top = vertical[1] - swimmer.upper_extent;
     if (top <= bottom) return false;
+    const float preferred_top=bottom+(top-bottom)*swimmer.vertical_range_maximum;
     std::uniform_real_distribution<float> height_pick(0.55f, 1.0f);
     for (int attempt = 0; attempt < 24; ++attempt) {
         if (!chooseTarget(swimmer)) return false;
         Point3 candidate = swimmer.local_target;
         candidate[1] = std::min(
-            top, bottom + swimmer.roaming_height * height_pick(swimmer.rng));
+            preferred_top, bottom + swimmer.roaming_height * height_pick(swimmer.rng));
         if (containsBody(swimmer, candidate) &&
             segmentNavigable(swimmer, swimmer.local_position, candidate)) {
             swimmer.local_target = candidate;
@@ -990,6 +1059,23 @@ bool AquariumSimulation::chooseActivityTarget(Swimmer& swimmer) {
 bool AquariumSimulation::chooseActivityRestTarget(Swimmer& swimmer) {
     const auto vertical = verticalBounds(swimmer.navigation);
     const float resting_y = vertical[0] - swimmer.lower_extent + 0.01f;
+    if(swimmer.prefer_shelter&&!swimmer.shelter_points.empty()){
+        std::uniform_int_distribution<std::size_t> shelter_pick(
+            0,swimmer.shelter_points.size()-1);
+        std::uniform_real_distribution<float> angle_pick(0.0f,2.0f*kPi);
+        for(int attempt=0;attempt<32;++attempt){
+            const Point3& shelter=swimmer.shelter_points[shelter_pick(swimmer.rng)];
+            const float angle=angle_pick(swimmer.rng);
+            const float distance=std::max(0.12f,swimmer.radius*1.35f);
+            Point3 tucked{shelter[0]+std::cos(angle)*distance,resting_y,
+                shelter[2]+std::sin(angle)*distance};
+            if(containsBody(swimmer,tucked)&&
+                segmentNavigable(swimmer,swimmer.local_position,tucked)){
+                swimmer.local_target=tucked;
+                return true;
+            }
+        }
+    }
     Point3 candidate = swimmer.local_position;
     candidate[1] = resting_y;
     if (containsBody(swimmer, candidate) &&
@@ -1023,7 +1109,7 @@ void AquariumSimulation::beginActivityRest(Swimmer& swimmer) {
     std::uniform_real_distribution<float> timer(
         swimmer.rest_seconds_minimum, swimmer.rest_seconds_maximum);
     swimmer.activity_timer_seconds = timer(swimmer.rng);
-    swimmer.actor.animation = swimmer.idle_animation;
+    beginAnimationTransition(swimmer.actor,swimmer.idle_animation);
     std::uniform_real_distribution<double> phase(0.0, 1.0);
     swimmer.actor.animation_time_seconds = phase(swimmer.rng);
     swimmer.actor.world_pitch_degrees = swimmer.idle_pitch_degrees;
@@ -1037,7 +1123,7 @@ void AquariumSimulation::beginActivityMove(Swimmer& swimmer) {
     std::uniform_real_distribution<float> timer(
         swimmer.move_seconds_minimum, swimmer.move_seconds_maximum);
     swimmer.activity_timer_seconds = timer(swimmer.rng);
-    swimmer.actor.animation = swimmer.movement_animation;
+    beginAnimationTransition(swimmer.actor,swimmer.movement_animation);
     std::uniform_real_distribution<double> phase(0.0, 1.0);
     swimmer.actor.animation_time_seconds = phase(swimmer.rng);
     swimmer.actor.world_pitch_degrees = swimmer.base_pitch_degrees;
@@ -1395,7 +1481,7 @@ void AquariumSimulation::simulateStep(float dt) {
             (swimmer.local_position[0] - swimmer.previous_local_position[0]) / dt,
             (swimmer.local_position[1] - swimmer.previous_local_position[1]) / dt,
             (swimmer.local_position[2] - swimmer.previous_local_position[2]) / dt};
-        swimmer.actor.animation_time_seconds += dt;
+        advanceAnimation(swimmer.actor,dt);
     }
 
     const auto formation_body = [](const Swimmer& swimmer) {
@@ -1467,7 +1553,7 @@ void AquariumSimulation::simulateStep(float dt) {
                 (follower.local_position[1] - follower.previous_local_position[1]) / dt,
                 (follower.local_position[2] - follower.previous_local_position[2]) / dt};
         }
-        follower.actor.animation_time_seconds += dt;
+        advanceAnimation(follower.actor,dt);
     }
 
     resolveCrowdPenetrations();

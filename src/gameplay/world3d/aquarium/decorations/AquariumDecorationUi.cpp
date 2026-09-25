@@ -38,9 +38,9 @@ void Ui::reset() {
     if(surface_)SDL_FreeSurface(surface_);
     renderer_=nullptr;surface_=nullptr;pixels_={};
 }
-SDL_Texture* Ui::thumbnail(const Asset& asset) {
-    auto found=thumbnails_.find(asset.id);if(found!=thumbnails_.end())return found->second;
-    auto model=gameplay::attend::rendering::loadAttendPokemonModelShared(asset.path.string());
+SDL_Texture* Ui::thumbnail(const std::string& id,const std::filesystem::path& path) {
+    auto found=thumbnails_.find(id);if(found!=thumbnails_.end())return found->second;
+    auto model=gameplay::attend::rendering::loadAttendPokemonModelShared(path.string());
     if(!model || !model->valid)return nullptr;
     SDL_Surface* image=SDL_CreateRGBSurfaceWithFormat(0,144,90,32,SDL_PIXELFORMAT_RGBA32);
     SDL_Renderer* renderer=SDL_CreateSoftwareRenderer(image);
@@ -100,7 +100,7 @@ SDL_Texture* Ui::thumbnail(const Asset& asset) {
     auto* texture=SDL_CreateTextureFromSurface(renderer_,image);
     if(texture)SDL_SetTextureBlendMode(texture,SDL_BLENDMODE_BLEND);
     for(auto* material:textures)if(material)SDL_DestroyTexture(material);
-    SDL_DestroyRenderer(renderer);SDL_FreeSurface(image);thumbnails_[asset.id]=texture;return texture;
+    SDL_DestroyRenderer(renderer);SDL_FreeSurface(image);thumbnails_[id]=texture;return texture;
 }
 const Pixels& Ui::rasterize(const std::string& root,int w,int h,const Editor& editor,
     Catalog& catalog,int page,Tool tool,float x,float y,bool busy,float floor_x,float floor_y,Category category) {
@@ -135,14 +135,24 @@ const Pixels& Ui::rasterize(const std::string& root,int w,int h,const Editor& ed
         }
         view.style.padding_x=10;
         view.style.fill=button.action==1 ? Color{54,157,122,255} : Color{36,119,160,245};
-        if(button.action>=10&&button.action<=13&&int(tool)==button.action-9)view.style.stroke={255,213,87,255};
+        if(button.action>=10&&button.action<=13){
+            // Match the readable room-decoration handles: a dark body,
+            // cream rim, and one stable action color per manipulation.
+            static constexpr Color action_colors[]={
+                {54,194,207,255}, {247,190,63,255},
+                {81,190,129,255}, {201,103,190,255}};
+            view.style.fill=action_colors[button.action-10];
+            view.style.stroke=int(tool)==button.action-9
+                ? Color{255,221,91,255}:Color{248,241,207,255};
+            view.style.stroke_width=int(tool)==button.action-9?5:3;
+        }
         if(button.action==2||button.action==14)view.style.fill={183,79,91,245};
         if(button.action>=100) {
             const std::size_t index=button.action-100;
             if(index>=entries.size())continue;
             const auto& asset=catalog.entries()[entries[index]];
             view.label="";canvas_->renderButton(renderer_,root,view);
-            if(auto* texture=thumbnail(asset)){
+            if(auto* texture=thumbnail(asset.id,asset.path)){
                 const float scale=std::min((button.rect.w-8)/144.0f,(button.rect.h-8)/90.0f);
                 SDL_Rect preview{button.rect.x+(button.rect.w-int(144*scale))/2,
                     button.rect.y+(button.rect.h-int(90*scale))/2,int(144*scale),int(90*scale)};
@@ -206,6 +216,104 @@ const Pixels& Ui::rasterize(const std::string& root,int w,int h,const Editor& ed
     if(!hint.label.empty())canvas_->renderButton(renderer_,root,hint);
     SDL_RenderPresent(renderer_);
     pixels_.rgba.resize(std::size_t(w)*h*4);
+    for(int row=0;row<h;++row)std::memcpy(pixels_.rgba.data()+std::size_t(row)*w*4,
+        static_cast<Uint8*>(surface_->pixels)+row*surface_->pitch,std::size_t(w)*4);
+    pixels_.key=key.str();return pixels_;
+}
+
+RoomAssetTrayLayout roomAssetTrayLayout(int w,int h) {
+    RoomAssetTrayLayout layout;
+    layout.panel={16,h-224,std::max(1,w-32),208};
+    for(int tab=0;tab<4;++tab)layout.categories[tab]={layout.panel.x+18+tab*58,h-214,46,46};
+    layout.previous={layout.panel.x+12,h-150,40,82};
+    layout.next={layout.panel.x+layout.panel.w-52,h-150,40,82};
+    const int content_x=layout.previous.x+48;
+    const int content_w=std::max(1,layout.next.x-content_x-8);
+    const int slot=std::max(64,content_w/6);
+    for(int i=0;i<6;++i)layout.assets[i]={content_x+i*slot,h-158,slot-8,106};
+    return layout;
+}
+
+const Pixels& Ui::rasterizeRoomAssets(const std::string& root,int w,int h,
+    const rooms::RoomDecorationCatalog& catalog,std::string_view category,int page,int selected,bool busy) {
+    const auto entries=catalog.indices(category);
+    std::ostringstream key; key<<"room:"<<w<<':'<<h<<':'<<category<<':'<<page<<':'<<selected<<':'<<busy;
+    for(const auto& asset:catalog.entries())key<<':'<<asset.id;
+    if(pixels_.key==key.str())return pixels_;
+    if(!surface_||pixels_.width!=w||pixels_.height!=h) {
+        reset();surface_=SDL_CreateRGBSurfaceWithFormat(0,w,h,32,SDL_PIXELFORMAT_RGBA32);
+        if(!surface_)return pixels_;renderer_=SDL_CreateSoftwareRenderer(surface_);
+        if(!renderer_)return pixels_;canvas_=std::make_unique<OverlayCanvas>(w,h);
+        pixels_.width=w;pixels_.height=h;
+    }
+    SDL_SetRenderDrawBlendMode(renderer_,SDL_BLENDMODE_NONE);
+    SDL_SetRenderDrawColor(renderer_,0,0,0,0);SDL_RenderClear(renderer_);
+    SDL_SetRenderDrawBlendMode(renderer_,SDL_BLENDMODE_BLEND);
+    const auto layout=roomAssetTrayLayout(w,h);
+    OverlayButton panel;panel.anchor=OverlayAnchor::TopLeft;panel.id="room_asset_panel";
+    panel.style.width=layout.panel.w;panel.style.height=layout.panel.h;
+    panel.style.margin_x=layout.panel.x;panel.style.margin_y=layout.panel.y;
+    panel.style.corner_radius=24;panel.style.fill={13,39,61,244};
+    panel.style.stroke={65,145,184,255};panel.style.stroke_width=2;
+    canvas_->renderButton(renderer_,root,panel);
+    for(int tab=0;tab<4;++tab) {
+        const SDL_Rect rect=layout.categories[tab];
+        OverlayButton view;view.anchor=OverlayAnchor::TopLeft;view.id="room_category_"+std::to_string(tab);
+        view.style.width=rect.w;view.style.height=rect.h;view.style.margin_x=rect.x;view.style.margin_y=rect.y;
+        view.style.corner_radius=23;view.style.fill={31,102,143,245};
+        if(rooms::kRoomDecorationCategories[tab]==category)view.style.stroke={255,213,87,255};
+        canvas_->renderButton(renderer_,root,view);
+        const int cx=rect.x+rect.w/2,cy=rect.y+rect.h/2;
+        SDL_SetRenderDrawColor(renderer_,245,252,255,255);
+        if(tab==0) { // Stone arch / structures.
+            SDL_Rect top{cx-15,cy-14,30,7};
+            SDL_Rect left{cx-15,cy-7,7,23},right{cx+8,cy-7,7,23};
+            SDL_RenderFillRect(renderer_,&top);SDL_RenderFillRect(renderer_,&left);
+            SDL_RenderFillRect(renderer_,&right);
+        } else if(tab==1) { // Bench / furniture.
+            SDL_Rect back{cx-14,cy-11,28,7},seat{cx-15,cy,30,7};
+            SDL_Rect left{cx-11,cy+7,5,10},right{cx+7,cy+7,5,10};
+            SDL_RenderFillRect(renderer_,&back);SDL_RenderFillRect(renderer_,&seat);
+            SDL_RenderFillRect(renderer_,&left);SDL_RenderFillRect(renderer_,&right);
+        } else if(tab==2) { // Blocky tree / nature.
+            SDL_Rect crown[]{ {cx-9,cy-14,18,7},{cx-14,cy-7,28,12},{cx-9,cy+5,18,6} };
+            for(auto& part:crown)SDL_RenderFillRect(renderer_,&part);
+            SDL_Rect trunk{cx-3,cy+11,6,7};SDL_RenderFillRect(renderer_,&trunk);
+        } else { // Vending/display cabinet / equipment.
+            SDL_Rect body{cx-13,cy-16,26,33};SDL_RenderDrawRect(renderer_,&body);
+            SDL_Rect screen{cx-8,cy-11,16,10};SDL_RenderFillRect(renderer_,&screen);
+            SDL_Rect slot{cx-8,cy+8,16,4};SDL_RenderFillRect(renderer_,&slot);
+            SDL_Rect button{cx+7,cy+2,4,4};SDL_RenderFillRect(renderer_,&button);
+        }
+    }
+    const auto arrow=[&](SDL_Rect rect,bool right) {
+        OverlayButton view;view.anchor=OverlayAnchor::TopLeft;view.id=right?"room_next":"room_previous";
+        view.style.width=rect.w;view.style.height=rect.h;view.style.margin_x=rect.x;view.style.margin_y=rect.y;
+        view.style.corner_radius=16;view.style.fill={36,119,160,245};canvas_->renderButton(renderer_,root,view);
+        const int cx=rect.x+rect.w/2,cy=rect.y+rect.h/2,sign=right?1:-1;
+        SDL_SetRenderDrawColor(renderer_,245,252,255,255);
+        for(int thickness=-2;thickness<=2;++thickness) {
+            SDL_RenderDrawLine(renderer_,cx-sign*8,cy-12+thickness,cx+sign*8,cy+thickness);
+            SDL_RenderDrawLine(renderer_,cx+sign*8,cy+thickness,cx-sign*8,cy+12+thickness);
+        }
+    };
+    arrow(layout.previous,false);arrow(layout.next,true);
+    for(int i=0;i<6;++i) {
+        const int index=page*6+i;if(index>=int(entries.size()))break;
+        const SDL_Rect rect=layout.assets[i];
+        OverlayButton view;view.anchor=OverlayAnchor::TopLeft;view.id="room_asset_"+std::to_string(index);
+        view.style.width=rect.w;view.style.height=rect.h;view.style.margin_x=rect.x;view.style.margin_y=rect.y;
+        view.style.corner_radius=16;view.style.fill={36,119,160,245};view.style.padding_x=8;
+        if(index==selected)view.style.stroke={255,213,87,255};
+        canvas_->renderButton(renderer_,root,view);
+        const auto& asset=catalog.entries()[entries[index]];
+        if(auto* texture=thumbnail(asset.id,asset.path)) {
+            const float scale=std::min((rect.w-8)/144.0f,(rect.h-8)/90.0f);
+            SDL_Rect preview{rect.x+(rect.w-int(144*scale))/2,rect.y+(rect.h-int(90*scale))/2,
+                int(144*scale),int(90*scale)};SDL_RenderCopy(renderer_,texture,nullptr,&preview);
+        }
+    }
+    SDL_RenderPresent(renderer_);pixels_.rgba.resize(std::size_t(w)*h*4);
     for(int row=0;row<h;++row)std::memcpy(pixels_.rgba.data()+std::size_t(row)*w*4,
         static_cast<Uint8*>(surface_->pixels)+row*surface_->pitch,std::size_t(w)*4);
     pixels_.key=key.str();return pixels_;

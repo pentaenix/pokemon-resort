@@ -94,8 +94,10 @@ AquariumConstructionCameraOverview trackAquariumConstructionCursor(
     const float max_x = std::max(width * 0.5f, width - min_x);
     const float min_z = std::min(depth * 0.5f, std::max(0.0f, view_half_depth - padding));
     const float max_z = std::max(depth * 0.5f, depth - min_z);
-    desired_x = std::clamp(desired_x, min_x, max_x);
-    desired_z = std::clamp(desired_z, min_z, max_z);
+    // Editor chrome occupies the lower edge. Permit a deliberate, bounded
+    // overscroll so the south wall and its props can be brought above it.
+    desired_x = std::clamp(desired_x, min_x-tile*2.0f, max_x+tile*2.0f);
+    desired_z = std::clamp(desired_z, min_z-tile*2.0f, max_z+tile*6.0f);
 
     const float blend = delta_seconds <= 0.0
         ? 1.0f

@@ -15,6 +15,7 @@
 #include <iostream>
 #include <memory>
 #include <stdexcept>
+#include <unordered_set>
 
 namespace aq = pr::gameplay::world3d::aquarium;
 namespace construction = aq::construction;
@@ -917,11 +918,50 @@ void constructionVisualBuildsYellowCellsGizmosAndCanonicalHitTargets() {
         room_hud.cancel.x+5,room_hud.cancel.y+5,construction::ConstructionState::ResizeRoom)==
             construction::ConstructionHudAction::Cancel && room_hud.place.width==0,
         "room draft must isolate arrow/cancel hit targets from tank painting");
+    require(room_hud.room_zoom_out.y<room_hud.room_camera_pan.y&&
+        room_hud.room_zoom_in.y>room_hud.room_camera_pan.y&&
+        construction::hitTestAquariumConstructionHud(room_hud,
+            room_hud.room_camera_pan.x+4,room_hud.room_camera_pan.y+4,
+            construction::ConstructionState::ResizeRoom)==
+                construction::ConstructionHudAction::RoomCameraPan,
+        "room terrain camera controls are not ordered and hit-testable");
     construction::AquariumConstructionVisual room_visual;
     room_visual.visible=true; room_visual.draft_valid=true;
+    room_visual.state=construction::ConstructionState::ResizeRoom;
     room_visual.room_outline=std::array<float,4>{8,8,376,280};
     require(!construction::buildAquariumConstructionWorldMesh(room_visual).vertices.empty(),
         "room outline must render without any tank drawing cells");
+    room_visual.room_edit_mode=construction::ConstructionRoomEditMode::Levels;
+    room_visual.cells={{{0,0},0.0f,false,0},{{1,0},-16.0f,false,1},
+        {{2,0},-32.0f,false,2},{{3,0},-48.0f,false,3},
+        {{4,0},-64.0f,false,4},{{5,0},-80.0f,false,5}};
+    const auto level_mesh=construction::buildAquariumConstructionWorldMesh(room_visual);
+    std::unordered_set<std::uint32_t> level_colors;
+    for(const auto& vertex:level_mesh.vertices)level_colors.insert(vertex.abgr);
+    require(level_colors.size()>=7,
+        "room height editor did not render six distinct depth bands");
+    const auto top_down_hit=construction::hitTestAquariumConstructionHud(room_hud,room_visual,
+        room_hud.room_camera_top_down.x+4,room_hud.room_camera_top_down.y+4);
+    require(top_down_hit.action==construction::ConstructionHudAction::RoomCameraTopDown,
+        "optional room top-down camera toggle is not hit-testable");
+    const auto angled_pan=construction::hitTestAquariumConstructionHud(room_hud,room_visual,
+        room_hud.room_camera_pan.x+4,room_hud.room_camera_pan.y+4);
+    require(angled_pan.action==construction::ConstructionHudAction::RoomCameraPan,
+        "room pan control must remain available in the angled camera");
+    const auto stairs_hit=construction::hitTestAquariumConstructionHud(room_hud,room_visual,
+        room_hud.room_transitions.x+4,room_hud.room_transitions.y+4);
+    require(stairs_hit.action==construction::ConstructionHudAction::RoomTransitions,
+        "terrain tool must expose its stair sub-tool directly");
+    room_visual.room_edit_mode=construction::ConstructionRoomEditMode::Floor;
+    const auto walls_hit=construction::hitTestAquariumConstructionHud(room_hud,room_visual,
+        room_hud.room_walls.x+4,room_hud.room_walls.y+4);
+    require(walls_hit.action==construction::ConstructionHudAction::RoomWalls,
+        "surface tool must expose its wall-paint sub-tool directly");
+    require(room_hud.room_walls.y>room_hud.room_floor.y&&
+        room_hud.room_transitions.y>room_hud.room_levels.y&&
+        std::all_of(room_hud.room_depths.begin(),room_hud.room_depths.end(),
+            [](const auto& rect){return rect.width==0;}),
+        "paired room tools need visible contextual choices without stale four-level hit targets");
     require(browse_actions.size() == 6 &&
             browse_actions[0] == construction::ConstructionHudAction::Place &&
             browse_actions[1] == construction::ConstructionHudAction::Subtract &&

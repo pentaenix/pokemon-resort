@@ -1,5 +1,6 @@
 #include "gameplay/world3d/npc/NpcActorDriver.hpp"
 #include <algorithm>
+#include <chrono>
 #include <deque>
 #include <iostream>
 
@@ -9,16 +10,27 @@ int roomCount(const AquariumVisitorSession& session,const std::string& room) {
     return int(std::count_if(session.visitors.begin(),session.visitors.end(),
         [&](const auto& pair){return pair.second.room==room;}));
 }
+double visitorClockSeconds() {
+    return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+}
 }
 void NpcActorDriver::configureAquariumVisitors(std::shared_ptr<AquariumVisitorSession> session,VisitorRoomPlan plan) {
     visitor_session_=std::move(session);visitor_plan_=std::move(plan);
     auto& s=*visitor_session_;
     if(s.dialogue.empty())s.dialogue=loadVisitorDialogueCatalog(project_root_);
+    const auto discovered=discoverAquariumVisitorAppearances(project_root_,s.config.excluded_appearance_stems);
     if(s.appearances.empty()) {
-        for(const auto& d:loadTestingActorDefinitions())
-            if(d.kind==NpcActorKind::Human && std::find(s.appearances.begin(),s.appearances.end(),d.character_package_path)==s.appearances.end())
-                s.appearances.push_back(d.character_package_path);
+        s.appearances=discovered;
         std::shuffle(s.appearances.begin(),s.appearances.end(),rng_);
+    } else {
+        s.appearances.erase(std::remove_if(s.appearances.begin(),s.appearances.end(),[&](const auto& path){
+            return std::find(discovered.begin(),discovered.end(),path)==discovered.end();
+        }),s.appearances.end());
+        std::vector<std::string> added;
+        for(const auto& path:discovered)
+            if(std::find(s.appearances.begin(),s.appearances.end(),path)==s.appearances.end())added.push_back(path);
+        std::shuffle(added.begin(),added.end(),rng_);
+        s.appearances.insert(s.appearances.end(),added.begin(),added.end());
     }
     const int w=scene_->grid.width,h=scene_->grid.height;
     visitor_walkable_.assign(std::size_t(w)*h,0);visitor_cells_.clear();
@@ -67,7 +79,14 @@ void NpcActorDriver::configureAquariumVisitors(std::shared_ptr<AquariumVisitorSe
     int retained=0;
     for(const auto& pair:s.visitors)if(pair.second.room==scene_->id&&++retained>capacity)surplus.push_back(pair.first);
     for(const auto& id:surplus){removeAquariumVisitorActor(id);s.visitors.erase(id);}
-    for(auto& pair:s.visitors)if(pair.second.room==scene_->id)attachAquariumVisitor(pair.second);
+    std::vector<std::string> unavailable_residents;
+    for(auto& pair:s.visitors)if(pair.second.room==scene_->id &&
+        !attachAquariumVisitor(pair.second) && pair.second.arrival_door.empty())
+        unavailable_residents.push_back(pair.first);
+    // A resident that cannot be staged before the room is revealed must not
+    // pop into existence on a later retry. Door arrivals remain queued because
+    // their eventual appearance is spatially explained by the doorway.
+    for(const auto& id:unavailable_residents)s.visitors.erase(id);
     if(s.initialized_rooms.insert(scene_->id).second && !s.appearances.empty()) {
         const int initial=s.config.initial_fill<=0?0:std::min(capacity,std::max(1,int(capacity*s.config.initial_fill)));
         for(int i=roomCount(s,scene_->id);i<initial;++i) {
@@ -79,8 +98,8 @@ void NpcActorDriver::configureAquariumVisitors(std::shared_ptr<AquariumVisitorSe
                 v.watch_left=std::uniform_real_distribution<double>(s.config.watch_min_seconds,s.config.watch_max_seconds)(rng_);
                 v.visited_tanks.insert(scene_->id+":"+v.tank);v.last_watch=v.cell;
             }
-            auto& stored=s.visitors.emplace(v.id,std::move(v)).first->second;
-            attachAquariumVisitor(stored);
+            const auto inserted=s.visitors.emplace(v.id,std::move(v)).first;
+            if(!attachAquariumVisitor(inserted->second))s.visitors.erase(inserted);
         }
     }
     std::cerr<<"[AquariumVisitors] event=room_ready room="<<scene_->id<<" reachable_cells="<<visitor_cells_.size()
@@ -93,10 +112,12 @@ bool NpcActorDriver::attachAquariumVisitor(AquariumVisitorRecord& v) {
     if(count>=visitor_session_->capacities[scene_->id])return false;
     auto available=[&](VisitorCell p){return p.x>=0&&p.y>=0&&p.x<scene_->grid.width&&p.y<scene_->grid.height&&
         visitor_walkable_[p.y*scene_->grid.width+p.x]&&!tileOccupied(p.x,p.y)&&!tileReserved(p.x,p.y);};
+    const double now=visitorClockSeconds();
+    const double elapsed=v.last_simulated_seconds<0?0:std::max(0.0,now-v.last_simulated_seconds);
     if(!v.arrival_door.empty()) {
         const auto door=std::find_if(visitor_plan_.portals.begin(),visitor_plan_.portals.end(),[&](const auto& d){return d.id==v.arrival_door;});
         if(door==visitor_plan_.portals.end()||!available(door->cell))return false;
-        v.cell=door->cell;v.arrival_door.clear();v.watching=false;v.has_goal=false;
+        v.cell=door->cell;v.watching=false;v.has_goal=false;v.tank.clear();v.portal.clear();
     } else if(!available(v.cell)) {
         auto cells=visitor_cells_;std::shuffle(cells.begin(),cells.end(),rng_);
         const auto found=std::find_if(cells.begin(),cells.end(),[&](auto p){return available(p)&&
@@ -105,6 +126,39 @@ bool NpcActorDriver::attachAquariumVisitor(AquariumVisitorRecord& v) {
         if(found==cells.end())return false;
         v.cell=*found;v.watching=false;v.has_goal=false;
     }
+    // Inactive rooms do not run actors. Use elapsed wall time to advance a
+    // visitor along deterministic exhibit routes before the room is shown.
+    double remaining=elapsed;
+    if(v.watching) {
+        const double watched=std::min(remaining,v.watch_left);
+        v.watch_left-=watched;remaining-=watched;
+        if(v.watch_left<=0){v.watching=false;v.has_goal=false;}
+    }
+    if(remaining>.05&&!visitor_plan_.spots.empty()) {
+        const double tiles_per_second=movement_config_.walkSpeed()*
+            visitor_session_->config.adult_walk_speed_multiplier/std::max(1.0f,scene_->grid.tile_size);
+        std::size_t phase=std::hash<std::string>{}(v.id);
+        for(int iteration=0;remaining>.05&&iteration<16;++iteration,++phase) {
+            const auto& spot=visitor_plan_.spots[phase%visitor_plan_.spots.size()];
+            const auto route=aquariumVisitorRoute(scene_->grid.width,scene_->grid.height,
+                visitor_walkable_,v.cell,spot.cell);
+            if(route.empty())continue;
+            const double travel_seconds=route.size()/std::max(.01,tiles_per_second);
+            if(remaining<travel_seconds) {
+                const auto step=std::min(route.size()-1,std::size_t(remaining*tiles_per_second));
+                v.cell=route[step];v.goal=spot.cell;v.facing=spot.facing;v.tank=spot.tank_id;
+                v.has_goal=true;v.watching=false;remaining=0;break;
+            }
+            remaining-=travel_seconds;v.cell=spot.cell;v.goal=spot.cell;v.facing=spot.facing;
+            v.tank=spot.tank_id;v.last_watch=spot.cell;v.visited_tanks.insert(scene_->id+":"+spot.tank_id);
+            const double watch=(visitor_session_->config.watch_min_seconds+visitor_session_->config.watch_max_seconds)*.5;
+            if(remaining<watch) {
+                v.watching=true;v.has_goal=false;v.watch_left=watch-remaining;remaining=0;break;
+            }
+            remaining-=watch;v.watching=false;v.has_goal=false;
+        }
+    }
+    if(!available(v.cell))return false;
     NpcActorDefinition definition;definition.id=v.id;definition.character_package_path=v.appearance;
     definition.facing=v.facing;definition.spawn_partner_pokemon=false;
     const auto index=addActorAtTile(definition,v.cell.x,v.cell.y);
@@ -115,6 +169,7 @@ bool NpcActorDriver::attachAquariumVisitor(AquariumVisitorRecord& v) {
     actor.base_move_speed_units_per_second=actor.move_speed_units_per_second;
     actor.dialogue_lines={"I love the aquarium"};actor.npc_interaction_mode="direct_dialogue";
     actor.runtime_interaction_script_id.reset();actor.wait_seconds=0;
+    v.arrival_door.clear();v.last_simulated_seconds=now;
     return true;
 }
 
@@ -190,11 +245,12 @@ void NpcActorDriver::chooseVisitorDestination(Actor& a,AquariumVisitorRecord& v)
 void NpcActorDriver::updateAquariumVisitors(double dt) {
     if(!visitor_session_)return;
     auto& s=*visitor_session_;dt=std::clamp(dt,0.0,.1);
+    const double now=visitorClockSeconds();
     int route_budget=1; // Stagger searches; large rooms must not replan every resident in one frame.
     std::vector<std::string> departed;
     for(auto& a:actors_) {
         if(!a.aquarium_visitor)continue;
-        auto& v=s.visitors.at(a.definition.id);v.cell={a.tile_x,a.tile_y};
+        auto& v=s.visitors.at(a.definition.id);v.cell={a.tile_x,a.tile_y};v.last_simulated_seconds=now;
         const auto index=std::size_t(&a-actors_.data());
         if(interaction_locked_actor_==index)continue;
         if(a.moving){v.blocked_seconds=0;continue;}
@@ -210,6 +266,7 @@ void NpcActorDriver::updateAquariumVisitors(double dt) {
                     const int limit=s.capacities.count(door->destination_room)?s.capacities.at(door->destination_room):s.config.max_per_room;
                     if(door->destination_room.empty()||roomCount(s,door->destination_room)<limit) {
                         v.room=door->destination_room;v.arrival_door=door->destination_door;
+                        v.last_simulated_seconds=now;
                         departed.push_back(v.id);v.has_goal=false;
                         std::cerr<<"[AquariumVisitors] event="<<(v.room.empty()?"exit":"room_travel")<<" visitor="<<v.id<<" destination="<<v.room<<'\n';
                         continue;
@@ -251,11 +308,16 @@ void NpcActorDriver::updateAquariumVisitors(double dt) {
         removeAquariumVisitorActor(id);
         if(s.visitors.at(id).room.empty())s.visitors.erase(id);
     }
-    // Retry queued door arrivals, but never pile actors into an occupied entrance.
+    // Retry transferred visitors promptly after the player clears the landing.
+    visitor_attach_retry_seconds_-=dt;
+    if(visitor_attach_retry_seconds_<=0) {
+        visitor_attach_retry_seconds_=.35;
+        for(auto& pair:s.visitors)if(pair.second.room==scene_->id)attachAquariumVisitor(pair.second);
+    }
+    // New visitors retain the slower configured arrival cadence.
     visitor_arrival_seconds_-=dt;
     if(visitor_arrival_seconds_<=0) {
         visitor_arrival_seconds_=s.config.arrival_seconds;
-        for(auto& pair:s.visitors)if(pair.second.room==scene_->id)attachAquariumVisitor(pair.second);
         if(roomCount(s,scene_->id)<s.capacities[scene_->id]&&!s.appearances.empty()) {
             const auto door=std::find_if(visitor_plan_.portals.begin(),visitor_plan_.portals.end(),[](const auto& d){return d.destination_room.empty();});
             if(door!=visitor_plan_.portals.end()) {

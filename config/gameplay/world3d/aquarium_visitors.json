@@ -4,6 +4,7 @@
   "maxVisitorsPerRoom": 24,
   "initialFill": 0.65,
   "adultWalkSpeedMultiplier": 0.55,
+  "excludedAppearanceStems": ["baby"],
   "watchMinSeconds": 5,
   "watchMaxSeconds": 20,
   "arrivalIntervalSeconds": 35,

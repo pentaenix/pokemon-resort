@@ -40,12 +40,14 @@
 #include "core/assets/Font.hpp"
 #include "core/Types.hpp"
 #include "ui/Screen.hpp"
+#include "ui/loading/LoadingScreenBase.hpp"
 #include "ui/transitions/ScreenTransition.hpp"
 
 #include <memory>
 #include <optional>
 #include <random>
 #include <future>
+#include <chrono>
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -55,6 +57,7 @@ namespace pr {
 class Overworld3DTestScreen : public Screen {
 public:
     explicit Overworld3DTestScreen(const std::string& project_root);
+    ~Overworld3DTestScreen() override;
 
     void update(double dt) override;
     void render(SDL_Renderer* renderer) override;
@@ -68,6 +71,8 @@ public:
         const std::string& debug_frame_counter_label = {});
     bool wantsBgfxRenderer() const;
     bool isBgfxActive() const;
+    bool wantsAquariumMusic() const;
+    const std::string& aquariumMusicPath() const;
     void renderPresentationOverlay(SDL_Renderer* renderer);
     void queueBgfxScreenshot(const std::string& output_path);
     bool consumeBlockedMovementSfxRequested();
@@ -107,6 +112,10 @@ private:
     std::vector<gameplay::world3d::characters::LoadedWorldChunk> buildLoadedWorldChunks();
     void rebuildActiveWorldChunks();
     bool activateWorldMap(const gameplay::world3d::characters::LoadedWorldChunk& chunk);
+    bool shouldShowDoorLoadingFor(
+        const gameplay::world3d::characters::LoadedWorldChunk& chunk) const;
+    void beginAquariumDoorLoading();
+    void cancelAquariumDoorLoading();
     std::vector<gameplay::world3d::rendering::bgfx_backend::OverworldBgfxRenderer::StaticMapChunk>
     buildStaticRenderChunks() const;
     void reloadWorldTerrainQueries();
@@ -117,6 +126,7 @@ private:
     void loadAquariumRooms(std::vector<gameplay::world3d::characters::LoadedWorldChunk>& chunks);
     bool beginAquariumRoomResize();
     bool adjustAquariumRoomSize(int width_delta, int depth_delta);
+    void frameAquariumRoomTerrainEditor();
     bool commitAquariumRoomResize();
     void cancelAquariumRoomResize();
     void appendAquariumRoomPreview(gameplay::world3d::aquarium::construction::AquariumConstructionVisual&) const;
@@ -125,7 +135,11 @@ private:
     void advanceAquariumRoom();
     bool finishAquariumRoomGesture();
     void updateAquariumRoomGesture(int cells);
+    bool setAquariumRoomSurfacePalette(int palette);
+    void previewAquariumRoomSurfaceStyle();
     std::vector<gameplay::world3d::aquarium::rooms::RoomOccupancy> aquariumRoomOccupancy() const;
+    std::vector<pr::aquarium::geometry::GridCell> aquariumCombinedCollisionCells();
+    bool playerOnAquariumDecorationWaterSurface();
     void refreshPlayerAquariumRuntime();
     void refreshAquariumRenderActors();
     bool beginAquariumDecorations();
@@ -261,6 +275,7 @@ private:
     bool scene_initialized_ = false;
     std::unique_ptr<gameplay::world3d::npc::NpcActorDriver> npc_actor_driver_;
     std::shared_ptr<gameplay::world3d::npc::AquariumVisitorSession> aquarium_visitors_;
+    void prepareAquariumVisitors();
     void configureAquariumVisitors();
     gameplay::world3d::aquarium::AquariumCatalog aquarium_catalog_{};
     float aquarium_base_lighting_brightness_ = 1.0f;
@@ -284,6 +299,12 @@ private:
     std::unique_ptr<gameplay::world3d::aquarium::construction::AquariumDesignStore>
         aquarium_design_store_;
     std::optional<gameplay::world3d::aquarium::rooms::RoomBounds> aquarium_room_draft_;
+    gameplay::world3d::aquarium::construction::ConstructionRoomEditMode
+        aquarium_room_edit_mode_ =
+            gameplay::world3d::aquarium::construction::ConstructionRoomEditMode::Layout;
+    int aquarium_room_palette_index_ = 0;
+    gameplay::world3d::aquarium::rooms::RoomTransitionKind aquarium_room_transition_kind_ =
+        gameplay::world3d::aquarium::rooms::RoomTransitionKind::Stairs;
     std::string aquarium_room_error_;
     bool aquarium_room_read_only_ = false;
     std::optional<gameplay::world3d::aquarium::rooms::BuildingLayout> aquarium_building_;
@@ -298,7 +319,36 @@ private:
         std::vector<gameplay::world3d::aquarium::rooms::RoomOccupancy> occupancy;
     };
     std::optional<RoomGesture> aquarium_room_gesture_;
+    struct RoomPaintGesture {
+        gameplay::world3d::aquarium::construction::ConstructionRoomEditMode mode =
+            gameplay::world3d::aquarium::construction::ConstructionRoomEditMode::Floor;
+        gameplay::world3d::aquarium::rooms::Cell start{},current{};
+        std::optional<gameplay::world3d::aquarium::rooms::Wall> wall;
+    };
+    std::optional<RoomPaintGesture> aquarium_room_paint_gesture_;
+    std::optional<gameplay::world3d::aquarium::rooms::BuildingLayout>
+        aquarium_room_level_selection_baseline_;
+    bool aquarium_room_level_selection_ready_=false;
+    bool aquarium_room_level_knob_dragging_=false;
+    std::optional<gameplay::world3d::aquarium::rooms::Wall> aquarium_room_paint_wall_;
+    float aquarium_room_wall_camera_pan_=0.0f;
+    float aquarium_room_terrain_camera_x_=0.0f,aquarium_room_terrain_camera_z_=0.0f;
+    float aquarium_room_terrain_pan_origin_x_=0.0f,aquarium_room_terrain_pan_origin_z_=0.0f;
+    SDL_Point aquarium_room_terrain_pan_start_{};
+    bool aquarium_room_terrain_camera_initialized_=false;
+    bool aquarium_room_terrain_camera_panning_=false;
+    bool aquarium_room_terrain_top_down_=false;
     int aquarium_room_handle_focus_=0;
+    gameplay::world3d::aquarium::rooms::RoomDecorationCatalog room_decoration_catalog_;
+    gameplay::world3d::aquarium::decorations::Ui room_decoration_ui_;
+    bool room_decoration_catalog_loaded_=false;
+    int room_decoration_category_index_=0;
+    int room_decoration_asset_index_=0;
+    std::optional<std::string> room_decoration_asset_;
+    std::optional<std::string> room_decoration_selected_;
+    std::optional<gameplay::world3d::aquarium::rooms::RoomDecoration> room_decoration_draft_;
+    bool room_decoration_dragging_=false;
+    double room_decoration_animation_time_seconds_=0.0;
     std::unique_ptr<gameplay::world3d::aquarium::construction::AquariumPopulationPolicy>
         aquarium_population_policy_;
     gameplay::world3d::aquarium::AquariumSpeciesCatalog aquarium_species_catalog_;
@@ -363,6 +413,15 @@ private:
     bool door_waiting_for_close_ = false;
     bool door_waiting_for_open_ = false;
     gameplay::world3d::doors::ForcedDoorMoveController door_forced_move_{};
+    std::unique_ptr<LoadingScreenBase> aquarium_door_loading_screen_;
+    std::future<bool> aquarium_door_load_future_;
+    std::chrono::steady_clock::time_point aquarium_door_load_started_{};
+    std::string aquarium_door_loading_map_id_;
+    bool aquarium_door_loading_active_ = false;
+    bool aquarium_door_loading_presented_ = false;
+    bool aquarium_door_loading_work_started_ = false;
+    bool aquarium_door_loading_work_complete_ = false;
+    bool aquarium_door_loading_work_succeeded_ = false;
     gameplay::world3d::scripts::ScriptCooldowns interaction_script_cooldowns_{};
     gameplay::world3d::interactions::InteractionSequenceController interaction_sequence_{};
     gameplay::world3d::interactions::InteractionTextCatalog interaction_text_catalog_{};

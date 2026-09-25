@@ -16,10 +16,12 @@
 #include "gameplay/world3d/npc/NpcActorDriver.hpp"
 #include "gameplay/world3d/rendering/FallbackTerrainRenderer.hpp"
 #include "gameplay/world3d/rendering/InteriorRenderPolicy.hpp"
+#include "ui/loading/LoadingScreenFactory.hpp"
 #include "ui/overlay/OverlayCanvas.hpp"
 
 #include <SDL.h>
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cctype>
 #include <filesystem>
@@ -171,6 +173,12 @@ Overworld3DTestScreen::Overworld3DTestScreen(const std::string& project_root)
       animator_(character_),
       map_(scene_) {}
 
+Overworld3DTestScreen::~Overworld3DTestScreen() {
+    // A window close can arrive while destination CPU state is being prepared.
+    // Keep the owning screen alive until that worker has stopped touching it.
+    if (aquarium_door_load_future_.valid()) aquarium_door_load_future_.wait();
+}
+
 void Overworld3DTestScreen::initializeSceneState(bool reload_primary_scene) {
     app_config_ = loadAppConfigFromJson((fs::path(project_root_) / "config" / "app.json").string());
     if (reload_primary_scene) {
@@ -262,6 +270,7 @@ void Overworld3DTestScreen::initializeSceneState(bool reload_primary_scene) {
     door_waiting_for_close_ = false;
     door_waiting_for_open_ = false;
     door_forced_move_.cancel();
+    cancelAquariumDoorLoading();
     interaction_exit_requested_ = false;
     interaction_pokemon_session_started_ = false;
     after_pokemon_attend_context_ = false;
@@ -644,6 +653,39 @@ bool Overworld3DTestScreen::activateWorldMap(
     return true;
 }
 
+bool Overworld3DTestScreen::shouldShowDoorLoadingFor(
+    const gameplay::world3d::characters::LoadedWorldChunk& chunk) const {
+    if (!aquarium_building_) return false;
+    const std::string destination_id = chunk.id.empty() ? chunk.scene.id : chunk.id;
+    const bool destination_is_aquarium =
+        gameplay::world3d::aquarium::rooms::findRoom(*aquarium_building_, destination_id);
+    const bool source_is_aquarium =
+        gameplay::world3d::aquarium::rooms::findRoom(*aquarium_building_, active_world_map_id_);
+    // Room-to-room travel is intentionally immediate. The loader belongs only
+    // to the comparatively expensive exterior -> aquarium entry boundary.
+    return destination_is_aquarium && !source_is_aquarium;
+}
+
+void Overworld3DTestScreen::beginAquariumDoorLoading() {
+    aquarium_door_loading_screen_.reset();
+    aquarium_door_loading_active_ = true;
+    aquarium_door_loading_presented_ = false;
+    aquarium_door_loading_work_started_ = false;
+    aquarium_door_loading_work_complete_ = false;
+    aquarium_door_loading_work_succeeded_ = false;
+    aquarium_door_loading_map_id_.clear();
+}
+
+void Overworld3DTestScreen::cancelAquariumDoorLoading() {
+    aquarium_door_loading_screen_.reset();
+    aquarium_door_loading_active_ = false;
+    aquarium_door_loading_presented_ = false;
+    aquarium_door_loading_work_started_ = false;
+    aquarium_door_loading_work_complete_ = false;
+    aquarium_door_loading_work_succeeded_ = false;
+    aquarium_door_loading_map_id_.clear();
+}
+
 std::vector<gameplay::world3d::rendering::bgfx_backend::OverworldBgfxRenderer::StaticMapChunk>
 Overworld3DTestScreen::buildStaticRenderChunks() const {
     std::vector<gameplay::world3d::rendering::bgfx_backend::OverworldBgfxRenderer::StaticMapChunk> out;
@@ -666,7 +708,7 @@ void Overworld3DTestScreen::reloadWorldTerrainQueries() {
         gameplay::world3d::characters::makeLoadedWorldCharacterTerrainQuery(active_world_chunks_);
     aquarium_collision_overlay_ = std::make_shared<
         gameplay::world3d::aquarium::construction::AquariumCollisionOverlay>(terrain_query);
-    aquarium_collision_overlay_->setBlockedCells(player_aquarium_runtime_.collision_cells);
+    aquarium_collision_overlay_->setBlockedCells(aquariumCombinedCollisionCells());
     terrain_query = aquarium_collision_overlay_;
     player_.setTerrainQuery(terrain_query);
     if (follower_controller_) {
@@ -799,6 +841,29 @@ void Overworld3DTestScreen::updateDoorSequence(double dt) {
                     transition_.startOpening(transition_config_.attend);
                     return;
                 }
+                const bool show_loading = aquarium_door_loading_active_ ||
+                    shouldShowDoorLoadingFor(*destination->chunk);
+                if (show_loading && !aquarium_door_loading_active_) {
+                    beginAquariumDoorLoading();
+                    // The map rebuild is deliberately deferred until SDL has presented
+                    // the existing Poké Ball screen at least once. Otherwise the same
+                    // synchronous work merely freezes the final iris frame.
+                    return;
+                }
+                if (show_loading && !aquarium_door_loading_presented_) return;
+                if (show_loading && !aquarium_door_loading_work_started_) {
+                    const auto destination_chunk = *destination->chunk;
+                    aquarium_door_loading_map_id_ = destination_chunk.scene.id;
+                    aquarium_door_load_started_ = std::chrono::steady_clock::now();
+                    aquarium_door_loading_work_started_ = true;
+                    aquarium_door_load_future_ = std::async(
+                        std::launch::async,
+                        [this, destination_chunk]() {
+                            return activateWorldMap(destination_chunk);
+                        });
+                    return;
+                }
+                if (show_loading && !aquarium_door_loading_work_complete_) return;
                 const int local_tile_x = destination->world_tile_x - destination->chunk->origin_tile_x;
                 const int local_tile_y = destination->world_tile_y - destination->chunk->origin_tile_y;
                 const bool destination_is_halo = gameplay::world3d::doors::isCardinalHaloTile(
@@ -806,9 +871,13 @@ void Overworld3DTestScreen::updateDoorSequence(double dt) {
                     destination->chunk->scene.grid.height,
                     local_tile_x,
                     local_tile_y);
-                if (!activateWorldMap(*destination->chunk) || !player_.teleportToTile(
+                const bool map_activated = show_loading
+                    ? aquarium_door_loading_work_succeeded_
+                    : activateWorldMap(*destination->chunk);
+                if (!map_activated || !player_.teleportToTile(
                         local_tile_x, local_tile_y, destination->facing, destination_is_halo)) {
                     std::cerr << "[Overworld3D] Door link could not resolve a reachable destination anchor\n";
+                    cancelAquariumDoorLoading();
                     door_sequence_.cancel();
                     door_waiting_for_open_ = true;
                     transition_.startOpening(transition_config_.attend);
@@ -823,9 +892,21 @@ void Overworld3DTestScreen::updateDoorSequence(double dt) {
                 player_.offsetWorldPosition(landing_offset_x, landing_offset_z);
                 if (npc_actor_driver_) {
                     npc_actor_driver_->initializeDefaultSceneActors(player_.position());
+                    // The transition is still closed here. Populate destination-room visitors
+                    // now so the first revealed frame is already inhabited.
+                    prepareAquariumVisitors();
                 }
                 camera_.setTarget(player_.position());
                 door_sequence_.advance();
+                if (show_loading) {
+                    aquarium_door_loading_work_complete_ = true;
+                    if (aquarium_door_loading_screen_) {
+                        aquarium_door_loading_screen_->markLoadingComplete();
+                    }
+                    // Keep the already-presented loading frame up until the next update,
+                    // then resume the forced doorway movement and iris opening.
+                    return;
+                }
                 break;
             }
             case ScriptActionKind::MovePlayer:
@@ -850,6 +931,30 @@ void Overworld3DTestScreen::updateDoorSequence(double dt) {
 
 void Overworld3DTestScreen::update(double dt) {
     transition_.update(dt);
+    room_decoration_animation_time_seconds_+=std::max(0.0,dt);
+    if (aquarium_door_loading_screen_) aquarium_door_loading_screen_->update(dt);
+    if (aquarium_door_loading_active_ && aquarium_door_loading_work_started_ &&
+        !aquarium_door_loading_work_complete_) {
+        if (aquarium_door_load_future_.valid() &&
+            aquarium_door_load_future_.wait_for(std::chrono::seconds(0)) ==
+                std::future_status::ready) {
+            aquarium_door_loading_work_succeeded_ = aquarium_door_load_future_.get();
+            aquarium_door_loading_work_complete_ = true;
+            const auto load_us = std::chrono::duration_cast<std::chrono::microseconds>(
+                std::chrono::steady_clock::now() - aquarium_door_load_started_).count();
+            std::cerr << "[Aquarium] event=door_load_complete map="
+                      << aquarium_door_loading_map_id_ << " cpuUs=" << load_us << '\n';
+        } else {
+            // Nothing in the live world is read while the worker publishes the
+            // destination CPU state. The loading screen remains independently animated.
+            return;
+        }
+    }
+    if (aquarium_door_loading_active_ && aquarium_door_loading_work_complete_ &&
+        aquarium_door_loading_screen_ &&
+        aquarium_door_loading_screen_->isLoadingAnimationComplete()) {
+        cancelAquariumDoorLoading();
+    }
     aquarium_config_poll_seconds_ += std::max(0.0, dt);
     if (aquarium_config_poll_seconds_ >= 0.25) {
         aquarium_config_poll_seconds_ = 0.0;
@@ -894,6 +999,8 @@ void Overworld3DTestScreen::update(double dt) {
         }
     }
     updateDoorSequence(dt);
+    if (aquarium_door_loading_active_ && aquarium_door_loading_work_started_ &&
+        !aquarium_door_loading_work_complete_) return;
     interaction_time_seconds_ += dt;
     if (blocked_movement_repeat_seconds_ > 0.0) {
         blocked_movement_repeat_seconds_ = std::max(0.0, blocked_movement_repeat_seconds_ - dt);
@@ -1044,26 +1151,15 @@ void Overworld3DTestScreen::update(double dt) {
         landing_dust_system_->update(dt);
     }
     if (npc_actor_driver_ && !aquarium_construction_.active()) {
-        std::vector<std::pair<int, int>> reserved_tiles;
-        reserved_tiles.push_back({player_.tileX(), player_.tileY()});
-        const auto player_segment = player_.movementSegment();
-        if (player_segment.active) {
-            reserved_tiles.push_back({player_segment.to_x, player_segment.to_y});
-        }
-        const std::size_t player_reserved_tile_count = reserved_tiles.size();
-        if (follower_controller_) {
-            const std::vector<std::pair<int, int>> follower_tiles = follower_controller_->reservedTiles();
-            reserved_tiles.insert(reserved_tiles.end(), follower_tiles.begin(), follower_tiles.end());
-        }
-        npc_actor_driver_->setReservedTiles(std::move(reserved_tiles), player_reserved_tile_count);
-        configureAquariumVisitors();
+        prepareAquariumVisitors();
         npc_actor_driver_->update(dt);
     }
     if (water_particle_system_ && !freecam_enabled_ && !aquarium_construction_.active()) {
         using gameplay::world3d::effects::WaterParticleAgentObservation;
         std::vector<WaterParticleAgentObservation> agents;
         agents.push_back(WaterParticleAgentObservation{
-            "player", player_.position(), player_.onActualWater(), player_.moving()});
+            "player", player_.position(), player_.onActualWater(), player_.moving(),
+            playerOnAquariumDecorationWaterSurface()});
         if (follower_controller_ && follower_controller_->visibleForSimulation()) {
             agents.push_back(WaterParticleAgentObservation{
                 "follower",
@@ -1107,6 +1203,21 @@ bool Overworld3DTestScreen::consumeAquariumConstructionMoveSfxRequested() {
 }
 
 void Overworld3DTestScreen::render(SDL_Renderer* renderer) {
+    if (aquarium_door_loading_active_) {
+        if (!aquarium_door_loading_screen_) {
+            aquarium_door_loading_screen_ = createLoadingScreen(
+                LoadingScreenType::Pokeball,
+                renderer,
+                app_config_.window,
+                {},
+                project_root_);
+            aquarium_door_loading_screen_->setMinimumLoopSeconds(0.0);
+            aquarium_door_loading_screen_->enter();
+        }
+        aquarium_door_loading_screen_->render(renderer);
+        aquarium_door_loading_presented_ = true;
+        return;
+    }
     if (wantsBgfxRenderer()) {
         return;
     }
@@ -1253,12 +1364,29 @@ void Overworld3DTestScreen::render(SDL_Renderer* renderer) {
 }
 
 bool Overworld3DTestScreen::wantsBgfxRenderer() const {
+    if (aquarium_door_loading_active_) return false;
     const std::string backend = lower(app_config_.renderer.world3d_backend);
     return !bgfx_init_failed_ && (backend == "bgfx" || backend == "auto");
 }
 
 bool Overworld3DTestScreen::isBgfxActive() const {
     return bgfx_renderer_ != nullptr && bgfx_renderer_->valid();
+}
+
+bool Overworld3DTestScreen::wantsAquariumMusic() const {
+    if (app_config_.audio.aquarium_music.empty()) return false;
+    // Exterior -> aquarium activation is prepared on a worker while the loading
+    // screen animates. The transition itself is sufficient context and avoids
+    // reading destination world state while that worker is publishing it.
+    if (aquarium_door_loading_active_) return true;
+    const std::string map_id = active_world_map_id_.empty() ? scene_.id : active_world_map_id_;
+    return (aquarium_building_ &&
+            gameplay::world3d::aquarium::rooms::findRoom(*aquarium_building_, map_id)) ||
+        gameplay::world3d::aquarium::aquariumMapConfig(aquarium_catalog_, map_id);
+}
+
+const std::string& Overworld3DTestScreen::aquariumMusicPath() const {
+    return app_config_.audio.aquarium_music;
 }
 
 bool Overworld3DTestScreen::renderBgfx(
@@ -1383,6 +1511,16 @@ bool Overworld3DTestScreen::renderBgfx(
         const auto& pixels=decoration_ui_.rasterize(project_root_,logical_w,logical_h,decoration_editor_,
             decoration_catalog_,decoration_asset_index_/6,decoration_tool_,point.x,point.y,decoration_commit_pending_,floor.x,floor.y,decoration_category_);
         bgfx_renderer_->setAquariumStockingOverlay(pixels.rgba,pixels.width,pixels.height,pixels.key,!pixels.rgba.empty());
+    } else if (aquarium_room_draft_ &&
+        aquarium_room_edit_mode_==gameplay::world3d::aquarium::construction::ConstructionRoomEditMode::Decorations) {
+        if(!room_decoration_catalog_loaded_) {
+            room_decoration_catalog_.scan(project_root_);room_decoration_catalog_loaded_=true;
+        }
+        const auto& pixels=room_decoration_ui_.rasterizeRoomAssets(project_root_,logical_w,logical_h,
+            room_decoration_catalog_,gameplay::world3d::aquarium::rooms::
+                kRoomDecorationCategories[room_decoration_category_index_],room_decoration_asset_index_/6,
+            room_decoration_asset_?room_decoration_asset_index_:-1,false);
+        bgfx_renderer_->setAquariumStockingOverlay(pixels.rgba,pixels.width,pixels.height,pixels.key,!pixels.rgba.empty());
     } else if (aquarium_visual.stocking_active) {
         const auto& pixels = aquarium_stocking_bgfx_overlay_.rasterize(
             logical_w, logical_h, aquarium_species_catalog_, aquarium_stocking_);
@@ -1426,6 +1564,7 @@ void Overworld3DTestScreen::queueBgfxScreenshot(const std::string& output_path) 
 }
 
 void Overworld3DTestScreen::renderPresentationOverlay(SDL_Renderer* renderer) {
+    if (aquarium_door_loading_active_) return;
     int logical_w = 0;
     int logical_h = 0;
     SDL_RenderGetLogicalSize(renderer, &logical_w, &logical_h);
@@ -1496,6 +1635,7 @@ void Overworld3DTestScreen::restoreAquariumInspectionFacing() {
 }
 
 void Overworld3DTestScreen::onNavigate2d(int dx, int dy) {
+    if (aquarium_door_loading_active_) return;
     if(decoration_editor_.active()){navigateAquariumDecorations(dx,dy);return;}
     if (aquarium_room_draft_) { navigateAquariumRoom(dx, dy); return; }
     if (aquarium_construction_.active()) {
@@ -1548,6 +1688,7 @@ void Overworld3DTestScreen::onNavigate2d(int dx, int dy) {
 }
 
 void Overworld3DTestScreen::onAdvancePressed() {
+    if (aquarium_door_loading_active_) return;
     if(decoration_editor_.active()){
         if(!decoration_commit_pending_){
             if(decoration_editor_.draft()){if(decoration_editor_.confirm())decoration_tool_=gameplay::world3d::aquarium::decorations::Tool::None;}
@@ -1657,6 +1798,7 @@ void Overworld3DTestScreen::onAdvancePressed() {
 }
 
 void Overworld3DTestScreen::handlePointerMoved(int logical_x, int logical_y) {
+    if (aquarium_door_loading_active_) return;
     if(aquarium_inspection_camera_&&aquarium_inspection_camera_->focused()){
         const auto point=mapPointerToLogical(logical_x,logical_y);
         aquarium_inspection_camera_->setPointerLook(2.0f*point.x/app_config_.window.virtual_width-1,
@@ -1675,6 +1817,10 @@ void Overworld3DTestScreen::handlePointerMoved(int logical_x, int logical_y) {
             if (aquarium_stocking_slider_drag_) {
                 const int width = std::max(1, app_config_.window.virtual_width);
                 if (*aquarium_stocking_slider_drag_ == gameplay::world3d::aquarium::
+                        construction::AquariumStockingController::ExhibitControl::ColorStrength) {
+                    aquarium_stocking_.focusExhibitColorStrength(
+                        aquarium_stocking_overlay_.exhibitColorStrengthLevelAtX(width, mapped.x));
+                } else if (*aquarium_stocking_slider_drag_ == gameplay::world3d::aquarium::
                         construction::AquariumStockingController::ExhibitControl::Brightness) {
                     aquarium_stocking_.focusExhibitBrightness(
                         aquarium_stocking_overlay_.exhibitBrightnessLevelAtX(width, mapped.x));
@@ -1686,9 +1832,10 @@ void Overworld3DTestScreen::handlePointerMoved(int logical_x, int logical_y) {
             return;
         }
         aquarium_stocking_.setPointerPosition(mapped.x, mapped.y);
-        if (aquarium_stocking_overlay_.capacityAt(
+        if (aquarium_stocking_overlay_.capacityGridAt(
                 std::max(1, app_config_.window.virtual_width),
-                std::max(1, app_config_.window.virtual_height), mapped.x, mapped.y)) {
+                std::max(1, app_config_.window.virtual_height), mapped.x, mapped.y,
+                aquarium_stocking_)) {
             aquarium_stocking_.focusTank();
             return;
         }
@@ -1747,6 +1894,7 @@ void Overworld3DTestScreen::handlePointerMoved(int logical_x, int logical_y) {
 }
 
 bool Overworld3DTestScreen::handlePointerPressed(int logical_x, int logical_y) {
+    if (aquarium_door_loading_active_) return true;
     const SDL_Point mapped = mapPointerToLogical(logical_x, logical_y);
     logical_x = mapped.x;
     logical_y = mapped.y;
@@ -1776,6 +1924,7 @@ bool Overworld3DTestScreen::handlePointerPressed(int logical_x, int logical_y) {
 }
 
 bool Overworld3DTestScreen::handlePointerReleased(int logical_x, int logical_y) {
+    if (aquarium_door_loading_active_) return true;
     const SDL_Point mapped = mapPointerToLogical(logical_x, logical_y);
     logical_x = mapped.x;
     logical_y = mapped.y;
@@ -1783,8 +1932,13 @@ bool Overworld3DTestScreen::handlePointerReleased(int logical_x, int logical_y) 
         if(decoration_pointer_tool_active_ && !decoration_commit_pending_) {
             handleAquariumDecorationPointer(logical_x,logical_y,false);
             const bool tray_click=decoration_asset_press_.has_value()&&!decoration_asset_dragged_;
-            if((!tray_click && logical_y>=app_config_.window.virtual_height-180) || !decoration_editor_.confirm())
+            if(!tray_click && logical_y>=app_config_.window.virtual_height-180)
                 decoration_editor_.cancel();
+            else
+                // An invalid drop remains where the player put it. The editor
+                // shows the invalid outline/message and Accept stays blocked;
+                // Cancel is the explicit way back to the committed transform.
+                (void)decoration_editor_.confirm();
             decoration_asset_press_.reset();decoration_asset_dragged_=false;
             decoration_pointer_tool_active_=false;
             decoration_tool_=gameplay::world3d::aquarium::decorations::Tool::None;
@@ -1815,6 +1969,7 @@ bool Overworld3DTestScreen::handlePointerReleased(int logical_x, int logical_y) 
 }
 
 void Overworld3DTestScreen::onAttendPressed() {
+    if (aquarium_door_loading_active_) return;
     if(decoration_editor_.active()){
         if(!decoration_commit_pending_){if(decoration_editor_.selected())decoration_editor_.erase();else decoration_editor_.selectNext();}
         return;
@@ -1827,6 +1982,7 @@ void Overworld3DTestScreen::onAttendPressed() {
 }
 
 void Overworld3DTestScreen::onAquariumConstructionPressed(SDL_JoystickID controller_instance_id) {
+    if (aquarium_door_loading_active_) return;
     if(decoration_editor_.active()){
         if(controller_instance_id<0 && (SDL_GetModState()&(KMOD_CTRL|KMOD_GUI))) {
             if(SDL_GetModState()&KMOD_SHIFT)decoration_editor_.redo();else decoration_editor_.undo();
@@ -1896,6 +2052,7 @@ void Overworld3DTestScreen::onAquariumConstructionPressed(SDL_JoystickID control
 }
 
 void Overworld3DTestScreen::onBackPressed() {
+    if (aquarium_door_loading_active_) return;
     if(decoration_editor_.active()){
         if(!decoration_commit_pending_){if(!decoration_editor_.cancel())closeAquariumDecorations();
             decoration_tool_=gameplay::world3d::aquarium::decorations::Tool::None;}
@@ -2052,6 +2209,7 @@ SDL_Point Overworld3DTestScreen::mapPointerToLogical(int x, int y) const {
 }
 
 bool Overworld3DTestScreen::handleUnroutedSdlEvent(const SDL_Event& event) {
+    if (aquarium_door_loading_active_) return true;
     if(decoration_editor_.active())return handleAquariumDecorationEvent(event);
     if (aquarium_stocking_.active() && event.type == SDL_MOUSEWHEEL) {
         if (aquarium_stocking_.tab() == gameplay::world3d::aquarium::construction::
@@ -2074,6 +2232,18 @@ bool Overworld3DTestScreen::handleUnroutedSdlEvent(const SDL_Event& event) {
     }
     if (aquarium_construction_.active() && event.type == SDL_MOUSEWHEEL) {
         const int direction = event.wheel.y > 0 ? 1 : event.wheel.y < 0 ? -1 : 0;
+        if(direction!=0&&aquarium_room_draft_&&
+            aquarium_room_edit_mode_==gameplay::world3d::aquarium::construction::
+                ConstructionRoomEditMode::Decorations&&aquarium_pointer_position_valid_&&
+            aquarium_pointer_position_.y>=app_config_.window.virtual_height-244) {
+            const auto entries=room_decoration_catalog_.indices(gameplay::world3d::aquarium::rooms::
+                kRoomDecorationCategories[room_decoration_category_index_]);
+            const int pages=std::max(1,(int(entries.size())+5)/6);
+            const int page=room_decoration_asset_index_/6;
+            room_decoration_asset_index_=((page-direction+pages)%pages)*6;
+            room_decoration_asset_.reset();
+            return true;
+        }
         if (direction != 0) {
             gameplay::world3d::aquarium::construction::
                 adjustAquariumConstructionCameraZoom(

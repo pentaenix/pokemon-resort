@@ -283,6 +283,51 @@ bool Overworld3DTestScreen::activateAquariumConstructionAction(
     switch (action) {
         case aqc::ConstructionHudAction::Room:
             return beginAquariumRoomResize();
+        case aqc::ConstructionHudAction::RoomLayout:
+            aquarium_room_edit_mode_=aqc::ConstructionRoomEditMode::Layout; return true;
+        case aqc::ConstructionHudAction::RoomFloor:
+            aquarium_room_edit_mode_=aqc::ConstructionRoomEditMode::Floor; return true;
+        case aqc::ConstructionHudAction::RoomLevels:
+            aquarium_room_edit_mode_=aqc::ConstructionRoomEditMode::Levels;
+            aquarium_room_terrain_top_down_=false;
+            adjustAquariumRoomSize(0,0); return true;
+        case aqc::ConstructionHudAction::RoomTransitions:
+            aquarium_room_edit_mode_=aqc::ConstructionRoomEditMode::Transitions;
+            aquarium_room_transition_kind_=gameplay::world3d::aquarium::rooms::RoomTransitionKind::Stairs;
+            aquarium_room_terrain_top_down_=false;
+            adjustAquariumRoomSize(0,0);
+            return true;
+        case aqc::ConstructionHudAction::RoomWalls:
+            aquarium_room_edit_mode_=aqc::ConstructionRoomEditMode::Walls; return true;
+        case aqc::ConstructionHudAction::RoomDecorations:
+            aquarium_room_edit_mode_=aqc::ConstructionRoomEditMode::Decorations; return true;
+        case aqc::ConstructionHudAction::RoomRamp: return false;
+        case aqc::ConstructionHudAction::RoomStairs:
+            aquarium_room_transition_kind_=gameplay::world3d::aquarium::rooms::RoomTransitionKind::Stairs;
+            return true;
+        case aqc::ConstructionHudAction::RoomPalette0: return setAquariumRoomSurfacePalette(0);
+        case aqc::ConstructionHudAction::RoomPalette1: return setAquariumRoomSurfacePalette(1);
+        case aqc::ConstructionHudAction::RoomPalette2: return setAquariumRoomSurfacePalette(2);
+        case aqc::ConstructionHudAction::RoomPalette3: return setAquariumRoomSurfacePalette(3);
+        case aqc::ConstructionHudAction::RoomPalette4: return setAquariumRoomSurfacePalette(4);
+        case aqc::ConstructionHudAction::RoomPalette5: return setAquariumRoomSurfacePalette(5);
+        case aqc::ConstructionHudAction::RoomDepth0: aquarium_room_palette_index_=0; return true;
+        case aqc::ConstructionHudAction::RoomDepth1: aquarium_room_palette_index_=1; return true;
+        case aqc::ConstructionHudAction::RoomDepth2: aquarium_room_palette_index_=2; return true;
+        case aqc::ConstructionHudAction::RoomDepth3: aquarium_room_palette_index_=3; return true;
+        case aqc::ConstructionHudAction::RoomCameraTopDown:
+            aquarium_room_terrain_top_down_=!aquarium_room_terrain_top_down_;
+            aquarium_room_terrain_camera_initialized_=false;
+            if(aquarium_room_terrain_top_down_)frameAquariumRoomTerrainEditor();
+            else adjustAquariumRoomSize(0,0);
+            return true;
+        case aqc::ConstructionHudAction::RoomCameraPan: return true;
+        case aqc::ConstructionHudAction::RoomZoomOut:
+            aqc::adjustAquariumConstructionCameraZoom(aquarium_construction_camera_tracking_,-1);
+            adjustAquariumRoomSize(0,0); return true;
+        case aqc::ConstructionHudAction::RoomZoomIn:
+            aqc::adjustAquariumConstructionCameraZoom(aquarium_construction_camera_tracking_,1);
+            adjustAquariumRoomSize(0,0); return true;
         case aqc::ConstructionHudAction::RoomNarrower: return adjustAquariumRoomSize(-1,0);
         case aqc::ConstructionHudAction::RoomWider: return adjustAquariumRoomSize(1,0);
         case aqc::ConstructionHudAction::RoomShallower: return adjustAquariumRoomSize(0,-1);
@@ -490,7 +535,10 @@ void Overworld3DTestScreen::exitAquariumConstruction() {
     closeAquariumDecorations();
     aquarium_room_draft_.reset();
     aquarium_room_gesture_.reset();
+    aquarium_room_paint_gesture_.reset();
     aquarium_room_candidate_.reset();
+    aquarium_room_edit_mode_ =
+        gameplay::world3d::aquarium::construction::ConstructionRoomEditMode::Layout;
     if (!aquarium_construction_.active()) return;
     closeAquariumStocking();
     aquarium_construction_.exit();

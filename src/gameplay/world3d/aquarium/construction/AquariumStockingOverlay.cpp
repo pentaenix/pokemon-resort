@@ -2,6 +2,7 @@
 #include "gameplay/world3d/aquarium/AquariumExhibitPreset.hpp"
 
 #include "ui/transfer_system/GameTransferConfig.hpp"
+#include "ui/transfer_system/detail/SdlScanlineDraw.hpp"
 
 #include <SDL_image.h>
 
@@ -185,6 +186,9 @@ void AquariumStockingOverlay::configure(std::string project_root) {
     pill_style_ = transfer_style.pill_toggle;
     carousel_style_ = transfer_style.tool_carousel;
     info_style_ = transfer_style.info_banner;
+    background_animation_ = transfer_style.background_animation;
+    selection_cursor_style_ = transfer_style.selection_cursor;
+    animation_seconds_ = 0.0;
     box_style_.arrow_mod_color = {18, 74, 119, 255};
     box_style_.viewport_background_color = {117, 198, 226, 255};
     box_style_.viewport_border_color = {34, 112, 162, 255};
@@ -353,22 +357,30 @@ const AquariumStockingOverlayPixels& AquariumStockingOverlay::rasterize(
     const AquariumStockingController& controller) const {
     width = std::max(1, width);
     height = std::max(1, height);
+    animation_seconds_ += 1.0 / 60.0;
+    const bool animated_background = background_animation_.enabled &&
+        (background_animation_.speed_x != 0.0 || background_animation_.speed_y != 0.0);
     std::ostringstream signature;
     signature << width << 'x' << height << ':' << catalog.revision << ':'
               << controller.tankId() << ':' << controller.focusedIndex() << ':'
               << controller.pageStart() << ':' << static_cast<int>(controller.tab()) << ':'
               << static_cast<int>(controller.focusArea()) << ':'
-              << controller.holdingSpecies() << ':' << controller.pointerActive() << ':'
+              << controller.holdingSpecies() << ':' << controller.holdingResident() << ':'
+              << controller.pointerActive() << ':'
               << controller.pointerX() << ',' << controller.pointerY() << ':'
               << controller.focusedExhibitPresetIndex() << ':'
               << controller.currentExhibitPresetId() << ':'
               << static_cast<int>(controller.focusedExhibitControl()) << ':'
+              << controller.focusedColorStrengthLevel() << ':'
               << controller.focusedBrightnessLevel() << ':'
               << controller.focusedMurkinessLevel() << ':'
               << controller.focusedSubstrateIndex() << ':'
               << controller.capacityCells() << ':' << controller.capacityColumns() << ':'
               << controller.capacityFirstVisibleRow() << ':'
               << controller.usedCapacityCells();
+    if (animated_background) {
+        signature << ":anim=" << static_cast<long long>(animation_seconds_ * 60.0);
+    }
     for (const auto& resident : controller.residents()) {
         signature << ':' << resident.species_id << '=' << resident.count;
     }
@@ -447,13 +459,18 @@ void AquariumStockingOverlay::render(
             const auto& fit = controller.habitatFit(static_cast<std::size_t>(index));
             const bool can_add = controller.speciesCanBeAdded(static_cast<std::size_t>(index));
             if (selected) {
-                const Color focus = carousel_style_.frame_basic;
-                SDL_SetRenderDrawColor(renderer, focus.r, focus.g, focus.b, focus.a);
-                for (int inset = 0; inset < 4; ++inset) {
-                    const SDL_Rect ring{rect.x - inset, rect.y - inset,
-                        rect.w + inset * 2, rect.h + inset * 2};
-                    SDL_RenderDrawRect(renderer, &ring);
-                }
+                const double pulse = (std::sin(animation_seconds_ *
+                    selection_cursor_style_.beat_speed * 6.283185307179586) + 1.0) * 0.5;
+                const int pad = selection_cursor_style_.padding + static_cast<int>(std::lround(
+                    selection_cursor_style_.beat_magnitude * pulse));
+                Color focus = selection_cursor_style_.color;
+                focus.a = std::clamp(selection_cursor_style_.alpha, 0, 255);
+                transfer_system::detail::drawRoundedOutlineScanlines(
+                    renderer, rect.x - pad, rect.y - pad,
+                    rect.w + pad * 2, rect.h + pad * 2,
+                    std::clamp(selection_cursor_style_.corner_radius + pad, 0,
+                        std::min(rect.w + pad * 2, rect.h + pad * 2) / 2),
+                    focus, selection_cursor_style_.thickness);
             }
             if (!can_add) drawFitSymbol(renderer, rect, fit.reason, fit.fits());
             const auto& species = catalog.approved[static_cast<std::size_t>(index)];

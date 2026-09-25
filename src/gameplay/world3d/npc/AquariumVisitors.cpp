@@ -26,9 +26,27 @@ AquariumVisitorConfig loadAquariumVisitorConfig(const std::string& root) {
         result.exit_chance=number("exitChanceAfterWatching",.18,0,1);
         result.room_change_chance=number("roomChangeChanceAfterWatching",.25,0,1);
         result.adult_walk_speed_multiplier=number("adultWalkSpeedMultiplier",.55,.15,1.5);
+        if(const auto* excluded=json.get("excludedAppearanceStems");excluded&&excluded->isArray()) {
+            result.excluded_appearance_stems.clear();
+            for(const auto& item:excluded->asArray())if(item.isString())
+                result.excluded_appearance_stems.insert(item.asString());
+        }
     } catch(const std::exception& e) {
         std::cerr<<"[AquariumVisitors] event=config_default reason="<<e.what()<<'\n';
     }
+    return result;
+}
+std::vector<std::string> discoverAquariumVisitorAppearances(
+    const std::string& root,const std::set<std::string>& excluded) {
+    std::vector<std::string> result;
+    const auto directory=std::filesystem::path(root)/"assets/characters/npc";
+    std::error_code error;
+    for(std::filesystem::directory_iterator it(directory,error),end;!error&&it!=end;it.increment(error)) {
+        if(!it->is_regular_file(error)||it->path().extension()!=".charbin"||
+            excluded.count(it->path().stem().string()))continue;
+        result.push_back(it->path().string());
+    }
+    std::sort(result.begin(),result.end());
     return result;
 }
 int aquariumVisitorCapacity(int cells,const AquariumVisitorConfig& c) {

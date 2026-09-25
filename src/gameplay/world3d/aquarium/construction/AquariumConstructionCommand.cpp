@@ -75,6 +75,7 @@ bool tankDesignEquivalent(const geo::TankDesign& lhs, const geo::TankDesign& rhs
         lhs.depth_steps != rhs.depth_steps ||
         lhs.exhibit_preset != rhs.exhibit_preset ||
         lhs.substrate_kind != rhs.substrate_kind ||
+        lhs.color_strength_level != rhs.color_strength_level ||
         lhs.brightness_level != rhs.brightness_level ||
         lhs.murkiness_level != rhs.murkiness_level ||
         lhs.corner_radius_steps != rhs.corner_radius_steps ||

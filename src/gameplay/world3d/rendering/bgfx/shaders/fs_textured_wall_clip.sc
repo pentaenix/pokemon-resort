@@ -17,7 +17,10 @@ void main()
     // This affects only the chosen room wall, never tank glass or shared shaders.
     if (u_cameraClip.w < -0.5) {
         float coordinate = u_cameraClip.x < 1.0 ? v_position0.x : v_position0.z;
-        if (abs(coordinate-u_cameraClip.y) < u_cameraClip.z) discard;
+        // u_lightParams.w carries the room floor datum for this pass. Preserve
+        // the black below-floor facade that masks deep tank undersides.
+        if (abs(coordinate-u_cameraClip.y) < u_cameraClip.z &&
+            v_position0.y >= u_lightParams.w - 0.01) discard;
     }
     // Default room walls use an identity model transform, so v_position0 is
     // world space. Only this wall-specific program receives a non-zero radius.

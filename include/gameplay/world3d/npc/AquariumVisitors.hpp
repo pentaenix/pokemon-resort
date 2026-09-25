@@ -18,8 +18,11 @@ struct AquariumVisitorConfig {
     double initial_fill=.65,watch_min_seconds=15,watch_max_seconds=120;
     double arrival_seconds=35,exit_chance=.18,room_change_chance=.25;
     double adult_walk_speed_multiplier=.55;
+    std::set<std::string> excluded_appearance_stems{"baby"};
 };
 AquariumVisitorConfig loadAquariumVisitorConfig(const std::string& project_root);
+std::vector<std::string> discoverAquariumVisitorAppearances(
+    const std::string& project_root,const std::set<std::string>& excluded_stems);
 int aquariumVisitorCapacity(int reachable_cells,const AquariumVisitorConfig&);
 // Four-connected routing uses the same blocked-cell mask as walking actors.
 std::vector<VisitorCell> aquariumVisitorRoute(int width,int height,
@@ -45,6 +48,7 @@ struct AquariumVisitorRecord {
     FacingDirection facing=FacingDirection::South;
     bool watching=false,has_goal=false;
     double watch_left=0,retry=0,blocked_seconds=0;
+    double last_simulated_seconds=-1;
     std::set<std::string> visited_tanks;
     unsigned conversation_count=0;
 };

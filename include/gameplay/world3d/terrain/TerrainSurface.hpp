@@ -16,6 +16,7 @@ void fillTileCornerHeights(const SceneConfig& scene, int tx, int ty, float out_c
 bool isSlopeSpecial(int special);
 
 float heightPerFloor(const SceneConfig& scene);
+float baseHeightWorld(const SceneConfig& scene);
 
 // Cardinal ramp 2=N, 3=E, 4=S, 5=W — step direction along or against ascend.
 void rampAscendVector(int ramp_direction, int& out_dx, int& out_dy);

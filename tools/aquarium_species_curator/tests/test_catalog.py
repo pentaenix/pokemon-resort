@@ -21,6 +21,10 @@ class CatalogStoreTests(unittest.TestCase):
         self.assertEqual(benthic["locomotionMode"], "bottom-rest-swim")
         self.assertTrue(benthic["restAtBottom"])
         self.assertGreater(benthic["roamingHeightMeters"], 0.0)
+        self.assertEqual(
+            MOVEMENT_PROFILE_DEFAULTS["lower-third-cruiser"]["locomotionMode"],
+            "continuous-cruise",
+        )
 
     def test_round_trip_preserves_reviewed_entry_and_revision(self):
         candidate = Candidate("0087:00", 87, "00", "Dewgong", "dewgong", "model.glbz", ("water-type-gen1-7",))

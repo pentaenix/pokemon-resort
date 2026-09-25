@@ -1,6 +1,7 @@
 #include "gameplay/world3d/aquarium/construction/AquariumConstructionVisual.hpp"
 
 #include "aquarium_geometry/Kernel.hpp"
+#include "gameplay/world3d/aquarium/rooms/AquariumBuildingLayout.hpp"
 
 #include <algorithm>
 #include <array>
@@ -10,6 +11,7 @@
 
 namespace pr::gameplay::world3d::aquarium::construction {
 namespace geo = pr::aquarium::geometry;
+namespace rooms = pr::gameplay::world3d::aquarium::rooms;
 
 namespace {
 
@@ -55,6 +57,17 @@ void appendQuad(
         first, static_cast<std::uint16_t>(first + 2U), static_cast<std::uint16_t>(first + 3U),
     };
     mesh.indices.insert(mesh.indices.end(), std::begin(indices), std::end(indices));
+}
+
+void appendVerticalQuad(ConstructionVisualMesh& mesh,float x0,float z0,float x1,float z1,
+    float y0,float y1,std::uint32_t color) {
+    if(mesh.vertices.size()>std::numeric_limits<std::uint16_t>::max()-4U)return;
+    const auto first=static_cast<std::uint16_t>(mesh.vertices.size());
+    mesh.vertices.push_back({x0,y0,z0,color});mesh.vertices.push_back({x1,y0,z1,color});
+    mesh.vertices.push_back({x1,y1,z1,color});mesh.vertices.push_back({x0,y1,z0,color});
+    mesh.indices.insert(mesh.indices.end(),{first,static_cast<std::uint16_t>(first+1),
+        static_cast<std::uint16_t>(first+2),first,static_cast<std::uint16_t>(first+2),
+        static_cast<std::uint16_t>(first+3)});
 }
 
 void appendBorder(
@@ -104,6 +117,25 @@ void appendLine(
         first, static_cast<std::uint16_t>(first + 1U), static_cast<std::uint16_t>(first + 2U),
         first, static_cast<std::uint16_t>(first + 2U), static_cast<std::uint16_t>(first + 3U),
     });
+}
+
+void appendDottedLine(ConstructionVisualMesh& mesh,float x0,float z0,float x1,float z1,
+    float y,float thickness,std::uint32_t color) {
+    const float dx=x1-x0,dz=z1-z0,length=std::hypot(dx,dz);if(length<.001f)return;
+    constexpr float dash=3.0f,gap=3.0f;
+    for(float at=0;at<length;at+=dash+gap) {
+        const float end=std::min(length,at+dash);
+        appendLine(mesh,x0+dx*at/length,z0+dz*at/length,x0+dx*end/length,
+            z0+dz*end/length,y,thickness,color);
+    }
+}
+
+void appendVerticalDots(ConstructionVisualMesh& mesh,float x,float z,float dx,float dz,
+    float y0,float y1,std::uint32_t color) {
+    constexpr float dash=3.0f,gap=3.0f;
+    for(float y=y0;y<y1;y+=dash+gap)
+        appendVerticalQuad(mesh,x-dx*.55f,z-dz*.55f,x+dx*.55f,z+dz*.55f,
+            y,std::min(y1,y+dash),color);
 }
 
 void appendMoveCompass(
@@ -278,14 +310,79 @@ ConstructionVisualMesh buildAquariumConstructionWorldMesh(
     if (!visual.visible) return mesh;
     if (visual.room_outline) {
         const auto b=*visual.room_outline;
+        float edit_plane_y=.5f;
+        for(const auto& surface:visual.cells)
+            edit_plane_y=std::max(edit_plane_y,surface.floor_y+.7f);
+        if(visual.room_edit_mode==ConstructionRoomEditMode::Levels||
+            visual.room_edit_mode==ConstructionRoomEditMode::Transitions) {
+            constexpr std::array<std::uint32_t,6> kDepthColors{
+                colorAbgr(255,218,92,132),
+                colorAbgr(64,220,192,154),
+                colorAbgr(70,143,246,170),
+                colorAbgr(145,91,224,188),
+                colorAbgr(104,75,184,198),
+                colorAbgr(52,48,128,210)};
+            constexpr std::array<std::uint32_t,6> kActiveDepthColors{
+                colorAbgr(255,235,137,205),
+                colorAbgr(118,244,218,215),
+                colorAbgr(125,183,255,225),
+                colorAbgr(191,145,255,230),
+                colorAbgr(151,121,226,235),
+                colorAbgr(103,98,190,240)};
+            const float tile=visual.tile_world_units;
+            for(const auto& surface:visual.cells) {
+                const int depth=std::clamp(surface.room_floor_depth,0,
+                    rooms::kMaximumRoomFloorDepth);
+                const float x0=surface.cell.column*tile;
+                const float z0=surface.cell.row*tile;
+                const bool active=depth==visual.room_palette_index&&
+                    visual.room_edit_mode==ConstructionRoomEditMode::Levels;
+                appendQuad(mesh,x0+4.25f,z0+4.25f,x0+tile-4.25f,z0+tile-4.25f,
+                    edit_plane_y-.08f,active?kActiveDepthColors[std::size_t(depth)]:
+                        kDepthColors[std::size_t(depth)]);
+            }
+        }
         const auto color=visual.draft_valid ? colorAbgr(246,199,62,255) : colorAbgr(240,74,74,255);
         const float step=visual.tile_world_units;
         for(float x=b[0];x<b[2];x+=step) for(float z:{b[1],b[3]})
-            appendLine(mesh,x,z,std::min(x+step*.65f,b[2]),z,0.5f,1.0f,color);
+            appendLine(mesh,x,z,std::min(x+step*.65f,b[2]),z,edit_plane_y,1.0f,color);
         for(float z=b[1];z<b[3];z+=step) for(float x:{b[0],b[2]})
-            appendLine(mesh,x,z,x,std::min(z+step*.65f,b[3]),0.5f,1.0f,color);
+            appendLine(mesh,x,z,x,std::min(z+step*.65f,b[3]),edit_plane_y,1.0f,color);
         for(const auto& p:visual.room_portals)
-            appendLine(mesh,p[0],p[1],p[2],p[3],0.8f,3.0f,colorAbgr(90,234,244,255));
+            appendLine(mesh,p[0],p[1],p[2],p[3],edit_plane_y+.1f,3.0f,colorAbgr(90,234,244,255));
+        for(const auto cell:visual.room_transition_cells) {
+            const float x0=cell.column*visual.tile_world_units;
+            const float z0=cell.row*visual.tile_world_units;
+            appendQuad(mesh,x0+2.3f,z0+2.3f,x0+visual.tile_world_units-2.3f,
+                z0+visual.tile_world_units-2.3f,edit_plane_y+.16f,
+                colorAbgr(238,241,224,220));
+            appendBorder(mesh,x0+2.3f,z0+2.3f,x0+visual.tile_world_units-2.3f,
+                z0+visual.tile_world_units-2.3f,edit_plane_y+.2f,.85f,
+                colorAbgr(58,82,108,245));
+        }
+        for(const auto& strip:visual.room_wall_strips) {
+            const auto strip_color=strip.active?colorAbgr(67,220,255,255):colorAbgr(246,199,62,155);
+            appendDottedLine(mesh,strip.x0,strip.z0,strip.x1,strip.z1,strip.y0,1.0f,strip_color);
+            appendDottedLine(mesh,strip.x0,strip.z0,strip.x1,strip.z1,strip.y1,1.0f,strip_color);
+            const float length=std::max(.001f,std::hypot(strip.x1-strip.x0,strip.z1-strip.z0));
+            const float dx=(strip.x1-strip.x0)/length,dz=(strip.z1-strip.z0)/length;
+            appendVerticalDots(mesh,strip.x0,strip.z0,dx,dz,strip.y0,strip.y1,strip_color);
+        }
+        if(!visual.draft_cells.empty()||!visual.selected_cells.empty()) {
+            const auto& cells=!visual.draft_cells.empty()?visual.draft_cells:visual.selected_cells;
+            int min_x=cells.front().column,max_x=min_x,min_z=cells.front().row,max_z=min_z;
+            for(const auto cell:cells) {min_x=std::min(min_x,cell.column);max_x=std::max(max_x,cell.column);
+                min_z=std::min(min_z,cell.row);max_z=std::max(max_z,cell.row);}
+            const float x0=min_x*visual.tile_world_units,z0=min_z*visual.tile_world_units;
+            const float x1=(max_x+1)*visual.tile_world_units,z1=(max_z+1)*visual.tile_world_units;
+            const auto selection=colorAbgr(67,220,255,255);
+            for(auto y:{edit_plane_y+.28f,edit_plane_y+.34f}) {
+                appendDottedLine(mesh,x0,z0,x1,z0,y,1.0f,selection);
+                appendDottedLine(mesh,x1,z0,x1,z1,y,1.0f,selection);
+                appendDottedLine(mesh,x1,z1,x0,z1,y,1.0f,selection);
+                appendDottedLine(mesh,x0,z1,x0,z0,y,1.0f,selection);
+            }
+        }
         return mesh;
     }
     if (visual.cells.empty()) return mesh;
@@ -329,8 +426,32 @@ ConstructionVisualMesh buildAquariumConstructionWorldMesh(
             continue;
         }
         const float y = surface.floor_y + 0.16f;
+        constexpr std::uint32_t kRoomBlockedFill = colorAbgr(244, 132, 139, 128);
         appendQuad(mesh, x0 + 2.0f, z0 + 2.0f, x0 + tile - 2.0f, z0 + tile - 2.0f,
-            y, surface.blocked ? kBlockedFill : kAllowedFill);
+            y, surface.blocked ? (visual.room_decoration_collision_preview?kRoomBlockedFill:kBlockedFill) : kAllowedFill);
+    }
+    if(visual.state==ConstructionState::ResizeRoom &&
+        visual.room_edit_mode==ConstructionRoomEditMode::Levels) {
+        const auto level_color=colorAbgr(255,224,118,235);
+        for(const auto& surface:visual.cells) for(const auto delta:std::array<geo::GridCell,2>{
+            geo::GridCell{1,0},geo::GridCell{0,1}}) {
+            const geo::GridCell neighbor{surface.cell.column+delta.column,
+                surface.cell.row+delta.row};
+            const auto found=floor_index.find({neighbor.column,neighbor.row});
+            if(found==floor_index.end()||std::abs(found->second-surface.floor_y)<.01f)continue;
+            const float low=std::min(surface.floor_y,found->second)+.24f;
+            const float high=std::max(surface.floor_y,found->second)+.24f;
+            const float x0=(surface.cell.column+delta.column)*tile;
+            const float z0=(surface.cell.row+delta.row)*tile;
+            const float x1=x0+(delta.row?tile:0.0f);
+            const float z1=z0+(delta.column?tile:0.0f);
+            appendDottedLine(mesh,x0,z0,x1,z1,low,1.2f,level_color);
+            appendDottedLine(mesh,x0,z0,x1,z1,high,1.2f,level_color);
+            const float length=std::max(.001f,std::hypot(x1-x0,z1-z0));
+            const float dx=(x1-x0)/length,dz=(z1-z0)/length;
+            appendVerticalDots(mesh,x0,z0,dx,dz,low,high,level_color);
+            appendVerticalDots(mesh,x1,z1,dx,dz,low,high,level_color);
+        }
     }
 
     for (const geo::GridCell cell : visual.locked_cells) {

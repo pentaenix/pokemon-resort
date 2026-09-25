@@ -49,6 +49,7 @@ struct AquariumSpeciesEntry {
     float pitch_degrees = 0.0f;
     float yaw_degrees = 0.0f;
     float scale_multiplier = 1.0f;
+    float waterline_offset_body_heights = 0.0f;
     std::string vertical_zone = "open-water";
     std::string surface_behavior = "submerged";
     std::string movement_profile = "free-swimmer";
@@ -61,6 +62,9 @@ struct AquariumSpeciesEntry {
     float idle_seconds_minimum = 0.0f;
     float idle_seconds_maximum = 0.0f;
     float local_move_distance_meters = 0.0f;
+    float vertical_range_minimum = 0.0f;
+    float vertical_range_maximum = 1.0f;
+    bool prefer_shelter = false;
     float flee_radius_meters = 0.0f;
     float flee_distance_meters = 0.0f;
     float flee_speed_multiplier = 1.0f;

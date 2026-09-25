@@ -333,9 +333,11 @@ void fillTileCornerHeightsLocal(const SceneConfig& scene, int tx, int ty, float 
     const int special = tileSpecial(scene, tx, ty);
     if (isCardinalRamp(special)) {
         if (applyPerpendicularRampAttachment(scene, tx, ty, special, low, out_corners)) {
+            for(int index=0;index<4;++index)out_corners[index]+=scene.terrain.base_height_world;
             return;
         }
         fillCardinalRampCorners(scene, tx, ty, special, out_corners);
+        for(int index=0;index<4;++index)out_corners[index]+=scene.terrain.base_height_world;
         return;
     }
 
@@ -375,6 +377,7 @@ void fillTileCornerHeightsLocal(const SceneConfig& scene, int tx, int ty, float 
         default:
             break;
     }
+    for(int index=0;index<4;++index)out_corners[index]+=scene.terrain.base_height_world;
 }
 
 void rampAscendVectorLocal(int ramp_direction, int& out_dx, int& out_dy) {
@@ -420,6 +423,8 @@ float heightPerFloor(const SceneConfig& scene) {
         ? scene.terrain.height_per_floor
         : std::max(1.0f, scene.grid.tile_size);
 }
+
+float baseHeightWorld(const SceneConfig& scene) { return scene.terrain.base_height_world; }
 
 void rampAscendVector(int ramp_direction, int& out_dx, int& out_dy) {
     out_dx = 0;

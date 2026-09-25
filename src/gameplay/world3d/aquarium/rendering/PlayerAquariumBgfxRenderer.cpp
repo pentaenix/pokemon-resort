@@ -237,8 +237,9 @@ public:
         resources_.discardStaged(destroy);
         std::vector<Mesh> candidate;
         for (const auto& tank : tanks) {
-            const AquariumExhibitPreset& exhibit =
-                aquariumExhibitPreset(tank.design.exhibit_preset);
+            const AquariumExhibitPreset exhibit = aquariumExhibitPresetWithColorStrength(
+                aquariumExhibitPreset(tank.design.exhibit_preset),
+                tank.design.color_strength_level);
             const float tank_brightness = aquariumBrightnessMultiplier(
                 tank.design.brightness_level);
             const float substrate_world_units = tank.design.substrate_kind == "moss-flat"
@@ -366,10 +367,14 @@ public:
         float camera_x = 0.0f, float camera_y = 0.0f, float camera_z = 0.0f) {
         if (!initialized_ || !bgfx::isValid(program_)) return;
         if(transparent && !decoration_focus_.empty())return;
+        const bool decoration_editing=!decoration_focus_.empty();
+        const float effective_brightness=decoration_editing
+            ? std::max(1.35f,lighting_brightness_)
+            : lighting_brightness_;
         const float tint[4]{
-            lighting_tint_[0] * lighting_brightness_,
-            lighting_tint_[1] * lighting_brightness_,
-            lighting_tint_[2] * lighting_brightness_,
+            (decoration_editing?1.0f:lighting_tint_[0]) * effective_brightness,
+            (decoration_editing?1.0f:lighting_tint_[1]) * effective_brightness,
+            (decoration_editing?1.0f:lighting_tint_[2]) * effective_brightness,
             0.0f};
         const float adjust[4]{1.0f, 1.0f, 1.0f, 0.0f};
         const float zeros[4]{};
@@ -450,10 +455,12 @@ public:
             const bool tank_lighted_material =
                 mesh.material == geo::MeshMaterial::Sand ||
                 mesh.material == geo::MeshMaterial::WaterSurface;
-            const float material_brightness = tank_lighted_material
+            const float material_brightness = decoration_editing
+                ? 1.2f
+                : tank_lighted_material
                 ? mesh.tank_brightness : 1.0f;
             const float sand_brightness = mesh.material == geo::MeshMaterial::Sand
-                ? 1.0f - sand_darkening_ : 1.0f;
+                ? (decoration_editing?1.0f:1.0f-sand_darkening_) : 1.0f;
             const float draw_tint[4]{
                 tint[0] * sand_brightness * material_brightness,
                 tint[1] * sand_brightness * material_brightness,
@@ -514,6 +521,9 @@ public:
         float camera_y,
         float camera_z,
         bool homogeneous_depth) {
+        // Decoration placement needs an unobstructed working view. This is a
+        // transient presentation override; the saved murkiness is untouched.
+        if (!decoration_focus_.empty()) return;
         if (!initialized_ || !bgfx::isValid(fog_program_) ||
             !bgfx::isValid(scene_depth) ||
             inverse_view_projection == nullptr) {

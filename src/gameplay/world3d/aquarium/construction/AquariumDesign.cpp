@@ -129,6 +129,8 @@ geometry::TankDesign parseTank(const JsonValue& value) {
     }
     tank.brightness_level = optionalInt32(
         value, "brightnessLevel", aquarium::kAquariumDefaultBrightnessLevel);
+    tank.color_strength_level = optionalInt32(
+        value, "colorStrengthLevel", aquarium::kAquariumDefaultColorStrengthLevel);
     tank.murkiness_level = optionalInt32(
         value, "murkinessLevel", aquarium::kAquariumDefaultMurkinessLevel);
     if (const JsonValue* radii = value.get("cornerRadii")) {
@@ -307,6 +309,7 @@ JsonValue serializeTank(const geometry::TankDesign& tank) {
         {"cornerRadiusSteps", JsonValue(static_cast<double>(tank.corner_radius_steps))},
         {"depthSteps", JsonValue(static_cast<double>(tank.depth_steps))},
         {"exhibitPreset", JsonValue(tank.exhibit_preset)},
+        {"colorStrengthLevel", JsonValue(static_cast<double>(tank.color_strength_level))},
         {"brightnessLevel", JsonValue(static_cast<double>(tank.brightness_level))},
         {"footprint", JsonValue(std::move(footprint))},
         {"glass", JsonValue(JsonValue::Object{{"style", JsonValue(std::string("clear-fixed-v1"))}})},
@@ -348,6 +351,10 @@ std::vector<std::string> validateAquariumDesign(const AquariumDesignDocument& do
         if (tank.brightness_level < 0 ||
             tank.brightness_level >= aquarium::kAquariumBrightnessLevelCount) {
             diagnostics.push_back("invalid_brightness_level:" + tank.id);
+        }
+        if (tank.color_strength_level < 0 ||
+            tank.color_strength_level >= aquarium::kAquariumColorStrengthLevelCount) {
+            diagnostics.push_back("invalid_color_strength_level:" + tank.id);
         }
         if (tank.murkiness_level < 0 ||
             tank.murkiness_level >= aquarium::kAquariumMurkinessLevelCount) {

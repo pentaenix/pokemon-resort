@@ -34,6 +34,13 @@ struct AquariumPokemonActor {
     float model_scale = 0.01f;
     double animation_time_seconds = 0.0;
     float animation_playback_rate = 1.0f;
+    // Short runtime cross-fade used when locomotion changes clips. The source
+    // clip keeps advancing while the destination begins, preventing the model
+    // from snapping between unrelated idle and movement poses.
+    std::string animation_blend_from;
+    double animation_blend_from_time_seconds = 0.0;
+    float animation_blend_elapsed_seconds = 0.0f;
+    float animation_blend_duration_seconds = 0.0f;
     AquariumPokemonPresentationConfig presentation;
     float world_roll_degrees = 0.0f;
 };
@@ -60,6 +67,7 @@ struct AquariumTankRuntime {
     PolygonRing light_boundary_local_meters;
     // Empty for authored tanks; player tanks carry their saved exhibit look.
     std::string exhibit_preset_id;
+    int color_strength_level = 8;
     int brightness_level = 4;
 };
 
@@ -84,7 +92,11 @@ struct AquariumPlayerTankSimulationInput {
     float light_corner_radius_world = 0.0f;
     PolygonRing light_boundary_local_meters;
     std::string exhibit_preset_id = "river";
+    int color_strength_level = 8;
     int brightness_level = 4;
+    // Tank-local decoration anchors used by shelter-seeking species. These
+    // remain hints rather than collision geometry.
+    std::vector<Point3> shelter_points;
 };
 
 struct AquariumMotionDiagnostics {
@@ -146,6 +158,8 @@ private:
         float body_half_length = 0.1f;
         bool floor_navigation = false;
         float floor_navigation_y = 0.0f;
+        bool surface_navigation = false;
+        float surface_navigation_y = 0.0f;
         Behavior behavior = Behavior::Wander;
         std::string school_id;
         float school_phase = 0.0f;
@@ -202,6 +216,10 @@ private:
         float idle_seconds_minimum = 0.0f;
         float idle_seconds_maximum = 0.0f;
         float local_move_distance = 0.0f;
+        float vertical_range_minimum = 0.0f;
+        float vertical_range_maximum = 1.0f;
+        bool prefer_shelter = false;
+        std::vector<Point3> shelter_points;
         float flee_radius = 0.0f;
         float flee_distance = 0.0f;
         float flee_speed_multiplier = 1.0f;
@@ -230,6 +248,7 @@ private:
         std::array<float, 4> horizontal_bounds{};
         std::array<float, 2> vertical_bounds{};
         float world_units_per_meter = 1.0f;
+        std::vector<Point3> shelter_points;
     };
 
     static Point3 toWorld(const TankTransform& tank, float units_per_meter, Point3 local);

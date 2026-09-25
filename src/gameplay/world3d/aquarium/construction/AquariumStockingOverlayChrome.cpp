@@ -62,10 +62,19 @@ void AquariumStockingOverlay::renderTransferChrome(
         SDL_SetTextureBlendMode(background_texture_.texture.get(), SDL_BLENDMODE_BLEND);
         SDL_SetTextureColorMod(background_texture_.texture.get(), 145, 210, 235);
         SDL_SetTextureAlphaMod(background_texture_.texture.get(), 220);
-        const int tile_w = std::max(1, background_texture_.width / 2);
-        const int tile_h = std::max(1, background_texture_.height / 2);
-        for (int y = 0; y < height; y += tile_h) {
-            for (int x = 0; x < width; x += tile_w) {
+        const double scale = std::max(0.01, background_animation_.scale);
+        const int tile_w = std::max(1, static_cast<int>(std::lround(
+            background_texture_.width * scale)));
+        const int tile_h = std::max(1, static_cast<int>(std::lround(
+            background_texture_.height * scale)));
+        const int offset_x = background_animation_.enabled
+            ? static_cast<int>(std::floor(background_animation_.speed_x * animation_seconds_)) % tile_w : 0;
+        const int offset_y = background_animation_.enabled
+            ? static_cast<int>(std::floor(background_animation_.speed_y * animation_seconds_)) % tile_h : 0;
+        const int start_x = offset_x > 0 ? offset_x - tile_w : offset_x;
+        const int start_y = offset_y > 0 ? offset_y - tile_h : offset_y;
+        for (int y = start_y; y < height; y += tile_h) {
+            for (int x = start_x; x < width; x += tile_w) {
                 const SDL_Rect destination{x, y, tile_w, tile_h};
                 SDL_RenderCopy(renderer, background_texture_.texture.get(), nullptr, &destination);
             }
@@ -125,6 +134,10 @@ void AquariumStockingOverlay::renderInfoBanner(
             chip_color = preset.water_surface;
             break;
         }
+        case AquariumStockingController::ExhibitControl::ColorStrength:
+            title = "COLOR STRENGTH";
+            description = "NEUTRAL                         VIVID";
+            break;
         case AquariumStockingController::ExhibitControl::Brightness:
             title = "TANK BRIGHTNESS";
             description = "DIM                         BRIGHT";

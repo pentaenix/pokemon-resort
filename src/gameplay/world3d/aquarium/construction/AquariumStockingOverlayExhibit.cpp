@@ -47,27 +47,27 @@ SDL_Rect colorRect(int width, std::size_t index) {
         kPanelY + kInset, card_w, 94};
 }
 
-SDL_Rect sliderRow(int width, bool murkiness) {
-    return {kPanelX + kInset, kPanelY + 132 + (murkiness ? 78 : 0),
+SDL_Rect sliderRow(int width, int row_index) {
+    return {kPanelX + kInset, kPanelY + 126 + row_index * 66,
         panelWidth(width) - kInset * 2, 62};
 }
 
-SDL_Rect sliderTrack(int width, bool murkiness) {
-    const SDL_Rect row = sliderRow(width, murkiness);
+SDL_Rect sliderTrack(int width, int row_index) {
+    const SDL_Rect row = sliderRow(width, row_index);
     return {row.x + 210, row.y + 18, row.w - 238, 26};
 }
 
 SDL_Rect substrateRect(int width, std::size_t index) {
     const int card_w = (panelWidth(width) - kInset * 2 - kGap * 3) / 4;
     return {kPanelX + kInset + static_cast<int>(index) * (card_w + kGap),
-        kPanelY + 304, card_w, 142};
+        kPanelY + 334, card_w, 128};
 }
 
 std::optional<int> sliderLevelAt(
-    int width, int point_x, int point_y, bool murkiness, int level_count) {
-    const SDL_Rect row = sliderRow(width, murkiness);
+    int width, int point_x, int point_y, int row_index, int level_count) {
+    const SDL_Rect row = sliderRow(width, row_index);
     const SDL_Point point{point_x, point_y};
-    const SDL_Rect track = sliderTrack(width, murkiness);
+    const SDL_Rect track = sliderTrack(width, row_index);
     const SDL_Rect hit{track.x - 18, row.y, track.w + 36, row.h};
     if (!SDL_PointInRect(&point, &hit)) return std::nullopt;
     const int x = std::clamp(point_x, track.x, track.x + track.w);
@@ -88,24 +88,25 @@ void drawFocusRing(SDL_Renderer* renderer, SDL_Rect rect, Color color) {
 void drawSlider(
     SDL_Renderer* renderer,
     int width,
-    bool murkiness,
+    int row_index,
+    const char* label_text,
     int level,
     int level_count,
     bool focused,
     TTF_Font* font) {
-    const SDL_Rect row = sliderRow(width, murkiness);
+    const SDL_Rect row = sliderRow(width, row_index);
     fillRound(renderer, row, 16, {226, 247, 252, 245});
     if (focused) drawFocusRing(renderer, row, {255, 214, 72, 255});
 
     const TextureHandle label = renderTextTexture(renderer, font,
-        murkiness ? "MURKINESS" : "BRIGHTNESS", {18, 74, 119, 255});
+        label_text, {18, 74, 119, 255});
     if (label.texture) {
         const SDL_Rect dst{row.x + 22, row.y + (row.h - label.height) / 2,
             label.width, label.height};
         SDL_RenderCopy(renderer, label.texture.get(), nullptr, &dst);
     }
 
-    const SDL_Rect track = sliderTrack(width, murkiness);
+    const SDL_Rect track = sliderTrack(width, row_index);
     fillRound(renderer, {track.x, track.y + 8, track.w, 10}, 5,
         {44, 116, 155, 255});
     for (int tick = 0; tick < level_count; ++tick) {
@@ -117,7 +118,9 @@ void drawSlider(
     fillRound(renderer, {knob_x - 15, track.y - 2, 30, 30}, 15,
         {255, 214, 72, 255});
     fillRound(renderer, {knob_x - 8, track.y + 5, 16, 16}, 8,
-        murkiness ? Color{43, 87, 107, 255} : Color{255, 248, 188, 255});
+        row_index == 2 ? Color{43, 87, 107, 255}
+                       : row_index == 1 ? Color{255, 248, 188, 255}
+                                        : Color{72, 178, 205, 255});
 }
 
 } // namespace
@@ -129,17 +132,32 @@ SDL_Rect AquariumStockingOverlay::exhibitPresetRect(
 
 std::optional<int> AquariumStockingOverlay::exhibitBrightnessAt(
     int width, int, int point_x, int point_y) const {
-    return sliderLevelAt(width, point_x, point_y, false, kAquariumBrightnessLevelCount);
+    return sliderLevelAt(width, point_x, point_y, 1, kAquariumBrightnessLevelCount);
+}
+
+std::optional<int> AquariumStockingOverlay::exhibitColorStrengthAt(
+    int width, int, int point_x, int point_y) const {
+    return sliderLevelAt(
+        width, point_x, point_y, 0, kAquariumColorStrengthLevelCount);
 }
 
 std::optional<int> AquariumStockingOverlay::exhibitMurkinessAt(
     int width, int, int point_x, int point_y) const {
     return sliderLevelAt(
-        width, point_x, point_y, true, kAquariumMurkinessControlLevelCount);
+        width, point_x, point_y, 2, kAquariumMurkinessControlLevelCount);
+}
+
+int AquariumStockingOverlay::exhibitColorStrengthLevelAtX(
+    int width, int point_x) const {
+    const SDL_Rect track = sliderTrack(width, 0);
+    const int x = std::clamp(point_x, track.x, track.x + track.w);
+    return std::clamp(static_cast<int>(std::lround(
+        static_cast<double>(x - track.x) * (kAquariumColorStrengthLevelCount - 1) /
+        std::max(1, track.w))), 0, kAquariumColorStrengthLevelCount - 1);
 }
 
 int AquariumStockingOverlay::exhibitBrightnessLevelAtX(int width, int point_x) const {
-    const SDL_Rect track = sliderTrack(width, false);
+    const SDL_Rect track = sliderTrack(width, 1);
     const int x = std::clamp(point_x, track.x, track.x + track.w);
     return std::clamp(static_cast<int>(std::lround(
         static_cast<double>(x - track.x) * (kAquariumBrightnessLevelCount - 1) /
@@ -147,7 +165,7 @@ int AquariumStockingOverlay::exhibitBrightnessLevelAtX(int width, int point_x) c
 }
 
 int AquariumStockingOverlay::exhibitMurkinessLevelAtX(int width, int point_x) const {
-    const SDL_Rect track = sliderTrack(width, true);
+    const SDL_Rect track = sliderTrack(width, 2);
     const int x = std::clamp(point_x, track.x, track.x + track.w);
     return std::clamp(static_cast<int>(std::lround(
         static_cast<double>(x - track.x) * (kAquariumMurkinessControlLevelCount - 1) /
@@ -194,12 +212,17 @@ void AquariumStockingOverlay::renderExhibit(
         if (focused) drawFocusRing(renderer, card, carousel_style_.frame_basic);
     }
 
-    drawSlider(renderer, width, false, controller.focusedBrightnessLevel(),
+    drawSlider(renderer, width, 0, "COLOR", controller.focusedColorStrengthLevel(),
+        kAquariumColorStrengthLevelCount,
+        controller.focusedExhibitControl() ==
+            AquariumStockingController::ExhibitControl::ColorStrength,
+        summary_font_.get());
+    drawSlider(renderer, width, 1, "BRIGHTNESS", controller.focusedBrightnessLevel(),
         kAquariumBrightnessLevelCount,
         controller.focusedExhibitControl() ==
             AquariumStockingController::ExhibitControl::Brightness,
         summary_font_.get());
-    drawSlider(renderer, width, true, controller.focusedMurkinessLevel(),
+    drawSlider(renderer, width, 2, "MURKINESS", controller.focusedMurkinessLevel(),
         kAquariumMurkinessControlLevelCount,
         controller.focusedExhibitControl() ==
             AquariumStockingController::ExhibitControl::Murkiness,

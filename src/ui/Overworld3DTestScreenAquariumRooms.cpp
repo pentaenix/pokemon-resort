@@ -83,6 +83,39 @@ std::vector<rooms::RoomOccupancy> Overworld3DTestScreen::aquariumRoomOccupancy()
     return result;
 }
 
+std::vector<pr::aquarium::geometry::GridCell> Overworld3DTestScreen::aquariumCombinedCollisionCells() {
+    auto cells=player_aquarium_runtime_.collision_cells;
+    if(!room_decoration_catalog_loaded_) {
+        room_decoration_catalog_.scan(project_root_);room_decoration_catalog_loaded_=true;
+    }
+    const auto* room=aquarium_building_?rooms::findRoom(*aquarium_building_,scene_.id):nullptr;
+    if(room) for(const auto& object:room->decorations) {
+        const auto* asset=room_decoration_catalog_.resolve(object.asset_id);
+        if(!asset){cells.push_back({object.cell.column,object.cell.row});continue;}
+        for(const auto occupied:rooms::roomDecorationCollisionCells(
+            *asset,object.cell,object.yaw_quarter_turns,scene_.grid.tile_size))
+            cells.push_back({occupied.column,occupied.row});
+    }
+    return cells;
+}
+
+bool Overworld3DTestScreen::playerOnAquariumDecorationWaterSurface() {
+    if(!aquarium_building_)return false;
+    if(!room_decoration_catalog_loaded_) {
+        room_decoration_catalog_.scan(project_root_);room_decoration_catalog_loaded_=true;
+    }
+    const auto* room=rooms::findRoom(*aquarium_building_,scene_.id);
+    if(!room)return false;
+    for(const auto& object:room->decorations) {
+        const auto* asset=room_decoration_catalog_.resolve(object.asset_id);
+        if(!asset||asset->surface_effect!=rooms::RoomDecorationSurfaceEffect::ShallowWater)continue;
+        for(const auto cell:rooms::roomDecorationPlacementCells(
+            *asset,object.cell,object.yaw_quarter_turns,scene_.grid.tile_size))
+            if(cell.column==player_.tileX()&&cell.row==player_.tileY())return true;
+    }
+    return false;
+}
+
 bool Overworld3DTestScreen::beginAquariumRoomResize() {
     const auto state=aquarium_construction_.state();
     if(!aquarium_building_ || !rooms::findRoom(*aquarium_building_,scene_.id) ||
@@ -93,14 +126,37 @@ bool Overworld3DTestScreen::beginAquariumRoomResize() {
     aquarium_construction_.clearSelection();
     aquarium_room_candidate_=*aquarium_building_;
     aquarium_room_draft_=rooms::findRoom(*aquarium_building_,scene_.id)->bounds;
+    aquarium_room_edit_mode_=aqc::ConstructionRoomEditMode::Layout;
+    aquarium_room_palette_index_=0;
+    aquarium_room_transition_kind_=rooms::RoomTransitionKind::Stairs;
     aquarium_room_error_.clear(); aquarium_room_gesture_.reset();
+    aquarium_room_paint_gesture_.reset();
+    aquarium_room_level_selection_baseline_.reset();
+    aquarium_room_level_selection_ready_=false;
+    aquarium_room_level_knob_dragging_=false;
+    aquarium_room_paint_wall_.reset();
+    aquarium_room_wall_camera_pan_=0.0f;
+    aquarium_room_terrain_camera_initialized_=false;
+    aquarium_room_terrain_camera_panning_=false;
+    aquarium_room_terrain_top_down_=false;
     aquarium_room_handle_focus_=0;
+    if(!room_decoration_catalog_loaded_) {
+        room_decoration_catalog_.scan(project_root_);room_decoration_catalog_loaded_=true;
+    }
+    room_decoration_asset_.reset();room_decoration_selected_.reset();
+    room_decoration_draft_.reset();room_decoration_dragging_=false;
+    room_decoration_category_index_=0;room_decoration_asset_index_=0;
     return true;
 }
 
 bool Overworld3DTestScreen::adjustAquariumRoomSize(int,int) {
     // Wheel zoom: keep the current camera centre; wall dragging never chases itself.
     if(!aquarium_room_draft_ || aquarium_room_gesture_) return false;
+    if((aquarium_room_edit_mode_==aqc::ConstructionRoomEditMode::Levels||
+        aquarium_room_edit_mode_==aqc::ConstructionRoomEditMode::Transitions)&&
+        aquarium_room_terrain_top_down_) {
+        frameAquariumRoomTerrainEditor();return true;
+    }
     const auto overview=aqc::trackAquariumConstructionCursor(
         aquarium_construction_camera_tracking_,scene_.grid.width,scene_.grid.height,
         scene_.grid.tile_size,scene_.interior.floor_datum,camera_.pose().preset.fov_y_deg,
@@ -110,13 +166,97 @@ bool Overworld3DTestScreen::adjustAquariumRoomSize(int,int) {
     return true;
 }
 
+void Overworld3DTestScreen::frameAquariumRoomTerrainEditor() {
+    if(!aquarium_room_draft_) return;
+    constexpr float kPi=3.1415926535f;
+    const auto bounds=*aquarium_room_draft_;
+    const float tile=std::max(1.0f,scene_.grid.tile_size);
+    const float width=std::max(1,bounds.width)*tile;
+    const float depth=std::max(1,bounds.depth)*tile;
+    const float aspect=float(std::max(1,app_config_.window.virtual_width)) /
+        float(std::max(1,app_config_.window.virtual_height));
+    const float tangent=std::tan(std::clamp(camera_.pose().preset.fov_y_deg,
+        15.0f,70.0f)*kPi/360.0f);
+    const float fit_vertical=(depth*.5f+tile*1.5f)/std::max(.1f,tangent);
+    const float fit_horizontal=(width*.5f+tile*1.5f)/std::max(.1f,tangent*aspect);
+    const float distance=std::min(std::max(fit_vertical,fit_horizontal)*
+        aquarium_construction_camera_tracking_.zoom_scale,
+        std::max(tile*8.0f,camera_.pose().preset.far_clip-tile*2.0f));
+    const float origin_x=(bounds.column-scene_.interior.grid_origin_x)*tile;
+    const float origin_z=(bounds.row-scene_.interior.grid_origin_y)*tile;
+    if(!aquarium_room_terrain_camera_initialized_) {
+        aquarium_room_terrain_camera_x_=origin_x+width*.5f;
+        aquarium_room_terrain_camera_z_=origin_z+depth*.5f;
+        aquarium_room_terrain_camera_initialized_=true;
+    }
+    aquarium_room_terrain_camera_x_=std::clamp(aquarium_room_terrain_camera_x_,
+        origin_x-tile*2.0f,origin_x+width+tile*2.0f);
+    aquarium_room_terrain_camera_z_=std::clamp(aquarium_room_terrain_camera_z_,
+        origin_z-tile*2.0f,origin_z+depth+tile*6.0f);
+    camera_.setManualPose({aquarium_room_terrain_camera_x_,scene_.interior.floor_datum+distance,
+        aquarium_room_terrain_camera_z_},
+        180.0f,-89.0f);
+}
+
+void Overworld3DTestScreen::previewAquariumRoomSurfaceStyle() {
+    if(!aquarium_room_candidate_) return;
+    const auto* room=rooms::findRoom(*aquarium_room_candidate_,scene_.id);
+    if(!room) return;
+    const auto projected=rooms::projectBuildingRoom(aquarium_room_style_,*aquarium_room_candidate_,*room);
+    scene_.interior.default_room=projected.interior.default_room;
+    scene_.tile_layers=projected.tile_layers;
+    if(bgfx_renderer_ && !bgfx_renderer_->setDefaultRoomPreview(
+        scene_.interior.default_room,projected.terrain,projected.tile_layers))
+        aquarium_room_error_="Could not preview the room surface";
+}
+
+bool Overworld3DTestScreen::setAquariumRoomSurfacePalette(int palette) {
+    if(!aquarium_room_candidate_ ||
+        (aquarium_room_edit_mode_!=aqc::ConstructionRoomEditMode::Floor &&
+         aquarium_room_edit_mode_!=aqc::ConstructionRoomEditMode::Walls)) return false;
+    palette=std::clamp(palette,0,rooms::kRoomSurfacePaletteCount-1);
+    aquarium_room_palette_index_=palette;
+    aquarium_room_error_.clear();
+    return true;
+}
+
 void Overworld3DTestScreen::cancelAquariumRoomResize() {
+    if(room_decoration_draft_) {
+        room_decoration_draft_.reset();room_decoration_dragging_=false;
+        aquarium_room_error_.clear();
+        refreshAquariumRenderActors();return;
+    }
+    if(aquarium_room_paint_gesture_) {
+        if(aquarium_room_level_selection_ready_&&aquarium_room_level_selection_baseline_) {
+            aquarium_room_candidate_=*aquarium_room_level_selection_baseline_;
+            previewAquariumRoomSurfaceStyle();
+        }
+        aquarium_room_paint_gesture_.reset();
+        aquarium_room_level_selection_baseline_.reset();
+        aquarium_room_level_selection_ready_=false;
+        aquarium_room_level_knob_dragging_=false;
+        return;
+    }
     if(aquarium_room_gesture_) {
         aquarium_room_candidate_=aquarium_room_gesture_->baseline;
         aquarium_room_draft_=rooms::findRoom(*aquarium_room_candidate_,scene_.id)->bounds;
         aquarium_room_gesture_.reset(); aquarium_room_error_.clear(); return;
     }
+    if(aquarium_building_) {
+        aquarium_room_candidate_=*aquarium_building_;
+        previewAquariumRoomSurfaceStyle();
+    }
     aquarium_room_candidate_.reset(); aquarium_room_draft_.reset(); aquarium_room_error_.clear();
+    aquarium_room_paint_gesture_.reset();
+    aquarium_room_level_selection_baseline_.reset();
+    aquarium_room_level_selection_ready_=false;
+    aquarium_room_level_knob_dragging_=false;
+    aquarium_room_paint_wall_.reset();
+    aquarium_room_wall_camera_pan_=0.0f;
+    aquarium_room_terrain_camera_panning_=false;
+    aquarium_room_terrain_top_down_=false;
+    room_decoration_selected_.reset();room_decoration_draft_.reset();room_decoration_dragging_=false;
+    aquarium_room_edit_mode_=aqc::ConstructionRoomEditMode::Layout;
     resetAquariumConstructionPointerOperation(); syncAquariumConstructionFocus();
 }
 

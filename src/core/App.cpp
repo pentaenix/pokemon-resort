@@ -117,6 +117,14 @@ void releaseSdlUi(
     TitleScreen& title_screen,
     AppLoadingCoordinator& loading,
     TransferFlowCoordinator& transfer_flow) {
+    if (renderer) {
+        // The SDL layer remains underneath Metal while a bgfx screen is active.
+        // Leave it black so temporarily replacing the Metal view for a loading
+        // screen can never reveal the previously rendered title menu.
+        SDL_SetRenderDrawColor(renderer.get(), 0, 0, 0, 255);
+        SDL_RenderClear(renderer.get());
+        SDL_RenderPresent(renderer.get());
+    }
     title_screen.replaceAssets(Assets{});
     loading.rebindRenderer(nullptr);
     transfer_flow.rebindRenderer(nullptr);

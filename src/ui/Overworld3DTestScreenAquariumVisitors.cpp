@@ -3,6 +3,21 @@
 #include <set>
 
 namespace pr {
+void Overworld3DTestScreen::prepareAquariumVisitors() {
+    if(!npc_actor_driver_)return;
+    std::vector<std::pair<int,int>> reserved_tiles;
+    reserved_tiles.push_back({player_.tileX(),player_.tileY()});
+    const auto player_segment=player_.movementSegment();
+    if(player_segment.active)reserved_tiles.push_back({player_segment.to_x,player_segment.to_y});
+    const std::size_t player_reserved_tile_count=reserved_tiles.size();
+    if(follower_controller_) {
+        const auto follower_tiles=follower_controller_->reservedTiles();
+        reserved_tiles.insert(reserved_tiles.end(),follower_tiles.begin(),follower_tiles.end());
+    }
+    npc_actor_driver_->setReservedTiles(std::move(reserved_tiles),player_reserved_tile_count);
+    configureAquariumVisitors();
+}
+
 void Overworld3DTestScreen::configureAquariumVisitors() {
     namespace npc=gameplay::world3d::npc;
     namespace rooms=gameplay::world3d::aquarium::rooms;
