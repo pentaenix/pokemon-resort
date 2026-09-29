@@ -57,6 +57,7 @@ struct LoadedWorldChunk {
     SceneConfig scene;
     int origin_tile_x = 0;
     int origin_tile_y = 0;
+    bool editable_land = false;
 };
 
 std::vector<LoadedWorldChunk> selectActiveWorldChunks(

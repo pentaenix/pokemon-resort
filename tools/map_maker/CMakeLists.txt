@@ -56,6 +56,8 @@ add_library(pokemon_resort_map_maker_runtime OBJECT
     ${CMAKE_SOURCE_DIR}/src/gameplay/world3d/camera/Gen4FollowCamera.cpp
     ${CMAKE_SOURCE_DIR}/src/gameplay/attend/PokemonModelCatalog.cpp
     ${CMAKE_SOURCE_DIR}/src/gameplay/world3d/aquarium/AquariumConfig.cpp
+    ${CMAKE_SOURCE_DIR}/src/gameplay/world3d/aquarium/AquariumCrowdSimulation.cpp
+    ${CMAKE_SOURCE_DIR}/src/gameplay/world3d/aquarium/AquariumFormationSimulation.cpp
     ${CMAKE_SOURCE_DIR}/src/gameplay/world3d/aquarium/AquariumNavigation.cpp
     ${CMAKE_SOURCE_DIR}/src/gameplay/world3d/aquarium/AquariumPokemonMetrics.cpp
     ${CMAKE_SOURCE_DIR}/src/gameplay/world3d/aquarium/AquariumSimulation.cpp
@@ -64,6 +66,7 @@ add_library(pokemon_resort_map_maker_runtime OBJECT
     ${CMAKE_SOURCE_DIR}/src/gameplay/world3d/aquarium/AquariumSchoolSimulation.cpp
     ${CMAKE_SOURCE_DIR}/src/gameplay/world3d/aquarium/AquariumBodyNavigation.cpp
     ${CMAKE_SOURCE_DIR}/src/gameplay/world3d/aquarium/AquariumMotion.cpp
+    ${CMAKE_SOURCE_DIR}/src/gameplay/world3d/aquarium/rooms/AquariumRoomSurfacePalette.cpp
     ${CMAKE_SOURCE_DIR}/src/gameplay/world3d/characters/CharacterController.cpp
     ${CMAKE_SOURCE_DIR}/src/gameplay/world3d/characters/CharacterTerrainQuery.cpp
     ${CMAKE_SOURCE_DIR}/src/gameplay/world3d/characters/GridActorMotor.cpp
@@ -287,6 +290,7 @@ pr_add_map_maker_test(world_picker_tests
 
 add_custom_target(pokemon_resort_map_maker_tests
     DEPENDS
+        pokemon_resort_map_maker
         autosave_recovery_tests
         command_stack_tests
         canvas_lens_tests

@@ -42,6 +42,7 @@ public:
     virtual void onAquariumConstructionPressed(SDL_JoystickID controller_instance_id = -1) {
         (void)controller_instance_id;
     }
+    virtual void onWorldBuildModePressed() {}
 
     // --- Optional "long press" hooks (implemented by InputRouter) ---
     // If `captureAdvanceForLongPress()` is true, InputRouter will NOT call `onAdvancePressed()` on key-down.

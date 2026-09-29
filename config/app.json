@@ -17,11 +17,12 @@
     "navigate_left_keys": ["LEFT", "A"],
     "navigate_right_keys": ["RIGHT", "D"],
     "forward_keys": ["M", "RETURN", "SPACE"],
-    "back_keys": ["N", "ESCAPE", "BACKSPACE"],
+    "back_keys": ["ESCAPE", "BACKSPACE"],
     "run_keys": ["B"],
     "run_toggle_keys": [],
     "attend_keys": ["X"],
     "aquarium_construction_keys": ["Z"],
+    "world_build_mode_keys": ["N"],
     "record_toggle_keys": ["R"],
     "screenshot_keys": ["T"]
   },

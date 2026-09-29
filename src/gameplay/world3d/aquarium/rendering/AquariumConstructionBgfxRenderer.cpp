@@ -205,6 +205,7 @@ public:
         bool homogeneous_depth) const {
         if (!initialized_ || !visual_.visible || framebuffer_width <= 0 ||
             framebuffer_height <= 0 || logical_width <= 0 || logical_height <= 0) return;
+        if (!visual_.show_hud) return;
         if (visual_.stocking_active) return;
         const int width = logical_width;
         const int height = logical_height;

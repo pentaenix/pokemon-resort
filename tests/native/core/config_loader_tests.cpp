@@ -51,7 +51,7 @@ void testCommittedAppConfigKeepsInputContract() {
     const fs::path path = repositoryRoot() / "config" / "app.json";
     const pr::AppConfig config = pr::loadAppConfigFromJson(path.string());
 
-    expect(config.window.width == 640, "app.json window.width should keep the compact desktop preview");
+    expect(config.window.width == 800, "app.json window.width should keep the compact desktop preview");
     expect(config.window.virtual_width == 1280, "app.json virtual_width must remain the logical render width");
     expect(config.window.design_height == 800, "app.json design_height must remain 800 for UI hit tests");
     expect(config.input.accept_mouse, "app.json should enable mouse input unless intentionally disabled");
@@ -62,7 +62,9 @@ void testCommittedAppConfigKeepsInputContract() {
            "app.json forward_keys changed; update input tests/docs if this is intentional");
     expect(config.input.aquarium_construction_keys == std::vector<std::string>({"Z"}),
            "app.json aquarium construction binding must remain explicit");
-    expect(config.input.back_keys == std::vector<std::string>({"N", "ESCAPE", "BACKSPACE"}),
+    expect(config.input.world_build_mode_keys == std::vector<std::string>({"N"}),
+           "app.json world build-mode binding must remain explicit");
+    expect(config.input.back_keys == std::vector<std::string>({"ESCAPE", "BACKSPACE"}),
            "app.json back_keys changed; update input tests/docs if this is intentional");
 }
 
@@ -115,7 +117,8 @@ void testAppConfigCanOverrideEveryInputBindingVector() {
             "run_keys": ["B"],
             "run_toggle_keys": ["V"],
             "attend_keys": ["X"],
-            "aquarium_construction_keys": ["K"]
+            "aquarium_construction_keys": ["K"],
+            "world_build_mode_keys": ["N"]
         }
     })json");
 
@@ -136,6 +139,8 @@ void testAppConfigCanOverrideEveryInputBindingVector() {
     expect(config.input.attend_keys == std::vector<std::string>({"X"}), "attend_keys should be fully data-driven");
     expect(config.input.aquarium_construction_keys == std::vector<std::string>({"K"}),
         "aquarium_construction_keys should be fully data-driven");
+    expect(config.input.world_build_mode_keys == std::vector<std::string>({"N"}),
+        "world_build_mode_keys should be fully data-driven");
 }
 
 void testAppConfigCanAuthorAquariumMusic() {

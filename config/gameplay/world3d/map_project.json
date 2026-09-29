@@ -111,6 +111,7 @@
       "gridY": 0,
       "id": "0",
       "linked": true,
+      "editPolicy": "editable_land",
       "name": "Resort"
     },
     {
@@ -136,6 +137,134 @@
       "id": "aquarium_builder_lab",
       "linked": false,
       "name": "Aquarium Builder Lab"
+    },
+    {
+      "file": "resort_beach_west_2.owmap",
+      "gridX": -2,
+      "gridY": 0,
+      "id": "resort_beach_west_2",
+      "linked": true,
+      "name": "Resort Beach - Far West"
+    },
+    {
+      "file": "resort_beach_west_1.owmap",
+      "gridX": -1,
+      "gridY": 0,
+      "id": "resort_beach_west_1",
+      "linked": true,
+      "name": "Resort Beach - West"
+    },
+    {
+      "file": "resort_beach_east_1.owmap",
+      "gridX": 1,
+      "gridY": 0,
+      "id": "resort_beach_east_1",
+      "linked": true,
+      "name": "Resort Beach - East"
+    },
+    {
+      "file": "resort_beach_east_2.owmap",
+      "gridX": 2,
+      "gridY": 0,
+      "id": "resort_beach_east_2",
+      "linked": true,
+      "name": "Resort Beach - Far East"
+    },
+    {
+      "file": "resort_ocean_west_2.owmap",
+      "gridX": -2,
+      "gridY": 1,
+      "id": "resort_ocean_west_2",
+      "linked": true,
+      "name": "Resort Ocean - Far West"
+    },
+    {
+      "file": "resort_ocean_west_1.owmap",
+      "gridX": -1,
+      "gridY": 1,
+      "id": "resort_ocean_west_1",
+      "linked": true,
+      "name": "Resort Ocean - West"
+    },
+    {
+      "file": "resort_ocean_east_1.owmap",
+      "gridX": 1,
+      "gridY": 1,
+      "id": "resort_ocean_east_1",
+      "linked": true,
+      "name": "Resort Ocean - East"
+    },
+    {
+      "file": "resort_ocean_east_2.owmap",
+      "gridX": 2,
+      "gridY": 1,
+      "id": "resort_ocean_east_2",
+      "linked": true,
+      "name": "Resort Ocean - Far East"
+    },
+    {
+      "file": "resort_palm_grove_north.owmap",
+      "gridX": 0,
+      "gridY": -1,
+      "id": "resort_palm_grove_north",
+      "linked": true,
+      "name": "Resort Palm Grove - North"
+    },
+    {
+      "file": "resort_beach_west_3.owmap",
+      "gridX": -3,
+      "gridY": 0,
+      "id": "resort_beach_west_3",
+      "linked": true,
+      "name": "Resort Beach - Distant West"
+    },
+    {
+      "file": "resort_ocean_west_3.owmap",
+      "gridX": -3,
+      "gridY": 1,
+      "id": "resort_ocean_west_3",
+      "linked": true,
+      "name": "Resort Ocean - Distant West"
+    },
+    {
+      "file": "resort_palm_grove_north_west_3.owmap",
+      "gridX": -3,
+      "gridY": -1,
+      "id": "resort_palm_grove_north_west_3",
+      "linked": true,
+      "name": "Resort Palm Grove - Distant Northwest"
+    },
+    {
+      "file": "resort_palm_grove_north_west_2.owmap",
+      "gridX": -2,
+      "gridY": -1,
+      "id": "resort_palm_grove_north_west_2",
+      "linked": true,
+      "name": "Resort Palm Grove - Far Northwest"
+    },
+    {
+      "file": "resort_palm_grove_north_west_1.owmap",
+      "gridX": -1,
+      "gridY": -1,
+      "id": "resort_palm_grove_north_west_1",
+      "linked": true,
+      "name": "Resort Palm Grove - Northwest"
+    },
+    {
+      "file": "resort_palm_grove_north_east_1.owmap",
+      "gridX": 1,
+      "gridY": -1,
+      "id": "resort_palm_grove_north_east_1",
+      "linked": true,
+      "name": "Resort Palm Grove - Northeast"
+    },
+    {
+      "file": "resort_palm_grove_north_east_2.owmap",
+      "gridX": 2,
+      "gridY": -1,
+      "id": "resort_palm_grove_north_east_2",
+      "linked": true,
+      "name": "Resort Palm Grove - Far Northeast"
     }
   ],
   "name": "Pokemon Resort",

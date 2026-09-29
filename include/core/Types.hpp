@@ -127,11 +127,12 @@ struct InputConfig {
     std::vector<std::string> navigate_left_keys{"LEFT", "A"};
     std::vector<std::string> navigate_right_keys{"RIGHT", "D"};
     std::vector<std::string> forward_keys{"M", "RETURN", "SPACE"};
-    std::vector<std::string> back_keys{"N", "ESCAPE", "BACKSPACE"};
+    std::vector<std::string> back_keys{"ESCAPE", "BACKSPACE"};
     std::vector<std::string> run_keys{"B"};
     std::vector<std::string> run_toggle_keys{};
     std::vector<std::string> attend_keys{"X"};
     std::vector<std::string> aquarium_construction_keys{"Z"};
+    std::vector<std::string> world_build_mode_keys{"N"};
     /// Optional app-level bindings. Missing/empty means disabled.
     std::vector<std::string> record_toggle_keys{};
     std::vector<std::string> screenshot_keys{};

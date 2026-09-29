@@ -26,10 +26,12 @@ enum class MaterialClass {
 class OverworldBgfxRenderer {
 public:
     struct StaticMapChunk {
+        std::string id;
         SceneConfig scene;
         float origin_x = 0.0f;
         float origin_y = 0.0f;
         float origin_z = 0.0f;
+        bool active = true;
     };
 
     // Header-friendly description of the renderer-owned color attachment used
@@ -81,7 +83,9 @@ public:
     void shutdown();
     bool valid() const;
     std::string lastError() const;
-    void setStaticMapChunks(std::vector<StaticMapChunk> chunks);
+    bool setStaticMapChunks(std::vector<StaticMapChunk> chunks);
+    bool setWorldDecorationModels(std::vector<ModelPlacementConfig> placements);
+    void setActiveStaticMapChunks(const std::vector<std::string>& active_ids);
     void setAquariumPokemonActors(
         std::vector<aquarium::AquariumPokemonActor> actors);
     void setAquariumTankLights(

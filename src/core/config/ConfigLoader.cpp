@@ -72,6 +72,8 @@ void applyInputConfig(InputConfig& out, const JsonValue& obj) {
     if (auto v = child(obj, "attend_keys")) applyStringVector(out.attend_keys, *v, "input.attend_keys");
     if (auto v = child(obj, "aquarium_construction_keys")) applyStringVector(
         out.aquarium_construction_keys, *v, "input.aquarium_construction_keys");
+    if (auto v = child(obj, "world_build_mode_keys")) applyStringVector(
+        out.world_build_mode_keys, *v, "input.world_build_mode_keys");
     if (auto v = child(obj, "record_toggle_keys")) applyStringVector(out.record_toggle_keys, *v, "input.record_toggle_keys");
     if (auto v = child(obj, "screenshot_keys")) applyStringVector(out.screenshot_keys, *v, "input.screenshot_keys");
 }

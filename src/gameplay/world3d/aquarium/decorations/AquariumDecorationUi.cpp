@@ -237,8 +237,23 @@ RoomAssetTrayLayout roomAssetTrayLayout(int w,int h) {
 const Pixels& Ui::rasterizeRoomAssets(const std::string& root,int w,int h,
     const rooms::RoomDecorationCatalog& catalog,std::string_view category,int page,int selected,bool busy) {
     const auto entries=catalog.indices(category);
-    std::ostringstream key; key<<"room:"<<w<<':'<<h<<':'<<category<<':'<<page<<':'<<selected<<':'<<busy;
-    for(const auto& asset:catalog.entries())key<<':'<<asset.id;
+    std::vector<AssetTrayEntry> assets;
+    assets.reserve(entries.size());
+    for(const auto index:entries) {
+        const auto& asset=catalog.entries()[index];
+        assets.push_back({asset.id,asset.path});
+    }
+    int category_index=0;
+    for(int index=0;index<4;++index) if(rooms::kRoomDecorationCategories[index]==category) category_index=index;
+    return rasterizeAssetTray(root,w,h,assets,category_index,page,selected,busy,
+        std::string("room:")+std::string(category));
+}
+
+const Pixels& Ui::rasterizeAssetTray(const std::string& root,int w,int h,
+    const std::vector<AssetTrayEntry>& entries,int active_category,int page,int selected,bool busy,
+    std::string_view content_key) {
+    std::ostringstream key; key<<content_key<<':'<<w<<':'<<h<<':'<<active_category<<':'<<page<<':'<<selected<<':'<<busy;
+    for(const auto& asset:entries)key<<':'<<asset.id;
     if(pixels_.key==key.str())return pixels_;
     if(!surface_||pixels_.width!=w||pixels_.height!=h) {
         reset();surface_=SDL_CreateRGBSurfaceWithFormat(0,w,h,32,SDL_PIXELFORMAT_RGBA32);
@@ -249,6 +264,7 @@ const Pixels& Ui::rasterizeRoomAssets(const std::string& root,int w,int h,
     SDL_SetRenderDrawBlendMode(renderer_,SDL_BLENDMODE_NONE);
     SDL_SetRenderDrawColor(renderer_,0,0,0,0);SDL_RenderClear(renderer_);
     SDL_SetRenderDrawBlendMode(renderer_,SDL_BLENDMODE_BLEND);
+    if(content_key.rfind("world-decoration",0)==0) renderWorldBuildControls(root,w,h);
     const auto layout=roomAssetTrayLayout(w,h);
     OverlayButton panel;panel.anchor=OverlayAnchor::TopLeft;panel.id="room_asset_panel";
     panel.style.width=layout.panel.w;panel.style.height=layout.panel.h;
@@ -261,7 +277,7 @@ const Pixels& Ui::rasterizeRoomAssets(const std::string& root,int w,int h,
         OverlayButton view;view.anchor=OverlayAnchor::TopLeft;view.id="room_category_"+std::to_string(tab);
         view.style.width=rect.w;view.style.height=rect.h;view.style.margin_x=rect.x;view.style.margin_y=rect.y;
         view.style.corner_radius=23;view.style.fill={31,102,143,245};
-        if(rooms::kRoomDecorationCategories[tab]==category)view.style.stroke={255,213,87,255};
+        if(tab==active_category)view.style.stroke={255,213,87,255};
         canvas_->renderButton(renderer_,root,view);
         const int cx=rect.x+rect.w/2,cy=rect.y+rect.h/2;
         SDL_SetRenderDrawColor(renderer_,245,252,255,255);
@@ -306,7 +322,7 @@ const Pixels& Ui::rasterizeRoomAssets(const std::string& root,int w,int h,
         view.style.corner_radius=16;view.style.fill={36,119,160,245};view.style.padding_x=8;
         if(index==selected)view.style.stroke={255,213,87,255};
         canvas_->renderButton(renderer_,root,view);
-        const auto& asset=catalog.entries()[entries[index]];
+        const auto& asset=entries[index];
         if(auto* texture=thumbnail(asset.id,asset.path)) {
             const float scale=std::min((rect.w-8)/144.0f,(rect.h-8)/90.0f);
             SDL_Rect preview{rect.x+(rect.w-int(144*scale))/2,rect.y+(rect.h-int(90*scale))/2,
@@ -318,4 +334,5 @@ const Pixels& Ui::rasterizeRoomAssets(const std::string& root,int w,int h,
         static_cast<Uint8*>(surface_->pixels)+row*surface_->pitch,std::size_t(w)*4);
     pixels_.key=key.str();return pixels_;
 }
+
 } // namespace pr::gameplay::world3d::aquarium::decorations

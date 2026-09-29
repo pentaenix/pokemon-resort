@@ -177,7 +177,7 @@ void testKeyboardMenuNavigationAndBackReturnToTitlePrompt() {
     harness.press(SDLK_w);
     expect(harness.selectedMenuIndex() == 0, "W should move main menu selection up to RESORT via app.json bindings");
 
-    harness.press(SDLK_n);
+    harness.press(SDLK_ESCAPE);
     expect(harness.state() == pr::TitleState::WaitingForStart,
            "Back from MainMenuIdle should return to WaitingForStart");
     expect(containsEvent(harness.consumeEvents(), pr::TitleScreenEvent::ButtonSfxRequested),

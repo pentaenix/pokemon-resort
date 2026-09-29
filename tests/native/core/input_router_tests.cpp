@@ -32,6 +32,7 @@ struct FakeScreen final : pr::ScreenInput {
     int advance_calls = 0;
     int back_calls = 0;
     int aquarium_construction_calls = 0;
+    int world_build_mode_calls = 0;
     int move_calls = 0;
     int press_calls = 0;
     int release_calls = 0;
@@ -91,6 +92,7 @@ struct FakeScreen final : pr::ScreenInput {
     }
     void onBackPressed() override { ++back_calls; }
     void onAquariumConstructionPressed(SDL_JoystickID) override { ++aquarium_construction_calls; }
+    void onWorldBuildModePressed() override { ++world_build_mode_calls; }
     void handlePointerMoved(int, int) override { ++move_calls; }
     bool handlePointerPressed(int, int) override {
         ++press_calls;
@@ -279,6 +281,10 @@ int main() {
         "controller Y aquarium construction action is handled");
     expect(actions.aquarium_construction_calls == 2,
         "keyboard Z and controller Y share one semantic construction action");
+    expect(router.handleEvent(keyDown(SDLK_n), config, &actions),
+        "configured world build-mode key is handled");
+    expect(actions.world_build_mode_calls == 1 && actions.back_calls == 1,
+        "keyboard N enters build mode without dispatching Back");
 
     FakeScreen stick;
     stick.two_dimensional = true;

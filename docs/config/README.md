@@ -7,7 +7,7 @@ Runtime code owns state transitions, input semantics, parsing, persistence, brid
 ## Config Files
 
 - [`app.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/app.json)
-  Shared app config: desktop window size, logical/design resolution, app title, input bindings, audio assets (including `aquarium_music`), and default audio volumes. Aquarium music uses the same persisted Music Volume option as other music. Parsed by `ConfigLoader.cpp` into `AppConfig`.
+  Shared app config: desktop window size, logical/design resolution, app title, input bindings, audio assets (including `aquarium_music`), and default audio volumes. `input.world_build_mode_keys` owns the outdoor build-mode toggle (`N` by default); `N` is intentionally not a Back binding. Aquarium music uses the same persisted Music Volume option as other music. Parsed by `ConfigLoader.cpp` into `AppConfig`.
 - [`title_screen.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/title_screen.json)
   Title/menu/options authoring: intro timings, logo/background assets, prompt/menu/options text, skip flags, save identity (`persistence`: SDL organization/application, primary/backup JSON save file names, and **`resort_profile_file_name`** for the SQLite Resort DB next to those files), and title-specific visual tuning. Parsed by `ConfigLoader.cpp` into `TitleScreenConfig`.
 - [`loading_screen.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/loading_screen.json)
@@ -22,6 +22,8 @@ Runtime code owns state transitions, input semantics, parsing, persistence, brid
   Transfer-system Pokemon Summary panel shell and future Summary content authoring. See [`pokemon_summary.md`](pokemon_summary.md).
 - [`gameplay/world3d/aquarium_room_decorations.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/gameplay/world3d/aquarium_room_decorations.json)
   Asset-owned room-decoration categories and collision profiles. Assets are estimated into `structures`, `furniture`, `nature`, and `equipment` tabs from their names; an entry can override that estimate. Unlisted models use their conservative measured bounds. Use `cell-mask` for gates and irregular props that should block only selected local grid cells, or `none` for non-solid visual props. Mask cells are relative to the placement cell at zero rotation and rotate with the decoration; placed-room save documents continue to store only the asset ID and transform.
+- [`gameplay/world3d/world_decorations.json`](/Users/vanta/Desktop/title_screen_demo/pokemon-resort/config/gameplay/world3d/world_decorations.json)
+  Outdoor build-mode asset catalog. Map editability remains a map-project policy (`editPolicy: "editable_land"`); authored `.owmap` files are never rewritten by play. Confirmed player placements are profile data under the normal save directory. In build mode, Tab opens or closes this catalog; it is intentionally closed on entry so the map remains visible.
 
 ## Adding Or Moving Config
 

@@ -1,0 +1,42 @@
+{
+  "schema": "pokemon-resort-world-decoration-catalog",
+  "schemaVersion": 1,
+  "assets": [
+    {
+      "id": "palm",
+      "category": "nature",
+      "glb": "assets/overworld/models/palm/palm.glb",
+      "scale": 1
+    },
+    {
+      "id": "palm-left",
+      "category": "nature",
+      "glb": "assets/overworld/models/palm_left/palm_left.glb",
+      "scale": 1
+    },
+    {
+      "id": "palm-old",
+      "category": "nature",
+      "glb": "assets/overworld/models/palm_old/palm_old.glb",
+      "scale": 1
+    },
+    {
+      "id": "palm-right",
+      "category": "nature",
+      "glb": "assets/overworld/models/palm_right/palm_right.glb",
+      "scale": 1
+    },
+    {
+      "id": "palm-right-2",
+      "category": "nature",
+      "glb": "assets/overworld/models/palm_right_2/palm_right_2.glb",
+      "scale": 1
+    },
+    {
+      "id": "palm-young",
+      "category": "nature",
+      "glb": "assets/overworld/models/palm_young/palm_young.glb",
+      "scale": 1
+    }
+  ]
+}

@@ -764,6 +764,35 @@ Overworld3DTestScreen::aquariumConstructionVisual() const {
     aqc::AquariumConstructionVisual visual;
     visual.visible = aquarium_construction_.active();
     visual.stocking_active = aquarium_stocking_.active();
+    if (world_decoration_editor_.active()) {
+        visual.visible = true;
+        visual.show_hud = false;
+        visual.stocking_active = false;
+        visual.tile_world_units = scene_.grid.tile_size;
+        visual.placement_offset_world_units = 0.0f;
+        visual.cursor = {world_decoration_editor_.cursorX(), world_decoration_editor_.cursorY()};
+        visual.draft_cells.push_back(visual.cursor);
+        visual.state = aqc::ConstructionState::Browse;
+        visual.draft_valid = world_decoration_editor_.error().empty();
+        visual.navigation_hint = "MOVE CURSOR  A PLACE  E ROTATE  X DELETE";
+        visual.status_hint = world_decoration_editor_.error().empty()
+            ? "N SAVE AND EXIT  ESC CANCEL" : world_decoration_editor_.error();
+        for (int row = 0; row < scene_.grid.height; ++row) {
+            for (int column = 0; column < scene_.grid.width; ++column) {
+                const bool collision = row < static_cast<int>(scene_.terrain.collision.size()) &&
+                    column < static_cast<int>(scene_.terrain.collision[row].size()) &&
+                    scene_.terrain.collision[row][column] != 0;
+                visual.cells.push_back({{column, row},
+                    gameplay::world3d::terrain::heightAtTileCenter(scene_, column, row),
+                    collision || gameplay::world3d::terrain::isActualWaterTile(
+                        scene_, column, row)});
+            }
+        }
+        for (const auto& placement : world_decoration_editor_.placements()) {
+            visual.selected_cells.push_back({placement.cell_x, placement.cell_y});
+        }
+        return visual;
+    }
     if(aquarium_inspection_camera_)
         visual.inspection_hidden_tanks=aquarium_inspection_camera_->hiddenPlacementIds(camera_.pose());
     if(decoration_editor_.active()) {

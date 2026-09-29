@@ -32,6 +32,7 @@
 #include "gameplay/world3d/aquarium/construction/AquariumStockingController.hpp"
 #include "gameplay/world3d/aquarium/construction/AquariumStockingOverlay.hpp"
 #include "gameplay/world3d/aquarium/construction/AquariumConstructionVisual.hpp"
+#include "gameplay/world3d/decorations/WorldDecoration.hpp"
 #include "gameplay/world3d/rendering/BillboardSpriteRenderer.hpp"
 #include "gameplay/world3d/rendering/GlbModelRenderer.hpp"
 #include "gameplay/world3d/rendering/OverworldMapRenderer.hpp"
@@ -82,7 +83,7 @@ public:
 
     bool canNavigate2d() const override { return true; }
     bool acceptsControllerAxisNavigation() const override {
-        return aquarium_construction_.active();
+        return aquarium_construction_.active() || world_decoration_editor_.active();
     }
     bool capturesUnroutedKeyboardFocus() const override { return true; }
     bool handleUnroutedSdlEvent(const SDL_Event& event) override;
@@ -94,6 +95,7 @@ public:
     void onBackPressed() override;
     void onAttendPressed() override;
     void onAquariumConstructionPressed(SDL_JoystickID controller_instance_id = -1) override;
+    void onWorldBuildModePressed() override;
 
     bool consumeReturnToTitleRequested();
     bool consumeOpenAttendRequested();
@@ -109,7 +111,8 @@ private:
     void ensurePlacedModelsLoaded();
     void reloadFollowCameraPresetConfig();
     void captureFreeCameraPose();
-    std::vector<gameplay::world3d::characters::LoadedWorldChunk> buildLoadedWorldChunks();
+    std::vector<gameplay::world3d::characters::LoadedWorldChunk> buildLoadedWorldChunks(
+        bool include_aquarium_rooms = true);
     void rebuildActiveWorldChunks();
     bool activateWorldMap(const gameplay::world3d::characters::LoadedWorldChunk& chunk);
     bool shouldShowDoorLoadingFor(
@@ -118,7 +121,22 @@ private:
     void cancelAquariumDoorLoading();
     std::vector<gameplay::world3d::rendering::bgfx_backend::OverworldBgfxRenderer::StaticMapChunk>
     buildStaticRenderChunks() const;
+    std::string renderChunkCenterId() const;
+    void refreshStaticRenderChunks();
     void reloadWorldTerrainQueries();
+    bool beginWorldBuildMode();
+    bool finishWorldBuildMode();
+    void cancelWorldBuildMode();
+    void loadWorldDecorations();
+    void applyWorldDecorationsToScene();
+    std::vector<gameplay::world3d::ModelPlacementConfig> worldDecorationModels() const;
+    void refreshWorldDecorationRenderModels();
+    bool handleWorldBuildPointer(int logical_x, int logical_y);
+    void applyWorldBuildCamera();
+    void panWorldBuildCamera(int dx, int dy);
+    void rotateWorldBuildCamera(float degrees);
+    void zoomWorldBuildCamera(float steps);
+    std::vector<pr::aquarium::geometry::GridCell> worldDecorationCollisionCells() const;
     void reloadAquariumConfig(bool force);
     void applyAquariumBuildingPresentation(
         const gameplay::world3d::aquarium::AquariumMapConfig* map_config);
@@ -246,6 +264,27 @@ private:
     std::vector<std::unique_ptr<gameplay::world3d::rendering::GlbModelRenderer>> placed_models_;
     bool placed_models_load_attempted_ = false;
     std::unique_ptr<gameplay::world3d::rendering::bgfx_backend::OverworldBgfxRenderer> bgfx_renderer_;
+    gameplay::world3d::decorations::Catalog world_decoration_catalog_;
+    gameplay::world3d::decorations::Document world_decoration_document_;
+    gameplay::world3d::decorations::Editor world_decoration_editor_;
+    std::unique_ptr<gameplay::world3d::decorations::Store> world_decoration_store_;
+    gameplay::world3d::aquarium::decorations::Ui world_decoration_ui_;
+    int world_decoration_category_index_ = 2;
+    int world_decoration_page_ = 0;
+    bool world_decoration_catalog_open_ = false;
+    bool world_decoration_read_only_ = false;
+    std::string world_decoration_error_;
+    std::optional<gameplay::world3d::camera::Gen4FollowCamera> world_build_saved_camera_;
+    float world_build_camera_yaw_deg_ = 0.0f;
+    float world_build_camera_pitch_deg_ = -35.0f;
+    float world_build_camera_distance_ = 320.0f;
+    float world_build_camera_pan_x_ = 0.0f;
+    float world_build_camera_pan_z_ = 0.0f;
+    bool world_build_camera_dragging_ = false;
+    bool world_build_camera_panning_ = false;
+    SDL_Point world_build_camera_pointer_{};
+    float world_build_camera_pan_origin_x_ = 0.0f;
+    float world_build_camera_pan_origin_z_ = 0.0f;
 
     int input_dx_ = 0;
     int input_dy_ = 0;
@@ -272,6 +311,8 @@ private:
     std::unique_ptr<gameplay::world3d::effects::LandingDustSystem> landing_dust_system_;
     std::unique_ptr<gameplay::world3d::effects::ProceduralWaterParticleSystem> water_particle_system_;
     std::future<gameplay::world3d::SceneConfig> scene_preload_{};
+    std::future<std::vector<gameplay::world3d::characters::LoadedWorldChunk>>
+        world_chunks_preload_{};
     bool scene_initialized_ = false;
     std::unique_ptr<gameplay::world3d::npc::NpcActorDriver> npc_actor_driver_;
     std::shared_ptr<gameplay::world3d::npc::AquariumVisitorSession> aquarium_visitors_;
@@ -405,6 +446,7 @@ private:
     std::vector<gameplay::world3d::characters::LoadedWorldChunk> loaded_world_chunks_{};
     std::vector<gameplay::world3d::characters::LoadedWorldChunk> active_world_chunks_{};
     std::string active_world_map_id_{};
+    std::string rendered_chunk_center_id_{};
     gameplay::world3d::doors::DoorSequenceController door_sequence_{};
     gameplay::world3d::doors::DoorTravelConfig door_travel_config_{};
     gameplay::world3d::doors::DoorDestinationTuning active_door_destination_tuning_{};

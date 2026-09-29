@@ -98,6 +98,9 @@ struct AquariumConstructionVisual {
         int depth=0;
     };
     bool visible = false;
+    // World-space editing tools can reuse the grid mesh without inheriting
+    // aquarium-specific tank controls.
+    bool show_hud = true;
     bool stocking_active = false;
     std::string decoration_focus_tank;
     std::vector<std::string> inspection_hidden_tanks;

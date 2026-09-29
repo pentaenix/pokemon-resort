@@ -4,9 +4,11 @@
 #include "gameplay/attend/rendering/AttendPokemonMaterialPolicy.hpp"
 #include "core/input/InputRouter.hpp"
 #include "gameplay/world3d/aquarium/construction/AquariumConstructionCommand.hpp"
+#include "gameplay/world3d/aquarium/construction/AquariumConstructionVisual.hpp"
 #include "gameplay/world3d/camera/Gen4FollowCamera.hpp"
 #include <SDL_image.h>
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
@@ -170,6 +172,27 @@ int main(){try{
         for(std::size_t i=0;i<controls.size();++i)for(std::size_t j=i+1;j<controls.size();++j)
             require(!SDL_HasIntersection(&controls[i].rect,&controls[j].rect),
                 "decoration controls have overlapping hit targets");
+        const auto world=decor::worldBuildHudLayout(1280,800);
+        const std::array<SDL_Rect,9> world_controls{{world.catalog,world.save,world.cancel,
+            world.place,world.rotate,world.erase,world.camera_pan,world.zoom_in,world.zoom_out}};
+        for(std::size_t i=0;i<world_controls.size();++i)for(std::size_t j=i+1;j<world_controls.size();++j)
+            require(!SDL_HasIntersection(&world_controls[i],&world_controls[j]),
+                "world build knobs and buttons have overlapping hit targets");
+        const auto aquarium=construction::aquariumConstructionHudLayout(
+            1280,800,construction::ConstructionState::ResizeRoom);
+        require(world.camera_pan.x==aquarium.room_camera_pan.x&&
+            world.camera_pan.y==aquarium.room_camera_pan.y&&
+            world.zoom_out.y==aquarium.room_zoom_out.y&&world.zoom_in.y==aquarium.room_zoom_in.y,
+            "world build camera controls drifted from aquarium positioning");
+        decor::Ui world_ui;
+        const auto& world_pixels=world_ui.rasterizeWorldBuildHint(root.string(),1280,800,{});
+        const auto catalog_center=((world.catalog.y+world.catalog.h/2)*1280+
+            world.catalog.x+world.catalog.w/2)*4;
+        require(world_pixels.rgba[catalog_center+3]>0,
+            "world build HUD lost its clickable catalog button");
+        SDL_Surface* world_surface=SDL_CreateRGBSurfaceWithFormatFrom(
+            const_cast<std::uint8_t*>(world_pixels.rgba.data()),1280,800,32,1280*4,SDL_PIXELFORMAT_RGBA32);
+        IMG_SavePNG(world_surface,"/tmp/world-build-ui.png");SDL_FreeSurface(world_surface);
         int plant_pixels=0;
         for(int py=660;py<740;++py)for(int px=72;px<190;++px){
             const auto p=(py*1280+px)*4;

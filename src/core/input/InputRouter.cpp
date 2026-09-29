@@ -48,6 +48,10 @@ bool InputRouter::handleEvent(
             if (input) input->onAquariumConstructionPressed();
             return true;
         }
+        if (matchesBinding(key, config.world_build_mode_keys)) {
+            if (input) input->onWorldBuildModePressed();
+            return true;
+        }
         if (matchesBinding(key, config.forward_keys)) {
             if (input && input->acceptsAdvanceInput()) {
                 if (input->captureAdvanceForLongPress()) {

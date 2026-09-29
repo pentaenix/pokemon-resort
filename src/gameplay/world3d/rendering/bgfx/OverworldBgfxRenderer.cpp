@@ -44,6 +44,7 @@
 #include <string_view>
 #include <unordered_map>
 #include <unordered_set>
+#include <unordered_set>
 
 namespace pr::gameplay::world3d::rendering::bgfx_backend {
 
@@ -294,7 +295,9 @@ public:
     void shutdown();
     bool valid() const { return initialized_ && backend_.valid(); }
     std::string lastError() const { return last_error_; }
-    void setStaticMapChunks(std::vector<OverworldBgfxRenderer::StaticMapChunk> chunks);
+    bool setStaticMapChunks(std::vector<OverworldBgfxRenderer::StaticMapChunk> chunks);
+    bool setWorldDecorationModels(std::vector<ModelPlacementConfig> placements);
+    void setActiveStaticMapChunks(const std::vector<std::string>& active_ids);
     void setAquariumPokemonActors(std::vector<aquarium::AquariumPokemonActor> actors);
     void setAquariumTankLights(
         std::vector<aquarium::AquariumTankRuntime> tanks,
@@ -513,10 +516,12 @@ private:
     };
 
     struct StaticChunkGpuResource {
+        std::string id;
         SceneConfig scene;
         float origin_x = 0.0f;
         float origin_y = 0.0f;
         float origin_z = 0.0f;
+        bool active = true;
         MeshGpuResource terrain_flat_top_mesh;
         MeshGpuResource terrain_slope_top_mesh;
         MeshGpuResource terrain_wall_mesh;
@@ -613,6 +618,9 @@ private:
     MeshGpuResource terrain_wall_mesh_;
     MeshGpuResource tile_layer_mesh_;
     std::vector<ModelGpuResource> models_;
+    std::vector<ModelPlacementConfig> pending_world_decoration_placements_;
+    std::vector<ModelGpuResource> world_decoration_models_;
+    bool building_world_decoration_models_ = false;
     std::optional<data::RtpksTilePackage> tile_package_;
     std::vector<OverworldBgfxRenderer::StaticMapChunk> pending_static_chunks_;
     std::vector<StaticChunkGpuResource> static_chunks_;
@@ -640,6 +648,7 @@ private:
     void discardStagedPlayerAquariumFloorCutouts();
     bool buildTileLayers();
     bool buildModels();
+    bool buildWorldDecorationModels();
     void updateModelAnimation(ModelGpuResource& model) const;
     void updateDoorTileAnimations(MeshGpuResource& mesh) const;
     bool buildStaticMapChunks();
@@ -827,10 +836,18 @@ bool OverworldBgfxRenderer::valid() const {
     return impl_ && impl_->valid();
 }
 
-void OverworldBgfxRenderer::setStaticMapChunks(std::vector<StaticMapChunk> chunks) {
-    if (impl_) {
-        impl_->setStaticMapChunks(std::move(chunks));
-    }
+bool OverworldBgfxRenderer::setStaticMapChunks(std::vector<StaticMapChunk> chunks) {
+    return impl_ && impl_->setStaticMapChunks(std::move(chunks));
+}
+
+bool OverworldBgfxRenderer::setWorldDecorationModels(
+    std::vector<ModelPlacementConfig> placements) {
+    return impl_ && impl_->setWorldDecorationModels(std::move(placements));
+}
+
+void OverworldBgfxRenderer::setActiveStaticMapChunks(
+    const std::vector<std::string>& active_ids) {
+    if (impl_) impl_->setActiveStaticMapChunks(active_ids);
 }
 
 void OverworldBgfxRenderer::setAquariumPokemonActors(
@@ -1011,8 +1028,34 @@ void OverworldBgfxRenderer::Impl::queueScreenshot(const std::string& output_path
     backend_.queueScreenshot(output_path);
 }
 
-void OverworldBgfxRenderer::Impl::setStaticMapChunks(std::vector<OverworldBgfxRenderer::StaticMapChunk> chunks) {
+bool OverworldBgfxRenderer::Impl::setStaticMapChunks(std::vector<OverworldBgfxRenderer::StaticMapChunk> chunks) {
     pending_static_chunks_ = std::move(chunks);
+    if (initialized_ && !buildStaticMapChunks()) {
+        std::cerr << "[Overworld3D] Could not rebuild streamed map chunks: "
+                  << last_error_ << '\n';
+        return false;
+    }
+    return true;
+}
+
+bool OverworldBgfxRenderer::Impl::setWorldDecorationModels(
+    std::vector<ModelPlacementConfig> placements) {
+    pending_world_decoration_placements_ = std::move(placements);
+    if (!initialized_) return true;
+    if (!buildWorldDecorationModels()) {
+        std::cerr << "[Overworld3D] Could not rebuild player world decorations: "
+                  << last_error_ << '\n';
+        return false;
+    }
+    return true;
+}
+
+void OverworldBgfxRenderer::Impl::setActiveStaticMapChunks(
+    const std::vector<std::string>& active_ids) {
+    const std::unordered_set<std::string> active(active_ids.begin(), active_ids.end());
+    for (StaticChunkGpuResource& chunk : static_chunks_) {
+        chunk.active = active.find(chunk.id) != active.end();
+    }
 }
 
 void OverworldBgfxRenderer::Impl::setAquariumPokemonActors(
@@ -1316,7 +1359,8 @@ bool OverworldBgfxRenderer::Impl::initialize(
     }
 
     if (!createPrograms() || !loadTilePackage() || !buildTerrain() || !buildTileLayers() ||
-        !buildModels() || !buildStaticMapChunks() || !buildPlayerTexture() || !buildShadowTexture()) {
+        !buildModels() || !buildStaticMapChunks() || !buildWorldDecorationModels() ||
+        !buildPlayerTexture() || !buildShadowTexture()) {
         shutdown();
         return false;
     }
@@ -1389,6 +1433,10 @@ void OverworldBgfxRenderer::Impl::shutdown() {
         model.mesh.destroy();
     }
     models_.clear();
+    for (ModelGpuResource& model : world_decoration_models_) {
+        model.mesh.destroy();
+    }
+    world_decoration_models_.clear();
     for (StaticChunkGpuResource& chunk : static_chunks_) {
         chunk.destroy();
     }
@@ -3043,6 +3091,8 @@ bool OverworldBgfxRenderer::Impl::buildModels() {
     models_.clear();
 
     for (const ModelPlacementConfig& placement : scene_.models) {
+        if (!building_world_decoration_models_ &&
+            placement.id.rfind("player-decoration:", 0) == 0) continue;
         if (placement.glb_path.empty()) continue;
         std::string error;
         data::GlbMesh glb = data::loadGlbModel(placement.glb_path, &error);
@@ -3148,6 +3198,26 @@ bool OverworldBgfxRenderer::Impl::buildModels() {
     return true;
 }
 
+bool OverworldBgfxRenderer::Impl::buildWorldDecorationModels() {
+    for (ModelGpuResource& model : world_decoration_models_) model.mesh.destroy();
+    world_decoration_models_.clear();
+
+    std::vector<ModelGpuResource> primary_models = std::move(models_);
+    std::vector<ModelPlacementConfig> primary_placements = std::move(scene_.models);
+    scene_.models = pending_world_decoration_placements_;
+    building_world_decoration_models_ = true;
+    const bool built = buildModels();
+    building_world_decoration_models_ = false;
+    if (built) {
+        world_decoration_models_ = std::move(models_);
+    } else {
+        for (ModelGpuResource& model : models_) model.mesh.destroy();
+    }
+    models_ = std::move(primary_models);
+    scene_.models = std::move(primary_placements);
+    return built;
+}
+
 void OverworldBgfxRenderer::Impl::updateModelAnimation(ModelGpuResource& model) const {
     if (!bgfx::isValid(model.mesh.dynamic_vbh) || model.source_vertices.empty()) return;
     const double time_seconds = override_animation_clock_
@@ -3174,11 +3244,40 @@ void OverworldBgfxRenderer::Impl::updateModelAnimation(ModelGpuResource& model) 
 }
 
 bool OverworldBgfxRenderer::Impl::buildStaticMapChunks() {
-    for (StaticChunkGpuResource& chunk : static_chunks_) {
-        chunk.destroy();
-    }
-    static_chunks_.clear();
     if (pending_static_chunks_.empty()) {
+        for (StaticChunkGpuResource& chunk : static_chunks_) chunk.destroy();
+        static_chunks_.clear();
+        return true;
+    }
+
+    std::unordered_set<std::string> requested_ids;
+    requested_ids.reserve(pending_static_chunks_.size());
+    for (const OverworldBgfxRenderer::StaticMapChunk& request : pending_static_chunks_) {
+        requested_ids.insert(request.id.empty() ? request.scene.id : request.id);
+    }
+
+    bool needs_build = false;
+    for (const OverworldBgfxRenderer::StaticMapChunk& request : pending_static_chunks_) {
+        const std::string request_id = request.id.empty() ? request.scene.id : request.id;
+        const auto existing = std::find_if(
+            static_chunks_.begin(),
+            static_chunks_.end(),
+            [&](const StaticChunkGpuResource& chunk) { return chunk.id == request_id; });
+        if (existing == static_chunks_.end()) {
+            needs_build = true;
+        } else {
+            existing->active = request.active;
+        }
+    }
+    if (!needs_build) {
+        for (auto it = static_chunks_.begin(); it != static_chunks_.end();) {
+            if (requested_ids.find(it->id) != requested_ids.end()) {
+                ++it;
+                continue;
+            }
+            it->destroy();
+            it = static_chunks_.erase(it);
+        }
         return true;
     }
 
@@ -3207,6 +3306,16 @@ bool OverworldBgfxRenderer::Impl::buildStaticMapChunks() {
     };
 
     for (const OverworldBgfxRenderer::StaticMapChunk& request : pending_static_chunks_) {
+        const std::string request_id = request.id.empty() ? request.scene.id : request.id;
+        const auto existing = std::find_if(
+            static_chunks_.begin(),
+            static_chunks_.end(),
+            [&](const StaticChunkGpuResource& chunk) { return chunk.id == request_id; });
+        if (existing != static_chunks_.end()) {
+            existing->active = request.active;
+            continue;
+        }
+
         scene_ = request.scene;
         tile_package_.reset();
         terrain_flat_top_mesh_ = MeshGpuResource{};
@@ -3221,10 +3330,12 @@ bool OverworldBgfxRenderer::Impl::buildStaticMapChunks() {
         }
 
         StaticChunkGpuResource chunk;
+        chunk.id = request_id;
         chunk.scene = request.scene;
         chunk.origin_x = request.origin_x;
         chunk.origin_y = request.origin_y;
         chunk.origin_z = request.origin_z;
+        chunk.active = request.active;
         placementMatrix(
             request.origin_x,
             request.origin_y,
@@ -3252,6 +3363,14 @@ bool OverworldBgfxRenderer::Impl::buildStaticMapChunks() {
     }
 
     restore_primary();
+    for (auto it = static_chunks_.begin(); it != static_chunks_.end();) {
+        if (requested_ids.find(it->id) != requested_ids.end()) {
+            ++it;
+            continue;
+        }
+        it->destroy();
+        it = static_chunks_.erase(it);
+    }
     return true;
 }
 
@@ -4342,6 +4461,7 @@ void OverworldBgfxRenderer::Impl::submitProjectedCharacterShadows(
             vertices,
             indices);
         for (const StaticChunkGpuResource& chunk : static_chunks_) {
+            if (!chunk.active) continue;
             appendProjectedShadowForScene(
                 chunk.scene,
                 chunk.origin_x,
@@ -4648,8 +4768,10 @@ OverworldBgfxRenderer::EmbeddedViewportTexture OverworldBgfxRenderer::Impl::rend
     float ident[16];
     identity(ident);
     for (ModelGpuResource& model : models_) updateModelAnimation(model);
+    for (ModelGpuResource& model : world_decoration_models_) updateModelAnimation(model);
     updateDoorTileAnimations(tile_layer_mesh_);
     for (StaticChunkGpuResource& chunk : static_chunks_) {
+        if (!chunk.active) continue;
         for (ModelGpuResource& model : chunk.models) updateModelAnimation(model);
         updateDoorTileAnimations(chunk.tile_layer_mesh);
     }
@@ -4667,7 +4789,12 @@ OverworldBgfxRenderer::EmbeddedViewportTexture OverworldBgfxRenderer::Impl::rend
         submitMesh(model.mesh, model.model_matrix, world_program_, MaterialClass::Opaque, 0.0f,
             stateFor(MaterialClass::Opaque), 0, false, nullptr, model.aquarium_tank_lit);
     }
+    for (const ModelGpuResource& model : world_decoration_models_) {
+        submitMesh(model.mesh, model.model_matrix, world_program_, MaterialClass::Opaque, 0.0f,
+            stateFor(MaterialClass::Opaque));
+    }
     for (const StaticChunkGpuResource& chunk : static_chunks_) {
+        if (!chunk.active) continue;
         submitMesh(chunk.terrain_flat_top_mesh, chunk.world_matrix, world_program_, MaterialClass::Opaque, 0.0f, stateFor(MaterialClass::Opaque));
         submitMesh(chunk.terrain_slope_top_mesh, chunk.world_matrix, world_program_, MaterialClass::Opaque, 0.0f, stateFor(MaterialClass::Opaque));
         submitMesh(chunk.terrain_wall_mesh, chunk.world_matrix, world_program_, MaterialClass::Opaque, 0.0f, stateFor(MaterialClass::Opaque));
@@ -4685,7 +4812,12 @@ OverworldBgfxRenderer::EmbeddedViewportTexture OverworldBgfxRenderer::Impl::rend
         submitMesh(model.mesh, model.model_matrix, world_program_, MaterialClass::MaskCutout, 0.5f,
             stateFor(MaterialClass::MaskCutout), 0, false, nullptr, model.aquarium_tank_lit);
     }
+    for (const ModelGpuResource& model : world_decoration_models_) {
+        submitMesh(model.mesh, model.model_matrix, world_program_, MaterialClass::MaskCutout, 0.5f,
+            stateFor(MaterialClass::MaskCutout));
+    }
     for (const StaticChunkGpuResource& chunk : static_chunks_) {
+        if (!chunk.active) continue;
         submitMesh(chunk.tile_layer_mesh, chunk.world_matrix, world_program_, MaterialClass::MaskCutout, 0.5f, stateFor(MaterialClass::MaskCutout));
         for (const ModelGpuResource& model : chunk.models) {
             submitMesh(model.mesh, model.model_matrix, world_program_, MaterialClass::MaskCutout, 0.5f, stateFor(MaterialClass::MaskCutout));
@@ -4707,6 +4839,7 @@ OverworldBgfxRenderer::EmbeddedViewportTexture OverworldBgfxRenderer::Impl::rend
         tile_layer_mesh_, ident, world_program_, MaterialClass::Opaque, 0.0f,
         stateFor(MaterialClass::Opaque), 1, true);
     for (const StaticChunkGpuResource& chunk : static_chunks_) {
+        if (!chunk.active) continue;
         submitMesh(
             chunk.tile_layer_mesh, chunk.world_matrix, world_program_, MaterialClass::Opaque, 0.0f,
             stateFor(MaterialClass::Opaque), 1, true);
@@ -4717,6 +4850,7 @@ OverworldBgfxRenderer::EmbeddedViewportTexture OverworldBgfxRenderer::Impl::rend
     // and make it look clipped even when the shadow position/depth is correct.
     submitMesh(tile_layer_mesh_, ident, world_program_, MaterialClass::TrueBlend, 0.0f, stateFor(MaterialClass::TrueBlend), 1);
     for (const StaticChunkGpuResource& chunk : static_chunks_) {
+        if (!chunk.active) continue;
         submitMesh(chunk.tile_layer_mesh, chunk.world_matrix, world_program_, MaterialClass::TrueBlend, 0.0f, stateFor(MaterialClass::TrueBlend), 1);
     }
     }
@@ -4780,7 +4914,12 @@ OverworldBgfxRenderer::EmbeddedViewportTexture OverworldBgfxRenderer::Impl::rend
             submitMesh(model.mesh, model.model_matrix, world_program_, MaterialClass::TrueBlend, 0.0f,
                 stateFor(MaterialClass::TrueBlend), 1, false, nullptr, model.aquarium_tank_lit);
         }
+        for (const ModelGpuResource& model : world_decoration_models_) {
+            submitMesh(model.mesh, model.model_matrix, world_program_, MaterialClass::TrueBlend, 0.0f,
+                stateFor(MaterialClass::TrueBlend), 1);
+        }
         for (const StaticChunkGpuResource& chunk : static_chunks_) {
+            if (!chunk.active) continue;
             for (const ModelGpuResource& model : chunk.models) {
                 submitMesh(model.mesh, model.model_matrix, world_program_, MaterialClass::TrueBlend, 0.0f, stateFor(MaterialClass::TrueBlend), 1);
             }

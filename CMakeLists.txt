@@ -186,9 +186,11 @@ add_executable(title_screen_demo
     src/gameplay/world3d/characters/SpriteSheetAnimator.cpp
     src/gameplay/world3d/characters/CharacterController.cpp
     src/gameplay/world3d/characters/CharacterTerrainQuery.cpp
+    src/gameplay/world3d/streaming/WorldChunkWindow.cpp
     src/gameplay/world3d/characters/GridActorMotor.cpp
     src/gameplay/world3d/terrain/ActorTerrainBinding.cpp
     src/gameplay/world3d/terrain/GridStepMotor.cpp
+    src/gameplay/world3d/decorations/WorldDecoration.cpp
     src/gameplay/world3d/data/SceneMetadataParser.cpp
     src/gameplay/world3d/data/JsonOverworldLoader.cpp
     src/gameplay/world3d/data/OwmapOverworldLoader.cpp
@@ -287,9 +289,11 @@ add_executable(title_screen_demo
     src/gameplay/world3d/aquarium/decorations/AquariumDecorationCatalog.cpp
     src/gameplay/world3d/aquarium/decorations/AquariumDecorationEditor.cpp
     src/gameplay/world3d/aquarium/decorations/AquariumDecorationUi.cpp
+    src/gameplay/world3d/aquarium/decorations/AquariumDecorationWorldBuildUi.cpp
     src/ui/Overworld3DTestScreenAquariumRooms.cpp
     src/ui/Overworld3DTestScreenAquariumRoomHandles.cpp
     src/ui/Overworld3DTestScreenCamera.cpp
+    src/ui/Overworld3DTestScreenWorldDecorations.cpp
     src/ui/TransferFlowCoordinator.cpp
     src/ui/title_screen/MainMenuController.cpp
     src/ui/title_screen/OptionsMenuController.cpp
@@ -768,6 +772,16 @@ add_executable(config_loader_tests
 target_include_directories(config_loader_tests PRIVATE include)
 add_test(NAME config_loader_tests COMMAND config_loader_tests)
 
+add_executable(world_decoration_tests
+    tests/native/world3d/world_decoration_tests.cpp
+    src/core/config/Json.cpp
+    src/gameplay/world3d/decorations/WorldDecoration.cpp
+    src/gameplay/world3d/terrain/TerrainSurface.cpp
+)
+target_include_directories(world_decoration_tests PRIVATE include)
+target_compile_definitions(world_decoration_tests PRIVATE PR_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+add_test(NAME world_decoration_tests COMMAND world_decoration_tests)
+
 add_executable(owmap_overworld_loader_tests
     tests/native/world3d/owmap_overworld_loader_tests.cpp
     src/core/config/Json.cpp
@@ -793,6 +807,7 @@ add_executable(owmap_overworld_loader_tests
 add_library(aquarium_room_layout STATIC
     src/gameplay/world3d/aquarium/rooms/AquariumBuildingLayout.cpp
     src/gameplay/world3d/aquarium/rooms/AquariumBuildingLayoutJson.cpp
+    src/gameplay/world3d/aquarium/rooms/AquariumRoomSurfacePalette.cpp
     src/gameplay/world3d/aquarium/rooms/AquariumRoomRuntime.cpp
     src/gameplay/world3d/aquarium/rooms/AquariumBuildingScene.cpp
     src/gameplay/world3d/aquarium/rooms/AquariumRoomStore.cpp
@@ -881,6 +896,7 @@ add_executable(aquarium_decoration_tests
     src/gameplay/world3d/aquarium/decorations/AquariumDecorationCatalog.cpp
     src/gameplay/world3d/aquarium/decorations/AquariumDecorationEditor.cpp
     src/gameplay/world3d/aquarium/decorations/AquariumDecorationUi.cpp
+    src/gameplay/world3d/aquarium/decorations/AquariumDecorationWorldBuildUi.cpp
     src/gameplay/world3d/aquarium/rooms/AquariumRoomDecorationCatalog.cpp
 )
 add_executable(aquarium_inspection_tests
@@ -910,6 +926,13 @@ target_include_directories(owmap_overworld_loader_tests PRIVATE
     ${bgfx_cmake_SOURCE_DIR}/bimg/3rdparty/tinyexr/deps/miniz)
 target_link_libraries(owmap_overworld_loader_tests PRIVATE SDL2::SDL2 bimg)
 add_test(NAME owmap_overworld_loader_tests COMMAND owmap_overworld_loader_tests)
+
+add_executable(world_chunk_window_tests
+    tests/native/world3d/world_chunk_window_tests.cpp
+    src/gameplay/world3d/streaming/WorldChunkWindow.cpp
+)
+target_include_directories(world_chunk_window_tests PRIVATE include)
+add_test(NAME world_chunk_window_tests COMMAND world_chunk_window_tests)
 
 add_executable(glb_model_animation_tests
     tests/native/world3d/glb_model_animation_tests.cpp

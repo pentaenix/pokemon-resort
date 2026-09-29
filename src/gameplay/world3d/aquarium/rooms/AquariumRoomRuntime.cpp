@@ -1,19 +1,10 @@
 #include "gameplay/world3d/aquarium/rooms/AquariumRoomRuntime.hpp"
 #include "gameplay/world3d/interiors/DefaultRoom.hpp"
 #include <algorithm>
-#include <array>
 #include <stdexcept>
 
 namespace pr::gameplay::world3d::aquarium::rooms {
 namespace {
-const std::array<RoomSurfacePalette,kRoomSurfacePaletteCount> palettes{{
-    RoomSurfacePalette{{42,48,58,255},{48,56,68,255},{28,38,52,255},{33,44,60,255},{58,76,98,255},{18,24,34,255}},
-    RoomSurfacePalette{{38,56,72,255},{44,65,82,255},{32,67,87,255},{27,58,78,255},{105,202,218,255},{19,35,48,255}},
-    RoomSurfacePalette{{170,174,166,255},{188,191,180,255},{104,116,116,255},{92,105,108,255},{224,230,211,255},{66,75,78,255}},
-    RoomSurfacePalette{{52,74,69,255},{60,86,78,255},{46,78,68,255},{39,68,61,255},{174,202,149,255},{27,46,42,255}},
-    RoomSurfacePalette{{172,145,103,255},{190,163,119,255},{109,82,66,255},{96,72,61,255},{239,211,151,255},{69,51,45,255}},
-    RoomSurfacePalette{{26,28,38,255},{34,37,49,255},{23,27,42,255},{19,23,37,255},{112,124,163,255},{11,14,24,255}},
-}};
 Wall wallFor(const std::string& edge) {
     if (edge=="north") return Wall::North;
     if (edge=="east") return Wall::East;
@@ -21,9 +12,6 @@ Wall wallFor(const std::string& edge) {
     return Wall::South;
 }
 
-const RoomSurfacePalette& paletteFor(int index) {
-    return palettes[static_cast<std::size_t>(std::clamp(index,0,kRoomSurfacePaletteCount-1))];
-}
 template<class T> void resizePlane(std::vector<std::vector<T>>& plane,int w,int h,T empty={}) {
     plane.resize(h);
     for (auto& row:plane) row.resize(w,empty);
@@ -37,24 +25,22 @@ std::uint8_t rampSpecial(Cell lower,Cell upper) {
 }
 }
 
-const RoomSurfacePalette& roomSurfacePalette(int index) { return paletteFor(index); }
-
 void applyRoomSurfaceStyle(SceneConfig& scene,const RoomSurfaceStyle& style) {
-    const auto& floor=paletteFor(style.floor_palette);
-    const auto& wall=paletteFor(style.wall_palette);
+    const auto& floor=roomSurfacePalette(style.floor_palette);
+    const auto& wall=roomSurfacePalette(style.wall_palette);
     auto& room=scene.interior.default_room;
     room.floor_color_a=floor.floor_a; room.floor_color_b=floor.floor_b;
     room.wall_color_ns=wall.wall_ns; room.wall_color_ew=wall.wall_ew;
     room.trim_color=wall.trim; room.baseboard_color=wall.baseboard;
     room.floor_color_overrides.clear();
     for(const auto& override:style.floor_overrides) {
-        const auto& palette=paletteFor(override.palette);
+        const auto& palette=roomSurfacePalette(override.palette);
         room.floor_color_overrides.push_back({override.cell.column,override.cell.row,
             palette.floor_a,palette.floor_b});
     }
     room.wall_color_overrides.clear();
     for(const auto& override:style.wall_overrides) {
-        const auto& palette=paletteFor(override.palette);
+        const auto& palette=roomSurfacePalette(override.palette);
         room.wall_color_overrides.push_back({wallName(override.wall),override.segment,
             override.wall==Wall::North||override.wall==Wall::South?palette.wall_ns:palette.wall_ew,
             palette.trim,palette.baseboard});
